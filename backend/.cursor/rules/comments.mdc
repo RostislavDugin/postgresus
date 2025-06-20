@@ -3,5 +3,5 @@ description:
 globs: 
 alwaysApply: true
 ---
-Do not write obsious comments.
+Do not write obvious comments.
 Write meaningful code, give meaningful names
