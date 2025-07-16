@@ -251,7 +251,7 @@ services:
     ports:
       - "4005:4005"
     volumes:
-      - ./postgresus-data:/app/postgresus-data
+      - ./postgresus-data:/postgresus-data
     depends_on:
       postgresus-db:
         condition: service_healthy
@@ -839,7 +839,7 @@ services:
                   &nbsp;&nbsp;&nbsp;&nbsp;ports:<br />
                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- "4005:4005"<br />
                   &nbsp;&nbsp;&nbsp;&nbsp;volumes:<br />
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ./postgresus-data:/app/postgresus-data<br />
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- ./postgresus-data:/postgresus-data<br />
                   &nbsp;&nbsp;&nbsp;&nbsp;depends_on:<br />
                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;postgresus-db:<br />
                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;condition: service_healthy<br />
