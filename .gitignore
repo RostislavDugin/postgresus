@@ -1,0 +1,7 @@
+backend/
+frontend/
+.env
+pgdata/
+docker-compose.yml
+postgresus-data/
+node_modules/

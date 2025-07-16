@@ -1,0 +1,16 @@
+{
+  "name": "postgresus-website",
+  "version": "1.0.0",
+  "description": "PostgreSQL backup and monitoring tool",
+  "main": "index.js",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "author": "Postgresus",
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "prettier-plugin-tailwindcss": "^0.5.11"
+  }
+} 
