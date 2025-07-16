@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Primary Meta Tags -->
+    <title>How to use Postgresus with Cloudflare R2 | Postgresus</title>
+    <meta name="title" content="How to use Postgresus with Cloudflare R2 | Postgresus" />
+    <meta
+      name="description"
+      content="Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Postgresus. Learn how to set up S3-compatible storage with R2."
+    />
+    <meta
+      name="keywords"
+      content="Postgresus, Cloudflare R2, PostgreSQL backup, S3 storage, cloud storage, database backup"
+    />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+    <link rel="shortcut icon" href="favicon.ico" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Jost:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="index.css" />
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GE01THYR9X"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-GE01THYR9X');
+    </script>
+  </head>
+
+  <body>
+    <!------------------ NAVBAR ------------------------->
+    <nav
+      class="fixed left-0 right-0 top-0 z-50 flex h-[60px] justify-center bg-white px-4 sm:h-[70px] md:h-[80px]"
+    >
+      <div
+        class="flex w-[320px] min-w-0 max-w-[320px] grow items-center border-b sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <a href="/" class="flex items-center">
+          <img
+            src="logo.svg"
+            loading="eager"
+            alt="Postgresus logo"
+            width="35"
+            height="35"
+            class="flex-shrink-0 sm:h-[40px] sm:w-[40px] md:h-[50px] md:w-[50px]"
+          />
+
+          <div class="ml-2 text-lg font-bold sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
+            Postgresus
+          </div>
+        </a>
+      </div>
+    </nav>
+    <!------------------ END OF NAVBAR ------------------>
+
+    <!------------------ MAIN CONTENT ------------------------->
+    <div class="flex justify-center py-[50px] pt-[110px] md:py-[100px] md:pt-[180px]">
+      <main
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="max-w-[800px]">
+          <h1 class="mb-6 text-2xl font-bold sm:text-4xl">
+            How to use Postgresus with Cloudflare R2?
+          </h1>
+
+          <p class="mb-8 max-w-[500px] text-lg text-gray-700">
+            To obtain the credentials and endpoint for using your R2 bucket as an S3-compatible
+            source, you'll need to:
+          </p>
+
+          <div class="space-y-8">
+            <!-- Step 1 -->
+            <div class="border-l-4 border-blue-500 pl-6">
+              <h2 class="mb-3 flex items-center text-xl font-semibold">
+                <span
+                  class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm text-white"
+                  >1</span
+                >
+                Fill your bucket name
+              </h2>
+
+              <p class="mb-2 text-gray-700">
+                Enter your R2 bucket name in the storage configuration.
+              </p>
+            </div>
+
+            <img
+              src="images/cloudflare-r2-storage/image-1.webp"
+              alt="Step 1"
+              class="mb-8 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+              loading="lazy"
+            />
+
+            <!-- Step 2 -->
+            <div class="border-l-4 border-blue-500 pl-6">
+              <h2 class="mb-3 flex items-center text-xl font-semibold">
+                <span
+                  class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm text-white"
+                  >2</span
+                >
+                Set the region
+              </h2>
+
+              <p class="mb-2 text-gray-700">
+                In region field, fill
+                <code class="rounded bg-gray-100 px-2 py-1 text-sm">"auto"</code>
+              </p>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="border-l-4 border-blue-500 pl-6">
+              <h2 class="mb-3 flex items-center text-xl font-semibold">
+                <span
+                  class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm text-white"
+                  >3</span
+                >
+                Generate an Access Key ID & Secret Access Key
+              </h2>
+
+              <div class="space-y-4">
+                <p class="text-gray-700">
+                  In the Cloudflare dashboard, go to <strong>R2 → API → Manage API Tokens</strong>.
+                  Create the token.
+                </p>
+                <p class="text-gray-700">
+                  Grant it the permissions you need (e.g. <strong>"Object Read & Write"</strong>).
+                </p>
+
+                <div class="rounded-lg bg-blue-50 p-4">
+                  <p class="mb-2 text-gray-700">When the token is created you'll see:</p>
+                  <ul class="list-inside list-disc space-y-1 text-gray-700">
+                    <li><strong>Access Key ID</strong> (the token's ID)</li>
+                    <li>
+                      <strong>Secret Access Key</strong> (the SHA-256 hash of the token value)
+                    </li>
+                  </ul>
+                  <p class="mt-2 font-semibold text-blue-600">Copy both now to Postgresus.</p>
+                </div>
+              </div>
+            </div>
+
+            <img
+              src="images/cloudflare-r2-storage/image-2.gif"
+              alt="Step 2"
+              class="mb-8 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+              loading="lazy"
+            />
+
+            <!-- Step 4 -->
+            <div class="border-l-4 border-blue-500 pl-6">
+              <h2 class="mb-3 flex items-center text-xl font-semibold">
+                <span
+                  class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm text-white"
+                  >4</span
+                >
+                Find your Account ID
+              </h2>
+              <p class="text-gray-700">
+                On any R2 page in the dashboard, you'll see your Account ID near the top (or in your
+                account settings).
+              </p>
+            </div>
+
+            <img
+              src="images/cloudflare-r2-storage/image-3.webp"
+              alt="Step 3"
+              class="mb-8 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+              loading="lazy"
+            />
+
+            <!-- Step 5 -->
+            <div class="border-l-4 border-blue-500 pl-6">
+              <h2 class="mb-3 flex items-center text-xl font-semibold">
+                <span
+                  class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm text-white"
+                  >5</span
+                >
+                Construct the S3 endpoint
+              </h2>
+              <div class="space-y-4">
+                <div class="rounded-lg bg-gray-100 p-4">
+                  <code class="text-sm">https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com</code>
+                </div>
+                <p class="text-gray-700">
+                  Replace
+                  <code class="rounded bg-gray-100 px-2 py-1 text-sm">&lt;ACCOUNT_ID&gt;</code> with
+                  the value from your dashboard.
+                </p>
+                <p class="text-gray-700">Fill it to Postgresus as well.</p>
+              </div>
+            </div>
+
+            <!-- Final Step -->
+            <div class="max-w-[500px] rounded-lg border border-green-200 bg-green-50 p-6">
+              <h2 class="mb-3 text-xl font-semibold text-green-800">🎉 Configuration Complete!</h2>
+              <p class="text-green-700">
+                Now you have all fields filled and your Postgresus is ready to use Cloudflare R2 as
+                storage for your PostgreSQL backups.
+              </p>
+            </div>
+
+            <img
+              src="images/cloudflare-r2-storage/image-4.png"
+              alt="Step 4"
+              class="mb-8 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+              loading="lazy"
+            />
+          </div>
+
+          <!-- Navigation -->
+          <div class="mt-12 border-t border-gray-200 pt-8">
+            <a
+              href="/"
+              class="inline-flex items-center font-semibold text-blue-600 hover:text-blue-800"
+            >
+              ← Back to main page
+            </a>
+          </div>
+        </div>
+      </main>
+    </div>
+    <!------------------ END OF MAIN CONTENT ------------------>
+
+    <!------------------ FOOTER SECTION -------------------------------->
+    <div id="footer" class="flex justify-center bg-blue-600 py-[50px] md:py-[50px]">
+      <div
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="flex flex-col items-center space-y-4">
+          <div class="flex flex-wrap justify-center gap-6 text-white">
+            <a
+              href="https://github.com/postgresus"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              GitHub
+            </a>
+
+            <a
+              href="https://t.me/postgresus_community"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Community
+            </a>
+
+            <a
+              href="https://t.me/rostislav_dugin"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Contract Developer
+            </a>
+          </div>
+          <p class="text-center text-sm text-white">&copy; 2025 Postgresus. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+    <!------------------ END OF FOOTER SECTION ------------------------->
+  </body>
+</html>

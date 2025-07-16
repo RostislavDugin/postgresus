@@ -23,6 +23,17 @@
     <meta name="revisit-after" content="7 days" />
     <link rel="canonical" href="https://postgresus.com" />
 
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GE01THYR9X"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-GE01THYR9X');
+    </script>
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://postgresus.com" />
@@ -425,6 +436,7 @@ services:
             alt="Postgresus dashboard interface"
             width="100%"
             loading="eager"
+            fetchpriority="high"
           />
         </div>
       </main>
