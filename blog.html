@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Minified TailwindCSS -->
+    <link rel="stylesheet" href="styles.min.css" />
+
+    <!-- Primary Meta Tags -->
+    <title>Blog | Postgresus</title>
+    <meta name="title" content="Blog | Postgresus" />
+    <meta
+      name="description"
+      content="Learn how to configure Postgresus with different storage providers and notification systems. Step-by-step guides for PostgreSQL backup management."
+    />
+    <meta
+      name="keywords"
+      content="Postgresus blog, PostgreSQL backup guides, cloud storage setup, Slack notifications, Google Drive, Cloudflare R2"
+    />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+    <link rel="shortcut icon" href="favicon.ico" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Jost:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GE01THYR9X"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-GE01THYR9X');
+    </script>
+  </head>
+
+  <body>
+    <!------------------ NAVBAR ------------------------->
+    <nav
+      class="fixed left-0 right-0 top-0 z-50 flex h-[60px] justify-center bg-white px-4 sm:h-[70px] md:h-[80px]"
+    >
+      <div
+        class="flex w-[320px] min-w-0 max-w-[320px] grow items-center border-b sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <a href="/" class="flex items-center">
+          <img
+            src="logo.svg"
+            loading="eager"
+            alt="Postgresus logo"
+            width="35"
+            height="35"
+            class="flex-shrink-0 sm:h-[40px] sm:w-[40px] md:h-[50px] md:w-[50px]"
+          />
+
+          <div class="ml-2 text-lg font-bold sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
+            Postgresus
+          </div>
+        </a>
+
+        <div
+          class="ml-auto mr-4 hidden gap-3 text-base sm:mr-6 md:mr-10 lg:flex lg:gap-5 lg:text-lg"
+        >
+          <a class="hover:opacity-70" href="/#guide">Guide</a>
+          <a class="hover:opacity-70" href="/#installation">Installation</a>
+          <a class="hover:opacity-70" href="/#features">Features</a>
+          <a class="hover:opacity-70" href="https://t.me/postgresus_community" target="_blank"
+            >Community</a
+          >
+        </div>
+
+        <a
+          class="ml-auto lg:ml-0"
+          href="https://github.com/RostislavDugin/postgresus"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <div
+            class="flex items-center rounded-lg border bg-[#f5f7f9] px-2 py-1 hover:bg-gray-100 md:px-4 md:py-2"
+          >
+            <img
+              src="images/index/github.svg"
+              class="mr-1 sm:mr-2 md:mr-3"
+              alt="GitHub icon"
+              width="16"
+              height="16"
+              style="width: 16px; height: 16px"
+              loading="eager"
+            />
+            <span class="text-sm sm:text-base">Star on GitHub</span>
+          </div>
+        </a>
+      </div>
+    </nav>
+    <!------------------ END OF NAVBAR ------------------>
+
+    <!------------------ MAIN CONTENT ------------------------->
+    <div class="flex justify-center py-[50px] pt-[110px] md:py-[100px] md:pt-[180px]">
+      <main
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="max-w-[800px]">
+          <h1 class="mb-6 text-2xl font-bold sm:text-4xl">Blog</h1>
+
+          <p class="mb-12 max-w-[600px] text-lg text-gray-700">
+            Learn how to configure Postgresus with different storage providers and notification
+            systems. Step-by-step guides to help you get the most out of your PostgreSQL backup
+            solution.
+          </p>
+
+          <!-- Blog Posts -->
+          <div class="space-y-8">
+            <!-- Post 1: Cloudflare R2 -->
+            <article
+              class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0">
+                  <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
+                    <svg class="h-6 w-6 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <h2 class="mb-3 text-xl font-semibold">
+                    <a href="cloudflare-r2-storage.html" class="text-gray-900 hover:text-blue-600">
+                      How to use Postgresus with Cloudflare R2
+                    </a>
+                  </h2>
+                  <p class="mb-4 text-gray-600">
+                    Learn how to configure Cloudflare R2 as your S3-compatible storage for
+                    PostgreSQL backups. Step-by-step guide to set up credentials, endpoints, and
+                    bucket configuration.
+                  </p>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="rounded-full bg-orange-100 px-3 py-1 text-sm text-orange-800"
+                        >Storage</span
+                      >
+                      <span class="rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
+                        >Cloud</span
+                      >
+                    </div>
+                    <a
+                      href="cloudflare-r2-storage.html"
+                      class="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Read more →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Post 2: Google Drive -->
+            <article
+              class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0">
+                  <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
+                    <svg class="h-6 w-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <h2 class="mb-3 text-xl font-semibold">
+                    <a href="google-drive-storage.html" class="text-gray-900 hover:text-blue-600">
+                      How to connect Google Drive to Postgresus
+                    </a>
+                  </h2>
+                  <p class="mb-4 text-gray-600">
+                    Complete guide to setting up Google Drive as your backup storage. Learn how to
+                    create a Google Cloud project, configure OAuth, and connect your Drive account.
+                  </p>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
+                        >Storage</span
+                      >
+                      <span class="rounded-full bg-yellow-100 px-3 py-1 text-sm text-yellow-800"
+                        >OAuth</span
+                      >
+                    </div>
+                    <a
+                      href="google-drive-storage.html"
+                      class="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Read more →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- Post 3: Slack Notifications -->
+            <article
+              class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0">
+                  <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
+                    <svg class="h-6 w-6 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <h2 class="mb-3 text-xl font-semibold">
+                    <a href="notifier-slack.html" class="text-gray-900 hover:text-blue-600">
+                      How to send notifications from Postgresus to Slack
+                    </a>
+                  </h2>
+                  <p class="mb-4 text-gray-600">
+                    Set up Slack notifications for your PostgreSQL backups. Learn how to create a
+                    Slack bot, configure permissions, and get channel IDs for backup notifications.
+                  </p>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="rounded-full bg-purple-100 px-3 py-1 text-sm text-purple-800"
+                        >Notifications</span
+                      >
+                      <span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800"
+                        >Bot</span
+                      >
+                    </div>
+                    <a
+                      href="notifier-slack.html"
+                      class="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Read more →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Navigation -->
+          <div class="mt-12 border-t border-gray-200 pt-8">
+            <a
+              href="/"
+              class="inline-flex items-center font-semibold text-blue-600 hover:text-blue-800"
+            >
+              ← Back to main page
+            </a>
+          </div>
+        </div>
+      </main>
+    </div>
+    <!------------------ END OF MAIN CONTENT ------------------>
+
+    <!------------------ FOOTER SECTION -------------------------------->
+    <div id="footer" class="flex justify-center bg-blue-600 py-[50px] md:py-[50px]">
+      <div
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="flex flex-col items-center space-y-4">
+          <div class="flex flex-wrap justify-center gap-6 text-white">
+            <a
+              href="https://github.com/postgresus"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              GitHub
+            </a>
+
+            <a
+              href="https://t.me/postgresus_community"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Community
+            </a>
+
+            <a
+              href="https://t.me/rostislav_dugin"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Contract Developer
+            </a>
+          </div>
+          <p class="text-center text-sm text-white">&copy; 2025 Postgresus. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+    <!------------------ END OF FOOTER SECTION ------------------------->
+  </body>
+</html>

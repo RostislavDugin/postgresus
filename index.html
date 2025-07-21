@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Minified TailwindCSS -->
+    <link rel="stylesheet" href="styles.min.css" />
 
     <!-- Primary Meta Tags -->
     <title>Postgresus | PostgreSQL monitoring and backup</title>
@@ -187,8 +189,6 @@
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Jost:ital,wght@0,100..900;1,100..900&display=swap"
       rel="stylesheet"
     />
-
-    <link rel="stylesheet" href="index.css" />
 
     <script>
       function copyToClipboard(text, button) {
@@ -1032,6 +1032,8 @@ services:
       >
         <div class="flex flex-col items-center space-y-4">
           <div class="flex flex-wrap justify-center gap-6 text-white">
+            <a href="blog.html" class="transition-colors hover:text-blue-200">Blog</a>
+
             <a
               href="https://github.com/postgresus"
               target="_blank"
