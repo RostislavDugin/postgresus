@@ -5,7 +5,6 @@ module.exports = {
     extend: {
       fontFamily: {
         jost: ['Jost', 'sans-serif'],
-        bebas: ['Bebas Neue', 'cursive'],
       },
     },
   },
