@@ -110,18 +110,29 @@
       }
     </script>
 
+    <!-- Organization JSON-LD -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Postgresus",
+        "url": "https://postgresus.com/",
+        "alternateName": ["postgresus", "Postgresus"],
+        "logo": "https://postgresus.com/logo.svg",
+        "sameAs": ["https://github.com/RostislavDugin/postgresus"]
+      }
+    </script>
+
     <!-- Website JSON-LD -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Postgresus",
-        "url": "https://postgresus.com",
+        "alternateName": ["postgresus", "PostgresUS"],
+        "url": "https://postgresus.com/",
         "description": "PostgreSQL monitoring and backup tool",
-        "publisher": {
-          "@type": "Organization",
-          "name": "Postgresus"
-        }
+        "publisher": { "@type": "Organization", "name": "Postgresus" }
       }
     </script>
 
