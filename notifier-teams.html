@@ -7,17 +7,37 @@
     <link rel="stylesheet" href="styles.min.css" />
 
     <!-- Primary Meta Tags -->
-    <title>How to send notifications from Postgresus to Slack | Postgresus</title>
-    <meta name="title" content="How to send notifications from Postgresus to Slack | Postgresus" />
+    <title>How to send notifications from Postgresus to Teams | Postgresus</title>
+    <meta name="title" content="How to send notifications from Postgresus to Teams | Postgresus" />
     <meta
       name="description"
-      content="Step-by-step guide to configure Slack notifications for PostgreSQL backups with Postgresus. Learn how to create Slack bot and get chat ID."
+      content="Step-by-step guide to configure Microsoft Teams notifications for PostgreSQL backups with Postgresus using Power Automate. Create an HTTP-triggered flow in Teams and copy its URL."
     />
     <meta
       name="keywords"
-      content="Postgresus, Slack notifications, PostgreSQL backup, Slack bot, chat notifications, database backup"
+      content="Postgresus, Microsoft Teams notifications, Power Automate, HTTP request trigger, PostgreSQL backup, Teams channel notifications, database backup"
     />
-    <link rel="canonical" href="https://postgresus.com/notifier-slack" />
+    <link rel="canonical" href="https://postgresus.com/notifier-teams" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://postgresus.com/notifier-teams" />
+    <meta property="og:title" content="How to send notifications from Postgresus to Teams | Postgresus" />
+    <meta
+      property="og:description"
+      content="Step-by-step guide to configure Microsoft Teams notifications for PostgreSQL backups with Postgresus using Power Automate. Create an HTTP-triggered flow in Teams and copy its URL."
+    />
+    <meta property="og:image" content="https://postgresus.com/logo.svg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary" />
+    <meta property="twitter:url" content="https://postgresus.com/notifier-teams" />
+    <meta property="twitter:title" content="How to send notifications from Postgresus to Teams | Postgresus" />
+    <meta
+      property="twitter:description"
+      content="Step-by-step guide to configure Microsoft Teams notifications for PostgreSQL backups with Postgresus using Power Automate. Create an HTTP-triggered flow in Teams and copy its URL."
+    />
+    <meta property="twitter:image" content="https://postgresus.com/logo.svg" />
 
     <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
@@ -41,7 +61,6 @@
         dataLayer.push(arguments);
       }
       gtag('js', new Date());
-
       gtag('config', 'G-GE01THYR9X');
     </script>
   </head>
@@ -78,237 +97,178 @@
         class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
       >
         <div class="max-w-[800px]">
-          <h1 class="mb-6 max-w-[500px] text-2xl font-bold sm:text-4xl">
-            How to send notifications from Postgresus to Slack?
+          <h1 class="mb-6 max-w-[650px] text-2xl font-bold sm:text-4xl">
+            How to send notifications from Postgresus to Microsoft Teams
           </h1>
 
-          <p class="mb-8 max-w-[500px] text-lg text-gray-700">
-            To send notifications to Slack you need to follow 2 steps:
+          <p class="mb-8 max-w-[600px] text-lg text-gray-700">
+            To send notifications to Microsoft Teams you will:
           </p>
 
-          <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div class="rounded-lg bg-blue-50 p-4">
-              <h3 class="mb-2 font-semibold text-blue-800">Step 1</h3>
-              <p class="text-blue-700">Create Slack bot</p>
-            </div>
-            <div class="rounded-lg bg-blue-50 p-4">
-              <h3 class="mb-2 font-semibold text-blue-800">Step 2</h3>
-              <p class="text-blue-700">Get chat ID (channel, group or user)</p>
-            </div>
-          </div>
+          
 
           <div class="space-y-8">
-            <!-- How to create Slack bot -->
+            <!-- How to create Power Automate URL -->
             <div class="pl-6">
-              <h2 class="mb-4 text-2xl font-semibold">How to create Slack bot?</h2>
+              <h2 class="mb-4 text-2xl font-semibold">How to create a Power Automate URL (inside Teams)</h2>
 
               <div class="space-y-4">
+                <!-- Step 1 -->
                 <div class="border-l-4 border-green-500 pl-6">
                   <h3 class="mb-3 flex items-center text-xl font-semibold">
                     <span
                       class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
                       >1</span
                     >
-                    Create the app
+                    Open Teams and go to the Teams section on the left side
                   </h3>
 
                   <div class="space-y-2">
                     <p class="text-gray-700">
-                      Go to
-                      <a
-                        href="https://api.slack.com/apps"
-                        target="_blank"
-                        class="text-blue-600 underline hover:text-blue-800"
-                        >https://api.slack.com/apps</a
-                      >
+                      If you don't have a group yet, create it as shown in the screenshot, if it already exists, then go to section #2
+					  
                     </p>
-
-                    <p class="text-gray-700">
-                      Choose <strong>"create an app"</strong> →
-                      <strong>"create an app from scratch"</strong>
-                    </p>
+                    <img
+                      src="images/notifier-teams/image-01.png"
+                      alt="Open Power Automate app in Microsoft Teams"
+                      class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
+                      loading="lazy"
+                    />
                   </div>
                 </div>
 
-                <div class="rounded-lg bg-orange-50 p-4">
-                  <div class="mb-2 font-semibold text-orange-800">After bot creation:</div>
-                </div>
-
+                <!-- Step 2 -->
                 <div class="border-l-4 border-green-500 pl-6">
                   <h3 class="mb-3 flex items-center text-xl font-semibold">
                     <span
                       class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
                       >2</span
                     >
-                    Configure OAuth & Permissions
+                    Creation of flow
                   </h3>
-                  <p class="mb-2 text-gray-700">Go to <strong>"OAuth & Permissions"</strong> tab</p>
-
+                  <p class="mb-2 text-gray-700">
+                    Select the desired channel and click on the three dots. Then select Workflows
+                  </p>
                   <img
-                    src="images/notifier-slack/image-1.png"
-                    alt="Step 1"
-                    class="mb-8 mt-5 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+                    src="images/notifier-teams/image-02.png"
+                    alt="Select environment in Power Automate"
+                    class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
                     loading="lazy"
                   />
                 </div>
 
+                <!-- Step 3 -->
                 <div class="border-l-4 border-green-500 pl-6">
                   <h3 class="mb-3 flex items-center text-xl font-semibold">
                     <span
                       class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
                       >3</span
                     >
-                    Add bot scopes
+                    Create the flow (HTTP trigger)
                   </h3>
-
-                  <p class="mb-2 text-gray-700">Add to bot scopes:</p>
-
-                  <ul class="ml-4 list-inside list-disc space-y-1 text-gray-700">
-                    <li><code class="rounded bg-gray-100 px-2 py-1 text-sm">im:write</code></li>
-                    <li><code class="rounded bg-gray-100 px-2 py-1 text-sm">chat:write</code></li>
-                    <li>
-                      <code class="rounded bg-gray-100 px-2 py-1 text-sm">channels:history</code>
-                    </li>
-                    <li>
-                      <code class="rounded bg-gray-100 px-2 py-1 text-sm">channels:join</code>
-                    </li>
-                  </ul>
-
+                  <p class="text-gray-700">
+                    In the new window, select the flow type - Send webhook alerts to a channel.
+                  </p>
                   <img
-                    src="images/notifier-slack/image-2.png"
-                    alt="Step 1"
-                    class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                    src="images/notifier-teams/image-03.png"
+                    alt="Create Automated cloud flow with HTTP trigger"
+                    class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
                     loading="lazy"
                   />
                 </div>
 
+                <!-- Step 4 -->
                 <div class="border-l-4 border-green-500 pl-6">
                   <h3 class="mb-3 flex items-center text-xl font-semibold">
                     <span
                       class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
                       >4</span
                     >
-                    Install to workspace
+                    (Optional) If necessary, you can change the name of the Flow (optional)
                   </h3>
-
-                  <p class="text-gray-700">
-                    Click <strong>"Install to {YOUR_WORKSPACE}"</strong> and complete steps
+                  <p class="mb-2 text-gray-700">
+                    The name Flow does not affect its operation.
                   </p>
-
-                  <img
-                    src="images/notifier-slack/image-3.png"
-                    alt="Step 1"
-                    class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                 <img
+                    src="images/notifier-teams/image-04.png"
+                    alt="Create Automated cloud flow with HTTP trigger"
+                    class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
                     loading="lazy"
                   />
                 </div>
-              </div>
-            </div>
 
-            <!-- How to get chat ID -->
+                <!-- Step 5 -->
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >5</span
+                    >
+                    (Optional)You can choose which channel to send Flow to.
+                  </h3>
+                  
+                  <img
+                    src="images/notifier-teams/image-05.png"
+                    alt="Add Teams action: Post a message in a chat or channel"
+                    class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+
+                <!-- Step 6 -->
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >6</span
+                    >
+                    Save and copy the HTTP URL
+                  </h3>
+                  <p class="text-gray-700">
+                    At the bottom of the window you will have a url that you need to copy and paste into the Postgresus settings.
+                  </p>
+                  <img
+                    src="images/notifier-teams/image-06.png"
+                    alt="Copy HTTP POST URL from the trigger"
+                    class="mb-4 mt-3 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+
+                
+
+               
+
+            <!-- Connect in Postgresus -->
             <div class="pl-6">
-              <h2 class="mb-4 text-2xl font-semibold">How to get chat ID?</h2>
+              <h2 class="mb-4 text-2xl font-semibold">Connect the URL in Postgresus</h2>
 
-              <p class="mb-4 text-gray-700">You can send messages to:</p>
-              <ul class="mb-6 ml-4 list-inside list-disc space-y-1 text-gray-700">
-                <li>Public channel</li>
-                <li>Private channel</li>
-                <li>Group</li>
-                <li>Direct messages</li>
-              </ul>
+              <ol class="ml-2 list-inside list-decimal space-y-2 text-gray-700">
+                <li>Open <strong>Postgresus</strong>.</li>
+                <li>Go to <strong>Settings</strong> → <strong>Notifiers</strong> → <strong>Teams</strong>.</li>
+                <li>Paste the <strong>URL</strong> you copied from Teams.</li>
+           
+                <li>Click <strong>Send test notification</strong> in Postgresus and check the chosen Teams channel for the message.</li>
+              </ol>
 
-              <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-                <div class="mb-2 font-semibold text-yellow-800">⚠️ Warning</div>
-                <ul class="list-inside list-disc space-y-1 text-yellow-700">
-                  <li>
-                    For sending messages to <strong>private channel</strong> bot should be added via
-                    <code class="rounded bg-yellow-100 px-2 py-1 text-sm">@invite</code> command
-                  </li>
-                  <li>
-                    For sending messages to <strong>group</strong>, group should be created with bot
-                    initially
-                  </li>
-                </ul>
-              </div>
-
-              <div class="space-y-6">
-                <div class="border-l-4 border-indigo-500 pl-6">
-                  <h3 class="mb-3 flex items-center text-xl font-semibold">
-                    <span
-                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm text-white"
-                      >1</span
-                    >
-                    Get channel or group ID
-                  </h3>
-                  <div class="space-y-2">
-                    <p class="text-gray-700">Navigate to chat and take ID from URL</p>
-
-                    <div class="rounded-lg bg-gray-100 p-3">
-                      <p class="text-sm text-gray-600">
-                        💡 <strong>Tip:</strong> ID usually starts from
-                        <code class="rounded bg-gray-200 px-2 py-1 text-sm">"C"</code> letter
-                      </p>
-                    </div>
-
-                    <img
-                      src="images/notifier-slack/image-4.png"
-                      alt="Step 1"
-                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
-                      loading="lazy"
-                    />
-                  </div>
-                </div>
-
-                <div class="border-l-4 border-indigo-500 pl-6">
-                  <h3 class="mb-3 flex items-center text-xl font-semibold">
-                    <span
-                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm text-white"
-                      >2</span
-                    >
-                    Get user ID
-                  </h3>
-
-                  <div class="space-y-2">
-                    <p class="text-gray-700">
-                      Go to <strong>"Profile"</strong> and click
-                      <strong>"copy link to profile"</strong>
-                    </p>
-
-                    <img
-                      src="images/notifier-slack/image-5.png"
-                      alt="Step 1"
-                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
-                      loading="lazy"
-                    />
-
-                    <p class="text-gray-700">Then extract end part of URL, this is your user ID</p>
-
-                    <img
-                      src="images/notifier-slack/image-6.png"
-                      alt="Step 1"
-                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
-                      loading="lazy"
-                    />
-                  </div>
-                </div>
-              </div>
+              <img
+                src="images/notifier-teams/image-07.png"
+                alt="Paste the flow URL into Postgresus"
+                class="mb-8 mt-5 max-w-[600px] rounded-lg border border-gray-200 shadow-lg"
+                loading="lazy"
+              />
             </div>
 
             <!-- Final Step -->
-            <div class="max-w-[500px] rounded-lg border border-green-200 bg-green-50 p-6">
+            <div class="max-w-[600px] rounded-lg border border-green-200 bg-green-50 p-6">
               <h2 class="mb-3 text-xl font-semibold text-green-800">🎉 Setup Complete!</h2>
               <p class="text-green-700">
-                Copy both token and ID to Postgresus, notification should appear and you're ready to
-                receive backup notifications in Slack!
+                Your Power Automate flow is connected. Postgresus can now send backup notifications
+                directly to your selected Microsoft Teams chat or channel.
               </p>
             </div>
 
-            <img
-              src="images/notifier-slack/image-7.png"
-              alt="Step 1"
-              class="mb-8 mt-5 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
-              loading="lazy"
-            />
+            
           </div>
 
           <!-- Navigation -->
