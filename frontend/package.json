@@ -21,7 +21,7 @@
     "tailwindcss": "^4.1.7"
   },
   "devDependencies": {
-    "@eslint/js": "^9.25.0",
+    "@eslint/js": "^9.35.0",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

@@ -1,0 +1,8 @@
+* text=auto
+*.sh text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.php text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf

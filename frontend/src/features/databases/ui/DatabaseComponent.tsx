@@ -16,6 +16,8 @@ import {
   HealthckeckAttemptsComponent,
   ShowHealthcheckConfigComponent,
 } from '../../healthcheck';
+// new
+import { SqlQueryComponent } from '../../sqlquery/SqlQueryComponent';
 import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComponent';
 import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDataComponent';
 import { ShowDatabaseNotifiersComponent } from './show/ShowDatabaseNotifiersComponent';
@@ -405,6 +407,12 @@ export const DatabaseComponent = ({
 
       {database && <HealthckeckAttemptsComponent database={database} />}
       {database && <BackupsComponent database={database} />}
+
+      {database && !isEditDatabaseSpecificDataSettings && (
+        <div className="mt-8">
+          <SqlQueryComponent databaseId={database.id} />
+        </div>
+      )}
     </div>
   );
 };

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	sqlquery "postgresus-backend/internal/features/sqlquery"
 	"postgresus-backend/internal/config"
 	"postgresus-backend/internal/downdetect"
 	"postgresus-backend/internal/features/backups/backups"
@@ -171,6 +172,14 @@ func setUpRoutes(r *gin.Engine) {
 	healthcheckConfigController.RegisterRoutes(v1)
 	healthcheckAttemptController.RegisterRoutes(v1)
 	backupConfigController.RegisterRoutes(v1)
+
+	// sqlquery
+	   registerSQLQuery(
+		      v1,
+		       databases.GetDatabaseService(),
+		       users.GetUserService(),
+		   )
+
 }
 
 func setUpDependencies() {
@@ -297,4 +306,11 @@ func mountFrontend(ginApp *gin.Engine) {
 
 		c.File(filepath.Join(staticDir, "index.html"))
 	})
+}
+
+func registerSQLQuery(rg *gin.RouterGroup, dbSvc *databases.DatabaseService, userSvc *users.UserService) {
+	repo := sqlquery.NewRepository()
+	svc  := sqlquery.NewService(repo)
+	ctrl := sqlquery.NewController(svc, userSvc, dbSvc)
+	ctrl.RegisterRoutes(rg)
 }
