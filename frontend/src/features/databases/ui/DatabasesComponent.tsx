@@ -13,6 +13,7 @@ interface Props {
 export const DatabasesComponent = ({ contentHeight }: Props) => {
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isShowAddDatabase, setIsShowAddDatabase] = useState(false);
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | undefined>(undefined);
@@ -58,23 +59,46 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
     </Button>
   );
 
+  const filteredDatabases = databases.filter((database) =>
+    database.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   return (
     <>
       <div className="flex grow">
         <div
-          className="mx-3 w-[250px] min-w-[250px] overflow-y-auto"
+          className="mx-3 w-[250px] min-w-[250px] overflow-y-auto pr-2"
           style={{ height: contentHeight }}
         >
-          {databases.length >= 5 && addDatabaseButton}
+          {databases.length >= 5 && (
+            <>
+              {addDatabaseButton}
 
-          {databases.map((database) => (
-            <DatabaseCardComponent
-              key={database.id}
-              database={database}
-              selectedDatabaseId={selectedDatabaseId}
-              setSelectedDatabaseId={setSelectedDatabaseId}
-            />
-          ))}
+              <div className="mb-2">
+                <input
+                  placeholder="Search database"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none"
+                />
+              </div>
+            </>
+          )}
+
+          {filteredDatabases.length > 0
+            ? filteredDatabases.map((database) => (
+                <DatabaseCardComponent
+                  key={database.id}
+                  database={database}
+                  selectedDatabaseId={selectedDatabaseId}
+                  setSelectedDatabaseId={setSelectedDatabaseId}
+                />
+              ))
+            : searchQuery && (
+                <div className="mb-4 text-center text-sm text-gray-500">
+                  No databases found matching &quot;{searchQuery}&quot;
+                </div>
+              )}
 
           {databases.length < 5 && addDatabaseButton}
 
