@@ -64,6 +64,16 @@ func (i *Interval) ShouldTriggerBackup(now time.Time, lastBackupTime *time.Time)
 	}
 }
 
+func (i *Interval) Copy() *Interval {
+	return &Interval{
+		ID:         uuid.Nil,
+		Interval:   i.Interval,
+		TimeOfDay:  i.TimeOfDay,
+		Weekday:    i.Weekday,
+		DayOfMonth: i.DayOfMonth,
+	}
+}
+
 // daily trigger: honour the TimeOfDay slot and catch up the previous one
 func (i *Interval) shouldTriggerDaily(now, lastBackup time.Time) bool {
 	if i.TimeOfDay == nil {

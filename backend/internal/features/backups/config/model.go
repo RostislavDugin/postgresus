@@ -90,3 +90,18 @@ func (b *BackupConfig) Validate() error {
 
 	return nil
 }
+
+func (b *BackupConfig) Copy(newDatabaseID uuid.UUID) *BackupConfig {
+	return &BackupConfig{
+		DatabaseID:          newDatabaseID,
+		IsBackupsEnabled:    b.IsBackupsEnabled,
+		StorePeriod:         b.StorePeriod,
+		BackupIntervalID:    uuid.Nil,
+		BackupInterval:      b.BackupInterval.Copy(),
+		StorageID:           b.StorageID,
+		SendNotificationsOn: b.SendNotificationsOn,
+		IsRetryIfFailed:     b.IsRetryIfFailed,
+		MaxFailedTriesCount: b.MaxFailedTriesCount,
+		CpuCount:            b.CpuCount,
+	}
+}

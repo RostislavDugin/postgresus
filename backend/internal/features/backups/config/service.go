@@ -130,6 +130,20 @@ func (s *BackupConfigService) GetBackupConfigsWithEnabledBackups() ([]*BackupCon
 	return s.backupConfigRepository.GetWithEnabledBackups()
 }
 
+func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID) {
+	originalConfig, err := s.GetBackupConfigByDbId(originalDatabaseID)
+	if err != nil {
+		return
+	}
+
+	newConfig := originalConfig.Copy(newDatabaseID)
+
+	_, err = s.SaveBackupConfig(newConfig)
+	if err != nil {
+		return
+	}
+}
+
 func (s *BackupConfigService) initializeDefaultConfig(
 	databaseID uuid.UUID,
 ) error {
@@ -163,28 +177,4 @@ func storageIDsEqual(id1, id2 *uuid.UUID) bool {
 		return false
 	}
 	return *id1 == *id2
-}
-
-func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID) {
-	originalConfig, err := s.GetBackupConfigByDbId(originalDatabaseID)
-	if err != nil {
-		return
-	}
-
-	newConfig := &BackupConfig{
-		DatabaseID:          newDatabaseID,
-		IsBackupsEnabled:    originalConfig.IsBackupsEnabled,
-		StorePeriod:         originalConfig.StorePeriod,
-		BackupIntervalID:    originalConfig.BackupIntervalID,
-		StorageID:           originalConfig.StorageID,
-		SendNotificationsOn: originalConfig.SendNotificationsOn,
-		IsRetryIfFailed:     originalConfig.IsRetryIfFailed,
-		MaxFailedTriesCount: originalConfig.MaxFailedTriesCount,
-		CpuCount:            originalConfig.CpuCount,
-	}
-
-	_, err = s.SaveBackupConfig(newConfig)
-	if err != nil {
-		return
-	}
 }
