@@ -1429,6 +1429,10 @@ video {
   text-decoration-line: underline;
 }
 
+.decoration-blue-600 {
+  text-decoration-color: #2563eb;
+}
+
 .shadow-lg {
   --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
@@ -1719,6 +1723,10 @@ select {
     padding-top: 1.25rem;
   }
 
+  .sm\:text-left {
+    text-align: left;
+  }
+
   .sm\:text-3xl {
     font-size: 1.875rem;
     line-height: 2.25rem;
@@ -1867,6 +1875,10 @@ select {
 
   .lg\:mt-0 {
     margin-top: 0px;
+  }
+
+  .lg\:inline {
+    display: inline;
   }
 
   .lg\:flex {
