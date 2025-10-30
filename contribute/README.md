@@ -76,6 +76,9 @@ Nearsest features:
 
 Backups flow:
 
+- check Neon backups flow
+- check AWS S3 support
+- when testing connection with S3 - verify files can be really uploaded
 - do not remove old backups on backups disable
 - add FTP
 - add Dropbox
