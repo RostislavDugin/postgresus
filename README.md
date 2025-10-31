@@ -5,7 +5,7 @@
   <p>Free, open source and self-hosted solution for automated PostgreSQL backups. With multiple storage options and notifications</p>
   
   <!-- Badges -->
-  [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Docker Pulls](https://img.shields.io/docker/pulls/rostislavdugin/postgresus?color=brightgreen)](https://hub.docker.com/r/rostislavdugin/postgresus)
   [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](https://github.com/RostislavDugin/postgresus)
   
@@ -62,7 +62,7 @@
 
 - **Docker-based**: Easy deployment and management
 - **Privacy-first**: All your data stays on your infrastructure
-- **Open source**: MIT licensed, inspect every line of code
+- **Open source**: Apache 2.0 licensed, inspect every line of code
 
 ### 📦 Installation
 
@@ -161,7 +161,7 @@ docker exec -it postgresus ./main --new-password="YourNewSecurePassword123"
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
