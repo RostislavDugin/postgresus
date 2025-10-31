@@ -1,6 +1,7 @@
 package s3_storage
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -129,7 +130,7 @@ func (s *S3Storage) TestConnection() error {
 		return err
 	}
 
-	// Create a context with 5 second timeout
+	// Create a context with 10 second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -145,6 +146,35 @@ func (s *S3Storage) TestConnection() error {
 
 	if !exists {
 		return fmt.Errorf("bucket '%s' does not exist", s.S3Bucket)
+	}
+
+	// Test write and delete permissions by uploading and removing a small test file
+	testFileID := uuid.New().String() + "-test"
+	testData := []byte("test connection")
+	testReader := bytes.NewReader(testData)
+
+	// Upload test file
+	_, err = client.PutObject(
+		ctx,
+		s.S3Bucket,
+		testFileID,
+		testReader,
+		int64(len(testData)),
+		minio.PutObjectOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to upload test file to S3: %w", err)
+	}
+
+	// Delete test file
+	err = client.RemoveObject(
+		ctx,
+		s.S3Bucket,
+		testFileID,
+		minio.RemoveObjectOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete test file from S3: %w", err)
 	}
 
 	return nil
