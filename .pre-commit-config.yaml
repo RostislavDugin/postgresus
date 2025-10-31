@@ -1,0 +1,29 @@
+# Pre-commit configuration
+# See https://pre-commit.com for more information
+repos:
+  # Frontend checks
+  - repo: local
+    hooks:
+      - id: frontend-format
+        name: Frontend Format (Prettier)
+        entry: powershell -Command "cd frontend; npm run format"
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md)$
+        pass_filenames: false
+
+      - id: frontend-lint
+        name: Frontend Lint (ESLint)
+        entry: powershell -Command "cd frontend; npm run lint"
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+  # Backend checks
+  - repo: local
+    hooks:
+      - id: backend-format-and-lint
+        name: Backend Format & Lint (golangci-lint)
+        entry: powershell -Command "cd backend; golangci-lint fmt; golangci-lint run"
+        language: system
+        files: ^backend/.*\.go$
+        pass_filenames: false
