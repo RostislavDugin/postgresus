@@ -5,7 +5,6 @@ import { useEffect } from 'react';
 import { type Database, databaseApi } from '../../../entity/databases';
 import { BackupsComponent } from '../../backups';
 import { HealthckeckAttemptsComponent } from '../../healthcheck';
-import { MetricsComponent } from '../../monitoring/metrics';
 import { DatabaseConfigComponent } from './DatabaseConfigComponent';
 
 interface Props {
@@ -74,7 +73,6 @@ export const DatabaseComponent = ({
           <BackupsComponent database={database} />
         </>
       )}
-      {currentTab === 'metrics' && <MetricsComponent databaseId={database.id} />}
     </div>
   );
 };

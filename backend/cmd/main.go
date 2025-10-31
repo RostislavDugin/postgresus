@@ -20,8 +20,6 @@ import (
 	"postgresus-backend/internal/features/disk"
 	healthcheck_attempt "postgresus-backend/internal/features/healthcheck/attempt"
 	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
-	postgres_monitoring_metrics "postgresus-backend/internal/features/monitoring/postgres/metrics"
-	postgres_monitoring_settings "postgresus-backend/internal/features/monitoring/postgres/settings"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/restores"
 	"postgresus-backend/internal/features/storages"
@@ -160,8 +158,6 @@ func setUpRoutes(r *gin.Engine) {
 	healthcheckAttemptController := healthcheck_attempt.GetHealthcheckAttemptController()
 	diskController := disk.GetDiskController()
 	backupConfigController := backups_config.GetBackupConfigController()
-	postgresMonitoringSettingsController := postgres_monitoring_settings.GetPostgresMonitoringSettingsController()
-	postgresMonitoringMetricsController := postgres_monitoring_metrics.GetPostgresMonitoringMetricsController()
 
 	downdetectContoller.RegisterRoutes(v1)
 	userController.RegisterRoutes(v1)
@@ -175,15 +171,12 @@ func setUpRoutes(r *gin.Engine) {
 	healthcheckConfigController.RegisterRoutes(v1)
 	healthcheckAttemptController.RegisterRoutes(v1)
 	backupConfigController.RegisterRoutes(v1)
-	postgresMonitoringSettingsController.RegisterRoutes(v1)
-	postgresMonitoringMetricsController.RegisterRoutes(v1)
 }
 
 func setUpDependencies() {
 	backups.SetupDependencies()
 	restores.SetupDependencies()
 	healthcheck_config.SetupDependencies()
-	postgres_monitoring_settings.SetupDependencies()
 }
 
 func runBackgroundTasks(log *slog.Logger) {
@@ -204,10 +197,6 @@ func runBackgroundTasks(log *slog.Logger) {
 
 	go runWithPanicLogging(log, "healthcheck attempt background service", func() {
 		healthcheck_attempt.GetHealthcheckAttemptBackgroundService().Run()
-	})
-
-	go runWithPanicLogging(log, "postgres monitoring metrics background service", func() {
-		postgres_monitoring_metrics.GetPostgresMonitoringMetricsBackgroundService().Run()
 	})
 }
 
