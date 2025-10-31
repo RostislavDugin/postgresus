@@ -1,12 +1,147 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
-Write tests names in the format:
 
-Test_WhatWeDo_WhatWeExpect
+After writing tests, always launch them and verify that they pass.
 
-Example:
-- Test_TestConnection_ConnectionSucceeds
-- Test_SaveNewStorage_StorageReturnedViaGet
+## Test Naming Format
+
+Use these naming patterns:
+
+- `Test_WhatWeDo_WhatWeExpect`
+- `Test_WhatWeDo_WhichConditions_WhatWeExpect`
+
+## Examples from Real Codebase:
+
+- `Test_CreateApiKey_WhenUserIsProjectOwner_ApiKeyCreated`
+- `Test_UpdateProject_WhenUserIsProjectAdmin_ProjectUpdated`
+- `Test_DeleteApiKey_WhenUserIsProjectMember_ReturnsForbidden`
+- `Test_GetProjectAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly`
+- `Test_ProjectLifecycleE2E_CompletesSuccessfully`
+
+## Testing Philosophy
+
+**Prefer Controllers Over Unit Tests:**
+
+- Test through HTTP endpoints via controllers whenever possible
+- Avoid testing repositories, services in isolation - test via API instead
+- Only use unit tests for complex model logic when no API exists
+- Name test files `controller_test.go` or `service_test.go`, not `integration_test.go`
+
+**Extract Common Logic to Testing Utilities:**
+
+- Create `testing.go` or `testing/testing.go` files for shared test utilities
+- Extract router creation, user setup, models creation helpers (in API, not just structs creation)
+- Reuse common patterns across different test files
+
+**Refactor Existing Tests:**
+
+- When working with existing tests, always look for opportunities to refactor and improve
+- Extract repetitive setup code to common utilities
+- Simplify complex tests by breaking them into smaller, focused tests
+- Replace inline test data creation with reusable helper functions
+- Consolidate similar test patterns across different test files
+- Make tests more readable and maintainable for other developers
+
+## Testing Utilities Structure
+
+**Create `testing.go` or `testing/testing.go` files with common utilities:**
+
+```go
+package projects_testing
+
+// CreateTestRouter creates unified router for all controllers
+func CreateTestRouter(controllers ...ControllerInterface) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	v1 := router.Group("/api/v1")
+	protected := v1.Group("").Use(users_middleware.AuthMiddleware(users_services.GetUserService()))
+
+	for _, controller := range controllers {
+		if routerGroup, ok := protected.(*gin.RouterGroup); ok {
+			controller.RegisterRoutes(routerGroup)
+		}
+	}
+	return router
+}
+
+// CreateTestProjectViaAPI creates project through HTTP API
+func CreateTestProjectViaAPI(name string, owner *users_dto.SignInResponseDTO, router *gin.Engine) (*projects_models.Project, string) {
+	request := projects_dto.CreateProjectRequestDTO{Name: name}
+	w := MakeAPIRequest(router, "POST", "/api/v1/projects", "Bearer "+owner.Token, request)
+	// Handle response...
+	return project, owner.Token
+}
+
+// AddMemberToProject adds member via API call
+func AddMemberToProject(project *projects_models.Project, member *users_dto.SignInResponseDTO, role users_enums.ProjectRole, ownerToken string, router *gin.Engine) {
+	// Implementation...
+}
+```
+
+## Controller Test Examples
+
+**Permission-based testing:**
+
+```go
+func Test_CreateApiKey_WhenUserIsProjectOwner_ApiKeyCreated(t *testing.T) {
+	router := CreateApiKeyTestRouter(GetProjectController(), GetMembershipController())
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	project, _ := projects_testing.CreateTestProjectViaAPI("Test Project", owner, router)
+
+	request := CreateApiKeyRequestDTO{Name: "Test API Key"}
+	var response ApiKey
+	test_utils.MakePostRequestAndUnmarshal(t, router, "/api/v1/projects/api-keys/"+project.ID.String(), "Bearer "+owner.Token, request, http.StatusOK, &response)
+
+	assert.Equal(t, "Test API Key", response.Name)
+	assert.NotEmpty(t, response.Token)
+}
+```
+
+**Cross-project security testing:**
+
+```go
+func Test_UpdateApiKey_WithApiKeyFromDifferentProject_ReturnsBadRequest(t *testing.T) {
+	router := CreateApiKeyTestRouter(GetProjectController(), GetMembershipController())
+	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	project1, _ := projects_testing.CreateTestProjectViaAPI("Project 1", owner1, router)
+	project2, _ := projects_testing.CreateTestProjectViaAPI("Project 2", owner2, router)
+
+	apiKey := CreateTestApiKey("Cross Project Key", project1.ID, owner1.Token, router)
+
+	// Try to update via different project endpoint
+	request := UpdateApiKeyRequestDTO{Name: &"Hacked Key"}
+	resp := test_utils.MakePutRequest(t, router, "/api/v1/projects/api-keys/"+project2.ID.String()+"/"+apiKey.ID.String(), "Bearer "+owner2.Token, request, http.StatusBadRequest)
+
+	assert.Contains(t, string(resp.Body), "API key does not belong to this project")
+}
+```
+
+**E2E lifecycle testing:**
+
+```go
+func Test_ProjectLifecycleE2E_CompletesSuccessfully(t *testing.T) {
+	router := projects_testing.CreateTestRouter(GetProjectController(), GetMembershipController())
+
+	// 1. Create project
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	project := projects_testing.CreateTestProject("E2E Project", owner, router)
+
+	// 2. Add member
+	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	projects_testing.AddMemberToProject(project, member, users_enums.ProjectRoleMember, owner.Token, router)
+
+	// 3. Promote to admin
+	projects_testing.ChangeMemberRole(project, member.UserID, users_enums.ProjectRoleAdmin, owner.Token, router)
+
+	// 4. Transfer ownership
+	projects_testing.TransferProjectOwnership(project, member.UserID, owner.Token, router)
+
+	// 5. Verify new owner can manage project
+	finalProject := projects_testing.GetProject(project.ID, member.Token, router)
+	assert.Equal(t, project.ID, finalProject.ID)
+}
+```

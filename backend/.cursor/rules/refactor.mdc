@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+When applying changes, do not forget to refactor old code.
+
+You can shortify, make more readable, improve code quality, etc.
+Common logic can be extracted to functions, constants, files, etc.
+
+After each large change with more than ~50-100 lines of code - always run `make lint` (from backend root folder).

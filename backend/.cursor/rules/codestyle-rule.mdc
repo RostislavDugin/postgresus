@@ -1,14 +1,152 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
+
 Always place private methods to the bottom of file
 
-Code should look like:
+**This rule applies to ALL Go files including tests, services, controllers, repositories, etc.**
 
-type SomeService struct {
-    func PublicMethod(...) ...
+In Go, exported (public) functions/methods start with uppercase letters, while unexported (private) ones start with lowercase letters.
 
-    func privateMethod(...) ...
+## Structure Order:
+
+1. Type definitions and constants
+2. Public methods/functions (uppercase)
+3. Private methods/functions (lowercase)
+
+## Examples:
+
+### Service with methods:
+
+```go
+type UserService struct {
+    repository *UserRepository
 }
+
+// Public methods first
+func (s *UserService) CreateUser(user *User) error {
+    if err := s.validateUser(user); err != nil {
+        return err
+    }
+    return s.repository.Save(user)
+}
+
+func (s *UserService) GetUser(id uuid.UUID) (*User, error) {
+    return s.repository.FindByID(id)
+}
+
+// Private methods at the bottom
+func (s *UserService) validateUser(user *User) error {
+    if user.Name == "" {
+        return errors.New("name is required")
+    }
+    return nil
+}
+```
+
+### Package-level functions:
+
+```go
+package utils
+
+// Public functions first
+func ProcessData(data []byte) (Result, error) {
+    cleaned := sanitizeInput(data)
+    return parseData(cleaned)
+}
+
+func ValidateInput(input string) bool {
+    return isValidFormat(input) && checkLength(input)
+}
+
+// Private functions at the bottom
+func sanitizeInput(data []byte) []byte {
+    // implementation
+}
+
+func parseData(data []byte) (Result, error) {
+    // implementation
+}
+
+func isValidFormat(input string) bool {
+    // implementation
+}
+
+func checkLength(input string) bool {
+    // implementation
+}
+```
+
+### Test files:
+
+```go
+package user_test
+
+// Public test functions first
+func Test_CreateUser_ValidInput_UserCreated(t *testing.T) {
+    user := createTestUser()
+    result, err := service.CreateUser(user)
+
+    assert.NoError(t, err)
+    assert.NotNil(t, result)
+}
+
+func Test_GetUser_ExistingUser_ReturnsUser(t *testing.T) {
+    user := createTestUser()
+    // test implementation
+}
+
+// Private helper functions at the bottom
+func createTestUser() *User {
+    return &User{
+        Name:  "Test User",
+        Email: "test@example.com",
+    }
+}
+
+func setupTestDatabase() *Database {
+    // setup implementation
+}
+```
+
+### Controller example:
+
+```go
+type ProjectController struct {
+    service *ProjectService
+}
+
+// Public HTTP handlers first
+func (c *ProjectController) CreateProject(ctx *gin.Context) {
+    var request CreateProjectRequest
+    if err := ctx.ShouldBindJSON(&request); err != nil {
+        c.handleError(ctx, err)
+        return
+    }
+    // handler logic
+}
+
+func (c *ProjectController) GetProject(ctx *gin.Context) {
+    projectID := c.extractProjectID(ctx)
+    // handler logic
+}
+
+// Private helper methods at the bottom
+func (c *ProjectController) handleError(ctx *gin.Context, err error) {
+    ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+}
+
+func (c *ProjectController) extractProjectID(ctx *gin.Context) uuid.UUID {
+    return uuid.MustParse(ctx.Param("projectId"))
+}
+```
+
+## Key Points:
+
+- **Exported/Public** = starts with uppercase letter (CreateUser, GetProject)
+- **Unexported/Private** = starts with lowercase letter (validateUser, handleError)
+- This improves code readability by showing the public API first
+- Private helpers are implementation details, so they go at the bottom
+- Apply this rule consistently across ALL Go files in the project

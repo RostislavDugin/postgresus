@@ -1,7 +1,45 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
-Do not write obvious comments.
-Write meaningful code, give meaningful names
+
+## Comment Guidelines
+
+1. **No obvious comments** - Don't state what the code already clearly shows
+2. **Functions and variables should have meaningful names** - Code should be self-documenting
+3. **Comments for unclear code only** - Only add comments when code logic isn't immediately clear
+
+## Key Principles:
+
+- **Code should tell a story** - Use descriptive variable and function names
+- **Comments explain WHY, not WHAT** - The code shows what happens, comments explain business logic or complex decisions
+- **Prefer refactoring over commenting** - If code needs explaining, consider making it clearer instead
+- **API documentation is required** - Swagger comments for all HTTP endpoints are mandatory
+- **Complex algorithms deserve comments** - Mathematical formulas, business rules, or non-obvious optimizations
+
+Example of useless comment:
+
+1.
+
+```sql
+// Create projects table
+CREATE TABLE projects (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                  TEXT NOT NULL,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+```
+
+2.
+
+```go
+// Create test project
+project := CreateTestProject(projectName, user, router)
+```
+
+3.
+
+```go
+// CreateValidLogItems creates valid log items for testing
+func CreateValidLogItems(count int, uniqueID string) []logs_receiving.LogItemRequestDTO {
+```

@@ -1,0 +1,655 @@
+---
+alwaysApply: false
+---
+This is example of CRUD:
+
+------ backend/internal/features/audit_logs/controller.go ------
+``````
+package audit_logs
+
+import (
+	"net/http"
+
+	user_models "logbull/internal/features/users/models"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+type AuditLogController struct {
+	auditLogService *AuditLogService
+}
+
+func (c *AuditLogController) RegisterRoutes(router *gin.RouterGroup) {
+	// All audit log endpoints require authentication (handled in main.go)
+	auditRoutes := router.Group("/audit-logs")
+
+	auditRoutes.GET("/global", c.GetGlobalAuditLogs)
+	auditRoutes.GET("/users/:userId", c.GetUserAuditLogs)
+}
+
+// GetGlobalAuditLogs
+// @Summary Get global audit logs (ADMIN only)
+// @Description Retrieve all audit logs across the system
+// @Tags audit-logs
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Limit number of results" default(100)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Param beforeDate query string false "Filter logs created before this date (RFC3339 format)" format(date-time)
+// @Success 200 {object} GetAuditLogsResponse
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /audit-logs/global [get]
+func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
+	user, isOk := ctx.MustGet("user").(*user_models.User)
+	if !isOk {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
+		return
+	}
+
+	request := &GetAuditLogsRequest{}
+	if err := ctx.ShouldBindQuery(request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
+
+	response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
+	if err != nil {
+		if err.Error() == "only administrators can view global audit logs" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
+// GetUserAuditLogs
+// @Summary Get user audit logs
+// @Description Retrieve audit logs for a specific user
+// @Tags audit-logs
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param userId path string true "User ID"
+// @Param limit query int false "Limit number of results" default(100)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Param beforeDate query string false "Filter logs created before this date (RFC3339 format)" format(date-time)
+// @Success 200 {object} GetAuditLogsResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /audit-logs/users/{userId} [get]
+func (c *AuditLogController) GetUserAuditLogs(ctx *gin.Context) {
+	user, isOk := ctx.MustGet("user").(*user_models.User)
+	if !isOk {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
+		return
+	}
+
+	userIDStr := ctx.Param("userId")
+	targetUserID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	request := &GetAuditLogsRequest{}
+	if err := ctx.ShouldBindQuery(request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
+
+	response, err := c.auditLogService.GetUserAuditLogs(targetUserID, user, request)
+	if err != nil {
+		if err.Error() == "insufficient permissions to view user audit logs" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
+``````
+------ backend/internal/features/audit_logs/controller_test.go ------
+``````
+package audit_logs
+
+import (
+	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
+	user_enums "logbull/internal/features/users/enums"
+	users_middleware "logbull/internal/features/users/middleware"
+	users_services "logbull/internal/features/users/services"
+	users_testing "logbull/internal/features/users/testing"
+	"logbull/internal/storage"
+	test_utils "logbull/internal/util/testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+)
+
+func Test_GetGlobalAuditLogs_AdminSucceedsAndMemberGetsForbidden(t *testing.T) {
+	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
+	memberUser := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	router := createRouter()
+	service := GetAuditLogService()
+	projectID := uuid.New()
+
+	// Create test logs
+	createAuditLog(service, "Test log with user", &adminUser.UserID, nil)
+	createAuditLog(service, "Test log with project", nil, &projectID)
+	createAuditLog(service, "Test log standalone", nil, nil)
+
+	// Test ADMIN can access global logs
+	var response GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
+		"/api/v1/audit-logs/global?limit=10", "Bearer "+adminUser.Token, http.StatusOK, &response)
+
+	assert.GreaterOrEqual(t, len(response.AuditLogs), 3)
+	assert.GreaterOrEqual(t, response.Total, int64(3))
+
+	messages := extractMessages(response.AuditLogs)
+	assert.Contains(t, messages, "Test log with user")
+	assert.Contains(t, messages, "Test log with project")
+	assert.Contains(t, messages, "Test log standalone")
+
+	// Test MEMBER cannot access global logs
+	resp := test_utils.MakeGetRequest(t, router, "/api/v1/audit-logs/global",
+		"Bearer "+memberUser.Token, http.StatusForbidden)
+	assert.Contains(t, string(resp.Body), "only administrators can view global audit logs")
+}
+
+func Test_GetUserAuditLogs_PermissionsEnforcedCorrectly(t *testing.T) {
+	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
+	user1 := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	user2 := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	router := createRouter()
+	service := GetAuditLogService()
+	projectID := uuid.New()
+
+	// Create test logs for different users
+	createAuditLog(service, "Test log user1 first", &user1.UserID, nil)
+	createAuditLog(service, "Test log user1 second", &user1.UserID, &projectID)
+	createAuditLog(service, "Test log user2 first", &user2.UserID, nil)
+	createAuditLog(service, "Test log user2 second", &user2.UserID, &projectID)
+	createAuditLog(service, "Test project log", nil, &projectID)
+
+	// Test ADMIN can view any user's logs
+	var user1Response GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
+		fmt.Sprintf("/api/v1/audit-logs/users/%s?limit=10", user1.UserID.String()),
+		"Bearer "+adminUser.Token, http.StatusOK, &user1Response)
+
+	assert.Equal(t, 2, len(user1Response.AuditLogs))
+	messages := extractMessages(user1Response.AuditLogs)
+	assert.Contains(t, messages, "Test log user1 first")
+	assert.Contains(t, messages, "Test log user1 second")
+
+	// Test user can view own logs
+	var ownLogsResponse GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
+		fmt.Sprintf("/api/v1/audit-logs/users/%s", user2.UserID.String()),
+		"Bearer "+user2.Token, http.StatusOK, &ownLogsResponse)
+	assert.Equal(t, 2, len(ownLogsResponse.AuditLogs))
+
+	// Test user cannot view other user's logs
+	resp := test_utils.MakeGetRequest(t, router,
+		fmt.Sprintf("/api/v1/audit-logs/users/%s", user1.UserID.String()),
+		"Bearer "+user2.Token, http.StatusForbidden)
+
+	assert.Contains(t, string(resp.Body), "insufficient permissions")
+}
+
+func Test_FilterAuditLogsByTime_ReturnsOnlyLogsBeforeDate(t *testing.T) {
+	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
+	router := createRouter()
+	service := GetAuditLogService()
+	db := storage.GetDb()
+	baseTime := time.Now().UTC()
+
+	// Create logs with different timestamps
+	createTimedLog(db, &adminUser.UserID, "Test old log", baseTime.Add(-2*time.Hour))
+	createTimedLog(db, &adminUser.UserID, "Test recent log", baseTime.Add(-30*time.Minute))
+	createAuditLog(service, "Test current log", &adminUser.UserID, nil)
+
+	// Test filtering - get logs before 1 hour ago
+	beforeTime := baseTime.Add(-1 * time.Hour)
+	var filteredResponse GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
+		fmt.Sprintf("/api/v1/audit-logs/global?beforeDate=%s", beforeTime.Format(time.RFC3339)),
+		"Bearer "+adminUser.Token, http.StatusOK, &filteredResponse)
+
+	// Verify only old log is returned
+	messages := extractMessages(filteredResponse.AuditLogs)
+	assert.Contains(t, messages, "Test old log")
+	assert.NotContains(t, messages, "Test recent log")
+	assert.NotContains(t, messages, "Test current log")
+
+	// Test without filter - should get all logs
+	var allResponse GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router, "/api/v1/audit-logs/global",
+		"Bearer "+adminUser.Token, http.StatusOK, &allResponse)
+	assert.GreaterOrEqual(t, len(allResponse.AuditLogs), 3)
+}
+
+func createRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	SetupDependencies()
+
+	v1 := router.Group("/api/v1")
+	protected := v1.Group("").Use(users_middleware.AuthMiddleware(users_services.GetUserService()))
+	GetAuditLogController().RegisterRoutes(protected.(*gin.RouterGroup))
+
+	return router
+}
+
+``````
+------ backend/internal/features/audit_logs/di.go ------
+``````
+package audit_logs
+
+import (
+	users_services "logbull/internal/features/users/services"
+	"logbull/internal/util/logger"
+)
+
+var auditLogRepository = &AuditLogRepository{}
+var auditLogService = &AuditLogService{
+	auditLogRepository: auditLogRepository,
+	logger:             logger.GetLogger(),
+}
+var auditLogController = &AuditLogController{
+	auditLogService: auditLogService,
+}
+
+func GetAuditLogService() *AuditLogService {
+	return auditLogService
+}
+
+func GetAuditLogController() *AuditLogController {
+	return auditLogController
+}
+
+func SetupDependencies() {
+	users_services.GetUserService().SetAuditLogWriter(auditLogService)
+	users_services.GetSettingsService().SetAuditLogWriter(auditLogService)
+	users_services.GetManagementService().SetAuditLogWriter(auditLogService)
+}
+
+``````
+------ backend/internal/features/audit_logs/dto.go ------
+``````
+package audit_logs
+
+import "time"
+
+type GetAuditLogsRequest struct {
+	Limit      int        `form:"limit"      json:"limit"`
+	Offset     int        `form:"offset"     json:"offset"`
+	BeforeDate *time.Time `form:"beforeDate" json:"beforeDate"`
+}
+
+type GetAuditLogsResponse struct {
+	AuditLogs []*AuditLog `json:"auditLogs"`
+	Total     int64       `json:"total"`
+	Limit     int         `json:"limit"`
+	Offset    int         `json:"offset"`
+}
+
+``````
+------ backend/internal/features/audit_logs/models.go ------
+``````
+package audit_logs
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type AuditLog struct {
+	ID        uuid.UUID  `json:"id"        gorm:"column:id"`
+	UserID    *uuid.UUID `json:"userId"    gorm:"column:user_id"`
+	ProjectID *uuid.UUID `json:"projectId" gorm:"column:project_id"`
+	Message   string     `json:"message"   gorm:"column:message"`
+	CreatedAt time.Time  `json:"createdAt" gorm:"column:created_at"`
+}
+
+func (AuditLog) TableName() string {
+	return "audit_logs"
+}
+
+``````
+------ backend/internal/features/audit_logs/repository.go ------
+``````
+package audit_logs
+
+import (
+	"logbull/internal/storage"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type AuditLogRepository struct{}
+
+func (r *AuditLogRepository) Create(auditLog *AuditLog) error {
+	if auditLog.ID == uuid.Nil {
+		auditLog.ID = uuid.New()
+	}
+
+	return storage.GetDb().Create(auditLog).Error
+}
+
+func (r *AuditLogRepository) GetGlobal(limit, offset int, beforeDate *time.Time) ([]*AuditLog, error) {
+	var auditLogs []*AuditLog
+
+	query := storage.GetDb().Order("created_at DESC")
+
+	if beforeDate != nil {
+		query = query.Where("created_at < ?", *beforeDate)
+	}
+
+	err := query.
+		Limit(limit).
+		Offset(offset).
+		Find(&auditLogs).Error
+
+	return auditLogs, err
+}
+
+func (r *AuditLogRepository) GetByUser(
+	userID uuid.UUID,
+	limit, offset int,
+	beforeDate *time.Time,
+) ([]*AuditLog, error) {
+	var auditLogs []*AuditLog
+
+	query := storage.GetDb().
+		Where("user_id = ?", userID).
+		Order("created_at DESC")
+
+	if beforeDate != nil {
+		query = query.Where("created_at < ?", *beforeDate)
+	}
+
+	err := query.
+		Limit(limit).
+		Offset(offset).
+		Find(&auditLogs).Error
+
+	return auditLogs, err
+}
+
+func (r *AuditLogRepository) GetByProject(
+	projectID uuid.UUID,
+	limit, offset int,
+	beforeDate *time.Time,
+) ([]*AuditLog, error) {
+	var auditLogs []*AuditLog
+
+	query := storage.GetDb().
+		Where("project_id = ?", projectID).
+		Order("created_at DESC")
+
+	if beforeDate != nil {
+		query = query.Where("created_at < ?", *beforeDate)
+	}
+
+	err := query.
+		Limit(limit).
+		Offset(offset).
+		Find(&auditLogs).Error
+
+	return auditLogs, err
+}
+
+func (r *AuditLogRepository) CountGlobal(beforeDate *time.Time) (int64, error) {
+	var count int64
+	query := storage.GetDb().Model(&AuditLog{})
+
+	if beforeDate != nil {
+		query = query.Where("created_at < ?", *beforeDate)
+	}
+
+	err := query.Count(&count).Error
+	return count, err
+}
+
+``````
+------ backend/internal/features/audit_logs/service.go ------
+``````
+package audit_logs
+
+import (
+	"errors"
+	"log/slog"
+	"time"
+
+	user_enums "logbull/internal/features/users/enums"
+	user_models "logbull/internal/features/users/models"
+
+	"github.com/google/uuid"
+)
+
+type AuditLogService struct {
+	auditLogRepository *AuditLogRepository
+	logger             *slog.Logger
+}
+
+func (s *AuditLogService) WriteAuditLog(
+	message string,
+	userID *uuid.UUID,
+	projectID *uuid.UUID,
+) {
+	auditLog := &AuditLog{
+		UserID:    userID,
+		ProjectID: projectID,
+		Message:   message,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	err := s.auditLogRepository.Create(auditLog)
+	if err != nil {
+		s.logger.Error("failed to create audit log", "error", err)
+		return
+	}
+}
+
+func (s *AuditLogService) CreateAuditLog(auditLog *AuditLog) error {
+	return s.auditLogRepository.Create(auditLog)
+}
+
+func (s *AuditLogService) GetGlobalAuditLogs(
+	user *user_models.User,
+	request *GetAuditLogsRequest,
+) (*GetAuditLogsResponse, error) {
+	if user.Role != user_enums.UserRoleAdmin {
+		return nil, errors.New("only administrators can view global audit logs")
+	}
+
+	limit := request.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+
+	offset := max(request.Offset, 0)
+
+	auditLogs, err := s.auditLogRepository.GetGlobal(limit, offset, request.BeforeDate)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := s.auditLogRepository.CountGlobal(request.BeforeDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetAuditLogsResponse{
+		AuditLogs: auditLogs,
+		Total:     total,
+		Limit:     limit,
+		Offset:    offset,
+	}, nil
+}
+
+func (s *AuditLogService) GetUserAuditLogs(
+	targetUserID uuid.UUID,
+	user *user_models.User,
+	request *GetAuditLogsRequest,
+) (*GetAuditLogsResponse, error) {
+	// Users can view their own logs, ADMIN can view any user's logs
+	if user.Role != user_enums.UserRoleAdmin && user.ID != targetUserID {
+		return nil, errors.New("insufficient permissions to view user audit logs")
+	}
+
+	limit := request.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+
+	offset := max(request.Offset, 0)
+
+	auditLogs, err := s.auditLogRepository.GetByUser(targetUserID, limit, offset, request.BeforeDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetAuditLogsResponse{
+		AuditLogs: auditLogs,
+		Total:     int64(len(auditLogs)),
+		Limit:     limit,
+		Offset:    offset,
+	}, nil
+}
+
+func (s *AuditLogService) GetProjectAuditLogs(
+	projectID uuid.UUID,
+	request *GetAuditLogsRequest,
+) (*GetAuditLogsResponse, error) {
+	limit := request.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+
+	offset := max(request.Offset, 0)
+
+	auditLogs, err := s.auditLogRepository.GetByProject(projectID, limit, offset, request.BeforeDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetAuditLogsResponse{
+		AuditLogs: auditLogs,
+		Total:     int64(len(auditLogs)),
+		Limit:     limit,
+		Offset:    offset,
+	}, nil
+}
+
+``````
+------ backend/internal/features/audit_logs/service_test.go ------
+``````
+package audit_logs
+
+import (
+	"testing"
+	"time"
+
+	user_enums "logbull/internal/features/users/enums"
+	users_testing "logbull/internal/features/users/testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
+)
+
+func Test_AuditLogs_ProjectSpecificLogs(t *testing.T) {
+	service := GetAuditLogService()
+	user1 := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	user2 := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	project1ID, project2ID := uuid.New(), uuid.New()
+
+	// Create test logs for projects
+	createAuditLog(service, "Test project1 log first", &user1.UserID, &project1ID)
+	createAuditLog(service, "Test project1 log second", &user2.UserID, &project1ID)
+	createAuditLog(service, "Test project2 log first", &user1.UserID, &project2ID)
+	createAuditLog(service, "Test project2 log second", &user2.UserID, &project2ID)
+	createAuditLog(service, "Test no project log", &user1.UserID, nil)
+
+	request := &GetAuditLogsRequest{Limit: 10, Offset: 0}
+
+	// Test project 1 logs
+	project1Response, err := service.GetProjectAuditLogs(project1ID, request)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(project1Response.AuditLogs))
+
+	messages := extractMessages(project1Response.AuditLogs)
+	assert.Contains(t, messages, "Test project1 log first")
+	assert.Contains(t, messages, "Test project1 log second")
+	for _, log := range project1Response.AuditLogs {
+		assert.Equal(t, &project1ID, log.ProjectID)
+	}
+
+	// Test project 2 logs
+	project2Response, err := service.GetProjectAuditLogs(project2ID, request)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(project2Response.AuditLogs))
+
+	messages2 := extractMessages(project2Response.AuditLogs)
+	assert.Contains(t, messages2, "Test project2 log first")
+	assert.Contains(t, messages2, "Test project2 log second")
+
+	// Test pagination
+	limitedResponse, err := service.GetProjectAuditLogs(project1ID,
+		&GetAuditLogsRequest{Limit: 1, Offset: 0})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(limitedResponse.AuditLogs))
+	assert.Equal(t, 1, limitedResponse.Limit)
+
+	// Test beforeDate filter
+	beforeTime := time.Now().UTC().Add(-1 * time.Minute)
+	filteredResponse, err := service.GetProjectAuditLogs(project1ID,
+		&GetAuditLogsRequest{Limit: 10, BeforeDate: &beforeTime})
+	assert.NoError(t, err)
+	for _, log := range filteredResponse.AuditLogs {
+		assert.True(t, log.CreatedAt.Before(beforeTime))
+	}
+}
+
+func createAuditLog(service *AuditLogService, message string, userID, projectID *uuid.UUID) {
+	service.WriteAuditLog(message, userID, projectID)
+}
+
+func extractMessages(logs []*AuditLog) []string {
+	messages := make([]string, len(logs))
+	for i, log := range logs {
+		messages[i] = log.Message
+	}
+	return messages
+}
+
+func createTimedLog(db *gorm.DB, userID *uuid.UUID, message string, createdAt time.Time) {
+	log := &AuditLog{
+		ID:        uuid.New(),
+		UserID:    userID,
+		Message:   message,
+		CreatedAt: createdAt,
+	}
+	db.Create(log)
+}
+
+``````
