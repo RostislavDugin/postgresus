@@ -167,4 +167,4 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! Read [contributing guide](contribute/readme.md) for more details, prioerities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+Contributions are welcome! Read [contributing guide](contribute/README.md) for more details, prioerities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
