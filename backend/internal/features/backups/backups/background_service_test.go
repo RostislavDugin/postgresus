@@ -6,7 +6,9 @@ import (
 	"postgresus-backend/internal/features/intervals"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	users_enums "postgresus-backend/internal/features/users/enums"
+	users_testing "postgresus-backend/internal/features/users/testing"
+	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
 	"postgresus-backend/internal/util/period"
 	"testing"
 	"time"
@@ -16,10 +18,12 @@ import (
 
 func Test_MakeBackupForDbHavingBackupDayAgo_BackupCreated(t *testing.T) {
 	// setup data
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	// Enable backups for the database
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -67,16 +71,20 @@ func Test_MakeBackupForDbHavingBackupDayAgo_BackupCreated(t *testing.T) {
 	}
 
 	databases.RemoveTestDatabase(database)
-	storages.RemoveTestStorage(storage.ID)
+	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
 	// setup data
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	// Enable backups for the database
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -124,16 +132,20 @@ func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
 	}
 
 	databases.RemoveTestDatabase(database)
-	storages.RemoveTestStorage(storage.ID)
+	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T) {
 	// setup data
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	// Enable backups for the database with retries disabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -185,16 +197,20 @@ func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T)
 	}
 
 	databases.RemoveTestDatabase(database)
-	storages.RemoveTestStorage(storage.ID)
+	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 	// setup data
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	// Enable backups for the database with retries enabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -246,16 +262,20 @@ func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 	}
 
 	databases.RemoveTestDatabase(database)
-	storages.RemoveTestStorage(storage.ID)
+	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *testing.T) {
 	// setup data
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	// Enable backups for the database with retries enabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -309,6 +329,8 @@ func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *tes
 	}
 
 	databases.RemoveTestDatabase(database)
-	storages.RemoveTestStorage(storage.ID)
+	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }

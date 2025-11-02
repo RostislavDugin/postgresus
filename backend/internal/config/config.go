@@ -44,6 +44,16 @@ type EnvVariables struct {
 	TestMinioConsolePort string `env:"TEST_MINIO_CONSOLE_PORT"`
 
 	TestNASPort string `env:"TEST_NAS_PORT"`
+
+	// oauth
+	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
+	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
+	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
+
+	// testing Telegram
+	TestTelegramBotToken string `env:"TEST_TELEGRAM_BOT_TOKEN"`
+	TestTelegramChatID   string `env:"TEST_TELEGRAM_CHAT_ID"`
 }
 
 var (
@@ -171,6 +181,16 @@ func loadEnvVariables() {
 
 		if env.TestNASPort == "" {
 			log.Error("TEST_NAS_PORT is empty")
+			os.Exit(1)
+		}
+
+		if env.TestTelegramBotToken == "" {
+			log.Error("TEST_TELEGRAM_BOT_TOKEN is empty")
+			os.Exit(1)
+		}
+
+		if env.TestTelegramChatID == "" {
+			log.Error("TEST_TELEGRAM_CHAT_ID is empty")
 			os.Exit(1)
 		}
 	}

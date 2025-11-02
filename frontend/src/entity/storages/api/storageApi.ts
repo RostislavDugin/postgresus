@@ -22,10 +22,10 @@ export const storageApi = {
     );
   },
 
-  async getStorages() {
+  async getStorages(workspaceId: string) {
     const requestOptions: RequestOptions = new RequestOptions();
     return apiHelper.fetchGetJson<Storage[]>(
-      `${getApplicationServer()}/api/v1/storages`,
+      `${getApplicationServer()}/api/v1/storages?workspace_id=${workspaceId}`,
       requestOptions,
       true,
     );

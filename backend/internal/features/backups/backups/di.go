@@ -1,12 +1,13 @@
 package backups
 
 import (
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups/usecases"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/logger"
 	"time"
 )
@@ -22,6 +23,8 @@ var backupService = &BackupService{
 	usecases.GetCreateBackupUsecase(),
 	logger.GetLogger(),
 	[]BackupRemoveListener{},
+	workspaces_services.GetWorkspaceService(),
+	audit_logs.GetAuditLogService(),
 }
 
 var backupBackgroundService = &BackupBackgroundService{
@@ -35,7 +38,6 @@ var backupBackgroundService = &BackupBackgroundService{
 
 var backupController = &BackupController{
 	backupService,
-	users.GetUserService(),
 }
 
 func SetupDependencies() {

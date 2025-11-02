@@ -7,6 +7,7 @@ import { EditNotifierComponent } from '../../../notifiers/ui/edit/EditNotifierCo
 
 interface Props {
   database: Database;
+  workspaceId: string;
 
   isShowCancelButton?: boolean;
   onCancel: () => void;
@@ -22,6 +23,7 @@ interface Props {
 
 export const EditDatabaseNotifiersComponent = ({
   database,
+  workspaceId,
 
   isShowCancelButton,
   onCancel,
@@ -65,7 +67,7 @@ export const EditDatabaseNotifiersComponent = ({
     setIsNotifiersLoading(true);
 
     try {
-      const notifiers = await notifierApi.getNotifiers();
+      const notifiers = await notifierApi.getNotifiers(workspaceId);
       setNotifiers(notifiers);
     } catch (e) {
       alert((e as Error).message);
@@ -165,6 +167,7 @@ export const EditDatabaseNotifiersComponent = ({
           </div>
 
           <EditNotifierComponent
+            workspaceId={workspaceId}
             isShowName
             isShowClose={false}
             onClose={() => setShowCreateNotifier(false)}

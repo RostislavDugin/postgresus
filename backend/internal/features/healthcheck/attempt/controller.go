@@ -2,7 +2,7 @@ package healthcheck_attempt
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +11,6 @@ import (
 
 type HealthcheckAttemptController struct {
 	healthcheckAttemptService *HealthcheckAttemptService
-	userService               *users.UserService
 }
 
 func (c *HealthcheckAttemptController) RegisterRoutes(router *gin.RouterGroup) {
@@ -31,9 +30,9 @@ func (c *HealthcheckAttemptController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 401
 // @Router /healthcheck-attempts/{databaseId} [get]
 func (c *HealthcheckAttemptController) GetAttemptsByDatabase(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -43,7 +42,7 @@ func (c *HealthcheckAttemptController) GetAttemptsByDatabase(ctx *gin.Context) {
 		return
 	}
 
-	afterDate := time.Now().UTC()
+	afterDate := time.Now().UTC().Add(-7 * 24 * time.Hour)
 	if afterDateStr := ctx.Query("afterDate"); afterDateStr != "" {
 		parsedDate, err := time.Parse(time.RFC3339, afterDateStr)
 		if err != nil {

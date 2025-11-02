@@ -1,12 +1,13 @@
 package restores
 
 import (
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/restores/usecases"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -19,10 +20,11 @@ var restoreService = &RestoreService{
 	usecases.GetRestoreBackupUsecase(),
 	databases.GetDatabaseService(),
 	logger.GetLogger(),
+	workspaces_services.GetWorkspaceService(),
+	audit_logs.GetAuditLogService(),
 }
 var restoreController = &RestoreController{
 	restoreService,
-	users.GetUserService(),
 }
 
 var restoreBackgroundService = &RestoreBackgroundService{

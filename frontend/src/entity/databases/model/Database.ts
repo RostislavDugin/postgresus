@@ -6,6 +6,7 @@ import type { PostgresqlDatabase } from './postgresql/PostgresqlDatabase';
 export interface Database {
   id: string;
   name: string;
+  workspaceId: string;
   type: DatabaseType;
 
   postgresql?: PostgresqlDatabase;

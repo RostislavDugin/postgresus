@@ -123,7 +123,7 @@ export const EditBackupConfigComponent = ({
     setIsStoragesLoading(true);
 
     try {
-      const storages = await storageApi.getStorages();
+      const storages = await storageApi.getStorages(database.workspaceId);
       setStorages(storages);
     } catch (e) {
       alert((e as Error).message);
@@ -150,7 +150,7 @@ export const EditBackupConfigComponent = ({
         },
         storage: undefined,
         cpuCount: 1,
-        storePeriod: Period.WEEK,
+        storePeriod: Period.THREE_MONTH,
         sendNotificationsOn: [],
         isRetryIfFailed: true,
         maxFailedTriesCount: 3,
@@ -499,6 +499,7 @@ export const EditBackupConfigComponent = ({
           </div>
 
           <EditStorageComponent
+            workspaceId={database.workspaceId}
             isShowName
             isShowClose={false}
             onClose={() => setShowCreateStorage(false)}

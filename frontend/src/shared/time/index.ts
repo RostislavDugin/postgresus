@@ -1,1 +1,1 @@
-export { getUserTimeFormat } from './getUserTimeFormat';
+export { getUserTimeFormat, getUserShortTimeFormat } from './getUserTimeFormat';

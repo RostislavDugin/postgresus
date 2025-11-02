@@ -138,6 +138,9 @@ jobs:
           TEST_MINIO_CONSOLE_PORT=9001
           # testing NAS
           TEST_NAS_PORT=7006
+          # testing Telegram
+          TEST_TELEGRAM_BOT_TOKEN=${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
+          TEST_TELEGRAM_CHAT_ID=${{ secrets.TEST_TELEGRAM_CHAT_ID }}
           EOF
 
       - name: Start test containers

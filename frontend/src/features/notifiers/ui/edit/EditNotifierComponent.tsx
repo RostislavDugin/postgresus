@@ -23,6 +23,8 @@ import { EditTelegramNotifierComponent } from './notifiers/EditTelegramNotifierC
 import { EditWebhookNotifierComponent } from './notifiers/EditWebhookNotifierComponent';
 
 interface Props {
+  workspaceId: string;
+
   isShowClose: boolean;
   onClose: () => void;
 
@@ -33,6 +35,7 @@ interface Props {
 }
 
 export function EditNotifierComponent({
+  workspaceId,
   isShowClose,
   onClose,
   isShowName,
@@ -139,6 +142,7 @@ export function EditNotifierComponent({
       JSON.parse(
         JSON.stringify({
           ...notifier,
+          workspaceId,
           notifierType: type,
         }),
       ),
@@ -153,6 +157,7 @@ export function EditNotifierComponent({
         : {
             id: undefined as unknown as string,
             name: '',
+            workspaceId,
             notifierType: NotifierType.TELEGRAM,
             telegramNotifier: {
               botToken: '',

@@ -1,0 +1,770 @@
+package databases
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
+	"postgresus-backend/internal/features/databases/databases/postgresql"
+	users_enums "postgresus-backend/internal/features/users/enums"
+	users_testing "postgresus-backend/internal/features/users/testing"
+	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
+	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
+	test_utils "postgresus-backend/internal/util/testing"
+	"postgresus-backend/internal/util/tools"
+)
+
+func createTestRouter() *gin.Engine {
+	router := workspaces_testing.CreateTestRouter(
+		workspaces_controllers.GetWorkspaceController(),
+		workspaces_controllers.GetMembershipController(),
+		GetDatabaseController(),
+	)
+	return router
+}
+
+func Test_CreateDatabase_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		workspaceRole      *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace owner can create database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+		{
+			name:               "workspace member can create database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+		{
+			name:               "workspace viewer cannot create database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "global admin can create database",
+			workspaceRole:      nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(workspace, member, *tt.workspaceRole, owner.Token, router)
+				testUserToken = member.Token
+			}
+
+			testDbName := "test_db"
+			request := Database{
+				Name:        "Test Database",
+				WorkspaceID: &workspace.ID,
+				Type:        DatabaseTypePostgres,
+				Postgresql: &postgresql.PostgresqlDatabase{
+					Version:  tools.PostgresqlVersion16,
+					Host:     "localhost",
+					Port:     5432,
+					Username: "postgres",
+					Password: "postgres",
+					Database: &testDbName,
+				},
+			}
+
+			var response Database
+			testResp := test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/create",
+				"Bearer "+testUserToken,
+				request,
+				tt.expectedStatusCode,
+				&response,
+			)
+
+			if tt.expectSuccess {
+				assert.Equal(t, "Test Database", response.Name)
+				assert.NotEqual(t, uuid.Nil, response.ID)
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_CreateDatabase_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	testDbName := "test_db"
+	request := Database{
+		Name:        "Test Database",
+		WorkspaceID: &workspace.ID,
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Version:  tools.PostgresqlVersion16,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "postgres",
+			Password: "postgres",
+			Database: &testDbName,
+		},
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/create",
+		"Bearer "+nonMember.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(testResp.Body), "insufficient permissions")
+}
+
+func Test_UpdateDatabase_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		workspaceRole      *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace owner can update database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "workspace member can update database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "workspace viewer cannot update database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "global admin can update database",
+			workspaceRole:      nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(workspace, member, *tt.workspaceRole, owner.Token, router)
+				testUserToken = member.Token
+			}
+
+			database.Name = "Updated Database"
+
+			var response Database
+			testResp := test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/update",
+				"Bearer "+testUserToken,
+				database,
+				tt.expectedStatusCode,
+				&response,
+			)
+
+			if tt.expectSuccess {
+				assert.Equal(t, "Updated Database", response.Name)
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_UpdateDatabase_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	database.Name = "Hacked Name"
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/update",
+		"Bearer "+nonMember.Token,
+		database,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(testResp.Body), "insufficient permissions")
+}
+
+func Test_DeleteDatabase_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		workspaceRole      *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace owner can delete database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusNoContent,
+		},
+		{
+			name:               "workspace member can delete database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusNoContent,
+		},
+		{
+			name:               "workspace viewer cannot delete database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusInternalServerError,
+		},
+		{
+			name:               "global admin can delete database",
+			workspaceRole:      nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusNoContent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(workspace, member, *tt.workspaceRole, owner.Token, router)
+				testUserToken = member.Token
+			}
+
+			testResp := test_utils.MakeDeleteRequest(
+				t,
+				router,
+				"/api/v1/databases/"+database.ID.String(),
+				"Bearer "+testUserToken,
+				tt.expectedStatusCode,
+			)
+
+			if !tt.expectSuccess {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_GetDatabase_PermissionsEnforced(t *testing.T) {
+	memberRole := users_enums.WorkspaceRoleViewer
+	tests := []struct {
+		name               string
+		userRole           *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace member can get database",
+			userRole:           &memberRole,
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "non-member cannot get database",
+			userRole:           nil,
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "global admin can get database",
+			userRole:           nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+			var testUser string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUser = admin.Token
+			} else if tt.userRole != nil {
+				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(workspace, member, *tt.userRole, owner.Token, router)
+				testUser = member.Token
+			} else {
+				nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser = nonMember.Token
+			}
+
+			var response Database
+			testResp := test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/"+database.ID.String(),
+				"Bearer "+testUser,
+				tt.expectedStatusCode,
+				&response,
+			)
+
+			if tt.expectSuccess {
+				assert.Equal(t, database.ID, response.ID)
+				assert.Equal(t, "Test Database", response.Name)
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_GetDatabasesByWorkspace_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		isMember           bool
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace member can list databases",
+			isMember:           true,
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "non-member cannot list databases",
+			isMember:           false,
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "global admin can list databases",
+			isMember:           false,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			createTestDatabaseViaAPI("Database 1", workspace.ID, owner.Token, router)
+			createTestDatabaseViaAPI("Database 2", workspace.ID, owner.Token, router)
+
+			var testUser string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUser = admin.Token
+			} else if tt.isMember {
+				testUser = owner.Token
+			} else {
+				nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser = nonMember.Token
+			}
+
+			if tt.expectSuccess {
+				var response []Database
+				test_utils.MakeGetRequestAndUnmarshal(
+					t,
+					router,
+					"/api/v1/databases?workspace_id="+workspace.ID.String(),
+					"Bearer "+testUser,
+					tt.expectedStatusCode,
+					&response,
+				)
+				assert.GreaterOrEqual(t, len(response), 2)
+			} else {
+				testResp := test_utils.MakeGetRequest(
+					t,
+					router,
+					"/api/v1/databases?workspace_id="+workspace.ID.String(),
+					"Bearer "+testUser,
+					tt.expectedStatusCode,
+				)
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_GetDatabasesByWorkspace_WhenMultipleDatabasesExist_ReturnsCorrectCount(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	createTestDatabaseViaAPI("Database 1", workspace.ID, owner.Token, router)
+	createTestDatabaseViaAPI("Database 2", workspace.ID, owner.Token, router)
+	createTestDatabaseViaAPI("Database 3", workspace.ID, owner.Token, router)
+
+	var response []Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases?workspace_id="+workspace.ID.String(),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.Equal(t, 3, len(response))
+}
+
+func Test_GetDatabasesByWorkspace_EnsuresCrossWorkspaceIsolation(t *testing.T) {
+	router := createTestRouter()
+	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", owner1, router)
+
+	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", owner2, router)
+
+	createTestDatabaseViaAPI("Workspace1 DB1", workspace1.ID, owner1.Token, router)
+	createTestDatabaseViaAPI("Workspace1 DB2", workspace1.ID, owner1.Token, router)
+
+	createTestDatabaseViaAPI("Workspace2 DB1", workspace2.ID, owner2.Token, router)
+
+	var workspace1Dbs []Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases?workspace_id="+workspace1.ID.String(),
+		"Bearer "+owner1.Token,
+		http.StatusOK,
+		&workspace1Dbs,
+	)
+
+	var workspace2Dbs []Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases?workspace_id="+workspace2.ID.String(),
+		"Bearer "+owner2.Token,
+		http.StatusOK,
+		&workspace2Dbs,
+	)
+
+	assert.Equal(t, 2, len(workspace1Dbs))
+	assert.Equal(t, 1, len(workspace2Dbs))
+
+	for _, db := range workspace1Dbs {
+		assert.Equal(t, workspace1.ID, *db.WorkspaceID)
+	}
+
+	for _, db := range workspace2Dbs {
+		assert.Equal(t, workspace2.ID, *db.WorkspaceID)
+	}
+}
+
+func Test_CopyDatabase_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		workspaceRole      *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "workspace owner can copy database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+		{
+			name:               "workspace member can copy database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+		{
+			name:               "workspace viewer cannot copy database",
+			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "global admin can copy database",
+			workspaceRole:      nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(workspace, member, *tt.workspaceRole, owner.Token, router)
+				testUserToken = member.Token
+			}
+
+			var response Database
+			testResp := test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/"+database.ID.String()+"/copy",
+				"Bearer "+testUserToken,
+				nil,
+				tt.expectedStatusCode,
+				&response,
+			)
+
+			if tt.expectSuccess {
+				assert.NotEqual(t, database.ID, response.ID)
+				assert.Contains(t, response.Name, "(Copy)")
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+			}
+		})
+	}
+}
+
+func Test_CopyDatabase_CopyStaysInSameWorkspace(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+	var response Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/"+database.ID.String()+"/copy",
+		"Bearer "+owner.Token,
+		nil,
+		http.StatusCreated,
+		&response,
+	)
+
+	assert.NotEqual(t, database.ID, response.ID)
+	assert.Equal(t, "Test Database (Copy)", response.Name)
+	assert.Equal(t, workspace.ID, *response.WorkspaceID)
+	assert.Equal(t, database.Type, response.Type)
+}
+
+func Test_TestConnection_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name                    string
+		isMember                bool
+		isGlobalAdmin           bool
+		expectAccessGranted     bool
+		expectedStatusCodeOnErr int
+	}{
+		{
+			name:                    "workspace member can test connection",
+			isMember:                true,
+			isGlobalAdmin:           false,
+			expectAccessGranted:     true,
+			expectedStatusCodeOnErr: http.StatusBadRequest,
+		},
+		{
+			name:                    "non-member cannot test connection",
+			isMember:                false,
+			isGlobalAdmin:           false,
+			expectAccessGranted:     false,
+			expectedStatusCodeOnErr: http.StatusBadRequest,
+		},
+		{
+			name:                    "global admin can test connection",
+			isMember:                false,
+			isGlobalAdmin:           true,
+			expectAccessGranted:     true,
+			expectedStatusCodeOnErr: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+			var testUser string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUser = admin.Token
+			} else if tt.isMember {
+				testUser = owner.Token
+			} else {
+				nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser = nonMember.Token
+			}
+
+			w := workspaces_testing.MakeAPIRequest(
+				router,
+				"POST",
+				"/api/v1/databases/"+database.ID.String()+"/test-connection",
+				"Bearer "+testUser,
+				nil,
+			)
+
+			body := w.Body.String()
+
+			if tt.expectAccessGranted {
+				assert.True(
+					t,
+					w.Code == http.StatusOK ||
+						(w.Code == http.StatusBadRequest && strings.Contains(body, "connect")),
+					"Expected 200 OK or 400 with connection error, got %d: %s",
+					w.Code,
+					body,
+				)
+			} else {
+				assert.Equal(t, tt.expectedStatusCodeOnErr, w.Code)
+				assert.Contains(t, body, "insufficient permissions")
+			}
+		})
+	}
+}
+
+func createTestDatabaseViaAPI(
+	name string,
+	workspaceID uuid.UUID,
+	token string,
+	router *gin.Engine,
+) *Database {
+	testDbName := "test_db"
+	request := Database{
+		Name:        name,
+		WorkspaceID: &workspaceID,
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Version:  tools.PostgresqlVersion16,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "postgres",
+			Password: "postgres",
+			Database: &testDbName,
+		},
+	}
+
+	w := workspaces_testing.MakeAPIRequest(
+		router,
+		"POST",
+		"/api/v1/databases/create",
+		"Bearer "+token,
+		request,
+	)
+
+	if w.Code != http.StatusCreated {
+		panic(
+			fmt.Sprintf("Failed to create database. Status: %d, Body: %s", w.Code, w.Body.String()),
+		)
+	}
+
+	var database Database
+	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
+		panic(err)
+	}
+
+	return &database
+}

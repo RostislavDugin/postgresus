@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreateTestNotifier(userID uuid.UUID) *Notifier {
+func CreateTestNotifier(workspaceID uuid.UUID) *Notifier {
 	notifier := &Notifier{
-		UserID:       userID,
+		WorkspaceID:  workspaceID,
 		Name:         "test " + uuid.New().String(),
 		NotifierType: NotifierTypeWebhook,
 		WebhookNotifier: &webhook_notifier.WebhookNotifier{

@@ -2,7 +2,7 @@ package restores
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,7 +10,6 @@ import (
 
 type RestoreController struct {
 	restoreService *RestoreService
-	userService    *users.UserService
 }
 
 func (c *RestoreController) RegisterRoutes(router *gin.RouterGroup) {
@@ -29,21 +28,15 @@ func (c *RestoreController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 401
 // @Router /restores/{backupId} [get]
 func (c *RestoreController) GetRestores(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	backupID, err := uuid.Parse(ctx.Param("backupId"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -66,6 +59,12 @@ func (c *RestoreController) GetRestores(ctx *gin.Context) {
 // @Failure 401
 // @Router /restores/{backupId}/restore [post]
 func (c *RestoreController) RestoreBackup(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	backupID, err := uuid.Parse(ctx.Param("backupId"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup ID"})
@@ -75,18 +74,6 @@ func (c *RestoreController) RestoreBackup(ctx *gin.Context) {
 	var requestDTO RestoreBackupRequest
 	if err := ctx.ShouldBindJSON(&requestDTO); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 

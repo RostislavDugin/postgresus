@@ -53,7 +53,7 @@ func (r *HealthcheckAttemptRepository) DeleteOlderThan(
 		Delete(&HealthcheckAttempt{}).Error
 }
 
-func (r *HealthcheckAttemptRepository) Insert(
+func (r *HealthcheckAttemptRepository) Create(
 	attempt *HealthcheckAttempt,
 ) error {
 	if attempt.ID == uuid.Nil {
@@ -65,6 +65,12 @@ func (r *HealthcheckAttemptRepository) Insert(
 	}
 
 	return storage.GetDb().Create(attempt).Error
+}
+
+func (r *HealthcheckAttemptRepository) Insert(
+	attempt *HealthcheckAttempt,
+) error {
+	return r.Create(attempt)
 }
 
 func (r *HealthcheckAttemptRepository) FindByDatabaseIDWithLimit(

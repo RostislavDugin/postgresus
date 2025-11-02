@@ -2,9 +2,18 @@ import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { accessTokenHelper } from '../../../shared/api/accessTokenHelper';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import type { ChangePasswordRequest } from '../model/ChangePasswordRequest';
+import type { InviteUserRequest } from '../model/InviteUserRequest';
+import type { InviteUserResponse } from '../model/InviteUserResponse';
+import type { IsAdminHasPasswordResponse } from '../model/IsAdminHasPasswordResponse';
+import type { OAuthCallbackRequest } from '../model/OAuthCallbackRequest';
+import type { OAuthCallbackResponse } from '../model/OAuthCallbackResponse';
+import type { SetAdminPasswordRequest } from '../model/SetAdminPasswordRequest';
 import type { SignInRequest } from '../model/SignInRequest';
 import type { SignInResponse } from '../model/SignInResponse';
 import type { SignUpRequest } from '../model/SignUpRequest';
+import type { UpdateUserInfoRequest } from '../model/UpdateUserInfoRequest';
+import type { UserProfile } from '../model/UserProfile';
 
 const listeners: (() => void)[] = [];
 
@@ -51,6 +60,77 @@ export const userApi = {
       .then((response: unknown) => {
         const typedResponse = response as { isExist: boolean };
         return typedResponse.isExist;
+      });
+  },
+
+  async isAdminHasPassword(): Promise<IsAdminHasPasswordResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    return apiHelper.fetchGetJson(
+      `${getApplicationServer()}/api/v1/users/admin/has-password`,
+      requestOptions,
+    );
+  },
+
+  async setAdminPassword(request: SetAdminPasswordRequest): Promise<{ message: string }> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+    return apiHelper.fetchPostJson(
+      `${getApplicationServer()}/api/v1/users/admin/set-password`,
+      requestOptions,
+    );
+  },
+
+  async changePassword(request: ChangePasswordRequest): Promise<{ message: string }> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+    return apiHelper.fetchPutJson(
+      `${getApplicationServer()}/api/v1/users/change-password`,
+      requestOptions,
+    );
+  },
+
+  async inviteUser(request: InviteUserRequest): Promise<InviteUserResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+    return apiHelper.fetchPostJson(`${getApplicationServer()}/api/v1/users/invite`, requestOptions);
+  },
+
+  async getCurrentUser(): Promise<UserProfile> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    return apiHelper.fetchGetJson(`${getApplicationServer()}/api/v1/users/me`, requestOptions);
+  },
+
+  async updateUserInfo(request: UpdateUserInfoRequest): Promise<{ message: string }> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+    return apiHelper.fetchPutJson(`${getApplicationServer()}/api/v1/users/me`, requestOptions);
+  },
+
+  async handleGitHubOAuth(request: OAuthCallbackRequest): Promise<OAuthCallbackResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+
+    return apiHelper
+      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/github/callback`, requestOptions)
+      .then((response: unknown): OAuthCallbackResponse => {
+        const typedResponse = response as OAuthCallbackResponse;
+        saveAuthorizedData(typedResponse.token, typedResponse.userId);
+        notifyAuthListeners();
+        return typedResponse;
+      });
+  },
+
+  async handleGoogleOAuth(request: OAuthCallbackRequest): Promise<OAuthCallbackResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+
+    return apiHelper
+      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/google/callback`, requestOptions)
+      .then((response: unknown): OAuthCallbackResponse => {
+        const typedResponse = response as OAuthCallbackResponse;
+        saveAuthorizedData(typedResponse.token, typedResponse.userId);
+        notifyAuthListeners();
+        return typedResponse;
       });
   },
 

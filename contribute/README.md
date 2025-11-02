@@ -73,35 +73,22 @@ Before taking anything more than a couple of lines of code, please write Rostisl
 
 Nearsest features:
 - add API keys and API actions
+- add encryption
 
-Backups flow:
-
-- check Neon backups flow
+Storages tasks:
 - check AWS S3 support
-- when testing connection with S3 - verify files can be really uploaded
-- do not remove old backups on backups disable
+- check Google Cloud S3 support
 - add FTP
 - add Dropbox
 - add OneDrive
 - add NAS
 - add Yandex Drive
-- think about pg_dumpall / pg_basebackup / WAL backup / incremental backups
-- add encryption for backups
-- add support of PgBouncer
 
-Notifications flow:
-
+Notifications tasks:
 - add Mattermost
+- make webhooks flexible
+- add Gotify
 
 Extra:
 
 - add HTTPS for Postgresus
-- add simple SQL queries via UI
-- add support of Kubernetes Helm
-- create pretty website like rybbit.io with demo
-
-Monitoring flow:
-
-- add queries stats (slowest, most frequent, etc. via pg_stat_statements)
-- add DB size distribution chart (tables, indexes, etc.)
-- add chart of connections (from IPs, apps names, etc.)

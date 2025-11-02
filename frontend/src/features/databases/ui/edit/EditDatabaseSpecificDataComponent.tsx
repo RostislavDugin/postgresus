@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import {
   type Database,
   DatabaseType,
-  type PostgresqlDatabase,
   PostgresqlVersion,
   databaseApi,
 } from '../../../../entity/databases';
@@ -106,27 +105,6 @@ export const EditDatabaseSpecificDataComponent = ({
 
   return (
     <div>
-      <div className="mb-5 flex w-full items-center">
-        <div className="min-w-[150px]">Database type</div>
-        <Select
-          value={database.type}
-          onChange={(v) => {
-            setEditingDatabase({
-              ...editingDatabase,
-              type: v,
-              postgresql: {} as unknown as PostgresqlDatabase,
-            } as Database);
-
-            setIsConnectionTested(false);
-          }}
-          disabled={!!editingDatabase.id}
-          size="small"
-          className="max-w-[200px] grow"
-          options={[{ label: 'PostgreSQL', value: DatabaseType.POSTGRES }]}
-          placeholder="Select database type"
-        />
-      </div>
-
       {editingDatabase.type === DatabaseType.POSTGRES && (
         <>
           <div className="mb-1 flex w-full items-center">

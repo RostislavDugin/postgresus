@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/downdetect"
+	"postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
@@ -24,7 +24,10 @@ import (
 	"postgresus-backend/internal/features/restores"
 	"postgresus-backend/internal/features/storages"
 	system_healthcheck "postgresus-backend/internal/features/system/healthcheck"
-	"postgresus-backend/internal/features/users"
+	users_controllers "postgresus-backend/internal/features/users/controllers"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
+	users_services "postgresus-backend/internal/features/users/services"
+	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
 	env_utils "postgresus-backend/internal/util/env"
 	files_utils "postgresus-backend/internal/util/files"
 	"postgresus-backend/internal/util/logger"
@@ -61,12 +64,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Handle password reset if flag is provided
-	newPassword := flag.String("new-password", "", "Set a new password for the user")
-	flag.Parse()
-	if *newPassword != "" {
-		resetPassword(*newPassword, log)
+	err = users_services.GetUserService().CreateInitialAdmin()
+	if err != nil {
+		log.Error("Failed to create initial admin", "error", err)
+		os.Exit(1)
 	}
+
+	handlePasswordReset(log)
 
 	go generateSwaggerDocs(log)
 
@@ -91,11 +95,33 @@ func main() {
 	startServerWithGracefulShutdown(log, ginApp)
 }
 
-func resetPassword(newPassword string, log *slog.Logger) {
+func handlePasswordReset(log *slog.Logger) {
+	audit_logs.SetupDependencies()
+
+	newPassword := flag.String("new-password", "", "Set a new password for the user")
+	email := flag.String("email", "", "Email of the user to reset password")
+
+	flag.Parse()
+
+	if *newPassword == "" {
+		return
+	}
+
+	log.Info("Found reset password command - reseting password...")
+
+	if *email == "" {
+		log.Info("No email provided, please provide an email via --email=\"some@email.com\" flag")
+		os.Exit(1)
+	}
+
+	resetPassword(*email, *newPassword, log)
+}
+
+func resetPassword(email string, newPassword string, log *slog.Logger) {
 	log.Info("Resetting password...")
 
-	userService := users.GetUserService()
-	err := userService.ChangePassword(newPassword)
+	userService := users_services.GetUserService()
+	err := userService.ChangeUserPasswordByEmail(email, newPassword)
 	if err != nil {
 		log.Error("Failed to reset password", "error", err)
 		os.Exit(1)
@@ -146,37 +172,44 @@ func setUpRoutes(r *gin.Engine) {
 	// Mount Swagger UI
 	v1.GET("/docs/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	downdetectContoller := downdetect.GetDowndetectController()
-	userController := users.GetUserController()
-	notifierController := notifiers.GetNotifierController()
-	storageController := storages.GetStorageController()
-	databaseController := databases.GetDatabaseController()
-	backupController := backups.GetBackupController()
-	restoreController := restores.GetRestoreController()
-	healthcheckController := system_healthcheck.GetHealthcheckController()
-	healthcheckConfigController := healthcheck_config.GetHealthcheckConfigController()
-	healthcheckAttemptController := healthcheck_attempt.GetHealthcheckAttemptController()
-	diskController := disk.GetDiskController()
-	backupConfigController := backups_config.GetBackupConfigController()
-
-	downdetectContoller.RegisterRoutes(v1)
+	// Public routes (only user auth routes and healthcheck should be public)
+	userController := users_controllers.GetUserController()
 	userController.RegisterRoutes(v1)
-	notifierController.RegisterRoutes(v1)
-	storageController.RegisterRoutes(v1)
-	databaseController.RegisterRoutes(v1)
-	backupController.RegisterRoutes(v1)
-	restoreController.RegisterRoutes(v1)
-	healthcheckController.RegisterRoutes(v1)
-	diskController.RegisterRoutes(v1)
-	healthcheckConfigController.RegisterRoutes(v1)
-	healthcheckAttemptController.RegisterRoutes(v1)
-	backupConfigController.RegisterRoutes(v1)
+	system_healthcheck.GetHealthcheckController().RegisterRoutes(v1)
+
+	// Setup auth middleware
+	userService := users_services.GetUserService()
+	authMiddleware := users_middleware.AuthMiddleware(userService)
+
+	// Protected routes
+	protected := v1.Group("")
+	protected.Use(authMiddleware)
+
+	userController.RegisterProtectedRoutes(protected)
+	workspaces_controllers.GetWorkspaceController().RegisterRoutes(protected)
+	workspaces_controllers.GetMembershipController().RegisterRoutes(protected)
+	disk.GetDiskController().RegisterRoutes(protected)
+	notifiers.GetNotifierController().RegisterRoutes(protected)
+	storages.GetStorageController().RegisterRoutes(protected)
+	databases.GetDatabaseController().RegisterRoutes(protected)
+	backups.GetBackupController().RegisterRoutes(protected)
+	restores.GetRestoreController().RegisterRoutes(protected)
+	healthcheck_config.GetHealthcheckConfigController().RegisterRoutes(protected)
+	healthcheck_attempt.GetHealthcheckAttemptController().RegisterRoutes(protected)
+	backups_config.GetBackupConfigController().RegisterRoutes(protected)
+	audit_logs.GetAuditLogController().RegisterRoutes(protected)
+	users_controllers.GetManagementController().RegisterRoutes(protected)
+	users_controllers.GetSettingsController().RegisterRoutes(protected)
 }
 
 func setUpDependencies() {
+	databases.SetupDependencies()
 	backups.SetupDependencies()
 	restores.SetupDependencies()
 	healthcheck_config.SetupDependencies()
+	audit_logs.SetupDependencies()
+	notifiers.SetupDependencies()
+	storages.SetupDependencies()
 }
 
 func runBackgroundTasks(log *slog.Logger) {

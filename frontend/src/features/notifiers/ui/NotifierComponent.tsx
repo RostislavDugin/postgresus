@@ -15,9 +15,15 @@ interface Props {
   notifierId: string;
   onNotifierChanged: (notifier: Notifier) => void;
   onNotifierDeleted: () => void;
+  isCanManageNotifiers: boolean;
 }
 
-export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDeleted }: Props) => {
+export const NotifierComponent = ({
+  notifierId,
+  onNotifierChanged,
+  onNotifierDeleted,
+  isCanManageNotifiers,
+}: Props) => {
   const [notifier, setNotifier] = useState<Notifier | undefined>();
 
   const [isEditName, setIsEditName] = useState(false);
@@ -128,9 +134,11 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
             {!isEditName ? (
               <div className="mb-5 flex items-center text-2xl font-bold">
                 {notifier.name}
-                <div className="ml-2 cursor-pointer" onClick={() => startEdit('name')}>
-                  <img src="/icons/pen-gray.svg" />
-                </div>
+                {isCanManageNotifiers && (
+                  <div className="ml-2 cursor-pointer" onClick={() => startEdit('name')}>
+                    <img src="/icons/pen-gray.svg" />
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -205,7 +213,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
             <div className="mt-5 flex items-center font-bold">
               <div>Notifier settings</div>
 
-              {!isEditSettings ? (
+              {!isEditSettings && isCanManageNotifiers ? (
                 <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('settings')}>
                   <img src="/icons/pen-gray.svg" />
                 </div>
@@ -217,6 +225,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
             <div className="mt-1 text-sm">
               {isEditSettings ? (
                 <EditNotifierComponent
+                  workspaceId={notifier.workspaceId}
                   isShowClose
                   onClose={() => {
                     setIsEditSettings(false);
@@ -245,16 +254,18 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
                   Send test notification
                 </Button>
 
-                <Button
-                  type="primary"
-                  danger
-                  onClick={() => setIsShowRemoveConfirm(true)}
-                  ghost
-                  loading={isRemoving}
-                  disabled={isRemoving}
-                >
-                  Remove
-                </Button>
+                {isCanManageNotifiers && (
+                  <Button
+                    type="primary"
+                    danger
+                    onClick={() => setIsShowRemoveConfirm(true)}
+                    ghost
+                    loading={isRemoving}
+                    disabled={isRemoving}
+                  >
+                    Remove
+                  </Button>
+                )}
               </div>
             )}
           </div>

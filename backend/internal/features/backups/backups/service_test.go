@@ -6,10 +6,13 @@ import (
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	users_enums "postgresus-backend/internal/features/users/enums"
+	users_testing "postgresus-backend/internal/features/users/testing"
+	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
 	"postgresus-backend/internal/util/logger"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -17,15 +20,27 @@ import (
 )
 
 func Test_BackupExecuted_NotificationSent(t *testing.T) {
-	user := users.GetTestUser()
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
-	database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 	backups_config.EnableBackupsForTestDatabase(database.ID, storage)
 
-	defer storages.RemoveTestStorage(storage.ID)
-	defer notifiers.RemoveTestNotifier(notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
 
 	t.Run("BackupFailed_FailNotificationSent", func(t *testing.T) {
 		mockNotificationSender := &MockNotificationSender{}
@@ -39,6 +54,8 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateFailedBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
+			nil, // workspaceService
+			nil, // auditLogService
 		}
 
 		// Set up expectations
@@ -82,6 +99,8 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
+			nil, // workspaceService
+			nil, // auditLogService
 		}
 
 		backupService.MakeBackup(database.ID, true)
@@ -102,6 +121,8 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
+			nil, // workspaceService
+			nil, // auditLogService
 		}
 
 		// capture arguments

@@ -3,11 +3,10 @@ import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 
 import { backupConfigApi } from '../../../entity/backups';
-import { type Database, DatabaseType } from '../../../entity/databases';
+import { type Database } from '../../../entity/databases';
 import { HealthStatus } from '../../../entity/databases/model/HealthStatus';
 import type { Storage } from '../../../entity/storages';
 import { getStorageLogoFromType } from '../../../entity/storages/models/getStorageLogoFromType';
-import { getUserShortTimeFormat } from '../../../shared/time/getUserTimeFormat';
 
 interface Props {
   database: Database;
@@ -21,14 +20,6 @@ export const DatabaseCardComponent = ({
   setSelectedDatabaseId,
 }: Props) => {
   const [storage, setStorage] = useState<Storage | undefined>();
-
-  let databaseIcon = '';
-  let databaseType = '';
-
-  if (database.type === DatabaseType.POSTGRES) {
-    databaseIcon = '/icons/databases/postgresql.svg';
-    databaseType = 'PostgreSQL';
-  }
 
   useEffect(() => {
     if (!database.id) return;
@@ -57,13 +48,8 @@ export const DatabaseCardComponent = ({
         )}
       </div>
 
-      <div className="mb flex items-center">
-        <div className="text-sm text-gray-500">Database type: {databaseType}</div>
-        <img src={databaseIcon} alt="databaseIcon" className="ml-1 h-4 w-4" />
-      </div>
-
       {storage && (
-        <div className="mb-1 text-sm text-gray-500">
+        <div className="text-sm text-gray-500">
           <span>Storage: </span>
           <span className="inline-flex items-center">
             {storage.name}{' '}
@@ -79,12 +65,7 @@ export const DatabaseCardComponent = ({
       )}
 
       {database.lastBackupTime && (
-        <div className="mt-3 mb-1 text-xs text-gray-500">
-          <span className="font-bold">Last backup</span>
-          <br />
-          {dayjs(database.lastBackupTime).format(getUserShortTimeFormat().format)} (
-          {dayjs(database.lastBackupTime).fromNow()})
-        </div>
+        <div className="text-gray-500">Last backup {dayjs(database.lastBackupTime).fromNow()}</div>
       )}
 
       {database.lastBackupErrorMessage && (

@@ -12,6 +12,7 @@ interface Props {
   databaseId: string;
   onDatabaseChanged: (database: Database) => void;
   onDatabaseDeleted: () => void;
+  isCanManageDBs: boolean;
 }
 
 export const DatabaseComponent = ({
@@ -19,6 +20,7 @@ export const DatabaseComponent = ({
   databaseId,
   onDatabaseChanged,
   onDatabaseDeleted,
+  isCanManageDBs,
 }: Props) => {
   const [currentTab, setCurrentTab] = useState<'config' | 'backups' | 'metrics'>('backups');
 
@@ -65,12 +67,13 @@ export const DatabaseComponent = ({
           onDatabaseDeleted={onDatabaseDeleted}
           editDatabase={editDatabase}
           setEditDatabase={setEditDatabase}
+          isCanManageDBs={isCanManageDBs}
         />
       )}
       {currentTab === 'backups' && (
         <>
           <HealthckeckAttemptsComponent database={database} />
-          <BackupsComponent database={database} />
+          <BackupsComponent database={database} isCanManageDBs={isCanManageDBs} />
         </>
       )}
     </div>

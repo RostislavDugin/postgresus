@@ -3,7 +3,7 @@ package backups_config
 import (
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 )
 
 var backupConfigRepository = &BackupConfigRepository{}
@@ -11,11 +11,11 @@ var backupConfigService = &BackupConfigService{
 	backupConfigRepository,
 	databases.GetDatabaseService(),
 	storages.GetStorageService(),
+	workspaces_services.GetWorkspaceService(),
 	nil,
 }
 var backupConfigController = &BackupConfigController{
 	backupConfigService,
-	users.GetUserService(),
 }
 
 func GetBackupConfigController() *BackupConfigController {

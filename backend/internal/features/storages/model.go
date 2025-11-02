@@ -14,7 +14,7 @@ import (
 
 type Storage struct {
 	ID            uuid.UUID   `json:"id"            gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	UserID        uuid.UUID   `json:"userId"        gorm:"column:user_id;not null;type:uuid;index"`
+	WorkspaceID   uuid.UUID   `json:"workspaceId"   gorm:"column:workspace_id;not null;type:uuid;index"`
 	Type          StorageType `json:"type"          gorm:"column:type;not null;type:text"`
 	Name          string      `json:"name"          gorm:"column:name;not null;type:text"`
 	LastSaveError *string     `json:"lastSaveError" gorm:"column:last_save_error;type:text"`

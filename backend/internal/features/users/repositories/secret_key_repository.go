@@ -1,4 +1,4 @@
-package user_repositories
+package users_repositories
 
 import (
 	"errors"

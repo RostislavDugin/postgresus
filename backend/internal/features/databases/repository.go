@@ -92,14 +92,14 @@ func (r *DatabaseRepository) FindByID(id uuid.UUID) (*Database, error) {
 	return &database, nil
 }
 
-func (r *DatabaseRepository) FindByUserID(userID uuid.UUID) ([]*Database, error) {
+func (r *DatabaseRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Database, error) {
 	var databases []*Database
 
 	if err := storage.
 		GetDb().
 		Preload("Postgresql").
 		Preload("Notifiers").
-		Where("user_id = ?", userID).
+		Where("workspace_id = ?", workspaceID).
 		Order("CASE WHEN health_status = 'UNAVAILABLE' THEN 1 WHEN health_status = 'AVAILABLE' THEN 2 WHEN health_status IS NULL THEN 3 ELSE 4 END, name ASC").
 		Find(&databases).Error; err != nil {
 		return nil, err

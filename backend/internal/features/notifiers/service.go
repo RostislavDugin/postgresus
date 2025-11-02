@@ -2,8 +2,12 @@ package notifiers
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/google/uuid"
 )
@@ -11,30 +15,57 @@ import (
 type NotifierService struct {
 	notifierRepository *NotifierRepository
 	logger             *slog.Logger
+	workspaceService   *workspaces_services.WorkspaceService
+	auditLogService    *audit_logs.AuditLogService
 }
 
 func (s *NotifierService) SaveNotifier(
 	user *users_models.User,
+	workspaceID uuid.UUID,
 	notifier *Notifier,
 ) error {
-	if notifier.ID != uuid.Nil {
+	canManage, err := s.workspaceService.CanUserManageDBs(workspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to manage notifier in this workspace")
+	}
+
+	isUpdate := notifier.ID != uuid.Nil
+
+	if isUpdate {
 		existingNotifier, err := s.notifierRepository.FindByID(notifier.ID)
 		if err != nil {
 			return err
 		}
 
-		if existingNotifier.UserID != user.ID {
-			return errors.New("you have not access to this notifier")
+		if existingNotifier.WorkspaceID != workspaceID {
+			return errors.New("notifier does not belong to this workspace")
 		}
 
-		notifier.UserID = existingNotifier.UserID
+		notifier.WorkspaceID = existingNotifier.WorkspaceID
 	} else {
-		notifier.UserID = user.ID
+		notifier.WorkspaceID = workspaceID
 	}
 
-	_, err := s.notifierRepository.Save(notifier)
+	_, err = s.notifierRepository.Save(notifier)
 	if err != nil {
 		return err
+	}
+
+	if isUpdate {
+		s.auditLogService.WriteAuditLog(
+			fmt.Sprintf("Notifier updated: %s", notifier.Name),
+			&user.ID,
+			&workspaceID,
+		)
+	} else {
+		s.auditLogService.WriteAuditLog(
+			fmt.Sprintf("Notifier created: %s", notifier.Name),
+			&user.ID,
+			&workspaceID,
+		)
 	}
 
 	return nil
@@ -49,11 +80,26 @@ func (s *NotifierService) DeleteNotifier(
 		return err
 	}
 
-	if notifier.UserID != user.ID {
-		return errors.New("you have not access to this notifier")
+	canManage, err := s.workspaceService.CanUserManageDBs(notifier.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to manage notifier in this workspace")
 	}
 
-	return s.notifierRepository.Delete(notifier)
+	err = s.notifierRepository.Delete(notifier)
+	if err != nil {
+		return err
+	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Notifier deleted: %s", notifier.Name),
+		&user.ID,
+		&notifier.WorkspaceID,
+	)
+
+	return nil
 }
 
 func (s *NotifierService) GetNotifier(
@@ -65,8 +111,12 @@ func (s *NotifierService) GetNotifier(
 		return nil, err
 	}
 
-	if notifier.UserID != user.ID {
-		return nil, errors.New("you have not access to this notifier")
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(notifier.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("insufficient permissions to view notifier in this workspace")
 	}
 
 	return notifier, nil
@@ -74,8 +124,17 @@ func (s *NotifierService) GetNotifier(
 
 func (s *NotifierService) GetNotifiers(
 	user *users_models.User,
+	workspaceID uuid.UUID,
 ) ([]*Notifier, error) {
-	return s.notifierRepository.FindByUserID(user.ID)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("insufficient permissions to view notifiers in this workspace")
+	}
+
+	return s.notifierRepository.FindByWorkspaceID(workspaceID)
 }
 
 func (s *NotifierService) SendTestNotification(
@@ -87,8 +146,12 @@ func (s *NotifierService) SendTestNotification(
 		return err
 	}
 
-	if notifier.UserID != user.ID {
-		return errors.New("you have not access to this notifier")
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(notifier.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return errors.New("insufficient permissions to test notifier in this workspace")
 	}
 
 	err = notifier.Send(s.logger, "Test message", "This is a test message")
@@ -142,4 +205,19 @@ func (s *NotifierService) SendNotification(
 	if err != nil {
 		s.logger.Error("Failed to save notifier", "error", err)
 	}
+}
+
+func (s *NotifierService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error {
+	notifiers, err := s.notifierRepository.FindByWorkspaceID(workspaceID)
+	if err != nil {
+		return fmt.Errorf("failed to get notifiers for workspace deletion: %w", err)
+	}
+
+	for _, notifier := range notifiers {
+		if err := s.notifierRepository.Delete(notifier); err != nil {
+			return fmt.Errorf("failed to delete notifier %s: %w", notifier.ID, err)
+		}
+	}
+
+	return nil
 }

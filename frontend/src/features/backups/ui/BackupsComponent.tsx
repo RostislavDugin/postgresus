@@ -20,9 +20,10 @@ import { RestoresComponent } from '../../restores';
 
 interface Props {
   database: Database;
+  isCanManageDBs: boolean;
 }
 
-export const BackupsComponent = ({ database }: Props) => {
+export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
   const [isBackupsLoading, setIsBackupsLoading] = useState(false);
   const [backups, setBackups] = useState<Backup[]>([]);
 
@@ -287,16 +288,18 @@ export const BackupsComponent = ({ database }: Props) => {
                   <SyncOutlined spin />
                 ) : (
                   <>
-                    <Tooltip title="Delete backup">
-                      <DeleteOutlined
-                        className="cursor-pointer"
-                        onClick={() => {
-                          if (deletingBackupId) return;
-                          setDeleteConfimationId(record.id);
-                        }}
-                        style={{ color: '#ff0000', opacity: deletingBackupId ? 0.2 : 1 }}
-                      />
-                    </Tooltip>
+                    {isCanManageDBs && (
+                      <Tooltip title="Delete backup">
+                        <DeleteOutlined
+                          className="cursor-pointer"
+                          onClick={() => {
+                            if (deletingBackupId) return;
+                            setDeleteConfimationId(record.id);
+                          }}
+                          style={{ color: '#ff0000', opacity: deletingBackupId ? 0.2 : 1 }}
+                        />
+                      </Tooltip>
+                    )}
 
                     <Tooltip title="Restore from backup">
                       <CloudUploadOutlined
@@ -305,14 +308,14 @@ export const BackupsComponent = ({ database }: Props) => {
                           setShowingRestoresBackupId(record.id);
                         }}
                         style={{
-                          color: '#0d6efd',
+                          color: '#155dfc',
                         }}
                       />
                     </Tooltip>
 
                     <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
                       {downloadingBackupId === record.id ? (
-                        <SyncOutlined spin style={{ color: '#0d6efd' }} />
+                        <SyncOutlined spin style={{ color: '#155dfc' }} />
                       ) : (
                         <DownloadOutlined
                           className="cursor-pointer"
@@ -322,7 +325,7 @@ export const BackupsComponent = ({ database }: Props) => {
                           }}
                           style={{
                             opacity: downloadingBackupId ? 0.2 : 1,
-                            color: '#0d6efd',
+                            color: '#155dfc',
                           }}
                         />
                       )}

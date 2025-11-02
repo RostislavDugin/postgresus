@@ -1,8 +1,9 @@
 package healthcheck_config
 
 import (
+	"postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/users"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -10,11 +11,12 @@ var healthcheckConfigRepository = &HealthcheckConfigRepository{}
 var healthcheckConfigService = &HealthcheckConfigService{
 	databases.GetDatabaseService(),
 	healthcheckConfigRepository,
+	workspaces_services.GetWorkspaceService(),
+	audit_logs.GetAuditLogService(),
 	logger.GetLogger(),
 }
 var healthcheckConfigController = &HealthcheckConfigController{
 	healthcheckConfigService,
-	users.GetUserService(),
 }
 
 func GetHealthcheckConfigService() *HealthcheckConfigService {

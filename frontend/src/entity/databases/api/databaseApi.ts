@@ -31,10 +31,10 @@ export const databaseApi = {
     );
   },
 
-  async getDatabases() {
+  async getDatabases(workspaceId: string) {
     const requestOptions: RequestOptions = new RequestOptions();
     return apiHelper.fetchGetJson<Database[]>(
-      `${getApplicationServer()}/api/v1/databases`,
+      `${getApplicationServer()}/api/v1/databases?workspace_id=${workspaceId}`,
       requestOptions,
       true,
     );

@@ -2,7 +2,7 @@ package healthcheck_config
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,7 +10,6 @@ import (
 
 type HealthcheckConfigController struct {
 	healthcheckConfigService *HealthcheckConfigService
-	userService              *users.UserService
 }
 
 func (c *HealthcheckConfigController) RegisterRoutes(router *gin.RouterGroup) {
@@ -31,9 +30,9 @@ func (c *HealthcheckConfigController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 401
 // @Router /healthcheck-config [post]
 func (c *HealthcheckConfigController) SaveHealthcheckConfig(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -65,9 +64,9 @@ func (c *HealthcheckConfigController) SaveHealthcheckConfig(ctx *gin.Context) {
 // @Failure 401
 // @Router /healthcheck-config/{databaseId} [get]
 func (c *HealthcheckConfigController) GetHealthcheckConfig(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 

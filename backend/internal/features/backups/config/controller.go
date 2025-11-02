@@ -2,7 +2,7 @@ package backups_config
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,7 +10,6 @@ import (
 
 type BackupConfigController struct {
 	backupConfigService *BackupConfigService
-	userService         *users.UserService
 }
 
 func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
@@ -32,21 +31,15 @@ func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 500
 // @Router /backup-configs/save [post]
 func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var requestDTO BackupConfig
 	if err := ctx.ShouldBindJSON(&requestDTO); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -74,27 +67,15 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 // @Failure 404
 // @Router /backup-configs/database/{id} [get]
 func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	_, err = c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -113,31 +94,38 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 // @Tags backup-configs
 // @Produce json
 // @Param id path string true "Storage ID"
+// @Param workspace_id query string true "Workspace ID"
 // @Success 200 {object} map[string]bool
 // @Failure 400
 // @Failure 401
 // @Failure 500
 // @Router /backup-configs/storage/{id}/is-using [get]
 func (c *BackupConfigController) IsStorageUsing(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid storage ID"})
 		return
 	}
 
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
+	workspaceIDStr := ctx.Query("workspace_id")
+	if workspaceIDStr == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id query parameter is required"})
 		return
 	}
 
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
+	workspaceID, err := uuid.Parse(workspaceIDStr)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
 		return
 	}
 
-	isUsing, err := c.backupConfigService.IsStorageUsing(user, id)
+	isUsing, err := c.backupConfigService.IsStorageUsing(user, workspaceID, id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -1,10 +1,13 @@
 package backups_config
 
 import (
+	"errors"
+
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/intervals"
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/period"
 
 	"github.com/google/uuid"
@@ -14,6 +17,7 @@ type BackupConfigService struct {
 	backupConfigRepository *BackupConfigRepository
 	databaseService        *databases.DatabaseService
 	storageService         *storages.StorageService
+	workspaceService       *workspaces_services.WorkspaceService
 
 	dbStorageChangeListener BackupConfigStorageChangeListener
 }
@@ -32,9 +36,21 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 		return nil, err
 	}
 
-	_, err := s.databaseService.GetDatabase(user, backupConfig.DatabaseID)
+	database, err := s.databaseService.GetDatabase(user, backupConfig.DatabaseID)
 	if err != nil {
 		return nil, err
+	}
+
+	if database.WorkspaceID == nil {
+		return nil, errors.New("cannot save backup config for database without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage {
+		return nil, errors.New("insufficient permissions to modify backup configuration")
 	}
 
 	return s.SaveBackupConfig(backupConfig)
@@ -116,6 +132,7 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 
 func (s *BackupConfigService) IsStorageUsing(
 	user *users_models.User,
+	workspaceID uuid.UUID,
 	storageID uuid.UUID,
 ) (bool, error) {
 	_, err := s.storageService.GetStorage(user, storageID)
@@ -142,6 +159,10 @@ func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID
 	if err != nil {
 		return
 	}
+}
+
+func (s *BackupConfigService) CreateDisabledBackupConfig(databaseID uuid.UUID) error {
+	return s.initializeDefaultConfig(databaseID)
 }
 
 func (s *BackupConfigService) initializeDefaultConfig(

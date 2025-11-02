@@ -13,3 +13,4 @@ postgresus-backend.exe
 ui/build/*
 pgdata-for-restore/
 temp/
+cmd.exe

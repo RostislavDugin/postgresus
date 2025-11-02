@@ -154,8 +154,10 @@ docker compose up -d
 If you need to reset the admin password, you can use the built-in password reset command:
 
 ```bash
-docker exec -it postgresus ./main --new-password="YourNewSecurePassword123"
+docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"
 ```
+
+Replace `admin` with the actual email address of the user whose password you want to reset.
 
 ---
 

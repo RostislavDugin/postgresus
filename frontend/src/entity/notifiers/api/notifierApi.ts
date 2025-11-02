@@ -22,10 +22,10 @@ export const notifierApi = {
     );
   },
 
-  async getNotifiers() {
+  async getNotifiers(workspaceId: string) {
     const requestOptions: RequestOptions = new RequestOptions();
     return apiHelper.fetchGetJson<Notifier[]>(
-      `${getApplicationServer()}/api/v1/notifiers`,
+      `${getApplicationServer()}/api/v1/notifiers?workspace_id=${workspaceId}`,
       requestOptions,
       true,
     );

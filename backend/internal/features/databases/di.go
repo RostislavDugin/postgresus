@@ -1,8 +1,10 @@
 package databases
 
 import (
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/users"
+	users_services "postgresus-backend/internal/features/users/services"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -15,11 +17,14 @@ var databaseService = &DatabaseService{
 	[]DatabaseCreationListener{},
 	[]DatabaseRemoveListener{},
 	[]DatabaseCopyListener{},
+	workspaces_services.GetWorkspaceService(),
+	audit_logs.GetAuditLogService(),
 }
 
 var databaseController = &DatabaseController{
 	databaseService,
-	users.GetUserService(),
+	users_services.GetUserService(),
+	workspaces_services.GetWorkspaceService(),
 }
 
 func GetDatabaseService() *DatabaseService {
@@ -28,4 +33,8 @@ func GetDatabaseService() *DatabaseService {
 
 func GetDatabaseController() *DatabaseController {
 	return databaseController
+}
+
+func SetupDependencies() {
+	workspaces_services.GetWorkspaceService().AddWorkspaceDeletionListener(databaseService)
 }

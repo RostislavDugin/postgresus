@@ -129,7 +129,7 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	}
 
 	storage := &storages.Storage{
-		UserID:       uuid.New(),
+		WorkspaceID:  uuid.New(),
 		Type:         storages.StorageTypeLocal,
 		Name:         "Test Storage",
 		LocalStorage: &local_storage.LocalStorage{},

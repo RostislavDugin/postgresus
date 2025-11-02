@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreateTestStorage(userID uuid.UUID) *Storage {
+func CreateTestStorage(workspaceID uuid.UUID) *Storage {
 	storage := &Storage{
-		UserID:       userID,
+		WorkspaceID:  workspaceID,
 		Type:         StorageTypeLocal,
 		Name:         "Test Storage " + uuid.New().String(),
 		LocalStorage: &local_storage.LocalStorage{},

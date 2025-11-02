@@ -19,6 +19,8 @@ interface Props {
   onDatabaseDeleted: () => void;
   editDatabase: Database | undefined;
   setEditDatabase: (database: Database | undefined) => void;
+
+  isCanManageDBs: boolean;
 }
 
 export const DatabaseConfigComponent = ({
@@ -28,6 +30,7 @@ export const DatabaseConfigComponent = ({
   onDatabaseDeleted,
   editDatabase,
   setEditDatabase,
+  isCanManageDBs,
 }: Props) => {
   const [isEditName, setIsEditName] = useState(false);
   const [isEditDatabaseSpecificDataSettings, setIsEditDatabaseSpecificDataSettings] =
@@ -148,9 +151,12 @@ export const DatabaseConfigComponent = ({
       {!isEditName ? (
         <div className="mb-5 flex items-center text-2xl font-bold">
           {database.name}
-          <div className="ml-2 cursor-pointer" onClick={() => startEdit('name')}>
-            <img src="/icons/pen-gray.svg" />
-          </div>
+
+          {isCanManageDBs && (
+            <div className="ml-2 cursor-pointer" onClick={() => startEdit('name')}>
+              <img src="/icons/pen-gray.svg" />
+            </div>
+          )}
         </div>
       ) : (
         <div>
@@ -225,7 +231,7 @@ export const DatabaseConfigComponent = ({
           <div className="mt-5 flex items-center font-bold">
             <div>Database settings</div>
 
-            {!isEditDatabaseSpecificDataSettings ? (
+            {!isEditDatabaseSpecificDataSettings && isCanManageDBs ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('database')}>
                 <img src="/icons/pen-gray.svg" />
               </div>
@@ -258,7 +264,7 @@ export const DatabaseConfigComponent = ({
           <div className="mt-5 flex items-center font-bold">
             <div>Backup config</div>
 
-            {!isEditBackupConfig ? (
+            {!isEditBackupConfig && isCanManageDBs ? (
               <div
                 className="ml-2 h-4 w-4 cursor-pointer"
                 onClick={() => startEdit('backup-config')}
@@ -298,7 +304,7 @@ export const DatabaseConfigComponent = ({
           <div className="mt-5 flex items-center font-bold">
             <div>Healthcheck settings</div>
 
-            {!isEditHealthcheckSettings ? (
+            {!isEditHealthcheckSettings && isCanManageDBs ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('healthcheck')}>
                 <img src="/icons/pen-gray.svg" />
               </div>
@@ -326,7 +332,7 @@ export const DatabaseConfigComponent = ({
           <div className="mt-5 flex items-center font-bold">
             <div>Notifiers settings</div>
 
-            {!isEditNotifiersSettings ? (
+            {!isEditNotifiersSettings && isCanManageDBs ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('notifiers')}>
                 <img src="/icons/pen-gray.svg" />
               </div>
@@ -338,6 +344,7 @@ export const DatabaseConfigComponent = ({
           <div className="mt-1 text-sm">
             {isEditNotifiersSettings ? (
               <EditDatabaseNotifiersComponent
+                workspaceId={database.workspaceId}
                 database={database}
                 isShowCancelButton
                 isShowBackButton={false}

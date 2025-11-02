@@ -3,14 +3,18 @@ import { useEffect, useState } from 'react';
 
 import { notifierApi } from '../../../entity/notifiers';
 import type { Notifier } from '../../../entity/notifiers';
+import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { NotifierCardComponent } from './NotifierCardComponent';
 import { NotifierComponent } from './NotifierComponent';
 import { EditNotifierComponent } from './edit/EditNotifierComponent';
 
 interface Props {
   contentHeight: number;
+  workspace: WorkspaceResponse;
+  isCanManageNotifiers: boolean;
 }
-export const NotifiersComponent = ({ contentHeight }: Props) => {
+
+export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifiers }: Props) => {
   const [isLoading, setIsLoading] = useState(true);
   const [notifiers, setNotifiers] = useState<Notifier[]>([]);
 
@@ -20,7 +24,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
     setIsLoading(true);
 
     notifierApi
-      .getNotifiers()
+      .getNotifiers(workspace.id)
       .then((notifiers) => {
         setNotifiers(notifiers);
         if (!selectedNotifierId) {
@@ -56,7 +60,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
           className="mx-3 w-[250px] min-w-[250px] overflow-y-auto"
           style={{ height: contentHeight }}
         >
-          {notifiers.length >= 5 && addNotifierButton}
+          {notifiers.length >= 5 && isCanManageNotifiers && addNotifierButton}
 
           {notifiers.map((notifier) => (
             <NotifierCardComponent
@@ -67,7 +71,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
             />
           ))}
 
-          {notifiers.length < 5 && addNotifierButton}
+          {notifiers.length < 5 && isCanManageNotifiers && addNotifierButton}
 
           <div className="mx-3 text-center text-xs text-gray-500">
             Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
@@ -86,6 +90,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
                 notifiers.filter((notifier) => notifier.id !== selectedNotifierId)[0]?.id,
               );
             }}
+            isCanManageNotifiers={isCanManageNotifiers}
           />
         )}
       </div>
@@ -102,6 +107,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
           </div>
 
           <EditNotifierComponent
+            workspaceId={workspace.id}
             isShowName
             isShowClose={false}
             onClose={() => setIsShowAddNotifier(false)}

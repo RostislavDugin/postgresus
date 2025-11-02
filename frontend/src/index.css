@@ -18,6 +18,32 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+div,
+p,
+span,
+a,
+button,
+input,
+textarea,
+select,
+option,
+label,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family:
+    'Jost',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+}
+
 :root,
 html,
 body {

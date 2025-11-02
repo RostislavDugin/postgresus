@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
@@ -12,6 +13,7 @@ import (
 	"postgresus-backend/internal/features/restores/usecases"
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/tools"
 	"time"
 
@@ -26,6 +28,8 @@ type RestoreService struct {
 	restoreBackupUsecase *usecases.RestoreBackupUsecase
 	databaseService      *databases.DatabaseService
 	logger               *slog.Logger
+	workspaceService     *workspaces_services.WorkspaceService
+	auditLogService      *audit_logs.AuditLogService
 }
 
 func (s *RestoreService) OnBeforeBackupRemove(backup *backups.Backup) error {
@@ -58,8 +62,19 @@ func (s *RestoreService) GetRestores(
 		return nil, err
 	}
 
-	if backup.Database.UserID != user.ID {
-		return nil, errors.New("user does not have access to this backup")
+	if backup.Database.WorkspaceID == nil {
+		return nil, errors.New("cannot get restores for database without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+		*backup.Database.WorkspaceID,
+		user,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !canAccess {
+		return nil, errors.New("insufficient permissions to access restores for this backup")
 	}
 
 	return s.restoreRepository.FindByBackupID(backupID)
@@ -75,8 +90,19 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
-	if backup.Database.UserID != user.ID {
-		return errors.New("user does not have access to this backup")
+	if backup.Database.WorkspaceID == nil {
+		return errors.New("cannot restore backup for database without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+		*backup.Database.WorkspaceID,
+		user,
+	)
+	if err != nil {
+		return err
+	}
+	if !canAccess {
+		return errors.New("insufficient permissions to restore this backup")
 	}
 
 	backupDatabase, err := s.databaseService.GetDatabase(user, backup.DatabaseID)
@@ -104,6 +130,16 @@ func (s *RestoreService) RestoreBackupWithAuth(
 			s.logger.Error("Failed to restore backup", "error", err)
 		}
 	}()
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf(
+			"Database restored from backup %s for database: %s",
+			backupID.String(),
+			backup.Database.Name,
+		),
+		&user.ID,
+		backup.Database.WorkspaceID,
+	)
 
 	return nil
 }

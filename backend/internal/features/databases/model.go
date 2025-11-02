@@ -11,10 +11,13 @@ import (
 )
 
 type Database struct {
-	ID     uuid.UUID    `json:"id"     gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	UserID uuid.UUID    `json:"userId" gorm:"column:user_id;type:uuid;not null"`
-	Name   string       `json:"name"   gorm:"column:name;type:text;not null"`
-	Type   DatabaseType `json:"type"   gorm:"column:type;type:text;not null"`
+	ID uuid.UUID `json:"id" gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+
+	// WorkspaceID can be null when a database is created via restore operation
+	// outside the context of any workspace
+	WorkspaceID *uuid.UUID   `json:"workspaceId" gorm:"column:workspace_id;type:uuid"`
+	Name        string       `json:"name"        gorm:"column:name;type:text;not null"`
+	Type        DatabaseType `json:"type"        gorm:"column:type;type:text;not null"`
 
 	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:DatabaseID"`
 

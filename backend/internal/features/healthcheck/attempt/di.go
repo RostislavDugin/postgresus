@@ -4,7 +4,7 @@ import (
 	"postgresus-backend/internal/features/databases"
 	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
 	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/users"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -12,6 +12,7 @@ var healthcheckAttemptRepository = &HealthcheckAttemptRepository{}
 var healthcheckAttemptService = &HealthcheckAttemptService{
 	healthcheckAttemptRepository,
 	databases.GetDatabaseService(),
+	workspaces_services.GetWorkspaceService(),
 }
 
 var checkPgHealthUseCase = &CheckPgHealthUseCase{
@@ -27,7 +28,10 @@ var healthcheckAttemptBackgroundService = &HealthcheckAttemptBackgroundService{
 }
 var healthcheckAttemptController = &HealthcheckAttemptController{
 	healthcheckAttemptService,
-	users.GetUserService(),
+}
+
+func GetHealthcheckAttemptRepository() *HealthcheckAttemptRepository {
+	return healthcheckAttemptRepository
 }
 
 func GetHealthcheckAttemptService() *HealthcheckAttemptService {

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"slices"
 	"time"
 
@@ -29,6 +31,9 @@ type BackupService struct {
 	logger *slog.Logger
 
 	backupRemoveListeners []BackupRemoveListener
+
+	workspaceService *workspaces_services.WorkspaceService
+	auditLogService  *audit_logs.AuditLogService
 }
 
 func (s *BackupService) AddBackupRemoveListener(listener BackupRemoveListener) {
@@ -62,11 +67,25 @@ func (s *BackupService) MakeBackupWithAuth(
 		return err
 	}
 
-	if database.UserID != user.ID {
-		return errors.New("user does not have access to this database")
+	if database.WorkspaceID == nil {
+		return errors.New("cannot create backup for database without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canAccess {
+		return errors.New("insufficient permissions to create backup for this database")
 	}
 
 	go s.MakeBackup(databaseID, true)
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Backup manually initiated for database: %s", database.Name),
+		&user.ID,
+		database.WorkspaceID,
+	)
 
 	return nil
 }
@@ -80,8 +99,16 @@ func (s *BackupService) GetBackups(
 		return nil, err
 	}
 
-	if database.UserID != user.ID {
-		return nil, errors.New("user does not have access to this database")
+	if database.WorkspaceID == nil {
+		return nil, errors.New("cannot get backups for database without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canAccess {
+		return nil, errors.New("insufficient permissions to access backups for this database")
 	}
 
 	backups, err := s.backupRepository.FindByDatabaseID(databaseID)
@@ -101,13 +128,31 @@ func (s *BackupService) DeleteBackup(
 		return err
 	}
 
-	if backup.Database.UserID != user.ID {
-		return errors.New("user does not have access to this backup")
+	if backup.Database.WorkspaceID == nil {
+		return errors.New("cannot delete backup for database without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*backup.Database.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to delete backup for this database")
 	}
 
 	if backup.Status == BackupStatusInProgress {
 		return errors.New("backup is in progress")
 	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf(
+			"Backup deleted for database: %s (ID: %s)",
+			backup.Database.Name,
+			backupID.String(),
+		),
+		&user.ID,
+		backup.Database.WorkspaceID,
+	)
 
 	return s.deleteBackup(backup)
 }
@@ -328,14 +373,35 @@ func (s *BackupService) GetBackupFile(
 		return nil, err
 	}
 
-	if backup.Database.UserID != user.ID {
-		return nil, errors.New("user does not have access to this backup")
+	if backup.Database.WorkspaceID == nil {
+		return nil, errors.New("cannot download backup for database without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+		*backup.Database.WorkspaceID,
+		user,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !canAccess {
+		return nil, errors.New("insufficient permissions to download backup for this database")
 	}
 
 	storage, err := s.storageService.GetStorageByID(backup.StorageID)
 	if err != nil {
 		return nil, err
 	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf(
+			"Backup file downloaded for database: %s (ID: %s)",
+			backup.Database.Name,
+			backupID.String(),
+		),
+		&user.ID,
+		backup.Database.WorkspaceID,
+	)
 
 	return storage.GetFile(backup.ID)
 }

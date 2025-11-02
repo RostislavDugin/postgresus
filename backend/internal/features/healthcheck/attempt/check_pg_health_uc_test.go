@@ -10,23 +10,34 @@ import (
 	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/features/users"
+	users_enums "postgresus-backend/internal/features/users/enums"
+	users_testing "postgresus-backend/internal/features/users/testing"
+	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func Test_CheckPgHealthUseCase(t *testing.T) {
-	user := users.GetTestUser()
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
 
-	storage := storages.CreateTestStorage(user.UserID)
-	notifier := notifiers.CreateTestNotifier(user.UserID)
+	// Create workspace directly via service
+	workspace, err := workspaces_testing.CreateTestWorkspaceDirect("Test Workspace", user.UserID)
+	if err != nil {
+		t.Fatalf("Failed to create workspace: %v", err)
+	}
 
-	defer storages.RemoveTestStorage(storage.ID)
-	defer notifiers.RemoveTestNotifier(notifier)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+
+	defer func() {
+		storages.RemoveTestStorage(storage.ID)
+		notifiers.RemoveTestNotifier(notifier)
+		workspaces_testing.RemoveTestWorkspaceDirect(workspace.ID)
+	}()
 
 	t.Run("Test_DbAttemptFailed_DbMarkedAsUnavailable", func(t *testing.T) {
-		database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+		database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 		defer databases.RemoveTestDatabase(database)
 
 		// Setup mock notifier sender
@@ -94,7 +105,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 	t.Run(
 		"Test_DbShouldBeConsideredAsDownOnThirdFailedAttempt_DbNotMarkerdAsDownAfterFirstAttempt",
 		func(t *testing.T) {
-			database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 			defer databases.RemoveTestDatabase(database)
 
 			// Setup mock notifier sender
@@ -160,7 +171,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 	t.Run(
 		"Test_DbShouldBeConsideredAsDownOnThirdFailedAttempt_DbMarkerdAsDownAfterThirdFailedAttempt",
 		func(t *testing.T) {
-			database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 			defer databases.RemoveTestDatabase(database)
 
 			// Make sure DB is available
@@ -237,7 +248,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 	)
 
 	t.Run("Test_UnavailableDbAttemptSucceed_DbMarkedAsAvailable", func(t *testing.T) {
-		database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+		database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 		defer databases.RemoveTestDatabase(database)
 
 		// Make sure DB is unavailable
@@ -311,7 +322,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 	t.Run(
 		"Test_DbHealthcheckExecutedFast_HealthcheckNotExecutedFasterThanInterval",
 		func(t *testing.T) {
-			database := databases.CreateTestDatabase(user.UserID, storage, notifier)
+			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 			defer databases.RemoveTestDatabase(database)
 
 			// Setup mock notifier sender

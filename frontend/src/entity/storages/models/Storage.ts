@@ -9,6 +9,7 @@ export interface Storage {
   type: StorageType;
   name: string;
   lastSaveError?: string;
+  workspaceId: string;
 
   // specific storage types
   localStorage?: LocalStorage;

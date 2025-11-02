@@ -15,7 +15,7 @@ import (
 
 type Notifier struct {
 	ID            uuid.UUID    `json:"id"            gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	UserID        uuid.UUID    `json:"userId"        gorm:"column:user_id;not null;type:uuid;index"`
+	WorkspaceID   uuid.UUID    `json:"workspaceId"   gorm:"column:workspace_id;not null;type:uuid;index"`
 	Name          string       `json:"name"          gorm:"column:name;not null;type:varchar(255)"`
 	NotifierType  NotifierType `json:"notifierType"  gorm:"column:notifier_type;not null;type:varchar(50)"`
 	LastSendError *string      `json:"lastSendError" gorm:"column:last_send_error;type:text"`

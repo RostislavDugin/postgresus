@@ -14,18 +14,20 @@ import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComp
 import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDataComponent';
 
 interface Props {
-  onCreated: () => void;
+  workspaceId: string;
 
+  onCreated: () => void;
   onClose: () => void;
 }
 
-export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
+export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {
   const [isCreating, setIsCreating] = useState(false);
   const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
   const [database, setDatabase] = useState<Database>({
     id: undefined as unknown as string,
     name: '',
-    storePeriod: Period.WEEK,
+    workspaceId,
+    storePeriod: Period.MONTH,
 
     postgresql: {
       cpuCount: 1,
@@ -124,6 +126,7 @@ export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
       <EditDatabaseNotifiersComponent
         database={database}
         isShowCancelButton={false}
+        workspaceId={workspaceId}
         onCancel={() => onClose()}
         isShowBackButton
         onBack={() => setStep('backup-config')}

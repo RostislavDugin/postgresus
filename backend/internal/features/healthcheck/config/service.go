@@ -2,9 +2,12 @@ package healthcheck_config
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+	"postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/databases"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/google/uuid"
 )
@@ -12,6 +15,8 @@ import (
 type HealthcheckConfigService struct {
 	databaseService             *databases.DatabaseService
 	healthcheckConfigRepository *HealthcheckConfigRepository
+	workspaceService            *workspaces_services.WorkspaceService
+	auditLogService             *audit_logs.AuditLogService
 	logger                      *slog.Logger
 }
 
@@ -33,8 +38,16 @@ func (s *HealthcheckConfigService) Save(
 		return err
 	}
 
-	if database.UserID != user.ID {
-		return errors.New("user does not have access to this database")
+	if database.WorkspaceID == nil {
+		return errors.New("cannot modify healthcheck config for databases without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, &user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to modify healthcheck config")
 	}
 
 	healthcheckConfig := configDTO.ToDTO()
@@ -60,6 +73,12 @@ func (s *HealthcheckConfigService) Save(
 		}
 	}
 
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Healthcheck config updated for database '%s'", database.Name),
+		&user.ID,
+		database.WorkspaceID,
+	)
+
 	return nil
 }
 
@@ -72,8 +91,16 @@ func (s *HealthcheckConfigService) GetByDatabaseID(
 		return nil, err
 	}
 
-	if database.UserID != user.ID {
-		return nil, errors.New("user does not have access to this database")
+	if database.WorkspaceID == nil {
+		return nil, errors.New("cannot access healthcheck config for databases without workspace")
+	}
+
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, &user)
+	if err != nil {
+		return nil, err
+	}
+	if !canAccess {
+		return nil, errors.New("insufficient permissions to view healthcheck config")
 	}
 
 	config, err := s.healthcheckConfigRepository.GetByDatabaseID(database.ID)

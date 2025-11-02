@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,7 +12,6 @@ import (
 
 type BackupController struct {
 	backupService *BackupService
-	userService   *users.UserService
 }
 
 func (c *BackupController) RegisterRoutes(router *gin.RouterGroup) {
@@ -34,6 +33,12 @@ func (c *BackupController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 500
 // @Router /backups [get]
 func (c *BackupController) GetBackups(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	databaseIDStr := ctx.Query("database_id")
 	if databaseIDStr == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "database_id query parameter is required"})
@@ -43,18 +48,6 @@ func (c *BackupController) GetBackups(ctx *gin.Context) {
 	databaseID, err := uuid.Parse(databaseIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database_id"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -80,21 +73,15 @@ func (c *BackupController) GetBackups(ctx *gin.Context) {
 // @Failure 500
 // @Router /backups [post]
 func (c *BackupController) MakeBackup(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var request MakeBackupRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -117,21 +104,15 @@ func (c *BackupController) MakeBackup(ctx *gin.Context) {
 // @Failure 500
 // @Router /backups/{id} [delete]
 func (c *BackupController) DeleteBackup(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -154,21 +135,15 @@ func (c *BackupController) DeleteBackup(ctx *gin.Context) {
 // @Failure 500
 // @Router /backups/{id}/file [get]
 func (c *BackupController) GetFile(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -179,19 +154,16 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 	}
 	defer func() {
 		if err := fileReader.Close(); err != nil {
-			// Log the error but don't interrupt the response
 			fmt.Printf("Error closing file reader: %v\n", err)
 		}
 	}()
 
-	// Set headers for file download
 	ctx.Header("Content-Type", "application/octet-stream")
 	ctx.Header(
 		"Content-Disposition",
 		fmt.Sprintf("attachment; filename=\"backup_%s.dump\"", id.String()),
 	)
 
-	// Stream the file content
 	_, err = io.Copy(ctx.Writer, fileReader)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to stream file"})

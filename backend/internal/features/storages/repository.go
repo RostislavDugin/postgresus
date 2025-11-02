@@ -104,7 +104,7 @@ func (r *StorageRepository) FindByID(id uuid.UUID) (*Storage, error) {
 	return &s, nil
 }
 
-func (r *StorageRepository) FindByUserID(userID uuid.UUID) ([]*Storage, error) {
+func (r *StorageRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Storage, error) {
 	var storages []*Storage
 
 	if err := db.
@@ -113,7 +113,7 @@ func (r *StorageRepository) FindByUserID(userID uuid.UUID) ([]*Storage, error) {
 		Preload("S3Storage").
 		Preload("GoogleDriveStorage").
 		Preload("NASStorage").
-		Where("user_id = ?", userID).
+		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&storages).Error; err != nil {
 		return nil, err

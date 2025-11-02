@@ -4,10 +4,6 @@ interface Props {
   database: Database;
 }
 
-const databaseTypeLabels = {
-  [DatabaseType.POSTGRES]: 'PostgreSQL',
-};
-
 const postgresqlVersionLabels = {
   [PostgresqlVersion.PostgresqlVersion13]: '13',
   [PostgresqlVersion.PostgresqlVersion14]: '14',
@@ -20,11 +16,6 @@ const postgresqlVersionLabels = {
 export const ShowDatabaseSpecificDataComponent = ({ database }: Props) => {
   return (
     <div>
-      <div className="mb-5 flex w-full items-center">
-        <div className="min-w-[150px]">Database type</div>
-        <div>{database.type ? databaseTypeLabels[database.type] : ''}</div>
-      </div>
-
       {database.type === DatabaseType.POSTGRES && (
         <>
           <div className="mb-1 flex w-full items-center">

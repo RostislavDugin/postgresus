@@ -2,10 +2,17 @@ import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
 import { Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
 
+import { IS_CLOUD } from '../../../constants';
 import { userApi } from '../../../entity/users';
+import { StringUtils } from '../../../shared/lib';
 import { FormValidator } from '../../../shared/lib/FormValidator';
+import { OauthComponent } from './OauthComponent';
 
-export function SignInComponent(): JSX.Element {
+interface SignInComponentProps {
+  onSwitchToSignUp?: () => void;
+}
+
+export function SignInComponent({ onSwitchToSignUp }: SignInComponentProps): JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -23,7 +30,7 @@ export function SignInComponent(): JSX.Element {
       return false;
     }
 
-    if (!FormValidator.isValidEmail(email)) {
+    if (!FormValidator.isValidEmail(email) && email !== 'admin') {
       setEmailError(true);
       return false;
     }
@@ -49,7 +56,7 @@ export function SignInComponent(): JSX.Element {
           password,
         });
       } catch (e) {
-        setSignInError((e as Error).message);
+        setSignInError(StringUtils.capitalizeFirstLetter((e as Error).message));
       }
 
       setLoading(false);
@@ -59,6 +66,19 @@ export function SignInComponent(): JSX.Element {
   return (
     <div className="w-full max-w-[300px]">
       <div className="mb-5 text-center text-2xl font-bold">Sign in</div>
+
+      <OauthComponent />
+
+      {IS_CLOUD && (
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-white px-2 text-gray-500">or continue</span>
+          </div>
+        </div>
+      )}
 
       <div className="my-1 text-xs font-semibold">Your email</div>
       <Input
@@ -102,6 +122,19 @@ export function SignInComponent(): JSX.Element {
       {signInError && (
         <div className="mt-3 flex justify-center text-center text-sm text-red-600">
           {signInError}
+        </div>
+      )}
+
+      {onSwitchToSignUp && (
+        <div className="mt-4 text-center text-sm text-gray-600">
+          Don&apos;t have an account?{' '}
+          <button
+            type="button"
+            onClick={onSwitchToSignUp}
+            className="cursor-pointer font-medium text-blue-600 hover:text-blue-700"
+          >
+            Sign up
+          </button>
         </div>
       )}
     </div>

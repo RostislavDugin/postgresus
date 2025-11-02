@@ -13,6 +13,8 @@ import { EditNASStorageComponent } from './storages/EditNASStorageComponent';
 import { EditS3StorageComponent } from './storages/EditS3StorageComponent';
 
 interface Props {
+  workspaceId: string;
+
   isShowClose: boolean;
   onClose: () => void;
 
@@ -23,6 +25,7 @@ interface Props {
 }
 
 export function EditStorageComponent({
+  workspaceId,
   isShowClose,
   onClose,
   isShowName,
@@ -130,6 +133,7 @@ export function EditStorageComponent({
         ? JSON.parse(JSON.stringify(editingStorage))
         : {
             id: undefined as unknown as string,
+            workspaceId,
             name: '',
             type: StorageType.LOCAL,
             localStorage: {},

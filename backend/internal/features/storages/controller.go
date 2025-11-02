@@ -2,15 +2,16 @@ package storages
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type StorageController struct {
-	storageService *StorageService
-	userService    *users.UserService
+	storageService   *StorageService
+	workspaceService *workspaces_services.WorkspaceService
 }
 
 func (c *StorageController) RegisterRoutes(router *gin.RouterGroup) {
@@ -29,35 +30,45 @@ func (c *StorageController) RegisterRoutes(router *gin.RouterGroup) {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "JWT token"
-// @Param storage body Storage true "Storage data"
+// @Param request body Storage true "Storage data with workspaceId"
 // @Success 200 {object} Storage
 // @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages [post]
 func (c *StorageController) SaveStorage(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	var storage Storage
-	if err := ctx.ShouldBindJSON(&storage); err != nil {
+	var request Storage
+	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := storage.Validate(); err != nil {
+	if request.WorkspaceID == uuid.Nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspaceId is required"})
+		return
+	}
+
+	if err := request.Validate(); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := c.storageService.SaveStorage(user, &storage); err != nil {
+	if err := c.storageService.SaveStorage(user, request.WorkspaceID, &request); err != nil {
+		if err.Error() == "insufficient permissions to manage storage in this workspace" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, storage)
+	ctx.JSON(http.StatusOK, request)
 }
 
 // GetStorage
@@ -70,11 +81,12 @@ func (c *StorageController) SaveStorage(ctx *gin.Context) {
 // @Success 200 {object} Storage
 // @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages/{id} [get]
 func (c *StorageController) GetStorage(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -86,6 +98,10 @@ func (c *StorageController) GetStorage(ctx *gin.Context) {
 
 	storage, err := c.storageService.GetStorage(user, id)
 	if err != nil {
+		if err.Error() == "insufficient permissions to view storage in this workspace" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -95,22 +111,41 @@ func (c *StorageController) GetStorage(ctx *gin.Context) {
 
 // GetStorages
 // @Summary Get all storages
-// @Description Get all storages for the current user
+// @Description Get all storages for a workspace
 // @Tags storages
 // @Produce json
 // @Param Authorization header string true "JWT token"
+// @Param workspace_id query string true "Workspace ID"
 // @Success 200 {array} Storage
+// @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages [get]
 func (c *StorageController) GetStorages(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	storages, err := c.storageService.GetStorages(user)
+	workspaceIDStr := ctx.Query("workspace_id")
+	if workspaceIDStr == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id query parameter is required"})
+		return
+	}
+
+	workspaceID, err := uuid.Parse(workspaceIDStr)
 	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+
+	storages, err := c.storageService.GetStorages(user, workspaceID)
+	if err != nil {
+		if err.Error() == "insufficient permissions to view storages in this workspace" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -128,11 +163,12 @@ func (c *StorageController) GetStorages(ctx *gin.Context) {
 // @Success 200
 // @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages/{id} [delete]
 func (c *StorageController) DeleteStorage(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -143,6 +179,10 @@ func (c *StorageController) DeleteStorage(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.DeleteStorage(user, id); err != nil {
+		if err.Error() == "insufficient permissions to manage storage in this workspace" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -160,11 +200,12 @@ func (c *StorageController) DeleteStorage(ctx *gin.Context) {
 // @Success 200
 // @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages/{id}/test [post]
 func (c *StorageController) TestStorageConnection(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
@@ -175,6 +216,10 @@ func (c *StorageController) TestStorageConnection(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.TestStorageConnection(user, id); err != nil {
+		if err.Error() == "insufficient permissions to test storage in this workspace" {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -189,33 +234,49 @@ func (c *StorageController) TestStorageConnection(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "JWT token"
-// @Param storage body Storage true "Storage data"
+// @Param request body Storage true "Storage data with workspaceId"
 // @Success 200
 // @Failure 400
 // @Failure 401
+// @Failure 403
 // @Router /storages/direct-test [post]
 func (c *StorageController) TestStorageConnectionDirect(ctx *gin.Context) {
-	user, err := c.userService.GetUserFromToken(ctx.GetHeader("Authorization"))
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var request Storage
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if request.WorkspaceID == uuid.Nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspaceId is required"})
+		return
+	}
+
+	canView, _, err := c.workspaceService.CanUserAccessWorkspace(request.WorkspaceID, user)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !canView {
+		ctx.JSON(
+			http.StatusForbidden,
+			gin.H{"error": "insufficient permissions to test storage in this workspace"},
+		)
 		return
 	}
 
-	var storage Storage
-	if err := ctx.ShouldBindJSON(&storage); err != nil {
+	if err := request.Validate(); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// For direct test, associate with the current user
-	storage.UserID = user.ID
-
-	if err := storage.Validate(); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := c.storageService.TestStorageConnectionDirect(&storage); err != nil {
+	if err := c.storageService.TestStorageConnectionDirect(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

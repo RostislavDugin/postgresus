@@ -11,6 +11,7 @@ export interface Notifier {
   name: string;
   notifierType: NotifierType;
   lastSendError?: string;
+  workspaceId: string;
 
   // specific notifier
   telegramNotifier?: TelegramNotifier;

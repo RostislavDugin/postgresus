@@ -1,11 +1,20 @@
 import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
-import { Button, Input } from 'antd';
+import { App, Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
 
+import { IS_CLOUD } from '../../../constants';
 import { userApi } from '../../../entity/users';
+import { StringUtils } from '../../../shared/lib';
 import { FormValidator } from '../../../shared/lib/FormValidator';
+import { OauthComponent } from './OauthComponent';
 
-export function SignUpComponent(): JSX.Element {
+interface SignUpComponentProps {
+  onSwitchToSignIn?: () => void;
+}
+
+export function SignUpComponent({ onSwitchToSignIn }: SignUpComponentProps): JSX.Element {
+  const { message } = App.useApp();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -14,6 +23,7 @@ export function SignUpComponent(): JSX.Element {
 
   const [isLoading, setLoading] = useState(false);
 
+  const [nameError, setNameError] = useState(false);
   const [isEmailError, setEmailError] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
   const [confirmPasswordError, setConfirmPasswordError] = useState(false);
@@ -21,6 +31,13 @@ export function SignUpComponent(): JSX.Element {
   const [signUpError, setSignUpError] = useState('');
 
   const validateFieldsForSignUp = (): boolean => {
+    if (!name || name.trim() === '') {
+      setNameError(true);
+      message.error('Name is required');
+      return false;
+    }
+    setNameError(false);
+
     if (!email) {
       setEmailError(true);
       return false;
@@ -38,7 +55,7 @@ export function SignUpComponent(): JSX.Element {
 
     if (password.length < 8) {
       setPasswordError(true);
-      alert('Password must be at least 8 characters long');
+      message.error('Password must be at least 8 characters long');
       return false;
     }
     setPasswordError(false);
@@ -66,10 +83,11 @@ export function SignUpComponent(): JSX.Element {
         await userApi.signUp({
           email,
           password,
+          name,
         });
         await userApi.signIn({ email, password });
       } catch (e) {
-        setSignUpError((e as Error).message);
+        setSignUpError(StringUtils.capitalizeFirstLetter((e as Error).message));
       }
     }
 
@@ -79,6 +97,30 @@ export function SignUpComponent(): JSX.Element {
   return (
     <div className="w-full max-w-[300px]">
       <div className="mb-5 text-center text-2xl font-bold">Sign up</div>
+
+      <OauthComponent />
+
+      {IS_CLOUD && (
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-white px-2 text-gray-500">or continue</span>
+          </div>
+        </div>
+      )}
+
+      <div className="my-1 text-xs font-semibold">Your name</div>
+      <Input
+        placeholder="John Doe"
+        value={name}
+        onChange={(e) => {
+          setNameError(false);
+          setName(e.currentTarget.value);
+        }}
+        status={nameError ? 'error' : undefined}
+      />
 
       <div className="my-1 text-xs font-semibold">Your email</div>
       <Input
@@ -138,6 +180,19 @@ export function SignUpComponent(): JSX.Element {
       {signUpError && (
         <div className="mt-3 flex justify-center text-center text-sm text-red-600">
           {signUpError}
+        </div>
+      )}
+
+      {onSwitchToSignIn && (
+        <div className="mt-4 text-center text-sm text-gray-600">
+          Already have an account?{' '}
+          <button
+            type="button"
+            onClick={onSwitchToSignIn}
+            className="cursor-pointer font-medium text-blue-600 hover:text-blue-700"
+          >
+            Sign in
+          </button>
         </div>
       )}
     </div>

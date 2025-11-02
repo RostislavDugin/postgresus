@@ -3,14 +3,18 @@ import { useEffect, useState } from 'react';
 
 import { databaseApi } from '../../../entity/databases';
 import type { Database } from '../../../entity/databases';
+import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { CreateDatabaseComponent } from './CreateDatabaseComponent';
 import { DatabaseCardComponent } from './DatabaseCardComponent';
 import { DatabaseComponent } from './DatabaseComponent';
 
 interface Props {
   contentHeight: number;
+  workspace: WorkspaceResponse;
+  isCanManageDBs: boolean;
 }
-export const DatabasesComponent = ({ contentHeight }: Props) => {
+
+export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }: Props) => {
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,7 +28,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
     }
 
     databaseApi
-      .getDatabases()
+      .getDatabases(workspace.id)
       .then((databases) => {
         setDatabases(databases);
         if (!selectedDatabaseId && !isSilent) {
@@ -72,7 +76,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
         >
           {databases.length >= 5 && (
             <>
-              {addDatabaseButton}
+              {isCanManageDBs && addDatabaseButton}
 
               <div className="mb-2">
                 <input
@@ -100,7 +104,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
                 </div>
               )}
 
-          {databases.length < 5 && addDatabaseButton}
+          {databases.length < 5 && isCanManageDBs && addDatabaseButton}
 
           <div className="mx-3 text-center text-xs text-gray-500">
             Database - is a thing we are backing up
@@ -120,6 +124,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
                 databases.filter((database) => database.id !== selectedDatabaseId)[0]?.id,
               );
             }}
+            isCanManageDBs={isCanManageDBs}
           />
         )}
       </div>
@@ -135,6 +140,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
           <div className="mt-5" />
 
           <CreateDatabaseComponent
+            workspaceId={workspace.id}
             onCreated={() => {
               loadDatabases();
               setIsShowAddDatabase(false);

@@ -143,7 +143,7 @@ func (r *NotifierRepository) FindByID(id uuid.UUID) (*Notifier, error) {
 	return &notifier, nil
 }
 
-func (r *NotifierRepository) FindByUserID(userID uuid.UUID) ([]*Notifier, error) {
+func (r *NotifierRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Notifier, error) {
 	var notifiers []*Notifier
 
 	if err := storage.
@@ -154,7 +154,7 @@ func (r *NotifierRepository) FindByUserID(userID uuid.UUID) ([]*Notifier, error)
 		Preload("SlackNotifier").
 		Preload("DiscordNotifier").
 		Preload("TeamsNotifier").
-		Where("user_id = ?", userID).
+		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&notifiers).Error; err != nil {
 		return nil, err

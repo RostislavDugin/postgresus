@@ -1,14 +1,16 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
+
 1. When we write controller:
+
 - we combine all routes to single controller
 - names them as .WhatWeDo (not "handlers") concept
 
-2. We use gin and *gin.Context for all routes.
-Example:
+2. We use gin and \*gin.Context for all routes.
+   Example:
 
 func (c *TasksController) GetAvailableTasks(ctx *gin.Context) ...
 
@@ -17,24 +19,26 @@ func (c *TasksController) GetAvailableTasks(ctx *gin.Context) ...
 package audit_logs
 
 import (
-	"net/http"
+"net/http"
 
-	user_models "logbull/internal/features/users/models"
+    user_models "postgresus/internal/features/users/models"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+    "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
+
 )
 
 type AuditLogController struct {
-	auditLogService *AuditLogService
+auditLogService \*AuditLogService
 }
 
 func (c *AuditLogController) RegisterRoutes(router *gin.RouterGroup) {
-	// All audit log endpoints require authentication (handled in main.go)
-	auditRoutes := router.Group("/audit-logs")
+// All audit log endpoints require authentication (handled in main.go)
+auditRoutes := router.Group("/audit-logs")
 
-	auditRoutes.GET("/global", c.GetGlobalAuditLogs)
-	auditRoutes.GET("/users/:userId", c.GetUserAuditLogs)
+    auditRoutes.GET("/global", c.GetGlobalAuditLogs)
+    auditRoutes.GET("/users/:userId", c.GetUserAuditLogs)
+
 }
 
 // GetGlobalAuditLogs
@@ -52,29 +56,30 @@ func (c *AuditLogController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 403 {object} map[string]string
 // @Router /audit-logs/global [get]
 func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
-	user, isOk := ctx.MustGet("user").(*user_models.User)
-	if !isOk {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
-		return
-	}
+user, isOk := ctx.MustGet("user").(\*user_models.User)
+if !isOk {
+ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
+return
+}
 
-	request := &GetAuditLogsRequest{}
-	if err := ctx.ShouldBindQuery(request); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
-		return
-	}
+    request := &GetAuditLogsRequest{}
+    if err := ctx.ShouldBindQuery(request); err != nil {
+    	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+    	return
+    }
 
-	response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
-	if err != nil {
-		if err.Error() == "only administrators can view global audit logs" {
-			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
-		return
-	}
+    response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
+    if err != nil {
+    	if err.Error() == "only administrators can view global audit logs" {
+    		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+    		return
+    	}
+    	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
+    	return
+    }
 
-	ctx.JSON(http.StatusOK, response)
+    ctx.JSON(http.StatusOK, response)
+
 }
 
 // GetUserAuditLogs
@@ -94,34 +99,35 @@ func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Router /audit-logs/users/{userId} [get]
 func (c *AuditLogController) GetUserAuditLogs(ctx *gin.Context) {
-	user, isOk := ctx.MustGet("user").(*user_models.User)
-	if !isOk {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
-		return
-	}
+user, isOk := ctx.MustGet("user").(\*user_models.User)
+if !isOk {
+ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
+return
+}
 
-	userIDStr := ctx.Param("userId")
-	targetUserID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+    userIDStr := ctx.Param("userId")
+    targetUserID, err := uuid.Parse(userIDStr)
+    if err != nil {
+    	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+    	return
+    }
 
-	request := &GetAuditLogsRequest{}
-	if err := ctx.ShouldBindQuery(request); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
-		return
-	}
+    request := &GetAuditLogsRequest{}
+    if err := ctx.ShouldBindQuery(request); err != nil {
+    	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+    	return
+    }
 
-	response, err := c.auditLogService.GetUserAuditLogs(targetUserID, user, request)
-	if err != nil {
-		if err.Error() == "insufficient permissions to view user audit logs" {
-			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
-		return
-	}
+    response, err := c.auditLogService.GetUserAuditLogs(targetUserID, user, request)
+    if err != nil {
+    	if err.Error() == "insufficient permissions to view user audit logs" {
+    		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+    		return
+    	}
+    	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
+    	return
+    }
 
-	ctx.JSON(http.StatusOK, response)
+    ctx.JSON(http.StatusOK, response)
+
 }

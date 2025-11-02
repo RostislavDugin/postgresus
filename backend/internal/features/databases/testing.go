@@ -10,14 +10,14 @@ import (
 )
 
 func CreateTestDatabase(
-	userID uuid.UUID,
+	workspaceID uuid.UUID,
 	storage *storages.Storage,
 	notifier *notifiers.Notifier,
 ) *Database {
 	database := &Database{
-		UserID: userID,
-		Name:   "test " + uuid.New().String(),
-		Type:   DatabaseTypePostgres,
+		WorkspaceID: &workspaceID,
+		Name:        "test " + uuid.New().String(),
+		Type:        DatabaseTypePostgres,
 
 		Postgresql: &postgresql.PostgresqlDatabase{
 			Version:  tools.PostgresqlVersion16,

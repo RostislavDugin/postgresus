@@ -2,15 +2,18 @@ package databases
 
 import (
 	"net/http"
-	"postgresus-backend/internal/features/users"
+	users_middleware "postgresus-backend/internal/features/users/middleware"
+	users_services "postgresus-backend/internal/features/users/services"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type DatabaseController struct {
-	databaseService *DatabaseService
-	userService     *users.UserService
+	databaseService  *DatabaseService
+	userService      *users_services.UserService
+	workspaceService *workspaces_services.WorkspaceService
 }
 
 func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
@@ -28,36 +31,35 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 
 // CreateDatabase
 // @Summary Create a new database
-// @Description Create a new database configuration
+// @Description Create a new database configuration in a workspace
 // @Tags databases
 // @Accept json
 // @Produce json
-// @Param request body Database true "Database creation data"
+// @Param request body Database true "Database creation data with workspaceId"
 // @Success 201 {object} Database
 // @Failure 400
 // @Failure 401
 // @Failure 500
 // @Router /databases/create [post]
 func (c *DatabaseController) CreateDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var request Database
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
+	if request.WorkspaceID == nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspaceId is required"})
 		return
 	}
 
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	database, err := c.databaseService.CreateDatabase(user, &request)
+	database, err := c.databaseService.CreateDatabase(user, *request.WorkspaceID, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -79,21 +81,15 @@ func (c *DatabaseController) CreateDatabase(ctx *gin.Context) {
 // @Failure 500
 // @Router /databases/update [post]
 func (c *DatabaseController) UpdateDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var request Database
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -116,21 +112,15 @@ func (c *DatabaseController) UpdateDatabase(ctx *gin.Context) {
 // @Failure 500
 // @Router /databases/{id} [delete]
 func (c *DatabaseController) DeleteDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -153,21 +143,15 @@ func (c *DatabaseController) DeleteDatabase(ctx *gin.Context) {
 // @Failure 401
 // @Router /databases/{id} [get]
 func (c *DatabaseController) GetDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -181,30 +165,38 @@ func (c *DatabaseController) GetDatabase(ctx *gin.Context) {
 }
 
 // GetDatabases
-// @Summary Get databases
-// @Description Get all databases for the authenticated user
+// @Summary Get databases by workspace
+// @Description Get all databases for a specific workspace
 // @Tags databases
 // @Produce json
+// @Param workspace_id query string true "Workspace ID"
 // @Success 200 {array} Database
+// @Failure 400
 // @Failure 401
 // @Failure 500
 // @Router /databases [get]
 func (c *DatabaseController) GetDatabases(ctx *gin.Context) {
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+	workspaceIDStr := ctx.Query("workspace_id")
+	if workspaceIDStr == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id query parameter is required"})
 		return
 	}
 
-	databases, err := c.databaseService.GetDatabasesByUser(user)
+	workspaceID, err := uuid.Parse(workspaceIDStr)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+
+	databases, err := c.databaseService.GetDatabasesByWorkspace(user, workspaceID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -222,21 +214,15 @@ func (c *DatabaseController) GetDatabases(ctx *gin.Context) {
 // @Failure 500
 // @Router /databases/{id}/test-connection [post]
 func (c *DatabaseController) TestDatabaseConnection(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 
@@ -259,26 +245,17 @@ func (c *DatabaseController) TestDatabaseConnection(ctx *gin.Context) {
 // @Failure 401
 // @Router /databases/test-connection-direct [post]
 func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
+	_, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var request Database
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	// Set user ID for validation purposes
-	request.UserID = user.ID
 
 	if err := c.databaseService.TestDatabaseConnectionDirect(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -294,31 +271,38 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 // @Tags databases
 // @Produce json
 // @Param id path string true "Notifier ID"
+// @Param workspace_id query string true "Workspace ID"
 // @Success 200 {object} map[string]bool
 // @Failure 400
 // @Failure 401
 // @Failure 500
 // @Router /databases/notifier/{id}/is-using [get]
 func (c *DatabaseController) IsNotifierUsing(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid notifier ID"})
 		return
 	}
 
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
+	workspaceIDStr := ctx.Query("workspace_id")
+	if workspaceIDStr == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id query parameter is required"})
 		return
 	}
 
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
+	workspaceID, err := uuid.Parse(workspaceIDStr)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
 		return
 	}
 
-	isUsing, err := c.databaseService.IsNotifierUsing(user, id)
+	isUsing, err := c.databaseService.IsNotifierUsing(user, workspaceID, id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -339,21 +323,15 @@ func (c *DatabaseController) IsNotifierUsing(ctx *gin.Context) {
 // @Failure 500
 // @Router /databases/{id}/copy [post]
 func (c *DatabaseController) CopyDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	authorizationHeader := ctx.GetHeader("Authorization")
-	if authorizationHeader == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
-		return
-	}
-
-	user, err := c.userService.GetUserFromToken(authorizationHeader)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
 

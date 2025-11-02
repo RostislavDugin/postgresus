@@ -1,16 +1,18 @@
 ---
 alwaysApply: false
 ---
+
 This is example of CRUD:
 
 ------ backend/internal/features/audit_logs/controller.go ------
-``````
+
+```
 package audit_logs
 
 import (
 	"net/http"
 
-	user_models "logbull/internal/features/users/models"
+	user_models "postgresus/internal/features/users/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -117,9 +119,11 @@ func (c *AuditLogController) GetUserAuditLogs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/controller_test.go ------
-``````
+
+```
 package audit_logs
 
 import (
@@ -128,12 +132,12 @@ import (
 	"testing"
 	"time"
 
-	user_enums "logbull/internal/features/users/enums"
-	users_middleware "logbull/internal/features/users/middleware"
-	users_services "logbull/internal/features/users/services"
-	users_testing "logbull/internal/features/users/testing"
-	"logbull/internal/storage"
-	test_utils "logbull/internal/util/testing"
+	user_enums "postgresus/internal/features/users/enums"
+	users_middleware "postgresus/internal/features/users/middleware"
+	users_services "postgresus/internal/features/users/services"
+	users_testing "postgresus/internal/features/users/testing"
+	"postgresus/internal/storage"
+	test_utils "postgresus/internal/util/testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -256,14 +260,16 @@ func createRouter() *gin.Engine {
 	return router
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/di.go ------
-``````
+
+```
 package audit_logs
 
 import (
-	users_services "logbull/internal/features/users/services"
-	"logbull/internal/util/logger"
+	users_services "postgresus/internal/features/users/services"
+	"postgresus/internal/util/logger"
 )
 
 var auditLogRepository = &AuditLogRepository{}
@@ -289,9 +295,11 @@ func SetupDependencies() {
 	users_services.GetManagementService().SetAuditLogWriter(auditLogService)
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/dto.go ------
-``````
+
+```
 package audit_logs
 
 import "time"
@@ -309,9 +317,11 @@ type GetAuditLogsResponse struct {
 	Offset    int         `json:"offset"`
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/models.go ------
-``````
+
+```
 package audit_logs
 
 import (
@@ -332,13 +342,15 @@ func (AuditLog) TableName() string {
 	return "audit_logs"
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/repository.go ------
-``````
+
+```
 package audit_logs
 
 import (
-	"logbull/internal/storage"
+	"postgresus/internal/storage"
 	"time"
 
 	"github.com/google/uuid"
@@ -429,9 +441,11 @@ func (r *AuditLogRepository) CountGlobal(beforeDate *time.Time) (int64, error) {
 	return count, err
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/service.go ------
-``````
+
+```
 package audit_logs
 
 import (
@@ -439,8 +453,8 @@ import (
 	"log/slog"
 	"time"
 
-	user_enums "logbull/internal/features/users/enums"
-	user_models "logbull/internal/features/users/models"
+	user_enums "postgresus/internal/features/users/enums"
+	user_models "postgresus/internal/features/users/models"
 
 	"github.com/google/uuid"
 )
@@ -560,17 +574,19 @@ func (s *AuditLogService) GetProjectAuditLogs(
 	}, nil
 }
 
-``````
+```
+
 ------ backend/internal/features/audit_logs/service_test.go ------
-``````
+
+```
 package audit_logs
 
 import (
 	"testing"
 	"time"
 
-	user_enums "logbull/internal/features/users/enums"
-	users_testing "logbull/internal/features/users/testing"
+	user_enums "postgresus/internal/features/users/enums"
+	users_testing "postgresus/internal/features/users/testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -652,4 +668,4 @@ func createTimedLog(db *gorm.DB, userID *uuid.UUID, message string, createdAt ti
 	db.Create(log)
 }
 
-``````
+```

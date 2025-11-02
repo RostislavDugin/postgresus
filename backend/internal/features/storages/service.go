@@ -2,37 +2,68 @@ package storages
 
 import (
 	"errors"
+	"fmt"
+
+	audit_logs "postgresus-backend/internal/features/audit_logs"
 	users_models "postgresus-backend/internal/features/users/models"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/google/uuid"
 )
 
 type StorageService struct {
 	storageRepository *StorageRepository
+	workspaceService  *workspaces_services.WorkspaceService
+	auditLogService   *audit_logs.AuditLogService
 }
 
 func (s *StorageService) SaveStorage(
 	user *users_models.User,
+	workspaceID uuid.UUID,
 	storage *Storage,
 ) error {
-	if storage.ID != uuid.Nil {
+	canManage, err := s.workspaceService.CanUserManageDBs(workspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to manage storage in this workspace")
+	}
+
+	isUpdate := storage.ID != uuid.Nil
+
+	if isUpdate {
 		existingStorage, err := s.storageRepository.FindByID(storage.ID)
 		if err != nil {
 			return err
 		}
 
-		if existingStorage.UserID != user.ID {
-			return errors.New("you have not access to this storage")
+		if existingStorage.WorkspaceID != workspaceID {
+			return errors.New("storage does not belong to this workspace")
 		}
 
-		storage.UserID = existingStorage.UserID
+		storage.WorkspaceID = existingStorage.WorkspaceID
 	} else {
-		storage.UserID = user.ID
+		storage.WorkspaceID = workspaceID
 	}
 
-	_, err := s.storageRepository.Save(storage)
+	_, err = s.storageRepository.Save(storage)
 	if err != nil {
 		return err
+	}
+
+	if isUpdate {
+		s.auditLogService.WriteAuditLog(
+			fmt.Sprintf("Storage updated: %s", storage.Name),
+			&user.ID,
+			&workspaceID,
+		)
+	} else {
+		s.auditLogService.WriteAuditLog(
+			fmt.Sprintf("Storage created: %s", storage.Name),
+			&user.ID,
+			&workspaceID,
+		)
 	}
 
 	return nil
@@ -47,11 +78,26 @@ func (s *StorageService) DeleteStorage(
 		return err
 	}
 
-	if storage.UserID != user.ID {
-		return errors.New("you have not access to this storage")
+	canManage, err := s.workspaceService.CanUserManageDBs(storage.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to manage storage in this workspace")
 	}
 
-	return s.storageRepository.Delete(storage)
+	err = s.storageRepository.Delete(storage)
+	if err != nil {
+		return err
+	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Storage deleted: %s", storage.Name),
+		&user.ID,
+		&storage.WorkspaceID,
+	)
+
+	return nil
 }
 
 func (s *StorageService) GetStorage(
@@ -63,8 +109,12 @@ func (s *StorageService) GetStorage(
 		return nil, err
 	}
 
-	if storage.UserID != user.ID {
-		return nil, errors.New("you have not access to this storage")
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(storage.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("insufficient permissions to view storage in this workspace")
 	}
 
 	return storage, nil
@@ -72,8 +122,17 @@ func (s *StorageService) GetStorage(
 
 func (s *StorageService) GetStorages(
 	user *users_models.User,
+	workspaceID uuid.UUID,
 ) ([]*Storage, error) {
-	return s.storageRepository.FindByUserID(user.ID)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("insufficient permissions to view storages in this workspace")
+	}
+
+	return s.storageRepository.FindByWorkspaceID(workspaceID)
 }
 
 func (s *StorageService) TestStorageConnection(
@@ -85,8 +144,12 @@ func (s *StorageService) TestStorageConnection(
 		return err
 	}
 
-	if storage.UserID != user.ID {
-		return errors.New("you have not access to this storage")
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(storage.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return errors.New("insufficient permissions to test storage in this workspace")
 	}
 
 	err = storage.TestConnection()
@@ -115,4 +178,19 @@ func (s *StorageService) GetStorageByID(
 	id uuid.UUID,
 ) (*Storage, error) {
 	return s.storageRepository.FindByID(id)
+}
+
+func (s *StorageService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error {
+	storages, err := s.storageRepository.FindByWorkspaceID(workspaceID)
+	if err != nil {
+		return fmt.Errorf("failed to get storages for workspace deletion: %w", err)
+	}
+
+	for _, storage := range storages {
+		if err := s.storageRepository.Delete(storage); err != nil {
+			return fmt.Errorf("failed to delete storage %s: %w", storage.ID, err)
+		}
+	}
+
+	return nil
 }
