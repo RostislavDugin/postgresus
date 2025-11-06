@@ -41,8 +41,8 @@ func (n *Notifier) Validate() error {
 	return n.getSpecificNotifier().Validate()
 }
 
-func (n *Notifier) Send(logger *slog.Logger, heading string, message string) error {
-	err := n.getSpecificNotifier().Send(logger, heading, message)
+func (n *Notifier) Send(logger *slog.Logger, vars map[string]string) error {
+	err := n.getSpecificNotifier().Send(logger, vars)
 
 	if err != nil {
 		lastSendError := err.Error()

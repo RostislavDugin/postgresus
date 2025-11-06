@@ -91,7 +91,19 @@ func (s *NotifierService) SendTestNotification(
 		return errors.New("you have not access to this notifier")
 	}
 
-	err = notifier.Send(s.logger, "Test message", "This is a test message")
+	// 提供所有细粒度变量的示例值
+	vars := map[string]string{
+		"status":        "✅",
+		"status_text":   "success",
+		"database_name": "TestDatabase",
+		"duration":      "2m 17s",
+		"size":          "1.7GB",
+		"error":         "",
+		// 向后兼容的旧变量
+		"heading": "✅ Test message",
+		"message": "This is a test notification with sample data.\nDuration: 2m 17s\nSize: 1.7GB",
+	}
+	err = notifier.Send(s.logger, vars)
 	if err != nil {
 		return err
 	}
@@ -107,18 +119,23 @@ func (s *NotifierService) SendTestNotification(
 func (s *NotifierService) SendTestNotificationToNotifier(
 	notifier *Notifier,
 ) error {
-	return notifier.Send(s.logger, "Test message", "This is a test message")
+	vars := map[string]string{
+		"heading": "Test message",
+		"message": "This is a test message",
+	}
+	return notifier.Send(s.logger, vars)
 }
 
 func (s *NotifierService) SendNotification(
 	notifier *Notifier,
-	title string,
-	message string,
+	vars map[string]string,
 ) {
 	// Truncate message to 2000 characters if it's too long
-	messageRunes := []rune(message)
-	if len(messageRunes) > 2000 {
-		message = string(messageRunes[:2000])
+	if message, ok := vars["message"]; ok {
+		messageRunes := []rune(message)
+		if len(messageRunes) > 2000 {
+			vars["message"] = string(messageRunes[:2000])
+		}
 	}
 
 	notifiedFromDb, err := s.notifierRepository.FindByID(notifier.ID)
@@ -126,7 +143,7 @@ func (s *NotifierService) SendNotification(
 		return
 	}
 
-	err = notifiedFromDb.Send(s.logger, title, message)
+	err = notifiedFromDb.Send(s.logger, vars)
 	if err != nil {
 		errMsg := err.Error()
 		notifiedFromDb.LastSendError = &errMsg

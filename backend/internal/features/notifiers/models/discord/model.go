@@ -29,7 +29,11 @@ func (d *DiscordNotifier) Validate() error {
 	return nil
 }
 
-func (d *DiscordNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (d *DiscordNotifier) Send(logger *slog.Logger, vars map[string]string) error {
+	// Get heading and message for backward compatibility
+	heading := vars["heading"]
+	message := vars["message"]
+
 	fullMessage := heading
 	if message != "" {
 		fullMessage = fmt.Sprintf("%s\n\n%s", heading, message)

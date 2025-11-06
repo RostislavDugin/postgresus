@@ -222,20 +222,32 @@ func (uc *CheckPgHealthUseCase) sendDbStatusNotification(
 
 	messageTitle := ""
 	messageBody := ""
+	var statusIcon, statusText string
 
 	if newHealthStatus == databases.HealthStatusAvailable {
-		messageTitle = fmt.Sprintf("✅ [%s] DB is online", database.Name)
-		messageBody = fmt.Sprintf("✅ [%s] DB is back online", database.Name)
+		statusIcon = "✅"
+		statusText = "online"
+		messageTitle = fmt.Sprintf("%s [%s] DB is online", statusIcon, database.Name)
+		messageBody = fmt.Sprintf("%s [%s] DB is back online", statusIcon, database.Name)
 	} else {
-		messageTitle = fmt.Sprintf("❌ [%s] DB is unavailable", database.Name)
-		messageBody = fmt.Sprintf("❌ [%s] DB is currently unavailable", database.Name)
+		statusIcon = "❌"
+		statusText = "unavailable"
+		messageTitle = fmt.Sprintf("%s [%s] DB is unavailable", statusIcon, database.Name)
+		messageBody = fmt.Sprintf("%s [%s] DB is currently unavailable", statusIcon, database.Name)
 	}
 
 	for _, notifier := range database.Notifiers {
+		vars := map[string]string{
+			"status":        statusIcon,
+			"status_text":   statusText,
+			"database_name": database.Name,
+			// For backward compatibility:
+			"heading": messageTitle,
+			"message": messageBody,
+		}
 		uc.healthcheckAttemptSender.SendNotification(
 			&notifier,
-			messageTitle,
-			messageBody,
+			vars,
 		)
 	}
 

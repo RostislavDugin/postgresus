@@ -43,7 +43,11 @@ type payload struct {
 	Attachments []cardAttachment `json:"attachments,omitempty"`
 }
 
-func (n *TeamsNotifier) Send(logger *slog.Logger, heading, message string) error {
+func (n *TeamsNotifier) Send(logger *slog.Logger, vars map[string]string) error {
+	// Get heading and message for backward compatibility
+	heading := vars["heading"]
+	message := vars["message"]
+
 	if err := n.Validate(); err != nil {
 		return err
 	}

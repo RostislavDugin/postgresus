@@ -273,20 +273,32 @@ func (s *BackupService) SendBackupNotification(
 			continue
 		}
 
+		// Determine status icon and status text
+		var statusIcon, statusText string
+		if notificationType == backups_config.NotificationBackupFailed {
+			statusIcon = "❌"
+			statusText = "failed"
+		} else {
+			statusIcon = "✅"
+			statusText = "success"
+		}
+
 		title := ""
 		switch notificationType {
 		case backups_config.NotificationBackupFailed:
-			title = fmt.Sprintf("❌ Backup failed for database \"%s\"", database.Name)
+			title = fmt.Sprintf("%s Backup failed for database \"%s\"", statusIcon, database.Name)
 		case backups_config.NotificationBackupSuccess:
-			title = fmt.Sprintf("✅ Backup completed for database \"%s\"", database.Name)
+			title = fmt.Sprintf("%s Backup completed for database \"%s\"", statusIcon, database.Name)
 		}
 
 		message := ""
+		var sizeStr, durationStr, errorMsg string
+
 		if errorMessage != nil {
 			message = *errorMessage
+			errorMsg = *errorMessage
 		} else {
 			// Format size conditionally
-			var sizeStr string
 			if backup.BackupSizeMb < 1024 {
 				sizeStr = fmt.Sprintf("%.2f MB", backup.BackupSizeMb)
 			} else {
@@ -294,11 +306,11 @@ func (s *BackupService) SendBackupNotification(
 				sizeStr = fmt.Sprintf("%.2f GB", sizeGB)
 			}
 
-			// Format duration as "0m 0s 0ms"
+			// Format duration as "0m 0s"
 			totalMs := backup.BackupDurationMs
 			minutes := totalMs / (1000 * 60)
 			seconds := (totalMs % (1000 * 60)) / 1000
-			durationStr := fmt.Sprintf("%dm %ds", minutes, seconds)
+			durationStr = fmt.Sprintf("%dm %ds", minutes, seconds)
 
 			message = fmt.Sprintf(
 				"Backup completed successfully in %s.\nCompressed backup size: %s",
@@ -307,10 +319,22 @@ func (s *BackupService) SendBackupNotification(
 			)
 		}
 
+		// Build the vars map with all available variables
+		vars := map[string]string{
+			"status":        statusIcon,
+			"status_text":   statusText,
+			"database_name": database.Name,
+			"duration":      durationStr,
+			"size":          sizeStr,
+			"error":         errorMsg,
+			// For backward compatibility:
+			"heading": title,
+			"message": message,
+		}
+
 		s.notificationSender.SendNotification(
 			&notifier,
-			title,
-			message,
+			vars,
 		)
 	}
 }

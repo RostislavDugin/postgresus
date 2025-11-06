@@ -43,7 +43,11 @@ func (s *SlackNotifier) Validate() error {
 	return nil
 }
 
-func (s *SlackNotifier) Send(logger *slog.Logger, heading, message string) error {
+func (s *SlackNotifier) Send(logger *slog.Logger, vars map[string]string) error {
+	// Get heading and message for backward compatibility
+	heading := vars["heading"]
+	message := vars["message"]
+
 	full := fmt.Sprintf("*%s*", heading)
 
 	if message != "" {

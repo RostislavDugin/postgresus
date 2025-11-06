@@ -12,8 +12,7 @@ import (
 type NotificationSender interface {
 	SendNotification(
 		notifier *notifiers.Notifier,
-		title string,
-		message string,
+		vars map[string]string,
 	)
 }
 

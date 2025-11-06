@@ -54,7 +54,11 @@ func (e *EmailNotifier) Validate() error {
 	return nil
 }
 
-func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (e *EmailNotifier) Send(logger *slog.Logger, vars map[string]string) error {
+	// Get heading and message for backward compatibility
+	heading := vars["heading"]
+	message := vars["message"]
+
 	// Compose email
 	from := e.SMTPUser
 	if from == "" {

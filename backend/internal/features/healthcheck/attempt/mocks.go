@@ -14,10 +14,9 @@ type MockHealthcheckAttemptSender struct {
 
 func (m *MockHealthcheckAttemptSender) SendNotification(
 	notifier *notifiers.Notifier,
-	title string,
-	message string,
+	vars map[string]string,
 ) {
-	m.Called(notifier, title, message)
+	m.Called(notifier, vars)
 }
 
 type MockDatabaseService struct {
