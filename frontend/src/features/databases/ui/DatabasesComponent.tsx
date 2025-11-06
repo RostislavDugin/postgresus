@@ -1,5 +1,6 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { databaseApi } from '../../../entity/databases';
 import type { Database } from '../../../entity/databases';
@@ -11,6 +12,7 @@ interface Props {
   contentHeight: number;
 }
 export const DatabasesComponent = ({ contentHeight }: Props) => {
+  const { t } = useTranslation('database');
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,7 +57,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
 
   const addDatabaseButton = (
     <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddDatabase(true)}>
-      Add database
+      {t('add_button')}
     </Button>
   );
 
@@ -76,7 +78,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
 
               <div className="mb-2">
                 <input
-                  placeholder="Search database"
+                  placeholder={t('search_placeholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none"
@@ -96,14 +98,14 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
               ))
             : searchQuery && (
                 <div className="mb-4 text-center text-sm text-gray-500">
-                  No databases found matching &quot;{searchQuery}&quot;
+                  {t('message.no_databases')} &quot;{searchQuery}&quot;
                 </div>
               )}
 
           {databases.length < 5 && addDatabaseButton}
 
           <div className="mx-3 text-center text-xs text-gray-500">
-            Database - is a thing we are backing up
+            {t('modal.description')}
           </div>
         </div>
 
@@ -126,7 +128,7 @@ export const DatabasesComponent = ({ contentHeight }: Props) => {
 
       {isShowAddDatabase && (
         <Modal
-          title="Add database for backup"
+          title={t('modal.add_title')}
           footer={<div />}
           open={isShowAddDatabase}
           onCancel={() => setIsShowAddDatabase(false)}

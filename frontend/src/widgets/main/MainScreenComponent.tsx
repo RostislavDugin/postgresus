@@ -1,6 +1,7 @@
 import { Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 import GitHubButton from 'react-github-btn';
+import { useTranslation } from 'react-i18next';
 
 import { APP_VERSION, getApplicationServer } from '../../constants';
 import { type DiskUsage, diskApi } from '../../entity/disk';
@@ -8,8 +9,10 @@ import { DatabasesComponent } from '../../features/databases/ui/DatabasesCompone
 import { NotifiersComponent } from '../../features/notifiers/ui/NotifiersComponent';
 import { StoragesComponent } from '../../features/storages/StoragesComponent';
 import { useScreenHeight } from '../../shared/hooks';
+import { LanguageSwitcher } from '../../shared/ui/LanguageSwitcher';
 
 export const MainScreenComponent = () => {
+  const { t } = useTranslation('common');
   const screenHeight = useScreenHeight();
   const contentHeight = screenHeight - 95;
 
@@ -54,13 +57,15 @@ export const MainScreenComponent = () => {
         </div>
 
         <div className="mr-3 ml-auto flex items-center gap-5">
+          <LanguageSwitcher />
+
           <a
             className="hover:opacity-80"
             href={`${getApplicationServer()}/api/v1/system/health`}
             target="_blank"
             rel="noreferrer"
           >
-            Health-check
+            {t('navigation.health_check')}
           </a>
 
           <a
@@ -69,7 +74,7 @@ export const MainScreenComponent = () => {
             target="_blank"
             rel="noreferrer"
           >
-            Community
+            {t('navigation.community')}
           </a>
 
           <div className="mt-1">
@@ -80,7 +85,7 @@ export const MainScreenComponent = () => {
               data-show-count="true"
               aria-label="Star RostislavDugin/postgresus on GitHub"
             >
-              &nbsp;Star on GitHub
+              &nbsp;{t('navigation.star_on_github')}
             </GitHubButton>
           </div>
 
@@ -108,21 +113,21 @@ export const MainScreenComponent = () => {
         >
           {[
             {
-              text: 'Databases',
+              text: t('navigation.databases'),
               name: 'databases',
               icon: '/icons/menu/database-gray.svg',
               selectedIcon: '/icons/menu/database-white.svg',
               onClick: () => setSelectedTab('databases'),
             },
             {
-              text: 'Storages',
+              text: t('navigation.storages'),
               name: 'storages',
               icon: '/icons/menu/storage-gray.svg',
               selectedIcon: '/icons/menu/storage-white.svg',
               onClick: () => setSelectedTab('storages'),
             },
             {
-              text: 'Notifiers',
+              text: t('navigation.notifiers'),
               name: 'notifiers',
               icon: '/icons/menu/notifier-gray.svg',
               selectedIcon: '/icons/menu/notifier-white.svg',

@@ -1,0 +1,100 @@
+{
+  "title": "数据库",
+  "add_button": "添加数据库",
+  "search_placeholder": "搜索数据库",
+
+  "modal": {
+    "add_title": "添加要备份的数据库",
+    "edit_title": "编辑数据库",
+    "description": "数据库 - 是我们要备份的对象"
+  },
+
+  "form": {
+    "name_label": "名称",
+    "name_placeholder": "我喜欢的数据库",
+    "type_label": "数据库类型",
+    "type_placeholder": "选择数据库类型",
+    "host_label": "主机",
+    "host_placeholder": "输入 PG 主机地址",
+    "port_label": "端口",
+    "port_placeholder": "输入 PG 端口",
+    "database_label": "数据库名称",
+    "database_placeholder": "输入 PG 数据库名称（可选）",
+    "username_label": "用户名",
+    "username_placeholder": "输入 PG 用户名",
+    "password_label": "密码",
+    "password_placeholder": "输入 PG 密码",
+    "ssl_mode_label": "SSL 模式",
+    "use_https_label": "使用 HTTPS",
+    "storage_label": "存储",
+    "storage_placeholder": "选择存储",
+    "version_label": "PG 版本",
+    "version_placeholder": "选择 PG 版本",
+    "version_hint": "请选择您当前备份的 PostgreSQL 版本。您可以将备份恢复到相同版本或更高版本",
+    "test_connection": "测试连接",
+    "connection_test_passed": "连接测试通过",
+    "connection_test_description": "您可以继续下一步"
+  },
+
+  "table": {
+    "name": "名称",
+    "type": "数据库类型",
+    "storage": "存储",
+    "status": "状态",
+    "last_backup": "最后备份",
+    "created_at": "创建时间",
+    "actions": "操作"
+  },
+
+  "message": {
+    "no_databases": "未找到匹配的数据库",
+    "backup_error": "备份出错",
+    "delete_confirm": "确定要删除此数据库吗？",
+    "delete_success": "数据库删除成功",
+    "save_success": "数据库保存成功"
+  },
+
+  "card": {
+    "database_type": "数据库类型",
+    "storage": "存储",
+    "last_backup": "最后备份"
+  },
+
+  "status": {
+    "available": "可用",
+    "unavailable": "不可用"
+  },
+
+  "tabs": {
+    "config": "配置",
+    "backups": "备份"
+  },
+
+  "config": {
+    "database_settings": "数据库设置",
+    "backup_config": "备份配置",
+    "healthcheck_settings": "健康检查设置",
+    "notifiers_settings": "通知器设置",
+    "last_backup_error": "最后备份错误",
+    "the_error": "错误信息：",
+    "clean_error_instruction": "清除此错误（选择任一方法）：",
+    "clean_error_option1": "- 通过下方按钮测试连接（即使您已更新设置）；",
+    "clean_error_option2": "- 等待下次备份成功完成；",
+    "enter_name_placeholder": "输入名称...",
+    "copy_success_title": "数据库复制成功！",
+    "copy_success_description": "已成功创建 \"{name}\"",
+    "connection_test_success_title": "连接测试成功！",
+    "connection_test_success_description": "数据库连接测试成功",
+    "remove_confirm_description": "确定要删除此数据库吗？此操作无法撤销。",
+    "remove_action_text": "删除"
+  },
+
+  "notifiers": {
+    "label": "通知器",
+    "description_line1": "通知器 - 是通知将被发送到的地方（邮件、Slack、Telegram 等）",
+    "description_line2": "您可以选择多个通知器，通知将发送到所有选中的通知器。",
+    "create_new_notifier": "创建新通知器",
+    "select_placeholder": "选择通知器",
+    "modal_title": "添加通知器"
+  }
+}

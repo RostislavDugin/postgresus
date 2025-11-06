@@ -1,0 +1,35 @@
+{
+  "form": {
+    "enable_healthcheck_label": "Enable healthcheck",
+    "enable_healthcheck_tooltip": "Enable or disable healthcheck monitoring for this database",
+    "notify_when_unavailable_label": "Notify when unavailable",
+    "notify_when_unavailable_tooltip": "Send notifications when database becomes unavailable",
+    "check_interval_label": "Check interval (minutes)",
+    "check_interval_placeholder": "5",
+    "check_interval_tooltip": "How often to check database health (in minutes)",
+    "attempts_before_down_label": "Attempts before down",
+    "attempts_before_down_placeholder": "3",
+    "attempts_before_down_tooltip": "Number of failed attempts before marking database as down",
+    "store_attempts_label": "Store attempts (days)",
+    "store_attempts_placeholder": "30",
+    "store_attempts_tooltip": "How many days to store health check attempt history"
+  },
+
+  "show": {
+    "is_enabled_label": "Is health check enabled",
+    "notify_when_unavailable_label": "Notify when unavailable",
+    "check_interval_label": "Check interval (minutes)",
+    "attempts_before_down_label": "Attempts before down",
+    "store_attempts_label": "Store attempts (days)"
+  },
+
+  "attempts": {
+    "title": "Healthcheck attempts",
+    "period_label": "Period",
+    "period_today": "Today",
+    "period_7days": "7 days",
+    "period_30days": "30 days",
+    "period_all": "All time",
+    "no_data": "No data yet"
+  }
+}

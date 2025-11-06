@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 import { type Storage } from '../../entity/storages';
 import { getStorageLogoFromType } from '../../entity/storages/models/getStorageLogoFromType';
@@ -15,6 +16,8 @@ export const StorageCardComponent = ({
   selectedStorageId,
   setSelectedStorageId,
 }: Props) => {
+  const { t } = useTranslation(['storage']);
+
   return (
     <div
       className={`mb-3 cursor-pointer rounded p-3 shadow ${selectedStorageId === storage.id ? 'bg-blue-100' : 'bg-white'}`}
@@ -23,7 +26,7 @@ export const StorageCardComponent = ({
       <div className="mb-1 font-bold">{storage.name}</div>
 
       <div className="flex items-center">
-        <div className="text-sm text-gray-500">Type: {getStorageNameFromType(storage.type)}</div>
+        <div className="text-sm text-gray-500">{t('storage:card.type')}{getStorageNameFromType(storage.type)}</div>
 
         <img
           src={getStorageLogoFromType(storage.type)}
@@ -35,7 +38,7 @@ export const StorageCardComponent = ({
       {storage.lastSaveError && (
         <div className="mt-1 flex items-center text-sm text-red-600 underline">
           <InfoCircleOutlined className="mr-1" style={{ color: 'red' }} />
-          Has save error
+          {t('storage:card.has_save_error')}
         </div>
       )}
     </div>

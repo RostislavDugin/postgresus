@@ -1,0 +1,117 @@
+{
+  "title": "存储",
+  "add_button": "添加存储",
+  "search_placeholder": "搜索存储",
+
+  "modal": {
+    "add_title": "添加存储",
+    "edit_title": "编辑存储",
+    "description": "存储 - 是备份文件将被保存的地方"
+  },
+
+  "type": {
+    "local": "本地存储",
+    "s3": "S3",
+    "google_drive": "Google Drive",
+    "nas": "NAS"
+  },
+
+  "form": {
+    "name_label": "名称",
+    "name_placeholder": "我的存储",
+    "type_label": "类型",
+    "path_label": "路径",
+    "path_placeholder": "/path/to/backups",
+    "bucket_label": "存储桶名称",
+    "bucket_placeholder": "my-bucket",
+    "s3_bucket_label": "S3 存储桶",
+    "s3_bucket_placeholder": "my-bucket-name",
+    "s3_region_label": "区域",
+    "region_label": "区域",
+    "region_placeholder": "us-east-1",
+    "s3_access_key_label": "访问密钥",
+    "access_key_label": "访问密钥",
+    "access_key_id_label": "访问密钥 ID",
+    "access_key_placeholder": "AKIAIOSFODNN7EXAMPLE",
+    "s3_secret_key_label": "秘密密钥",
+    "secret_key_label": "秘密密钥",
+    "secret_access_key_label": "秘密访问密钥",
+    "secret_key_placeholder": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "s3_endpoint_label": "端点",
+    "endpoint_label": "端点",
+    "endpoint_url_label": "端点 URL",
+    "endpoint_placeholder": "https://s3.example.com（可选）",
+    "endpoint_tooltip": "自定义 S3 兼容端点 URL（可选，留空表示使用 AWS S3）",
+    "cloudflare_r2_link": "如何与 Cloudflare R2 一起使用？",
+    "nas_host_label": "主机",
+    "host_label": "主机",
+    "host_placeholder": "192.168.1.100",
+    "nas_port_label": "端口",
+    "port_label": "端口",
+    "port_placeholder": "445",
+    "nas_share_label": "共享名称",
+    "share_label": "共享名称",
+    "share_placeholder": "shared_folder",
+    "nas_username_label": "用户名",
+    "username_label": "用户名",
+    "username_placeholder": "username",
+    "nas_password_label": "密码",
+    "password_label": "密码",
+    "password_placeholder": "password",
+    "nas_use_ssl_label": "使用 SSL",
+    "use_ssl_label": "使用 SSL",
+    "use_ssl_tooltip": "启用 SSL/TLS 加密以进行安全连接",
+    "nas_domain_label": "域",
+    "domain_label": "域",
+    "domain_placeholder": "WORKGROUP（可选）",
+    "domain_tooltip": "Windows 域名（可选，如果不使用域身份验证则留空）",
+    "nas_path_label": "路径",
+    "nas_path_placeholder": "backups（可选，不要以斜杠开头）",
+    "nas_path_tooltip": "共享内的子目录路径（可选）",
+    "google_drive_link": "如何连接 Google Drive？",
+    "google_client_id_label": "客户端 ID",
+    "client_id_label": "客户端 ID",
+    "client_id_placeholder": "my-client-id",
+    "google_client_secret_label": "客户端密钥",
+    "client_secret_label": "客户端密钥",
+    "client_secret_placeholder": "my-client-secret",
+    "google_user_token_label": "用户令牌",
+    "user_token_label": "用户令牌",
+    "user_token_placeholder": "my-user-token",
+    "authorize_button": "授权",
+    "test_connection": "测试连接",
+    "connection_success_title": "连接测试成功！",
+    "connection_success_description": "存储连接测试成功"
+  },
+
+  "message": {
+    "no_storages": "未找到匹配的存储",
+    "delete_confirm": "确定要删除此存储吗？",
+    "delete_success": "存储删除成功",
+    "save_success": "存储保存成功",
+    "storage_in_use": "此存储正在被某些数据库使用。请先从数据库中移除此存储。",
+    "remove_confirm_description": "确定要删除此存储吗？此操作无法撤销。如果有备份正在使用此存储，它们也将被删除。",
+    "google_drive_config_not_found": "未找到 Google Drive 存储配置",
+    "oauth_exchange_failed": "OAuth 代码交换失败",
+    "oauth_param_not_found": "未找到 OAuth 参数",
+    "google_drive_not_found": "未找到 Google Drive 存储"
+  },
+
+  "details": {
+    "settings": "存储设置",
+    "save_error": "保存错误",
+    "the_error": "错误信息：",
+    "clean_error_instruction": "要清除此错误（选择任一方法）：",
+    "clean_error_option1": "- 通过下方按钮测试连接（即使您已更新设置）；",
+    "clean_error_option2": "- 等待下次保存成功完成。"
+  },
+
+  "action": {
+    "remove": "删除"
+  },
+
+  "card": {
+    "type": "类型：",
+    "has_save_error": "保存出错"
+  }
+}

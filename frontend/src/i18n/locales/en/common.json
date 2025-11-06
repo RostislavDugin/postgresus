@@ -1,0 +1,109 @@
+{
+  "app_name": "Postgresus",
+  "app_description": "PostgreSQL Backup Solution",
+
+  "button": {
+    "add": "Add",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "continue": "Continue",
+    "complete": "Complete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search"
+  },
+
+  "status": {
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "active": "Active",
+    "inactive": "Inactive",
+    "success": "Success",
+    "successful": "Successful",
+    "failed": "Failed",
+    "in_progress": "In Progress",
+    "pending": "Pending",
+    "deleted": "Deleted"
+  },
+
+  "navigation": {
+    "databases": "Databases",
+    "storages": "Storages",
+    "notifiers": "Notifiers",
+    "health_check": "Health-check",
+    "community": "Community",
+    "documentation": "Documentation",
+    "star_on_github": "Star on GitHub"
+  },
+
+  "time": {
+    "created_at": "Created at",
+    "updated_at": "Updated at",
+    "last_backup": "Last backup",
+    "duration": "Duration",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+
+  "action": {
+    "actions": "Actions",
+    "view": "View",
+    "restore": "Restore",
+    "download": "Download",
+    "show": "Show",
+    "hide": "Hide"
+  },
+
+  "common": {
+    "name": "Name",
+    "type": "Type",
+    "description": "Description",
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "all": "All",
+    "search": "Search",
+    "loading": "Loading...",
+    "no_data": "No data",
+    "forever": "Forever",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "confirmation": "Confirmation",
+    "copy": "Copy"
+  },
+
+  "interval": {
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly"
+  },
+
+  "notification": {
+    "backup_success": "Backup success",
+    "backup_failed": "Backup failed"
+  },
+
+  "tooltip": {
+    "backup_size": "The file size we actually store in the storage (local, S3, Google Drive, etc.), usually compressed in ~5x times",
+    "disk_usage": "To make backups locally and restore them, you need to have enough space on your disk. For restore, you need to have same amount of space that the backup size."
+  },
+
+  "message": {
+    "delete_confirm": "Are you sure you want to delete this item?",
+    "delete_success": "Successfully deleted",
+    "save_success": "Successfully saved",
+    "operation_success": "Operation successful",
+    "operation_failed": "Operation failed"
+  }
+}

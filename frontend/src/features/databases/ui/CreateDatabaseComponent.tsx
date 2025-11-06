@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/backups';
 import {
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
+  const { t } = useTranslation('common');
   const [isCreating, setIsCreating] = useState(false);
   const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
   const [database, setDatabase] = useState<Database>({
@@ -72,7 +74,7 @@ export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
           database={database}
           isShowName
           isSaveToApi={false}
-          saveButtonText="Continue"
+          saveButtonText={t('button.continue')}
           onCancel={() => onClose()}
           onSaved={(database) => {
             setDatabase({ ...database });
@@ -91,7 +93,7 @@ export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
         onCancel={() => onClose()}
         isShowBackButton
         onBack={() => setStep('base-info')}
-        saveButtonText="Continue"
+        saveButtonText={t('button.continue')}
         isSaveToApi={false}
         onSaved={(database) => {
           setDatabase({ ...database });
@@ -109,7 +111,7 @@ export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
         onCancel={() => onClose()}
         isShowBackButton
         onBack={() => setStep('db-settings')}
-        saveButtonText="Continue"
+        saveButtonText={t('button.continue')}
         isSaveToApi={false}
         onSaved={(backupConfig) => {
           setBackupConfig(backupConfig);
@@ -128,7 +130,7 @@ export const CreateDatabaseComponent = ({ onCreated, onClose }: Props) => {
         isShowBackButton
         onBack={() => setStep('backup-config')}
         isShowSaveOnlyForUnsaved={false}
-        saveButtonText="Complete"
+        saveButtonText={t('button.complete')}
         isSaveToApi={false}
         onSaved={(database) => {
           if (isCreating) return;

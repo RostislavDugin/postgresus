@@ -1,6 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Button, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   type Database,
@@ -44,6 +45,7 @@ export const EditDatabaseSpecificDataComponent = ({
   isShowDbVersionHint = true,
   isShowDbName = true,
 }: Props) => {
+  const { t } = useTranslation(['database', 'common']);
   const [editingDatabase, setEditingDatabase] = useState<Database>();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -58,8 +60,8 @@ export const EditDatabaseSpecificDataComponent = ({
       await databaseApi.testDatabaseConnectionDirect(editingDatabase);
       setIsConnectionTested(true);
       ToastHelper.showToast({
-        title: 'Connection test passed',
-        description: 'You can continue with the next step',
+        title: t('database:form.connection_test_passed'),
+        description: t('database:form.connection_test_description'),
       });
     } catch (e) {
       alert((e as Error).message);
@@ -107,7 +109,7 @@ export const EditDatabaseSpecificDataComponent = ({
   return (
     <div>
       <div className="mb-5 flex w-full items-center">
-        <div className="min-w-[150px]">Database type</div>
+        <div className="min-w-[150px]">{t('database:form.type_label')}</div>
         <Select
           value={database.type}
           onChange={(v) => {
@@ -123,14 +125,14 @@ export const EditDatabaseSpecificDataComponent = ({
           size="small"
           className="max-w-[200px] grow"
           options={[{ label: 'PostgreSQL', value: DatabaseType.POSTGRES }]}
-          placeholder="Select database type"
+          placeholder={t('database:form.type_placeholder')}
         />
       </div>
 
       {editingDatabase.type === DatabaseType.POSTGRES && (
         <>
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">PG version</div>
+            <div className="min-w-[150px]">{t('database:form.version_label')}</div>
 
             <Select
               value={editingDatabase.postgresql?.version}
@@ -148,7 +150,7 @@ export const EditDatabaseSpecificDataComponent = ({
               }}
               size="small"
               className="max-w-[200px] grow"
-              placeholder="Select PG version"
+              placeholder={t('database:form.version_placeholder')}
               options={[
                 { label: '13', value: PostgresqlVersion.PostgresqlVersion13 },
                 { label: '14', value: PostgresqlVersion.PostgresqlVersion14 },
@@ -162,7 +164,7 @@ export const EditDatabaseSpecificDataComponent = ({
             {isShowDbVersionHint && (
               <Tooltip
                 className="cursor-pointer"
-                title="Please select the version of PostgreSQL you are backing up now. You will be able to restore backup to the same version or higher"
+                title={t('database:form.version_hint')}
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>
@@ -170,7 +172,7 @@ export const EditDatabaseSpecificDataComponent = ({
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Host</div>
+            <div className="min-w-[150px]">{t('database:form.host_label')}</div>
             <Input
               value={editingDatabase.postgresql?.host}
               onChange={(e) => {
@@ -186,12 +188,12 @@ export const EditDatabaseSpecificDataComponent = ({
               }}
               size="small"
               className="max-w-[200px] grow"
-              placeholder="Enter PG host"
+              placeholder={t('database:form.host_placeholder')}
             />
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Port</div>
+            <div className="min-w-[150px]">{t('database:form.port_label')}</div>
             <InputNumber
               type="number"
               value={editingDatabase.postgresql?.port}
@@ -206,12 +208,12 @@ export const EditDatabaseSpecificDataComponent = ({
               }}
               size="small"
               className="max-w-[200px] grow"
-              placeholder="Enter PG port"
+              placeholder={t('database:form.port_placeholder')}
             />
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Username</div>
+            <div className="min-w-[150px]">{t('database:form.username_label')}</div>
             <Input
               value={editingDatabase.postgresql?.username}
               onChange={(e) => {
@@ -224,12 +226,12 @@ export const EditDatabaseSpecificDataComponent = ({
               }}
               size="small"
               className="max-w-[200px] grow"
-              placeholder="Enter PG username"
+              placeholder={t('database:form.username_placeholder')}
             />
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Password</div>
+            <div className="min-w-[150px]">{t('database:form.password_label')}</div>
             <Input.Password
               value={editingDatabase.postgresql?.password}
               onChange={(e) => {
@@ -243,13 +245,13 @@ export const EditDatabaseSpecificDataComponent = ({
               }}
               size="small"
               className="max-w-[200px] grow"
-              placeholder="Enter PG password"
+              placeholder={t('database:form.password_placeholder')}
             />
           </div>
 
           {isShowDbName && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">DB name</div>
+              <div className="min-w-[150px]">{t('database:form.database_label')}</div>
               <Input
                 value={editingDatabase.postgresql?.database}
                 onChange={(e) => {
@@ -263,13 +265,13 @@ export const EditDatabaseSpecificDataComponent = ({
                 }}
                 size="small"
                 className="max-w-[200px] grow"
-                placeholder="Enter PG database name (optional)"
+                placeholder={t('database:form.database_placeholder')}
               />
             </div>
           )}
 
           <div className="mb-3 flex w-full items-center">
-            <div className="min-w-[150px]">Use HTTPS</div>
+            <div className="min-w-[150px]">{t('database:form.use_https_label')}</div>
             <Switch
               checked={editingDatabase.postgresql?.isHttps}
               onChange={(checked) => {
@@ -290,13 +292,13 @@ export const EditDatabaseSpecificDataComponent = ({
       <div className="mt-5 flex">
         {isShowCancelButton && (
           <Button className="mr-1" danger ghost onClick={() => onCancel()}>
-            Cancel
+            {t('common:button.cancel')}
           </Button>
         )}
 
         {isShowBackButton && (
           <Button className="mr-auto" type="primary" ghost onClick={() => onBack()}>
-            Back
+            {t('common:button.back')}
           </Button>
         )}
 
@@ -308,7 +310,7 @@ export const EditDatabaseSpecificDataComponent = ({
             disabled={!isAllFieldsFilled}
             className="mr-5"
           >
-            Test connection
+            {t('database:form.test_connection')}
           </Button>
         )}
 
@@ -320,7 +322,7 @@ export const EditDatabaseSpecificDataComponent = ({
             disabled={!isAllFieldsFilled}
             className="mr-5"
           >
-            {saveButtonText || 'Save'}
+            {saveButtonText || t('common:button.save')}
           </Button>
         )}
       </div>

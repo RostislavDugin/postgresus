@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Input, Tooltip } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import type { Storage } from '../../../../../entity/storages';
 
@@ -10,6 +11,8 @@ interface Props {
 }
 
 export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['storage']);
+
   return (
     <>
       <div className="mb-2 flex items-center">
@@ -17,13 +20,13 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
 
         <div className="text-xs text-blue-600">
           <a href="https://postgresus.com/cloudflare-r2-storage" target="_blank" rel="noreferrer">
-            How to use with Cloudflare R2?
+            {t('storage:form.cloudflare_r2_link')}
           </a>
         </div>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">S3 Bucket</div>
+        <div className="min-w-[110px]">{t('storage:form.s3_bucket_label')}</div>
         <Input
           value={storage?.s3Storage?.s3Bucket || ''}
           onChange={(e) => {
@@ -40,12 +43,12 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="my-bucket-name"
+          placeholder={t('storage:form.s3_bucket_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Region</div>
+        <div className="min-w-[110px]">{t('storage:form.region_label')}</div>
         <Input
           value={storage?.s3Storage?.s3Region || ''}
           onChange={(e) => {
@@ -62,12 +65,12 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="us-east-1"
+          placeholder={t('storage:form.region_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Access Key</div>
+        <div className="min-w-[110px]">{t('storage:form.access_key_label')}</div>
         <Input.Password
           value={storage?.s3Storage?.s3AccessKey || ''}
           onChange={(e) => {
@@ -84,12 +87,12 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="AKIAIOSFODNN7EXAMPLE"
+          placeholder={t('storage:form.access_key_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Secret Key</div>
+        <div className="min-w-[110px]">{t('storage:form.secret_key_label')}</div>
         <Input.Password
           value={storage?.s3Storage?.s3SecretKey || ''}
           onChange={(e) => {
@@ -106,12 +109,12 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+          placeholder={t('storage:form.secret_key_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Endpoint</div>
+        <div className="min-w-[110px]">{t('storage:form.endpoint_label')}</div>
         <Input
           value={storage?.s3Storage?.s3Endpoint || ''}
           onChange={(e) => {
@@ -128,12 +131,12 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="https://s3.example.com (optional)"
+          placeholder={t('storage:form.endpoint_placeholder')}
         />
 
         <Tooltip
           className="cursor-pointer"
-          title="Custom S3-compatible endpoint URL (optional, leave empty for AWS S3)"
+          title={t('storage:form.endpoint_tooltip')}
         >
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>

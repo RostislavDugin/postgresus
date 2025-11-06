@@ -1,5 +1,6 @@
 import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   type Notifier,
@@ -39,6 +40,7 @@ export function EditNotifierComponent({
   editingNotifier,
   onChanged,
 }: Props) {
+  const { t } = useTranslation(['notifier', 'common']);
   const [notifier, setNotifier] = useState<Notifier | undefined>();
   const [isUnsaved, setIsUnsaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -71,15 +73,15 @@ export function EditNotifierComponent({
       await notifierApi.sendTestNotificationDirect(notifier);
       setIsTestNotificationSuccess(true);
       ToastHelper.showToast({
-        title: 'Test notification sent!',
-        description: 'Test notification sent successfully',
+        title: t('notifier:message.test_notification_sent_title'),
+        description: t('notifier:message.test_notification_sent_description'),
       });
     } catch (e) {
       alert((e as Error).message);
 
       if (notifier.notifierType === NotifierType.SLACK) {
         alert(
-          'Make sure channel is public or bot is added to the private channel (via @invite) or group. For direct messages use User ID from Slack profile.',
+          t('notifier:message.slack_error_hint'),
         );
       }
     }
@@ -203,7 +205,7 @@ export function EditNotifierComponent({
     <div>
       {isShowName && (
         <div className="mb-1 flex items-center">
-          <div className="min-w-[130px]">Name</div>
+          <div className="min-w-[130px]">{t('common:common.name')}</div>
 
           <Input
             value={notifier?.name || ''}
@@ -213,13 +215,13 @@ export function EditNotifierComponent({
             }}
             size="small"
             className="w-full max-w-[250px]"
-            placeholder="Chat with me"
+            placeholder={t('notifier:form.name_placeholder')}
           />
         </div>
       )}
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Type</div>
+        <div className="w-[130px] min-w-[130px]">{t('common:common.type')}</div>
 
         <Select
           value={notifier?.notifierType}
@@ -302,7 +304,7 @@ export function EditNotifierComponent({
             type="primary"
             onClick={sendTestNotification}
           >
-            Send test notification
+            {t('notifier:action.send_test')}
           </Button>
         ) : (
           <div />
@@ -316,7 +318,7 @@ export function EditNotifierComponent({
             type="primary"
             onClick={save}
           >
-            Save
+            {t('common:common.save')}
           </Button>
         ) : (
           <div />
@@ -331,7 +333,7 @@ export function EditNotifierComponent({
             ghost
             onClick={onClose}
           >
-            Cancel
+            {t('common:common.cancel')}
           </Button>
         ) : (
           <div />

@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Input, Tooltip } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import type { Notifier } from '../../../../../entity/notifiers';
 
@@ -10,10 +11,12 @@ interface Props {
 }
 
 export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['notifier']);
+
   return (
     <>
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Target email</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.target_email_label')}</div>
         <Input
           value={notifier?.emailNotifier?.targetEmail || ''}
           onChange={(e) => {
@@ -30,16 +33,16 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="example@gmail.com"
+          placeholder={t('notifier:form.target_email_placeholder')}
         />
 
-        <Tooltip className="cursor-pointer" title="The email where you want to receive the message">
+        <Tooltip className="cursor-pointer" title={t('notifier:form.target_email_tooltip')}>
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">SMTP host</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.smtp_host_label')}</div>
         <Input
           value={notifier?.emailNotifier?.smtpHost || ''}
           onChange={(e) => {
@@ -56,12 +59,12 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="smtp.gmail.com"
+          placeholder={t('notifier:form.smtp_host_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">SMTP port</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.smtp_port_label')}</div>
         <Input
           type="number"
           value={notifier?.emailNotifier?.smtpPort || ''}
@@ -79,12 +82,12 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="25"
+          placeholder={t('notifier:form.smtp_port_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">SMTP user</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.smtp_user_label')}</div>
         <Input
           value={notifier?.emailNotifier?.smtpUser || ''}
           onChange={(e) => {
@@ -101,12 +104,12 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="user@gmail.com"
+          placeholder={t('notifier:form.smtp_user_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">SMTP password</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.smtp_password_label')}</div>
         <Input
           value={notifier?.emailNotifier?.smtpPassword || ''}
           onChange={(e) => {
@@ -123,7 +126,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="password"
+          placeholder={t('notifier:form.smtp_password_placeholder')}
         />
       </div>
     </>

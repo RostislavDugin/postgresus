@@ -11,6 +11,7 @@ import { Button, Modal, Spin, Table, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type Backup, BackupStatus, backupConfigApi, backupsApi } from '../../../entity/backups';
 import type { Database } from '../../../entity/databases';
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const BackupsComponent = ({ database }: Props) => {
+  const { t } = useTranslation(['backup', 'common']);
   const [isBackupsLoading, setIsBackupsLoading] = useState(false);
   const [backups, setBackups] = useState<Backup[]>([]);
 
@@ -153,7 +155,7 @@ export const BackupsComponent = ({ database }: Props) => {
 
   const columns: ColumnsType<Backup> = [
     {
-      title: 'Created at',
+      title: t('backup:list.created_at'),
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (createdAt: string) => (
@@ -166,20 +168,20 @@ export const BackupsComponent = ({ database }: Props) => {
       defaultSortOrder: 'descend',
     },
     {
-      title: 'Status',
+      title: t('backup:list.status'),
       dataIndex: 'status',
       key: 'status',
       render: (status: BackupStatus, record: Backup) => {
         if (status === BackupStatus.FAILED) {
           return (
-            <Tooltip title="Click to see error details">
+            <Tooltip title={t('backup:action.click_error_details')}>
               <div
                 className="flex cursor-pointer items-center text-red-600 underline"
                 onClick={() => setShowingBackupError(record)}
               >
                 <ExclamationCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
 
-                <div>Failed</div>
+                <div>{t('backup:status.failed')}</div>
               </div>
             </Tooltip>
           );
@@ -189,7 +191,7 @@ export const BackupsComponent = ({ database }: Props) => {
           return (
             <div className="flex items-center text-green-600">
               <CheckCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
-              <div>Successful</div>
+              <div>{t('backup:status.successful')}</div>
             </div>
           );
         }
@@ -198,7 +200,7 @@ export const BackupsComponent = ({ database }: Props) => {
           return (
             <div className="flex items-center text-gray-600">
               <DeleteOutlined className="mr-2" style={{ fontSize: 16 }} />
-              <div>Deleted</div>
+              <div>{t('backup:status.deleted')}</div>
             </div>
           );
         }
@@ -207,7 +209,7 @@ export const BackupsComponent = ({ database }: Props) => {
           return (
             <div className="flex items-center font-bold text-blue-600">
               <SyncOutlined spin />
-              <span className="ml-2">In progress</span>
+              <span className="ml-2">{t('backup:status.in_progress')}</span>
             </div>
           );
         }
@@ -217,19 +219,19 @@ export const BackupsComponent = ({ database }: Props) => {
       filters: [
         {
           value: BackupStatus.IN_PROGRESS,
-          text: 'In progress',
+          text: t('backup:status.in_progress'),
         },
         {
           value: BackupStatus.FAILED,
-          text: 'Failed',
+          text: t('backup:status.failed'),
         },
         {
           value: BackupStatus.COMPLETED,
-          text: 'Successful',
+          text: t('backup:status.successful'),
         },
         {
           value: BackupStatus.DELETED,
-          text: 'Deleted',
+          text: t('backup:status.deleted'),
         },
       ],
       onFilter: (value, record) => record.status === value,
@@ -237,10 +239,10 @@ export const BackupsComponent = ({ database }: Props) => {
     {
       title: (
         <div className="flex items-center">
-          Size
+          {t('backup:list.size')}
           <Tooltip
             className="ml-1"
-            title="The file size we actually store in the storage (local, S3, Google Drive, etc.), usually compressed in ~5x times"
+            title={t('common:tooltip.backup_size')}
           >
             <InfoCircleOutlined />
           </Tooltip>
@@ -258,7 +260,7 @@ export const BackupsComponent = ({ database }: Props) => {
       },
     },
     {
-      title: 'Duration',
+      title: t('backup:list.duration'),
       dataIndex: 'backupDurationMs',
       key: 'backupDurationMs',
       width: 150,
@@ -275,7 +277,7 @@ export const BackupsComponent = ({ database }: Props) => {
       },
     },
     {
-      title: 'Actions',
+      title: t('backup:list.actions'),
       dataIndex: '',
       key: '',
       render: (_, record: Backup) => {
@@ -287,7 +289,7 @@ export const BackupsComponent = ({ database }: Props) => {
                   <SyncOutlined spin />
                 ) : (
                   <>
-                    <Tooltip title="Delete backup">
+                    <Tooltip title={t('backup:action.delete')}>
                       <DeleteOutlined
                         className="cursor-pointer"
                         onClick={() => {
@@ -298,7 +300,7 @@ export const BackupsComponent = ({ database }: Props) => {
                       />
                     </Tooltip>
 
-                    <Tooltip title="Restore from backup">
+                    <Tooltip title={t('backup:action.restore')}>
                       <CloudUploadOutlined
                         className="cursor-pointer"
                         onClick={() => {
@@ -310,7 +312,7 @@ export const BackupsComponent = ({ database }: Props) => {
                       />
                     </Tooltip>
 
-                    <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
+                    <Tooltip title={t('backup:action.download')}>
                       {downloadingBackupId === record.id ? (
                         <SyncOutlined spin style={{ color: '#0d6efd' }} />
                       ) : (
@@ -351,7 +353,7 @@ export const BackupsComponent = ({ database }: Props) => {
 
   return (
     <div className="mt-5 w-full rounded-md bg-white p-5 shadow">
-      <h2 className="text-xl font-bold">Backups</h2>
+      <h2 className="text-xl font-bold">{t('backup:list.title')}</h2>
 
       <div className="mt-5" />
 
@@ -363,7 +365,7 @@ export const BackupsComponent = ({ database }: Props) => {
           disabled={isMakeBackupRequestLoading}
           loading={isMakeBackupRequestLoading}
         >
-          Make backup right now
+          {t('backup:list.make_backup')}
         </Button>
       </div>
 
@@ -383,9 +385,9 @@ export const BackupsComponent = ({ database }: Props) => {
         <ConfirmationComponent
           onConfirm={deleteBackup}
           onDecline={() => setDeleteConfimationId(undefined)}
-          description="Are you sure you want to delete this backup?"
+          description={t('backup:modal.delete_confirm')}
           actionButtonColor="red"
-          actionText="Delete"
+          actionText={t('common:button.delete')}
         />
       )}
 
@@ -394,7 +396,7 @@ export const BackupsComponent = ({ database }: Props) => {
           width={400}
           open={!!showingRestoresBackupId}
           onCancel={() => setShowingRestoresBackupId(undefined)}
-          title="Restore from backup"
+          title={t('backup:modal.restore_title')}
           footer={null}
         >
           <RestoresComponent
@@ -406,7 +408,7 @@ export const BackupsComponent = ({ database }: Props) => {
 
       {showingBackupError && (
         <Modal
-          title="Backup error details"
+          title={t('backup:modal.error_title')}
           open={!!showingBackupError}
           onCancel={() => setShowingBackupError(undefined)}
           footer={null}

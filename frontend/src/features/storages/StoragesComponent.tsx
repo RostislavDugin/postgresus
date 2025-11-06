@@ -1,5 +1,6 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { storageApi } from '../../entity/storages';
 import type { Storage } from '../../entity/storages';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export const StoragesComponent = ({ contentHeight }: Props) => {
+  const { t } = useTranslation('storage');
   const [isLoading, setIsLoading] = useState(true);
   const [storages, setStorages] = useState<Storage[]>([]);
 
@@ -47,7 +49,7 @@ export const StoragesComponent = ({ contentHeight }: Props) => {
 
   const addStorageButton = (
     <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddStorage(true)}>
-      Add storage
+      {t('add_button')}
     </Button>
   );
 
@@ -72,7 +74,7 @@ export const StoragesComponent = ({ contentHeight }: Props) => {
           {storages.length < 5 && addStorageButton}
 
           <div className="mx-3 text-center text-xs text-gray-500">
-            Storage - is a place where backups will be stored (local disk, S3, etc.)
+            {t('modal.description')}
           </div>
         </div>
 
@@ -94,13 +96,13 @@ export const StoragesComponent = ({ contentHeight }: Props) => {
 
       {isShowAddStorage && (
         <Modal
-          title="Add storage"
+          title={t('modal.add_title')}
           footer={<div />}
           open={isShowAddStorage}
           onCancel={() => setIsShowAddStorage(false)}
         >
           <div className="my-3 max-w-[250px] text-gray-500">
-            Storage - is a place where backups will be stored (local disk, S3, etc.)
+            {t('modal.description')}
           </div>
 
           <EditStorageComponent

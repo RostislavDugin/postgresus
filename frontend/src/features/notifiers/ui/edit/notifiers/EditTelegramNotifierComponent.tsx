@@ -1,6 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Input, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Notifier } from '../../../../../entity/notifiers';
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['notifier']);
   const [isShowHowToGetChatId, setIsShowHowToGetChatId] = useState(false);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
   return (
     <>
       <div className="flex items-center">
-        <div className="w-[130px] min-w-[130px]">Bot token</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.bot_token_label')}</div>
 
         <div className="w-[250px]">
           <Input
@@ -46,7 +48,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
             }}
             size="small"
             className="w-full"
-            placeholder="1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            placeholder={t('notifier:form.bot_token_placeholder')}
           />
         </div>
       </div>
@@ -58,12 +60,12 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
           target="_blank"
           rel="noreferrer"
         >
-          How to get Telegram bot API token?
+          {t('notifier:form.bot_token_link')}
         </a>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Target chat ID</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.target_chat_id_label')}</div>
 
         <div className="w-[250px]">
           <Input
@@ -82,13 +84,13 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
             }}
             size="small"
             className="w-full"
-            placeholder="-1001234567890"
+            placeholder={t('notifier:form.target_chat_id_placeholder')}
           />
         </div>
 
         <Tooltip
           className="cursor-pointer"
-          title="The chat where you want to receive the message (it can be your private chat or a group)"
+          title={t('notifier:form.target_chat_id_tooltip')}
         >
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
@@ -100,28 +102,28 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
             className="mt-1 cursor-pointer text-xs text-blue-600"
             onClick={() => setIsShowHowToGetChatId(true)}
           >
-            How to get Telegram chat ID?
+            {t('notifier:form.chat_id_link')}
           </div>
         ) : (
           <div className="mt-1 text-xs text-gray-500">
-            To get your chat ID, message{' '}
+            {t('notifier:form.chat_id_help_1')}{' '}
             <a href="https://t.me/getmyid_bot" target="_blank" rel="noreferrer">
               @getmyid_bot
             </a>{' '}
-            in Telegram. <u>Make sure you started chat with the bot</u>
+            {t('notifier:form.chat_id_help_2')} <u>{t('notifier:form.chat_id_help_3')}</u>
             <br />
             <br />
-            If you want to get chat ID of a group, add your bot with{' '}
+            {t('notifier:form.chat_id_help_4')}{' '}
             <a href="https://t.me/getmyid_bot" target="_blank" rel="noreferrer">
               @getmyid_bot
             </a>{' '}
-            to the group and write /start (you will see chat ID)
+            {t('notifier:form.chat_id_help_5')}
           </div>
         )}
       </div>
 
       <div className="mt-4 mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px] break-all">Send to group topic</div>
+        <div className="w-[130px] min-w-[130px] break-all">{t('notifier:form.send_to_thread_label')}</div>
 
         <Switch
           checked={notifier?.telegramNotifier?.isSendToThreadEnabled || false}
@@ -144,7 +146,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
 
         <Tooltip
           className="cursor-pointer"
-          title="Enable this to send messages to a specific thread in a group chat"
+          title={t('notifier:form.send_to_thread_tooltip')}
         >
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
@@ -153,7 +155,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
       {notifier?.telegramNotifier?.isSendToThreadEnabled && (
         <>
           <div className="mb-1 flex items-center">
-            <div className="w-[130px] min-w-[130px]">Thread ID</div>
+            <div className="w-[130px] min-w-[130px]">{t('notifier:form.thread_id_label')}</div>
 
             <div className="w-[250px]">
               <Input
@@ -175,7 +177,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
                 }}
                 size="small"
                 className="w-full"
-                placeholder="3"
+                placeholder={t('notifier:form.thread_id_placeholder')}
                 type="number"
                 min="1"
               />
@@ -183,7 +185,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
 
             <Tooltip
               className="cursor-pointer"
-              title="The ID of the thread where messages should be sent"
+              title={t('notifier:form.thread_id_tooltip')}
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
@@ -191,18 +193,15 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
 
           <div className="ml-[130px] max-w-[250px]">
             <div className="mt-1 text-xs text-gray-500">
-              To get the thread ID, go to the thread in your Telegram group, tap on the thread name
-              at the top, then tap &ldquo;Thread Info&rdquo;. Copy the thread link and take the last
-              number from the URL.
+              {t('notifier:form.thread_id_help_1')}
               <br />
               <br />
-              <strong>Example:</strong> If the thread link is{' '}
-              <code className="rounded bg-gray-100 px-1">https://t.me/c/2831948048/3</code>, the
-              thread ID is <code className="rounded bg-gray-100 px-1">3</code>
+              <strong>{t('notifier:form.thread_id_help_example')}</strong> {t('notifier:form.thread_id_help_example_text')}{' '}
+              <code className="rounded bg-gray-100 px-1">https://t.me/c/2831948048/3</code>, {t('notifier:form.thread_id_help_example_result')}{' '}
+              <code className="rounded bg-gray-100 px-1">3</code>
               <br />
               <br />
-              <strong>Note:</strong> Thread functionality only works in group chats, not in private
-              chats.
+              <strong>{t('notifier:form.thread_id_help_note')}</strong> {t('notifier:form.thread_id_help_note_text')}
             </div>
           </div>
         </>

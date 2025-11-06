@@ -1,0 +1,30 @@
+{
+  "action": {
+    "restore_from_backup": "从备份恢复",
+    "restore_to_db": "恢复到此数据库"
+  },
+
+  "message": {
+    "no_restores": "还没有恢复记录",
+    "restore_instructions_line1": "输入我们将恢复备份到的数据库信息。",
+    "restore_instructions_line2": "恢复用的空数据库应该在恢复之前创建好",
+    "restore_instructions_line3": "。在恢复过程中，所有当前数据将被清除",
+    "restore_instructions_line4": "确保数据库目前没有被使用（很可能您不想将数据恢复到进行备份的同一数据库）",
+    "expected_duration_text": "预计恢复时间通常是备份时长的 3-5 倍（有时更短，有时更长，取决于数据类型）",
+    "expected_duration_value": "因此预计最多需要 {duration}（通常会快得多）"
+  },
+
+  "status": {
+    "in_progress": "进行中",
+    "successful": "成功",
+    "failed": "失败"
+  },
+
+  "details": {
+    "status": "状态",
+    "started_at": "开始时间",
+    "duration": "持续时间",
+    "error_modal_title": "恢复错误详情",
+    "click_error_tooltip": "点击查看错误详情"
+  }
+}

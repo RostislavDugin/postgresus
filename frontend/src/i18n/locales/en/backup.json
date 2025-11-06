@@ -1,0 +1,90 @@
+{
+  "title": "Backup Configuration",
+
+  "form": {
+    "backups_enabled": "Backups enabled",
+    "backup_interval": "Backup interval",
+    "backup_weekday": "Backup weekday",
+    "backup_day_of_month": "Backup day of month",
+    "backup_time_of_day": "Backup time of day",
+    "retry_if_failed": "Retry backup if failed",
+    "retry_hint": "Automatically retry failed backups. Backups can fail due to network failures, storage issues or temporary database unavailability.",
+    "max_failed_tries": "Max failed tries count",
+    "max_failed_tries_hint": "Maximum number of retry attempts for failed backups. You will receive a notification when all tries have failed.",
+    "cpu_count": "CPU count",
+    "cpu_count_hint": "Number of CPU cores to use for restore processing. Higher values may speed up restores, but use more resources.",
+    "store_period": "Store period",
+    "store_period_hint": "How long to keep the backups? Make sure you have enough storage space.",
+    "storage": "Storage",
+    "storage_placeholder": "Select storage",
+    "create_new_storage": "Create new storage",
+    "notifications": "Notifications"
+  },
+
+  "interval": {
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly"
+  },
+
+  "period": {
+    "day": "1 day",
+    "week": "1 week",
+    "month": "1 month",
+    "three_months": "3 months",
+    "six_months": "6 months",
+    "year": "1 year",
+    "two_years": "2 years",
+    "three_years": "3 years",
+    "four_years": "4 years",
+    "five_years": "5 years",
+    "forever": "Forever"
+  },
+
+  "notification_type": {
+    "backup_success": "Backup success",
+    "backup_failed": "Backup failed"
+  },
+
+  "list": {
+    "title": "Backups",
+    "no_backups": "No backups yet",
+    "make_backup": "Make backup right now",
+    "created_at": "Created at",
+    "status": "Status",
+    "size": "Size",
+    "duration": "Duration",
+    "actions": "Actions"
+  },
+
+  "status": {
+    "in_progress": "In progress",
+    "successful": "Successful",
+    "failed": "Failed",
+    "deleted": "Deleted"
+  },
+
+  "action": {
+    "delete": "Delete backup",
+    "restore": "Restore from backup",
+    "download": "Download backup file",
+    "error_details": "Backup error details",
+    "restore_to_this_db": "Restore to this DB",
+    "click_error_details": "Click to see error details"
+  },
+
+  "modal": {
+    "restore_title": "Restore from backup",
+    "error_title": "Backup error details",
+    "delete_confirm": "Are you sure you want to delete this backup?"
+  },
+
+  "message": {
+    "storage_change_warning": "If you change the storage, all backups in this storage will be deleted.",
+    "disable_confirm": "All current backups will be removed? Are you sure?",
+    "disable_action": "Yes, disable backing up and remove all existing backup files",
+    "understand": "I understand",
+    "used_by_databases": "This backup is used by some databases. Please remove the backup from databases first."
+  }
+}

@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type BackupConfig, backupConfigApi } from '../../../entity/backups';
 import { BackupNotificationType } from '../../../entity/backups/model/BackupNotificationType';
@@ -43,16 +44,6 @@ interface Props {
   onSaved: (backupConfig: BackupConfig) => void;
 }
 
-const weekdayOptions = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-  { value: 7, label: 'Sun' },
-];
-
 export const EditBackupConfigComponent = ({
   database,
 
@@ -65,6 +56,7 @@ export const EditBackupConfigComponent = ({
   isSaveToApi,
   onSaved,
 }: Props) => {
+  const { t } = useTranslation(['backup', 'common', 'storage']);
   const [backupConfig, setBackupConfig] = useState<BackupConfig>();
   const [isUnsaved, setIsUnsaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,6 +67,16 @@ export const EditBackupConfigComponent = ({
 
   const [isShowWarn, setIsShowWarn] = useState(false);
   const [isShowBackupDisableConfirm, setIsShowBackupDisableConfirm] = useState(false);
+
+  const weekdayOptions = useMemo(() => [
+    { value: 1, label: t('common:time.mon') },
+    { value: 2, label: t('common:time.tue') },
+    { value: 3, label: t('common:time.wed') },
+    { value: 4, label: t('common:time.thu') },
+    { value: 5, label: t('common:time.fri') },
+    { value: 6, label: t('common:time.sat') },
+    { value: 7, label: t('common:time.sun') },
+  ], [t]);
 
   const timeFormat = useMemo(() => {
     const is12 = getUserTimeFormat();
@@ -204,7 +206,7 @@ export const EditBackupConfigComponent = ({
   return (
     <div>
       <div className="mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Backups enabled</div>
+        <div className="min-w-[150px]">{t('backup:form.backups_enabled')}</div>
         <Switch
           checked={backupConfig.isBackupsEnabled}
           onChange={(checked) => {
@@ -222,24 +224,24 @@ export const EditBackupConfigComponent = ({
       {backupConfig.isBackupsEnabled && (
         <>
           <div className="mt-4 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Backup interval</div>
+            <div className="min-w-[150px]">{t('backup:form.backup_interval')}</div>
             <Select
               value={backupInterval?.interval}
               onChange={(v) => saveInterval({ interval: v })}
               size="small"
               className="max-w-[200px] grow"
               options={[
-                { label: 'Hourly', value: IntervalType.HOURLY },
-                { label: 'Daily', value: IntervalType.DAILY },
-                { label: 'Weekly', value: IntervalType.WEEKLY },
-                { label: 'Monthly', value: IntervalType.MONTHLY },
+                { label: t('backup:interval.hourly'), value: IntervalType.HOURLY },
+                { label: t('backup:interval.daily'), value: IntervalType.DAILY },
+                { label: t('backup:interval.weekly'), value: IntervalType.WEEKLY },
+                { label: t('backup:interval.monthly'), value: IntervalType.MONTHLY },
               ]}
             />
           </div>
 
           {backupInterval?.interval === IntervalType.WEEKLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup weekday</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_weekday')}</div>
               <Select
                 value={displayedWeekday}
                 onChange={(localWeekday) => {
@@ -256,7 +258,7 @@ export const EditBackupConfigComponent = ({
 
           {backupInterval?.interval === IntervalType.MONTHLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup day of month</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_day_of_month')}</div>
               <InputNumber
                 min={1}
                 max={31}
@@ -274,7 +276,7 @@ export const EditBackupConfigComponent = ({
 
           {backupInterval?.interval !== IntervalType.HOURLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup time of day</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_time_of_day')}</div>
               <TimePicker
                 value={localTime}
                 format={timeFormat.format}
@@ -300,7 +302,7 @@ export const EditBackupConfigComponent = ({
           )}
 
           <div className="mt-4 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Retry backup if failed</div>
+            <div className="min-w-[150px]">{t('backup:form.retry_if_failed')}</div>
             <Switch
               size="small"
               checked={backupConfig.isRetryIfFailed}
@@ -309,7 +311,7 @@ export const EditBackupConfigComponent = ({
 
             <Tooltip
               className="cursor-pointer"
-              title="Automatically retry failed backups. Backups can fail due to network failures, storage issues or temporary database unavailability."
+              title={t('backup:form.retry_hint')}
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
@@ -317,7 +319,7 @@ export const EditBackupConfigComponent = ({
 
           {backupConfig.isRetryIfFailed && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Max failed tries count</div>
+              <div className="min-w-[150px]">{t('backup:form.max_failed_tries')}</div>
               <InputNumber
                 min={1}
                 max={10}
@@ -329,7 +331,7 @@ export const EditBackupConfigComponent = ({
 
               <Tooltip
                 className="cursor-pointer"
-                title="Maximum number of retry attempts for failed backups. You will receive a notification when all tries have failed."
+                title={t('backup:form.max_failed_tries_hint')}
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>
@@ -337,7 +339,7 @@ export const EditBackupConfigComponent = ({
           )}
 
           <div className="mt-5 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">CPU count</div>
+            <div className="min-w-[150px]">{t('backup:form.cpu_count')}</div>
             <InputNumber
               min={1}
               max={16}
@@ -349,44 +351,44 @@ export const EditBackupConfigComponent = ({
 
             <Tooltip
               className="cursor-pointer"
-              title="Number of CPU cores to use for restore processing. Higher values may speed up restores, but use more resources."
+              title={t('backup:form.cpu_count_hint')}
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Store period</div>
+            <div className="min-w-[150px]">{t('backup:form.store_period')}</div>
             <Select
               value={backupConfig.storePeriod}
               onChange={(v) => updateBackupConfig({ storePeriod: v })}
               size="small"
               className="max-w-[200px] grow"
               options={[
-                { label: '1 day', value: Period.DAY },
-                { label: '1 week', value: Period.WEEK },
-                { label: '1 month', value: Period.MONTH },
-                { label: '3 months', value: Period.THREE_MONTH },
-                { label: '6 months', value: Period.SIX_MONTH },
-                { label: '1 year', value: Period.YEAR },
-                { label: '2 years', value: Period.TWO_YEARS },
-                { label: '3 years', value: Period.THREE_YEARS },
-                { label: '4 years', value: Period.FOUR_YEARS },
-                { label: '5 years', value: Period.FIVE_YEARS },
-                { label: 'Forever', value: Period.FOREVER },
+                { label: t('backup:period.day'), value: Period.DAY },
+                { label: t('backup:period.week'), value: Period.WEEK },
+                { label: t('backup:period.month'), value: Period.MONTH },
+                { label: t('backup:period.three_months'), value: Period.THREE_MONTH },
+                { label: t('backup:period.six_months'), value: Period.SIX_MONTH },
+                { label: t('backup:period.year'), value: Period.YEAR },
+                { label: t('backup:period.two_years'), value: Period.TWO_YEARS },
+                { label: t('backup:period.three_years'), value: Period.THREE_YEARS },
+                { label: t('backup:period.four_years'), value: Period.FOUR_YEARS },
+                { label: t('backup:period.five_years'), value: Period.FIVE_YEARS },
+                { label: t('backup:period.forever'), value: Period.FOREVER },
               ]}
             />
 
             <Tooltip
               className="cursor-pointer"
-              title="How long to keep the backups? Make sure you have enough storage space."
+              title={t('backup:form.store_period_hint')}
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
           </div>
 
           <div className="mt-5 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Storage</div>
+            <div className="min-w-[150px]">{t('backup:form.storage')}</div>
             <Select
               value={backupConfig.storage?.id}
               onChange={(storageId) => {
@@ -406,9 +408,9 @@ export const EditBackupConfigComponent = ({
               className="mr-2 max-w-[200px] grow"
               options={[
                 ...storages.map((s) => ({ label: s.name, value: s.id })),
-                { label: 'Create new storage', value: 'create-new-storage' },
+                { label: t('backup:form.create_new_storage'), value: 'create-new-storage' },
               ]}
-              placeholder="Select storage"
+              placeholder={t('backup:form.storage_placeholder')}
             />
 
             {backupConfig.storage?.type && (
@@ -421,7 +423,7 @@ export const EditBackupConfigComponent = ({
           </div>
 
           <div className="mt-4 mb-1 flex w-full items-start">
-            <div className="mt-1 min-w-[150px]">Notifications</div>
+            <div className="mt-1 min-w-[150px]">{t('backup:form.notifications')}</div>
             <div className="flex flex-col space-y-2">
               <Checkbox
                 checked={backupConfig.sendNotificationsOn.includes(
@@ -438,7 +440,7 @@ export const EditBackupConfigComponent = ({
                   updateBackupConfig({ sendNotificationsOn: notifications });
                 }}
               >
-                Backup success
+                {t('backup:notification_type.backup_success')}
               </Checkbox>
 
               <Checkbox
@@ -456,7 +458,7 @@ export const EditBackupConfigComponent = ({
                   updateBackupConfig({ sendNotificationsOn: notifications });
                 }}
               >
-                Backup failed
+                {t('backup:notification_type.backup_failed')}
               </Checkbox>
             </div>
           </div>
@@ -466,13 +468,13 @@ export const EditBackupConfigComponent = ({
       <div className="mt-5 flex">
         {isShowBackButton && (
           <Button className="mr-1" onClick={onBack}>
-            Back
+            {t('common:button.back')}
           </Button>
         )}
 
         {isShowCancelButton && (
           <Button danger ghost className="mr-1" onClick={onCancel}>
-            Cancel
+            {t('common:button.cancel')}
           </Button>
         )}
 
@@ -483,19 +485,19 @@ export const EditBackupConfigComponent = ({
           loading={isSaving}
           disabled={!isUnsaved || !isAllFieldsFilled}
         >
-          {saveButtonText || 'Save'}
+          {saveButtonText || t('common:button.save')}
         </Button>
       </div>
 
       {isShowCreateStorage && (
         <Modal
-          title="Add storage"
+          title={t('storage:modal.add_title')}
           footer={<div />}
           open={isShowCreateStorage}
           onCancel={() => setShowCreateStorage(false)}
         >
           <div className="my-3 max-w-[275px] text-gray-500">
-            Storage - is a place where backups will be stored (local disk, S3, Google Drive, etc.)
+            {t('storage:modal.description')}
           </div>
 
           <EditStorageComponent
@@ -518,10 +520,10 @@ export const EditBackupConfigComponent = ({
           onDecline={() => {
             setIsShowWarn(false);
           }}
-          description="If you change the storage, all backups in this storage will be deleted."
+          description={t('backup:message.storage_change_warning')}
           actionButtonColor="red"
-          actionText="I understand"
-          cancelText="Cancel"
+          actionText={t('backup:message.understand')}
+          cancelText={t('common:button.cancel')}
           hideCancelButton
         />
       )}
@@ -535,10 +537,10 @@ export const EditBackupConfigComponent = ({
           onDecline={() => {
             setIsShowBackupDisableConfirm(false);
           }}
-          description="All current backups will be removed? Are you sure?"
+          description={t('backup:message.disable_confirm')}
           actionButtonColor="red"
-          actionText="Yes, disable backing up and remove all existing backup files"
-          cancelText="Cancel"
+          actionText={t('backup:message.disable_action')}
+          cancelText={t('common:button.cancel')}
         />
       )}
     </div>

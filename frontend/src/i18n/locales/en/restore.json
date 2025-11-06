@@ -1,0 +1,30 @@
+{
+  "action": {
+    "restore_from_backup": "Restore from backup",
+    "restore_to_db": "Restore to this DB"
+  },
+
+  "message": {
+    "no_restores": "No restores yet",
+    "restore_instructions_line1": "Enter info of the database we will restore backup to.",
+    "restore_instructions_line2": "The empty database for restore should be created before the restore",
+    "restore_instructions_line3": ". During the restore, all the current data will be cleared",
+    "restore_instructions_line4": "Make sure the database is not used right now (most likely you do not want to restore the data to the same DB where the backup was made)",
+    "expected_duration_text": "Expected restoration time usually 3x-5x longer than the backup duration (sometimes less, sometimes more depending on data type)",
+    "expected_duration_value": "So it is expected to take up to {duration} (usually significantly faster)"
+  },
+
+  "status": {
+    "in_progress": "In progress",
+    "successful": "Successful",
+    "failed": "Failed"
+  },
+
+  "details": {
+    "status": "Status",
+    "started_at": "Started at",
+    "duration": "Duration",
+    "error_modal_title": "Restore error details",
+    "click_error_tooltip": "Click to see error details"
+  }
+}

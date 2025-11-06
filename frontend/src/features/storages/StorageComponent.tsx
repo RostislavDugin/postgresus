@@ -2,6 +2,7 @@ import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Button, Input, Spin } from 'antd';
 import { useState } from 'react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { backupConfigApi } from '../../entity/backups';
 import { storageApi } from '../../entity/storages';
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted }: Props) => {
+  const { t } = useTranslation(['storage', 'common']);
   const [storage, setStorage] = useState<Storage | undefined>();
 
   const [isEditName, setIsEditName] = useState(false);
@@ -40,8 +42,8 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
       .testStorageConnection(storage.id)
       .then(() => {
         ToastHelper.showToast({
-          title: 'Connection test successful!',
-          description: 'Storage connection tested successfully',
+          title: t('storage:form.connection_success_title'),
+          description: t('storage:form.connection_success_description'),
         });
 
         if (storage.lastSaveError) {
@@ -65,7 +67,7 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
     try {
       const isStorageUsing = await backupConfigApi.isStorageUsing(storage.id);
       if (isStorageUsing) {
-        alert('Storage is used by some databases. Please remove the storage from databases first.');
+        alert(t('storage:message.storage_in_use'));
         setIsShowRemoveConfirm(false);
       } else {
         await storageApi.deleteStorage(storage.id);
@@ -142,7 +144,7 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
                       setEditStorage({ ...editStorage, name: e.target.value });
                       setIsNameUnsaved(true);
                     }}
-                    placeholder="Enter name..."
+                    placeholder={t('storage:form.name_placeholder')}
                     size="large"
                   />
 
@@ -169,7 +171,7 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
                     loading={isSaving}
                     disabled={!editStorage?.name}
                   >
-                    Save
+                    {t('common:button.save')}
                   </Button>
                 )}
               </div>
@@ -179,27 +181,27 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
               <div className="max-w-[400px] rounded border border-red-600 px-3 py-3">
                 <div className="mt-1 flex items-center text-sm font-bold text-red-600">
                   <InfoCircleOutlined className="mr-2" style={{ color: 'red' }} />
-                  Save error
+                  {t('storage:details.save_error')}
                 </div>
 
                 <div className="mt-3 text-sm">
-                  The error:
+                  {t('storage:details.the_error')}
                   <br />
                   {storage.lastSaveError}
                 </div>
 
                 <div className="mt-3 text-sm text-gray-500">
-                  To clean this error (choose any):
+                  {t('storage:details.clean_error_instruction')}
                   <ul>
-                    <li>- test connection via button below (even if you updated settings);</li>
-                    <li>- wait until the next save is done without errors;</li>
+                    <li>{t('storage:details.clean_error_option1')}</li>
+                    <li>{t('storage:details.clean_error_option2')}</li>
                   </ul>
                 </div>
               </div>
             )}
 
             <div className="mt-5 flex items-center font-bold">
-              <div>Storage settings</div>
+              <div>{t('storage:details.settings')}</div>
 
               {!isEditSettings ? (
                 <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('settings')}>
@@ -238,7 +240,7 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
                   loading={isTestingConnection}
                   disabled={isTestingConnection}
                 >
-                  Test connection
+                  {t('storage:form.test_connection')}
                 </Button>
 
                 <Button
@@ -249,7 +251,7 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
                   loading={isRemoving}
                   disabled={isRemoving}
                 >
-                  Remove
+                  {t('storage:action.remove')}
                 </Button>
               </div>
             )}
@@ -260,8 +262,8 @@ export const StorageComponent = ({ storageId, onStorageChanged, onStorageDeleted
           <ConfirmationComponent
             onConfirm={remove}
             onDecline={() => setIsShowRemoveConfirm(false)}
-            description="Are you sure you want to remove this storage? This action cannot be undone. If some backups are using this storage, they will be removed too."
-            actionText="Remove"
+            description={t('storage:message.remove_confirm_description')}
+            actionText={t('storage:action.remove')}
             actionButtonColor="red"
           />
         )}

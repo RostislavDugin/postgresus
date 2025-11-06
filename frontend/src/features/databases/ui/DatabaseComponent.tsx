@@ -1,6 +1,7 @@
 import { Spin } from 'antd';
 import { useState } from 'react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type Database, databaseApi } from '../../../entity/databases';
 import { BackupsComponent } from '../../backups';
@@ -20,6 +21,7 @@ export const DatabaseComponent = ({
   onDatabaseChanged,
   onDatabaseDeleted,
 }: Props) => {
+  const { t } = useTranslation(['database']);
   const [currentTab, setCurrentTab] = useState<'config' | 'backups' | 'metrics'>('backups');
 
   const [database, setDatabase] = useState<Database | undefined>();
@@ -46,14 +48,14 @@ export const DatabaseComponent = ({
           className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'config' ? 'bg-white' : 'bg-gray-200'}`}
           onClick={() => setCurrentTab('config')}
         >
-          Config
+          {t('database:tabs.config')}
         </div>
 
         <div
           className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'backups' ? 'bg-white' : 'bg-gray-200'}`}
           onClick={() => setCurrentTab('backups')}
         >
-          Backups
+          {t('database:tabs.backups')}
         </div>
       </div>
 

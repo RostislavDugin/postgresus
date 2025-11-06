@@ -1,6 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { backupConfigApi } from '../../../entity/backups';
 import { type Database, DatabaseType } from '../../../entity/databases';
@@ -20,6 +21,7 @@ export const DatabaseCardComponent = ({
   selectedDatabaseId,
   setSelectedDatabaseId,
 }: Props) => {
+  const { t } = useTranslation(['database', 'common']);
   const [storage, setStorage] = useState<Storage | undefined>();
 
   let databaseIcon = '';
@@ -51,20 +53,20 @@ export const DatabaseCardComponent = ({
                 database.healthStatus === HealthStatus.AVAILABLE ? 'bg-green-500' : 'bg-red-500'
               }`}
             >
-              {database.healthStatus === HealthStatus.AVAILABLE ? 'Available' : 'Unavailable'}
+              {database.healthStatus === HealthStatus.AVAILABLE ? t('database:status.available') : t('database:status.unavailable')}
             </div>
           </div>
         )}
       </div>
 
       <div className="mb flex items-center">
-        <div className="text-sm text-gray-500">Database type: {databaseType}</div>
+        <div className="text-sm text-gray-500">{t('database:card.database_type')}: {databaseType}</div>
         <img src={databaseIcon} alt="databaseIcon" className="ml-1 h-4 w-4" />
       </div>
 
       {storage && (
         <div className="mb-1 text-sm text-gray-500">
-          <span>Storage: </span>
+          <span>{t('database:card.storage')}: </span>
           <span className="inline-flex items-center">
             {storage.name}{' '}
             {storage.type && (
@@ -80,7 +82,7 @@ export const DatabaseCardComponent = ({
 
       {database.lastBackupTime && (
         <div className="mt-3 mb-1 text-xs text-gray-500">
-          <span className="font-bold">Last backup</span>
+          <span className="font-bold">{t('database:card.last_backup')}</span>
           <br />
           {dayjs(database.lastBackupTime).format(getUserShortTimeFormat().format)} (
           {dayjs(database.lastBackupTime).fromNow()})
@@ -90,7 +92,7 @@ export const DatabaseCardComponent = ({
       {database.lastBackupErrorMessage && (
         <div className="mt-1 flex items-center text-sm text-red-600 underline">
           <InfoCircleOutlined className="mr-1" style={{ color: 'red' }} />
-          Has backup error
+          {t('database:message.backup_error')}
         </div>
       )}
     </div>

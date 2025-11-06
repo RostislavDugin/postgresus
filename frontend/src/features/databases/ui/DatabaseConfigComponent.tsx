@@ -1,6 +1,7 @@
 import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Button, Input } from 'antd';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type Database, databaseApi } from '../../../entity/databases';
 import { ToastHelper } from '../../../shared/toast';
@@ -29,6 +30,7 @@ export const DatabaseConfigComponent = ({
   editDatabase,
   setEditDatabase,
 }: Props) => {
+  const { t } = useTranslation(['database', 'common']);
   const [isEditName, setIsEditName] = useState(false);
   const [isEditDatabaseSpecificDataSettings, setIsEditDatabaseSpecificDataSettings] =
     useState(false);
@@ -59,8 +61,8 @@ export const DatabaseConfigComponent = ({
       .copyDatabase(database.id)
       .then((copiedDatabase) => {
         ToastHelper.showToast({
-          title: 'Database copied successfully!',
-          description: `"${copiedDatabase.name}" has been created successfully`,
+          title: t('database:config.copy_success_title'),
+          description: t('database:config.copy_success_description', { name: copiedDatabase.name }),
         });
         window.location.reload();
       })
@@ -80,8 +82,8 @@ export const DatabaseConfigComponent = ({
       .testDatabaseConnection(database.id)
       .then(() => {
         ToastHelper.showToast({
-          title: 'Connection test successful!',
-          description: 'Database connection tested successfully',
+          title: t('database:config.connection_test_success_title'),
+          description: t('database:config.connection_test_success_description'),
         });
 
         if (database.lastBackupErrorMessage) {
@@ -164,7 +166,7 @@ export const DatabaseConfigComponent = ({
                 setEditDatabase({ ...editDatabase, name: e.target.value });
                 setIsNameUnsaved(true);
               }}
-              placeholder="Enter name..."
+              placeholder={t('database:config.enter_name_placeholder')}
               size="large"
             />
 
@@ -191,7 +193,7 @@ export const DatabaseConfigComponent = ({
               loading={isSaving}
               disabled={!editDatabase?.name}
             >
-              Save
+              {t('common:common.save')}
             </Button>
           )}
         </div>
@@ -201,20 +203,20 @@ export const DatabaseConfigComponent = ({
         <div className="max-w-[400px] rounded border border-red-600 px-3 py-3">
           <div className="mt-1 flex items-center text-sm font-bold text-red-600">
             <InfoCircleOutlined className="mr-2" style={{ color: 'red' }} />
-            Last backup error
+            {t('database:config.last_backup_error')}
           </div>
 
           <div className="mt-3 text-sm">
-            The error:
+            {t('database:config.the_error')}
             <br />
             {database.lastBackupErrorMessage}
           </div>
 
           <div className="mt-3 text-sm text-gray-500">
-            To clean this error (choose any):
+            {t('database:config.clean_error_instruction')}
             <ul>
-              <li>- test connection via button below (even if you updated settings);</li>
-              <li>- wait until the next backup is done without errors;</li>
+              <li>{t('database:config.clean_error_option1')}</li>
+              <li>{t('database:config.clean_error_option2')}</li>
             </ul>
           </div>
         </div>
@@ -223,7 +225,7 @@ export const DatabaseConfigComponent = ({
       <div className="flex flex-wrap gap-10">
         <div className="w-[400px]">
           <div className="mt-5 flex items-center font-bold">
-            <div>Database settings</div>
+            <div>{t('database:config.database_settings')}</div>
 
             {!isEditDatabaseSpecificDataSettings ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('database')}>
@@ -256,7 +258,7 @@ export const DatabaseConfigComponent = ({
 
         <div className="w-[400px]">
           <div className="mt-5 flex items-center font-bold">
-            <div>Backup config</div>
+            <div>{t('database:config.backup_config')}</div>
 
             {!isEditBackupConfig ? (
               <div
@@ -296,7 +298,7 @@ export const DatabaseConfigComponent = ({
       <div className="flex flex-wrap gap-10">
         <div className="w-[400px]">
           <div className="mt-5 flex items-center font-bold">
-            <div>Healthcheck settings</div>
+            <div>{t('database:config.healthcheck_settings')}</div>
 
             {!isEditHealthcheckSettings ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('healthcheck')}>
@@ -324,7 +326,7 @@ export const DatabaseConfigComponent = ({
 
         <div className="w-[400px]">
           <div className="mt-5 flex items-center font-bold">
-            <div>Notifiers settings</div>
+            <div>{t('database:config.notifiers_settings')}</div>
 
             {!isEditNotifiersSettings ? (
               <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('notifiers')}>
@@ -348,7 +350,7 @@ export const DatabaseConfigComponent = ({
                   loadSettings();
                 }}
                 isSaveToApi={true}
-                saveButtonText="Save"
+                saveButtonText={t('common:common.save')}
                 onSaved={onDatabaseChanged}
               />
             ) : (
@@ -368,7 +370,7 @@ export const DatabaseConfigComponent = ({
             loading={isTestingConnection}
             disabled={isTestingConnection}
           >
-            Test connection
+            {t('database:form.test_connection')}
           </Button>
 
           <Button
@@ -379,7 +381,7 @@ export const DatabaseConfigComponent = ({
             loading={isCopying}
             disabled={isCopying}
           >
-            Copy
+            {t('common:common.copy')}
           </Button>
 
           <Button
@@ -390,7 +392,7 @@ export const DatabaseConfigComponent = ({
             loading={isRemoving}
             disabled={isRemoving}
           >
-            Remove
+            {t('database:config.remove_action_text')}
           </Button>
         </div>
       )}
@@ -399,8 +401,8 @@ export const DatabaseConfigComponent = ({
         <ConfirmationComponent
           onConfirm={remove}
           onDecline={() => setIsShowRemoveConfirm(false)}
-          description="Are you sure you want to remove this database? This action cannot be undone."
-          actionText="Remove"
+          description={t('database:config.remove_confirm_description')}
+          actionText={t('database:config.remove_action_text')}
           actionButtonColor="red"
         />
       )}

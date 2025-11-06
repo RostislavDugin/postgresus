@@ -1,0 +1,100 @@
+{
+  "title": "Databases",
+  "add_button": "Add database",
+  "search_placeholder": "Search database",
+
+  "modal": {
+    "add_title": "Add database for backup",
+    "edit_title": "Edit database",
+    "description": "Database - is a thing we are backing up"
+  },
+
+  "form": {
+    "name_label": "Name",
+    "name_placeholder": "My favourite DB",
+    "type_label": "Database type",
+    "type_placeholder": "Select database type",
+    "host_label": "Host",
+    "host_placeholder": "Enter PG host",
+    "port_label": "Port",
+    "port_placeholder": "Enter PG port",
+    "database_label": "DB name",
+    "database_placeholder": "Enter PG database name (optional)",
+    "username_label": "Username",
+    "username_placeholder": "Enter PG username",
+    "password_label": "Password",
+    "password_placeholder": "Enter PG password",
+    "ssl_mode_label": "SSL Mode",
+    "use_https_label": "Use HTTPS",
+    "storage_label": "Storage",
+    "storage_placeholder": "Select storage",
+    "version_label": "PG version",
+    "version_placeholder": "Select PG version",
+    "version_hint": "Please select the version of PostgreSQL you are backing up now. You will be able to restore backup to the same version or higher",
+    "test_connection": "Test connection",
+    "connection_test_passed": "Connection test passed",
+    "connection_test_description": "You can continue with the next step"
+  },
+
+  "table": {
+    "name": "Name",
+    "type": "Database type",
+    "storage": "Storage",
+    "status": "Status",
+    "last_backup": "Last backup",
+    "created_at": "Created at",
+    "actions": "Actions"
+  },
+
+  "message": {
+    "no_databases": "No databases found matching",
+    "backup_error": "Has backup error",
+    "delete_confirm": "Are you sure you want to delete this database?",
+    "delete_success": "Database deleted successfully",
+    "save_success": "Database saved successfully"
+  },
+
+  "card": {
+    "database_type": "Database type",
+    "storage": "Storage",
+    "last_backup": "Last backup"
+  },
+
+  "status": {
+    "available": "Available",
+    "unavailable": "Unavailable"
+  },
+
+  "tabs": {
+    "config": "Config",
+    "backups": "Backups"
+  },
+
+  "config": {
+    "database_settings": "Database settings",
+    "backup_config": "Backup config",
+    "healthcheck_settings": "Healthcheck settings",
+    "notifiers_settings": "Notifiers settings",
+    "last_backup_error": "Last backup error",
+    "the_error": "The error:",
+    "clean_error_instruction": "To clean this error (choose any):",
+    "clean_error_option1": "- test connection via button below (even if you updated settings);",
+    "clean_error_option2": "- wait until the next backup is done without errors;",
+    "enter_name_placeholder": "Enter name...",
+    "copy_success_title": "Database copied successfully!",
+    "copy_success_description": "\"{name}\" has been created successfully",
+    "connection_test_success_title": "Connection test successful!",
+    "connection_test_success_description": "Database connection tested successfully",
+    "remove_confirm_description": "Are you sure you want to remove this database? This action cannot be undone.",
+    "remove_action_text": "Remove"
+  },
+
+  "notifiers": {
+    "label": "Notifiers",
+    "description_line1": "Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)",
+    "description_line2": "You can select several notifiers, notifications will be sent to all of them.",
+    "create_new_notifier": "Create new notifier",
+    "select_placeholder": "Select notifiers",
+    "modal_title": "Add notifier"
+  }
+}

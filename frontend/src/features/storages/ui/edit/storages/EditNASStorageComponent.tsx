@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Input, InputNumber, Switch, Tooltip } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import type { Storage } from '../../../../../entity/storages';
 
@@ -10,10 +11,12 @@ interface Props {
 }
 
 export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['storage']);
+
   return (
     <>
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Host</div>
+        <div className="min-w-[110px]">{t('storage:form.host_label')}</div>
         <Input
           value={storage?.nasStorage?.host || ''}
           onChange={(e) => {
@@ -30,12 +33,12 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="192.168.1.100"
+          placeholder={t('storage:form.host_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Port</div>
+        <div className="min-w-[110px]">{t('storage:form.port_label')}</div>
         <InputNumber
           value={storage?.nasStorage?.port}
           onChange={(value) => {
@@ -54,12 +57,12 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           className="w-full max-w-[250px]"
           min={1}
           max={65535}
-          placeholder="445"
+          placeholder={t('storage:form.port_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Share</div>
+        <div className="min-w-[110px]">{t('storage:form.share_label')}</div>
         <Input
           value={storage?.nasStorage?.share || ''}
           onChange={(e) => {
@@ -76,12 +79,12 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="shared_folder"
+          placeholder={t('storage:form.share_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Username</div>
+        <div className="min-w-[110px]">{t('storage:form.username_label')}</div>
         <Input
           value={storage?.nasStorage?.username || ''}
           onChange={(e) => {
@@ -98,12 +101,12 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="username"
+          placeholder={t('storage:form.username_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Password</div>
+        <div className="min-w-[110px]">{t('storage:form.password_label')}</div>
         <Input.Password
           value={storage?.nasStorage?.password || ''}
           onChange={(e) => {
@@ -120,12 +123,12 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="password"
+          placeholder={t('storage:form.password_placeholder')}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Use SSL</div>
+        <div className="min-w-[110px]">{t('storage:form.use_ssl_label')}</div>
         <Switch
           checked={storage?.nasStorage?.useSsl || false}
           onChange={(checked) => {
@@ -143,13 +146,13 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           size="small"
         />
 
-        <Tooltip className="cursor-pointer" title="Enable SSL/TLS encryption for secure connection">
+        <Tooltip className="cursor-pointer" title={t('storage:form.use_ssl_tooltip')}>
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Domain</div>
+        <div className="min-w-[110px]">{t('storage:form.domain_label')}</div>
         <Input
           value={storage?.nasStorage?.domain || ''}
           onChange={(e) => {
@@ -166,19 +169,19 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="WORKGROUP (optional)"
+          placeholder={t('storage:form.domain_placeholder')}
         />
 
         <Tooltip
           className="cursor-pointer"
-          title="Windows domain name (optional, leave empty if not using domain authentication)"
+          title={t('storage:form.domain_tooltip')}
         >
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Path</div>
+        <div className="min-w-[110px]">{t('storage:form.path_label')}</div>
         <Input
           value={storage?.nasStorage?.path || ''}
           onChange={(e) => {
@@ -201,10 +204,10 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="backups (optional, no leading slash)"
+          placeholder={t('storage:form.nas_path_placeholder')}
         />
 
-        <Tooltip className="cursor-pointer" title="Subdirectory path within the share (optional)">
+        <Tooltip className="cursor-pointer" title={t('storage:form.nas_path_tooltip')}>
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
       </div>

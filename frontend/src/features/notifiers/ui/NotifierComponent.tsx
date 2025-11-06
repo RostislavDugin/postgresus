@@ -2,6 +2,7 @@ import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Button, Input, Spin } from 'antd';
 import { useState } from 'react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { databaseApi } from '../../../entity/databases';
 import { notifierApi } from '../../../entity/notifiers';
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDeleted }: Props) => {
+  const { t } = useTranslation(['notifier', 'common']);
   const [notifier, setNotifier] = useState<Notifier | undefined>();
 
   const [isEditName, setIsEditName] = useState(false);
@@ -40,8 +42,8 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
       .sendTestNotification(notifier.id)
       .then(() => {
         ToastHelper.showToast({
-          title: 'Test notification sent!',
-          description: 'Test notification sent successfully',
+          title: t('notifier:message.test_notification_sent_title'),
+          description: t('notifier:message.test_notification_sent_description'),
         });
 
         if (notifier.lastSendError) {
@@ -65,9 +67,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
     try {
       const isNotifierUsing = await databaseApi.isNotifierUsing(notifier.id);
       if (isNotifierUsing) {
-        alert(
-          'Notifier is used by some databases. Please remove the notifier from databases first.',
-        );
+        alert(t('notifier:message.notifier_in_use'));
         setIsShowRemoveConfirm(false);
       } else {
         await notifierApi.deleteNotifier(notifier.id);
@@ -144,7 +144,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
                       setEditNotifier({ ...editNotifier, name: e.target.value });
                       setIsNameUnsaved(true);
                     }}
-                    placeholder="Enter name..."
+                    placeholder={t('notifier:form.name_placeholder')}
                     size="large"
                   />
 
@@ -171,7 +171,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
                     loading={isSaving}
                     disabled={!editNotifier?.name}
                   >
-                    Save
+                    {t('common:button.save')}
                   </Button>
                 )}
               </div>
@@ -181,29 +181,29 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
               <div className="max-w-[400px] rounded border border-red-600 px-3 py-3">
                 <div className="mt-1 flex items-center text-sm font-bold text-red-600">
                   <InfoCircleOutlined className="mr-2" style={{ color: 'red' }} />
-                  Send error
+                  {t('notifier:details.send_error')}
                 </div>
 
                 <div className="mt-3 text-sm">
-                  The error:
+                  {t('notifier:details.the_error')}
                   <br />
                   {notifier.lastSendError}
                 </div>
 
                 <div className="mt-3 text-sm text-gray-500">
-                  To clean this error (choose any):
+                  {t('notifier:details.clean_error_instruction')}
                   <ul>
                     <li>
-                      - send test notification via button below (even if you updated settings);
+                      {t('notifier:details.clean_error_option1')}
                     </li>
-                    <li>- wait until the next notification is sent without errors;</li>
+                    <li>{t('notifier:details.clean_error_option2')}</li>
                   </ul>
                 </div>
               </div>
             )}
 
             <div className="mt-5 flex items-center font-bold">
-              <div>Notifier settings</div>
+              <div>{t('notifier:details.settings')}</div>
 
               {!isEditSettings ? (
                 <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('settings')}>
@@ -242,7 +242,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
                   loading={isSendingTestNotification}
                   disabled={isSendingTestNotification}
                 >
-                  Send test notification
+                  {t('notifier:action.send_test')}
                 </Button>
 
                 <Button
@@ -253,7 +253,7 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
                   loading={isRemoving}
                   disabled={isRemoving}
                 >
-                  Remove
+                  {t('notifier:action.remove')}
                 </Button>
               </div>
             )}
@@ -264,8 +264,8 @@ export const NotifierComponent = ({ notifierId, onNotifierChanged, onNotifierDel
           <ConfirmationComponent
             onConfirm={remove}
             onDecline={() => setIsShowRemoveConfirm(false)}
-            description="Are you sure you want to remove this notifier? This action cannot be undone."
-            actionText="Remove"
+            description={t('notifier:message.remove_confirm_description')}
+            actionText={t('notifier:action.remove')}
             actionButtonColor="red"
           />
         )}

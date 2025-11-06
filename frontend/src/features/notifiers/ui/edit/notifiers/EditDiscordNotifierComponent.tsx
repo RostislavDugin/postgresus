@@ -1,4 +1,5 @@
 import { Input } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import type { Notifier } from '../../../../../entity/notifiers';
 
@@ -9,10 +10,12 @@ interface Props {
 }
 
 export function EditDiscordNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['notifier']);
+
   return (
     <>
       <div className="flex">
-        <div className="w-[130px] max-w-[130px] min-w-[130px] pr-3">Channel webhook URL</div>
+        <div className="w-[130px] max-w-[130px] min-w-[130px] pr-3">{t('notifier:form.discord_webhook_url_label')}</div>
 
         <div className="w-[250px]">
           <Input
@@ -30,28 +33,28 @@ export function EditDiscordNotifierComponent({ notifier, setNotifier, setIsUnsav
             }}
             size="small"
             className="w-full"
-            placeholder="1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            placeholder={t('notifier:form.discord_webhook_url_placeholder')}
           />
         </div>
       </div>
 
       <div className="ml-[130px] max-w-[250px]">
         <div className="mt-1 text-xs text-gray-500">
-          <strong>How to get Discord webhook URL:</strong>
+          <strong>{t('notifier:form.discord_help_title')}</strong>
           <br />
           <br />
-          1. Create or select a Discord channel
+          {t('notifier:form.discord_help_step1')}
           <br />
-          2. Go to channel settings (gear icon)
+          {t('notifier:form.discord_help_step2')}
           <br />
-          3. Navigate to Integrations
+          {t('notifier:form.discord_help_step3')}
           <br />
-          4. Create a new webhook
+          {t('notifier:form.discord_help_step4')}
           <br />
-          5. Copy the webhook URL
+          {t('notifier:form.discord_help_step5')}
           <br />
           <br />
-          <em>Note: make sure make channel private if needed</em>
+          <em>{t('notifier:form.discord_help_note')}</em>
         </div>
       </div>
     </>

@@ -14,9 +14,12 @@
     "@tailwindcss/vite": "^4.1.7",
     "antd": "^5.25.1",
     "dayjs": "^1.11.13",
+    "i18next": "^25.6.0",
+    "i18next-browser-languagedetector": "^8.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-github-btn": "^1.4.0",
+    "react-i18next": "^16.2.4",
     "react-router": "^7.6.0",
     "recharts": "^3.2.0",
     "tailwindcss": "^4.1.7"

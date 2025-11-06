@@ -1,4 +1,5 @@
 import { Input } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import type { Notifier } from '../../../../../entity/notifiers';
 
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['notifier']);
+
   return (
     <>
       <div className="mb-1 ml-[130px] max-w-[200px]" style={{ lineHeight: 1 }}>
@@ -18,12 +21,12 @@ export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved
           target="_blank"
           rel="noreferrer"
         >
-          How to connect Slack (how to get bot token and chat ID)?
+          {t('notifier:form.slack_link')}
         </a>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Bot token</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.bot_token_label')}</div>
 
         <div className="w-[250px]">
           <Input
@@ -42,13 +45,13 @@ export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved
             }}
             size="small"
             className="w-full"
-            placeholder="xoxb-..."
+            placeholder={t('notifier:form.slack_bot_token_placeholder')}
           />
         </div>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Target chat ID</div>
+        <div className="w-[130px] min-w-[130px]">{t('notifier:form.target_chat_id_label')}</div>
 
         <div className="w-[250px]">
           <Input
@@ -67,7 +70,7 @@ export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved
             }}
             size="small"
             className="w-full"
-            placeholder="C1234567890"
+            placeholder={t('notifier:form.slack_chat_id_placeholder')}
           />
         </div>
       </div>

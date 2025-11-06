@@ -1,5 +1,6 @@
 import { Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { GOOGLE_DRIVE_OAUTH_REDIRECT_URL } from '../../constants';
 import { type Storage, StorageType } from '../../entity/storages';
@@ -7,11 +8,12 @@ import type { StorageOauthDto } from '../../entity/storages/models/StorageOauthD
 import { EditStorageComponent } from './ui/edit/EditStorageComponent';
 
 export function OauthStorageComponent() {
+  const { t } = useTranslation(['storage']);
   const [storage, setStorage] = useState<Storage | undefined>();
 
   const exchangeGoogleOauthCode = async (oauthDto: StorageOauthDto) => {
     if (!oauthDto.storage.googleDriveStorage) {
-      alert('Google Drive storage configuration not found');
+      alert(t('storage:message.google_drive_config_not_found'));
       return;
     }
 
@@ -43,14 +45,14 @@ export function OauthStorageComponent() {
       oauthDto.storage.googleDriveStorage.tokenJson = JSON.stringify(tokenData);
       setStorage(oauthDto.storage);
     } catch (error) {
-      alert(`Failed to exchange OAuth code: ${error}`);
+      alert(`${t('storage:message.oauth_exchange_failed')}: ${error}`);
     }
   };
 
   useEffect(() => {
     const oauthDtoParam = new URLSearchParams(window.location.search).get('oauthDto');
     if (!oauthDtoParam) {
-      alert('OAuth param not found');
+      alert(t('storage:message.oauth_param_not_found'));
       return;
     }
 
@@ -59,13 +61,13 @@ export function OauthStorageComponent() {
 
     if (oauthDto.storage.type === StorageType.GOOGLE_DRIVE) {
       if (!oauthDto.storage.googleDriveStorage) {
-        alert('Google Drive storage not found');
+        alert(t('storage:message.google_drive_not_found'));
         return;
       }
 
       exchangeGoogleOauthCode(oauthDto);
     }
-  }, []);
+  }, [t]);
 
   if (!storage) {
     return (
@@ -78,7 +80,7 @@ export function OauthStorageComponent() {
   return (
     <div>
       <Modal
-        title="Add storage"
+        title={t('storage:modal.add_title')}
         footer={<div />}
         open
         onCancel={() => {
@@ -86,7 +88,7 @@ export function OauthStorageComponent() {
         }}
       >
         <div className="my-3 max-w-[250px] text-gray-500">
-          Storage - is a place where backups will be stored (local disk, S3, etc.)
+          {t('storage:modal.description')}
         </div>
 
         <EditStorageComponent

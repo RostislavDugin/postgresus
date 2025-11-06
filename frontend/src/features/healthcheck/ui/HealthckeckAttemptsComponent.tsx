@@ -1,6 +1,7 @@
 import { Select, Spin, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Database } from '../../../entity/databases';
 import { HealthStatus } from '../../../entity/databases/model/HealthStatus';
@@ -40,6 +41,7 @@ const getAfterDateByPeriod = (period: 'today' | '7d' | '30d' | 'all'): Date => {
 };
 
 export const HealthckeckAttemptsComponent = ({ database }: Props) => {
+  const { t } = useTranslation(['healthcheck']);
   const [isHealthcheckConfigLoading, setIsHealthcheckConfigLoading] = useState(false);
   const [isShowHealthcheckConfig, setIsShowHealthcheckConfig] = useState(false);
 
@@ -119,20 +121,20 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
 
   return (
     <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-5 shadow">
-      <h2 className="text-xl font-bold">Healthcheck attempts</h2>
+      <h2 className="text-xl font-bold">{t('healthcheck:attempts.title')}</h2>
 
       <div className="mt-4 flex items-center gap-2">
-        <span className="mr-2 text-sm font-medium">Period</span>
+        <span className="mr-2 text-sm font-medium">{t('healthcheck:attempts.period_label')}</span>
         <Select
           size="small"
           value={period}
           onChange={(value) => setPeriod(value)}
           style={{ width: 120 }}
           options={[
-            { value: 'today', label: 'Today' },
-            { value: '7d', label: '7 days' },
-            { value: '30d', label: '30 days' },
-            { value: 'all', label: 'All time' },
+            { value: 'today', label: t('healthcheck:attempts.period_today') },
+            { value: '7d', label: t('healthcheck:attempts.period_7days') },
+            { value: '30d', label: t('healthcheck:attempts.period_30days') },
+            { value: 'all', label: t('healthcheck:attempts.period_all') },
           ]}
         />
       </div>
@@ -161,7 +163,7 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
               </Tooltip>
             ))
           ) : (
-            <div className="text-xs text-gray-400">No data yet</div>
+            <div className="text-xs text-gray-400">{t('healthcheck:attempts.no_data')}</div>
           )}
         </div>
       )}

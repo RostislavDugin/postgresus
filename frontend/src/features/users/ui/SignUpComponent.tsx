@@ -1,11 +1,13 @@
 import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
 import { Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { userApi } from '../../../entity/users';
 import { FormValidator } from '../../../shared/lib/FormValidator';
 
 export function SignUpComponent(): JSX.Element {
+  const { t } = useTranslation('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -38,7 +40,7 @@ export function SignUpComponent(): JSX.Element {
 
     if (password.length < 8) {
       setPasswordError(true);
-      alert('Password must be at least 8 characters long');
+      alert(t('validation.password_min_length'));
       return false;
     }
     setPasswordError(false);
@@ -78,11 +80,11 @@ export function SignUpComponent(): JSX.Element {
 
   return (
     <div className="w-full max-w-[300px]">
-      <div className="mb-5 text-center text-2xl font-bold">Sign up</div>
+      <div className="mb-5 text-center text-2xl font-bold">{t('sign_up.title')}</div>
 
-      <div className="my-1 text-xs font-semibold">Your email</div>
+      <div className="my-1 text-xs font-semibold">{t('sign_up.email_label')}</div>
       <Input
-        placeholder="your@email.com"
+        placeholder={t('sign_up.email_placeholder')}
         value={email}
         onChange={(e) => {
           setEmailError(false);
@@ -92,9 +94,9 @@ export function SignUpComponent(): JSX.Element {
         type="email"
       />
 
-      <div className="my-1 text-xs font-semibold">Password</div>
+      <div className="my-1 text-xs font-semibold">{t('sign_up.password_label')}</div>
       <Input.Password
-        placeholder="********"
+        placeholder={t('sign_up.password_placeholder')}
         value={password}
         onChange={(e) => {
           setPasswordError(false);
@@ -105,9 +107,9 @@ export function SignUpComponent(): JSX.Element {
         visibilityToggle={{ visible: passwordVisible, onVisibleChange: setPasswordVisible }}
       />
 
-      <div className="my-1 text-xs font-semibold">Confirm password</div>
+      <div className="my-1 text-xs font-semibold">{t('sign_up.confirm_password_label')}</div>
       <Input.Password
-        placeholder="********"
+        placeholder={t('sign_up.confirm_password_placeholder')}
         value={confirmPassword}
         status={confirmPasswordError ? 'error' : undefined}
         onChange={(e) => {
@@ -132,7 +134,7 @@ export function SignUpComponent(): JSX.Element {
         }}
         type="primary"
       >
-        Sign up
+        {t('sign_up.button')}
       </Button>
 
       {signUpError && (

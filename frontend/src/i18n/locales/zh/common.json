@@ -1,0 +1,109 @@
+{
+  "app_name": "Postgresus",
+  "app_description": "PostgreSQL 备份解决方案",
+
+  "button": {
+    "add": "添加",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "continue": "继续",
+    "complete": "完成",
+    "confirm": "确认",
+    "close": "关闭",
+    "back": "返回",
+    "next": "下一步",
+    "search": "搜索"
+  },
+
+  "status": {
+    "available": "可用",
+    "unavailable": "不可用",
+    "active": "活动",
+    "inactive": "非活动",
+    "success": "成功",
+    "successful": "成功",
+    "failed": "失败",
+    "in_progress": "进行中",
+    "pending": "待处理",
+    "deleted": "已删除"
+  },
+
+  "navigation": {
+    "databases": "数据库",
+    "storages": "存储",
+    "notifiers": "通知器",
+    "health_check": "健康检查",
+    "community": "社区",
+    "documentation": "文档",
+    "star_on_github": "在 GitHub 上加星"
+  },
+
+  "time": {
+    "created_at": "创建时间",
+    "updated_at": "更新时间",
+    "last_backup": "最后备份",
+    "duration": "持续时间",
+    "mon": "周一",
+    "tue": "周二",
+    "wed": "周三",
+    "thu": "周四",
+    "fri": "周五",
+    "sat": "周六",
+    "sun": "周日"
+  },
+
+  "action": {
+    "actions": "操作",
+    "view": "查看",
+    "restore": "恢复",
+    "download": "下载",
+    "show": "显示",
+    "hide": "隐藏"
+  },
+
+  "common": {
+    "name": "名称",
+    "type": "类型",
+    "description": "描述",
+    "yes": "是",
+    "no": "否",
+    "none": "无",
+    "all": "全部",
+    "search": "搜索",
+    "loading": "加载中...",
+    "no_data": "暂无数据",
+    "forever": "永久",
+    "save": "保存",
+    "cancel": "取消",
+    "back": "返回",
+    "confirmation": "确认",
+    "copy": "复制"
+  },
+
+  "interval": {
+    "hourly": "每小时",
+    "daily": "每天",
+    "weekly": "每周",
+    "monthly": "每月"
+  },
+
+  "notification": {
+    "backup_success": "备份成功",
+    "backup_failed": "备份失败"
+  },
+
+  "tooltip": {
+    "backup_size": "我们实际存储在存储中的文件大小（本地、S3、Google Drive等），通常压缩约5倍",
+    "disk_usage": "要在本地制作备份并恢复它们，您需要在磁盘上有足够的空��。对于恢复，您需要与备份大小相同的空间。"
+  },
+
+  "message": {
+    "delete_confirm": "确定要删除此项吗？",
+    "delete_success": "删除成功",
+    "save_success": "保存成功",
+    "operation_success": "操作成功",
+    "operation_failed": "操作失败"
+  }
+}

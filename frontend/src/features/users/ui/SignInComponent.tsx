@@ -1,11 +1,13 @@
 import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
 import { Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { userApi } from '../../../entity/users';
 import { FormValidator } from '../../../shared/lib/FormValidator';
 
 export function SignInComponent(): JSX.Element {
+  const { t } = useTranslation('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -58,11 +60,11 @@ export function SignInComponent(): JSX.Element {
 
   return (
     <div className="w-full max-w-[300px]">
-      <div className="mb-5 text-center text-2xl font-bold">Sign in</div>
+      <div className="mb-5 text-center text-2xl font-bold">{t('sign_in.title')}</div>
 
-      <div className="my-1 text-xs font-semibold">Your email</div>
+      <div className="my-1 text-xs font-semibold">{t('sign_in.email_label')}</div>
       <Input
-        placeholder="your@email.com"
+        placeholder={t('sign_in.email_placeholder')}
         value={email}
         onChange={(e) => {
           setEmailError(false);
@@ -72,9 +74,9 @@ export function SignInComponent(): JSX.Element {
         type="email"
       />
 
-      <div className="my-1 text-xs font-semibold">Password</div>
+      <div className="my-1 text-xs font-semibold">{t('sign_in.password_label')}</div>
       <Input.Password
-        placeholder="********"
+        placeholder={t('sign_in.password_placeholder')}
         value={password}
         onChange={(e) => {
           setPasswordError(false);
@@ -96,7 +98,7 @@ export function SignInComponent(): JSX.Element {
         }}
         type="primary"
       >
-        Sign in
+        {t('sign_in.button')}
       </Button>
 
       {signInError && (

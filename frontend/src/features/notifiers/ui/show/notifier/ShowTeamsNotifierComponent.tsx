@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Notifier } from '../../../../../entity/notifiers';
 
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function ShowTeamsNotifierComponent({ notifier }: Props) {
+  const { t } = useTranslation(['notifier', 'common']);
   const url = notifier?.teamsNotifier?.powerAutomateUrl || '';
   const [expanded, setExpanded] = useState(false);
 
@@ -17,7 +19,7 @@ export function ShowTeamsNotifierComponent({ notifier }: Props) {
   return (
     <>
       <div className="flex items-center">
-        <div className="min-w-[110px]">Power Automate URL: </div>
+        <div className="min-w-[110px]">{t('notifier:form.teams_power_automate_url_label')}: </div>
         <div className="w-[250px] break-all">
           {url ? (
             <>
@@ -28,7 +30,7 @@ export function ShowTeamsNotifierComponent({ notifier }: Props) {
                   onClick={() => setExpanded((v) => !v)}
                   className="ml-2 text-xs text-blue-600 hover:underline"
                 >
-                  {expanded ? 'Hide' : 'Show'}
+                  {expanded ? t('common:action.hide') : t('common:action.show')}
                 </button>
               )}
             </>

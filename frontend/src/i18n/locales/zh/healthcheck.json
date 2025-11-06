@@ -1,0 +1,35 @@
+{
+  "form": {
+    "enable_healthcheck_label": "启用健康检查",
+    "enable_healthcheck_tooltip": "为此数据库启用或禁用健康检查监控",
+    "notify_when_unavailable_label": "不可用时通知",
+    "notify_when_unavailable_tooltip": "数据库不可用时发送通知",
+    "check_interval_label": "检查间隔（分钟）",
+    "check_interval_placeholder": "5",
+    "check_interval_tooltip": "检查数据库健康状况的频率（以分钟为单位）",
+    "attempts_before_down_label": "标记为宕机前的尝试次数",
+    "attempts_before_down_placeholder": "3",
+    "attempts_before_down_tooltip": "将数据库标记为宕机前的失败尝试次数",
+    "store_attempts_label": "存储尝试记录（天）",
+    "store_attempts_placeholder": "30",
+    "store_attempts_tooltip": "存储健康检查尝试历史的天数"
+  },
+
+  "show": {
+    "is_enabled_label": "是否启用健康检查",
+    "notify_when_unavailable_label": "不可用时通知",
+    "check_interval_label": "检查间隔（分钟）",
+    "attempts_before_down_label": "标记为宕机前的尝试次数",
+    "store_attempts_label": "存储尝试记录（天）"
+  },
+
+  "attempts": {
+    "title": "健康检查尝试记录",
+    "period_label": "时间段",
+    "period_today": "今天",
+    "period_7days": "7 天",
+    "period_30days": "30 天",
+    "period_all": "所有时间",
+    "no_data": "暂无数据"
+  }
+}

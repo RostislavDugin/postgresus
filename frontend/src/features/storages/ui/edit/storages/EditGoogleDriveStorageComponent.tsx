@@ -1,4 +1,5 @@
 import { Button, Input } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import { GOOGLE_DRIVE_OAUTH_REDIRECT_URL } from '../../../../../constants';
 import type { Storage } from '../../../../../entity/storages';
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+  const { t } = useTranslation(['storage']);
+
   const goToAuthUrl = () => {
     if (!storage?.googleDriveStorage?.clientId || !storage?.googleDriveStorage?.clientSecret) {
       return;
@@ -41,13 +44,13 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
 
         <div className="text-xs text-blue-600">
           <a href="https://postgresus.com/google-drive-storage" target="_blank" rel="noreferrer">
-            How to connect Google Drive?
+            {t('storage:form.google_drive_link')}
           </a>
         </div>
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Client ID</div>
+        <div className="min-w-[110px]">{t('storage:form.client_id_label')}</div>
         <Input
           value={storage?.googleDriveStorage?.clientId || ''}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,13 +67,13 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="my-client-id"
+          placeholder={t('storage:form.client_id_placeholder')}
           disabled={!!storage?.googleDriveStorage?.tokenJson}
         />
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Client Secret</div>
+        <div className="min-w-[110px]">{t('storage:form.client_secret_label')}</div>
         <Input
           value={storage?.googleDriveStorage?.clientSecret || ''}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +90,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
           }}
           size="small"
           className="w-full max-w-[250px]"
-          placeholder="my-client-secret"
+          placeholder={t('storage:form.client_secret_placeholder')}
           disabled={!!storage?.googleDriveStorage?.tokenJson}
         />
       </div>
@@ -95,13 +98,13 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
       {storage?.googleDriveStorage?.tokenJson && (
         <>
           <div className="mb-1 flex items-center">
-            <div className="min-w-[110px]">User Token</div>
+            <div className="min-w-[110px]">{t('storage:form.user_token_label')}</div>
             <Input
               value={storage?.googleDriveStorage?.tokenJson || ''}
               disabled
               size="small"
               className="w-full max-w-[250px]"
-              placeholder="my-user-token"
+              placeholder={t('storage:form.user_token_placeholder')}
             />
           </div>
         </>
@@ -115,7 +118,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
           }
           onClick={goToAuthUrl}
         >
-          Authorize
+          {t('storage:form.authorize_button')}
         </Button>
       )}
     </>

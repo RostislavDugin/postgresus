@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { type BackupConfig, backupConfigApi } from '../../../entity/backups';
 import { BackupNotificationType } from '../../../entity/backups/model/BackupNotificationType';
@@ -14,44 +15,45 @@ interface Props {
   database: Database;
 }
 
-const weekdayLabels = {
-  1: 'Mon',
-  2: 'Tue',
-  3: 'Wed',
-  4: 'Thu',
-  5: 'Fri',
-  6: 'Sat',
-  7: 'Sun',
-};
-
-const intervalLabels = {
-  [IntervalType.HOURLY]: 'Hourly',
-  [IntervalType.DAILY]: 'Daily',
-  [IntervalType.WEEKLY]: 'Weekly',
-  [IntervalType.MONTHLY]: 'Monthly',
-};
-
-const periodLabels = {
-  [Period.DAY]: '1 day',
-  [Period.WEEK]: '1 week',
-  [Period.MONTH]: '1 month',
-  [Period.THREE_MONTH]: '3 months',
-  [Period.SIX_MONTH]: '6 months',
-  [Period.YEAR]: '1 year',
-  [Period.TWO_YEARS]: '2 years',
-  [Period.THREE_YEARS]: '3 years',
-  [Period.FOUR_YEARS]: '4 years',
-  [Period.FIVE_YEARS]: '5 years',
-  [Period.FOREVER]: 'Forever',
-};
-
-const notificationLabels = {
-  [BackupNotificationType.BackupFailed]: 'Backup failed',
-  [BackupNotificationType.BackupSuccess]: 'Backup success',
-};
-
 export const ShowBackupConfigComponent = ({ database }: Props) => {
+  const { t } = useTranslation(['backup', 'common']);
   const [backupConfig, setBackupConfig] = useState<BackupConfig>();
+
+  const weekdayLabels = useMemo(() => ({
+    1: t('common:time.mon'),
+    2: t('common:time.tue'),
+    3: t('common:time.wed'),
+    4: t('common:time.thu'),
+    5: t('common:time.fri'),
+    6: t('common:time.sat'),
+    7: t('common:time.sun'),
+  }), [t]);
+
+  const intervalLabels = useMemo(() => ({
+    [IntervalType.HOURLY]: t('backup:interval.hourly'),
+    [IntervalType.DAILY]: t('backup:interval.daily'),
+    [IntervalType.WEEKLY]: t('backup:interval.weekly'),
+    [IntervalType.MONTHLY]: t('backup:interval.monthly'),
+  }), [t]);
+
+  const periodLabels = useMemo(() => ({
+    [Period.DAY]: t('backup:period.day'),
+    [Period.WEEK]: t('backup:period.week'),
+    [Period.MONTH]: t('backup:period.month'),
+    [Period.THREE_MONTH]: t('backup:period.three_months'),
+    [Period.SIX_MONTH]: t('backup:period.six_months'),
+    [Period.YEAR]: t('backup:period.year'),
+    [Period.TWO_YEARS]: t('backup:period.two_years'),
+    [Period.THREE_YEARS]: t('backup:period.three_years'),
+    [Period.FOUR_YEARS]: t('backup:period.four_years'),
+    [Period.FIVE_YEARS]: t('backup:period.five_years'),
+    [Period.FOREVER]: t('backup:period.forever'),
+  }), [t]);
+
+  const notificationLabels = useMemo(() => ({
+    [BackupNotificationType.BackupFailed]: t('backup:notification_type.backup_failed'),
+    [BackupNotificationType.BackupSuccess]: t('backup:notification_type.backup_success'),
+  }), [t]);
 
   // Detect user's preferred time format (12-hour vs 24-hour)
   const timeFormat = useMemo(() => {
@@ -98,20 +100,20 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
   return (
     <div>
       <div className="mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Backups enabled</div>
-        <div>{backupConfig.isBackupsEnabled ? 'Yes' : 'No'}</div>
+        <div className="min-w-[150px]">{t('backup:form.backups_enabled')}</div>
+        <div>{backupConfig.isBackupsEnabled ? t('common:common.yes') : t('common:common.no')}</div>
       </div>
 
       {backupConfig.isBackupsEnabled ? (
         <>
           <div className="mt-4 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Backup interval</div>
+            <div className="min-w-[150px]">{t('backup:form.backup_interval')}</div>
             <div>{backupInterval?.interval ? intervalLabels[backupInterval.interval] : ''}</div>
           </div>
 
           {backupInterval?.interval === IntervalType.WEEKLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup weekday</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_weekday')}</div>
               <div>
                 {displayedWeekday
                   ? weekdayLabels[displayedWeekday as keyof typeof weekdayLabels]
@@ -122,37 +124,37 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
 
           {backupInterval?.interval === IntervalType.MONTHLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup day of month</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_day_of_month')}</div>
               <div>{displayedDayOfMonth || ''}</div>
             </div>
           )}
 
           {backupInterval?.interval !== IntervalType.HOURLY && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup time of day</div>
+              <div className="min-w-[150px]">{t('backup:form.backup_time_of_day')}</div>
               <div>{formattedTime}</div>
             </div>
           )}
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Retry if failed</div>
-            <div>{backupConfig.isRetryIfFailed ? 'Yes' : 'No'}</div>
+            <div className="min-w-[150px]">{t('backup:form.retry_if_failed')}</div>
+            <div>{backupConfig.isRetryIfFailed ? t('common:common.yes') : t('common:common.no')}</div>
           </div>
 
           {backupConfig.isRetryIfFailed && (
             <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Max failed tries count</div>
+              <div className="min-w-[150px]">{t('backup:form.max_failed_tries')}</div>
               <div>{backupConfig.maxFailedTriesCount}</div>
             </div>
           )}
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Store period</div>
+            <div className="min-w-[150px]">{t('backup:form.store_period')}</div>
             <div>{backupConfig.storePeriod ? periodLabels[backupConfig.storePeriod] : ''}</div>
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Storage</div>
+            <div className="min-w-[150px]">{t('backup:form.storage')}</div>
             <div className="flex items-center">
               <div>{backupConfig.storage?.name || ''}</div>
               {backupConfig.storage?.type && (
@@ -166,13 +168,13 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
           </div>
 
           <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Notifications</div>
+            <div className="min-w-[150px]">{t('backup:form.notifications')}</div>
             <div>
               {backupConfig.sendNotificationsOn.length > 0
                 ? backupConfig.sendNotificationsOn
                     .map((type) => notificationLabels[type])
                     .join(', ')
-                : 'None'}
+                : t('common:common.none')}
             </div>
           </div>
         </>

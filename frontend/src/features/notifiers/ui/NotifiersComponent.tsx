@@ -1,5 +1,6 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { notifierApi } from '../../../entity/notifiers';
 import type { Notifier } from '../../../entity/notifiers';
@@ -11,6 +12,7 @@ interface Props {
   contentHeight: number;
 }
 export const NotifiersComponent = ({ contentHeight }: Props) => {
+  const { t } = useTranslation('notifier');
   const [isLoading, setIsLoading] = useState(true);
   const [notifiers, setNotifiers] = useState<Notifier[]>([]);
 
@@ -45,7 +47,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
 
   const addNotifierButton = (
     <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddNotifier(true)}>
-      Add notifier
+      {t('add_button')}
     </Button>
   );
 
@@ -70,7 +72,7 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
           {notifiers.length < 5 && addNotifierButton}
 
           <div className="mx-3 text-center text-xs text-gray-500">
-            Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
+            {t('modal.description')}
           </div>
         </div>
 
@@ -92,13 +94,13 @@ export const NotifiersComponent = ({ contentHeight }: Props) => {
 
       {isShowAddNotifier && (
         <Modal
-          title="Add notifier"
+          title={t('modal.add_title')}
           footer={<div />}
           open={isShowAddNotifier}
           onCancel={() => setIsShowAddNotifier(false)}
         >
           <div className="my-3 max-w-[250px] text-gray-500">
-            Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
+            {t('modal.description')}
           </div>
 
           <EditNotifierComponent

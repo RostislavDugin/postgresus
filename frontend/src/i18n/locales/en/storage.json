@@ -1,0 +1,117 @@
+{
+  "title": "Storages",
+  "add_button": "Add storage",
+  "search_placeholder": "Search storage",
+
+  "modal": {
+    "add_title": "Add storage",
+    "edit_title": "Edit storage",
+    "description": "Storage - is a place where backups will be stored"
+  },
+
+  "type": {
+    "local": "Local storage",
+    "s3": "S3",
+    "google_drive": "Google Drive",
+    "nas": "NAS"
+  },
+
+  "form": {
+    "name_label": "Name",
+    "name_placeholder": "My Storage",
+    "type_label": "Type",
+    "path_label": "Path",
+    "path_placeholder": "/path/to/backups",
+    "bucket_label": "Bucket name",
+    "bucket_placeholder": "my-bucket",
+    "s3_bucket_label": "S3 Bucket",
+    "s3_bucket_placeholder": "my-bucket-name",
+    "s3_region_label": "Region",
+    "region_label": "Region",
+    "region_placeholder": "us-east-1",
+    "s3_access_key_label": "Access Key",
+    "access_key_label": "Access Key",
+    "access_key_id_label": "Access Key ID",
+    "access_key_placeholder": "AKIAIOSFODNN7EXAMPLE",
+    "s3_secret_key_label": "Secret Key",
+    "secret_key_label": "Secret Key",
+    "secret_access_key_label": "Secret Access Key",
+    "secret_key_placeholder": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "s3_endpoint_label": "Endpoint",
+    "endpoint_label": "Endpoint",
+    "endpoint_url_label": "Endpoint URL",
+    "endpoint_placeholder": "https://s3.example.com (optional)",
+    "endpoint_tooltip": "Custom S3-compatible endpoint URL (optional, leave empty for AWS S3)",
+    "cloudflare_r2_link": "How to use with Cloudflare R2?",
+    "nas_host_label": "Host",
+    "host_label": "Host",
+    "host_placeholder": "192.168.1.100",
+    "nas_port_label": "Port",
+    "port_label": "Port",
+    "port_placeholder": "445",
+    "nas_share_label": "Share",
+    "share_label": "Share",
+    "share_placeholder": "shared_folder",
+    "nas_username_label": "Username",
+    "username_label": "Username",
+    "username_placeholder": "username",
+    "nas_password_label": "Password",
+    "password_label": "Password",
+    "password_placeholder": "password",
+    "nas_use_ssl_label": "Use SSL",
+    "use_ssl_label": "Use SSL",
+    "use_ssl_tooltip": "Enable SSL/TLS encryption for secure connection",
+    "nas_domain_label": "Domain",
+    "domain_label": "Domain",
+    "domain_placeholder": "WORKGROUP (optional)",
+    "domain_tooltip": "Windows domain name (optional, leave empty if not using domain authentication)",
+    "nas_path_label": "Path",
+    "nas_path_placeholder": "backups (optional, no leading slash)",
+    "nas_path_tooltip": "Subdirectory path within the share (optional)",
+    "google_drive_link": "How to connect Google Drive?",
+    "google_client_id_label": "Client ID",
+    "client_id_label": "Client ID",
+    "client_id_placeholder": "my-client-id",
+    "google_client_secret_label": "Client Secret",
+    "client_secret_label": "Client Secret",
+    "client_secret_placeholder": "my-client-secret",
+    "google_user_token_label": "User Token",
+    "user_token_label": "User Token",
+    "user_token_placeholder": "my-user-token",
+    "authorize_button": "Authorize",
+    "test_connection": "Test connection",
+    "connection_success_title": "Connection test successful!",
+    "connection_success_description": "Storage connection tested successfully"
+  },
+
+  "message": {
+    "no_storages": "No storages found matching",
+    "delete_confirm": "Are you sure you want to delete this storage?",
+    "delete_success": "Storage deleted successfully",
+    "save_success": "Storage saved successfully",
+    "storage_in_use": "Storage is used by some databases. Please remove the storage from databases first.",
+    "remove_confirm_description": "Are you sure you want to remove this storage? This action cannot be undone. If some backups are using this storage, they will be removed too.",
+    "google_drive_config_not_found": "Google Drive storage configuration not found",
+    "oauth_exchange_failed": "Failed to exchange OAuth code",
+    "oauth_param_not_found": "OAuth param not found",
+    "google_drive_not_found": "Google Drive storage not found"
+  },
+
+  "details": {
+    "settings": "Storage settings",
+    "save_error": "Save error",
+    "the_error": "The error:",
+    "clean_error_instruction": "To clean this error (choose any):",
+    "clean_error_option1": "- test connection via button below (even if you updated settings);",
+    "clean_error_option2": "- wait until the next save is done without errors;"
+  },
+
+  "action": {
+    "remove": "Remove"
+  },
+
+  "card": {
+    "type": "Type: ",
+    "has_save_error": "Has save error"
+  }
+}

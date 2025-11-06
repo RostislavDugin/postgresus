@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 import { type Storage, StorageType } from '../../../../entity/storages';
 import { getStorageLogoFromType } from '../../../../entity/storages/models/getStorageLogoFromType';
 import { getStorageNameFromType } from '../../../../entity/storages/models/getStorageNameFromType';
@@ -10,12 +12,14 @@ interface Props {
 }
 
 export function ShowStorageComponent({ storage }: Props) {
+  const { t } = useTranslation(['common']);
+
   if (!storage) return null;
 
   return (
     <div>
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Type</div>
+        <div className="min-w-[110px]">{t('common:common.type')}</div>
 
         {getStorageNameFromType(storage.type)}
 

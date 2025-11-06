@@ -1,5 +1,6 @@
 import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   type Storage,
@@ -29,6 +30,7 @@ export function EditStorageComponent({
   editingStorage,
   onChanged,
 }: Props) {
+  const { t } = useTranslation(['storage', 'common']);
   const [storage, setStorage] = useState<Storage | undefined>();
   const [isUnsaved, setIsUnsaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,8 +63,8 @@ export function EditStorageComponent({
       await storageApi.testStorageConnectionDirect(storage);
       setIsTestConnectionSuccess(true);
       ToastHelper.showToast({
-        title: 'Connection test successful!',
-        description: 'Storage connection tested successfully',
+        title: t('storage:form.connection_success_title'),
+        description: t('storage:form.connection_success_description'),
       });
     } catch (e) {
       alert((e as Error).message);
@@ -185,7 +187,7 @@ export function EditStorageComponent({
     <div>
       {isShowName && (
         <div className="mb-1 flex items-center">
-          <div className="min-w-[110px]">Name</div>
+          <div className="min-w-[110px]">{t('storage:form.name_label')}</div>
 
           <Input
             value={storage?.name || ''}
@@ -195,21 +197,21 @@ export function EditStorageComponent({
             }}
             size="small"
             className="w-full max-w-[250px]"
-            placeholder="My Storage"
+            placeholder={t('storage:form.name_placeholder')}
           />
         </div>
       )}
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Type</div>
+        <div className="min-w-[110px]">{t('storage:form.type_label')}</div>
 
         <Select
           value={storage?.type}
           options={[
-            { label: 'Local storage', value: StorageType.LOCAL },
-            { label: 'S3', value: StorageType.S3 },
-            { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
-            { label: 'NAS', value: StorageType.NAS },
+            { label: t('storage:type.local'), value: StorageType.LOCAL },
+            { label: t('storage:type.s3'), value: StorageType.S3 },
+            { label: t('storage:type.google_drive'), value: StorageType.GOOGLE_DRIVE },
+            { label: t('storage:type.nas'), value: StorageType.NAS },
           ]}
           onChange={(value) => {
             setStorageType(value);
@@ -259,7 +261,7 @@ export function EditStorageComponent({
             type="primary"
             onClick={testConnection}
           >
-            Test connection
+            {t('storage:form.test_connection')}
           </Button>
         ) : (
           <div />
@@ -273,7 +275,7 @@ export function EditStorageComponent({
             type="primary"
             onClick={save}
           >
-            Save
+            {t('common:button.save')}
           </Button>
         ) : (
           <div />
@@ -288,7 +290,7 @@ export function EditStorageComponent({
             ghost
             onClick={onClose}
           >
-            Cancel
+            {t('common:button.cancel')}
           </Button>
         ) : (
           <div />

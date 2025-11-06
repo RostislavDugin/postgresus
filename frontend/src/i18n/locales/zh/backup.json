@@ -1,0 +1,90 @@
+{
+  "title": "备份配置",
+
+  "form": {
+    "backups_enabled": "启用备份",
+    "backup_interval": "备份间隔",
+    "backup_weekday": "备份星期",
+    "backup_day_of_month": "每月备份日期",
+    "backup_time_of_day": "每日备份时间",
+    "retry_if_failed": "失败时重试备份",
+    "retry_hint": "自动重试失败的备份。备份可能因网络故障、存储问题或数据库临时不可用而失败。",
+    "max_failed_tries": "最大失败重试次数",
+    "max_failed_tries_hint": "失败备份的最大重试次数。所有尝试失败后您将收到通知。",
+    "cpu_count": "CPU 核心数",
+    "cpu_count_hint": "用于恢复处理的 CPU 核心数。较高的值可能加快恢复速度，但会使用更多资源。",
+    "store_period": "存储期限",
+    "store_period_hint": "备份保留多长时间？请确保有足够的存储空间。",
+    "storage": "存储",
+    "storage_placeholder": "选择存储",
+    "create_new_storage": "创建新存储",
+    "notifications": "通知"
+  },
+
+  "interval": {
+    "hourly": "每小时",
+    "daily": "每天",
+    "weekly": "每周",
+    "monthly": "每月"
+  },
+
+  "period": {
+    "day": "1 天",
+    "week": "1 周",
+    "month": "1 个月",
+    "three_months": "3 个月",
+    "six_months": "6 个月",
+    "year": "1 年",
+    "two_years": "2 年",
+    "three_years": "3 年",
+    "four_years": "4 年",
+    "five_years": "5 年",
+    "forever": "永久"
+  },
+
+  "notification_type": {
+    "backup_success": "备份成功",
+    "backup_failed": "备份失败"
+  },
+
+  "list": {
+    "title": "备份",
+    "no_backups": "��无备份",
+    "make_backup": "立即创建备份",
+    "created_at": "创建时间",
+    "status": "状态",
+    "size": "大小",
+    "duration": "持续时间",
+    "actions": "操作"
+  },
+
+  "status": {
+    "in_progress": "进行中",
+    "successful": "成功",
+    "failed": "失败",
+    "deleted": "已删除"
+  },
+
+  "action": {
+    "delete": "删除备份",
+    "restore": "从备份恢复",
+    "download": "下载备份文件",
+    "error_details": "备份错误详情",
+    "restore_to_this_db": "恢复到此数据库",
+    "click_error_details": "点击查看错误详情"
+  },
+
+  "modal": {
+    "restore_title": "从备份恢复",
+    "error_title": "备份错误详情",
+    "delete_confirm": "确定要删除此备份吗？"
+  },
+
+  "message": {
+    "storage_change_warning": "如果更改存储，此存储中的所有备份将被删除。",
+    "disable_confirm": "所有当前备份将被删除？您确定吗？",
+    "disable_action": "是的，禁用备份并删除所有现有备份文件",
+    "understand": "我明白",
+    "used_by_databases": "此备份被某些数据库使用。请先从数据库中删除此备份。"
+  }
+}
