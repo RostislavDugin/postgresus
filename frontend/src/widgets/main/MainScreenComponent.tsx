@@ -317,6 +317,7 @@ export const MainScreenComponent = () => {
                   contentHeight={contentHeight}
                   workspace={selectedWorkspace}
                   isCanManageNotifiers={isCanManageDBs}
+                  key={`notifiers-${selectedWorkspace.id}`}
                 />
               )}
               {selectedTab === 'storages' && selectedWorkspace && (
@@ -324,6 +325,7 @@ export const MainScreenComponent = () => {
                   contentHeight={contentHeight}
                   workspace={selectedWorkspace}
                   isCanManageStorages={isCanManageDBs}
+                  key={`storages-${selectedWorkspace.id}`}
                 />
               )}
               {selectedTab === 'databases' && selectedWorkspace && (
@@ -331,6 +333,7 @@ export const MainScreenComponent = () => {
                   contentHeight={contentHeight}
                   workspace={selectedWorkspace}
                   isCanManageDBs={isCanManageDBs}
+                  key={`databases-${selectedWorkspace.id}`}
                 />
               )}
               {selectedTab === 'settings' && selectedWorkspace && user && (
@@ -338,6 +341,7 @@ export const MainScreenComponent = () => {
                   workspaceResponse={selectedWorkspace}
                   contentHeight={contentHeight}
                   user={user}
+                  key={`settings-${selectedWorkspace.id}`}
                 />
               )}
             </>
