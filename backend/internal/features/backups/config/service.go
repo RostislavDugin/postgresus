@@ -82,19 +82,6 @@ func (s *BackupConfigService) SaveBackupConfig(
 		}
 	}
 
-	if !backupConfig.IsBackupsEnabled && existingConfig.StorageID != nil {
-		if err := s.dbStorageChangeListener.OnBeforeBackupsStorageChange(
-			backupConfig.DatabaseID,
-		); err != nil {
-			return nil, err
-		}
-
-		// we clear storage for disabled backups to allow
-		// storage removal for unused storages
-		backupConfig.Storage = nil
-		backupConfig.StorageID = nil
-	}
-
 	return s.backupConfigRepository.Save(backupConfig)
 }
 

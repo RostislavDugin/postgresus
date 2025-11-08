@@ -1,7 +1,7 @@
 import type { DiscordNotifier } from './DiscordNotifier';
 
-export const validateDiscordNotifier = (notifier: DiscordNotifier): boolean => {
-  if (!notifier.channelWebhookUrl) {
+export const validateDiscordNotifier = (isCreate: boolean, notifier: DiscordNotifier): boolean => {
+  if (isCreate && !notifier.channelWebhookUrl) {
     return false;
   }
 

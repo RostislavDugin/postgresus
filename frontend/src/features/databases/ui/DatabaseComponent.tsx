@@ -1,5 +1,5 @@
 import { Spin } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useEffect } from 'react';
 
 import { type Database, databaseApi } from '../../../entity/databases';
@@ -27,6 +27,8 @@ export const DatabaseComponent = ({
   const [database, setDatabase] = useState<Database | undefined>();
   const [editDatabase, setEditDatabase] = useState<Database | undefined>();
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const loadSettings = () => {
     setDatabase(undefined);
     setEditDatabase(undefined);
@@ -42,7 +44,11 @@ export const DatabaseComponent = ({
   }
 
   return (
-    <div className="w-full overflow-y-auto" style={{ maxHeight: contentHeight }}>
+    <div
+      className="w-full overflow-y-auto"
+      style={{ maxHeight: contentHeight }}
+      ref={scrollContainerRef}
+    >
       <div className="flex">
         <div
           className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'config' ? 'bg-white' : 'bg-gray-200'}`}
@@ -73,7 +79,11 @@ export const DatabaseComponent = ({
       {currentTab === 'backups' && (
         <>
           <HealthckeckAttemptsComponent database={database} />
-          <BackupsComponent database={database} isCanManageDBs={isCanManageDBs} />
+          <BackupsComponent
+            database={database}
+            isCanManageDBs={isCanManageDBs}
+            scrollContainerRef={scrollContainerRef}
+          />
         </>
       )}
     </div>

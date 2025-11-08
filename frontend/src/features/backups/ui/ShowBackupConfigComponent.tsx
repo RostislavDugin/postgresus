@@ -99,7 +99,9 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
     <div>
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Backups enabled</div>
-        <div>{backupConfig.isBackupsEnabled ? 'Yes' : 'No'}</div>
+        <div className={backupConfig.isBackupsEnabled ? '' : 'font-bold text-red-600'}>
+          {backupConfig.isBackupsEnabled ? 'Yes' : 'No'}
+        </div>
       </div>
 
       {backupConfig.isBackupsEnabled ? (

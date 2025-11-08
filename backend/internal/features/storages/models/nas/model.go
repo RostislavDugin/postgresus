@@ -251,6 +251,24 @@ func (n *NASStorage) TestConnection() error {
 	return nil
 }
 
+func (n *NASStorage) HideSensitiveData() {
+	n.Password = ""
+}
+
+func (n *NASStorage) Update(incoming *NASStorage) {
+	n.Host = incoming.Host
+	n.Port = incoming.Port
+	n.Share = incoming.Share
+	n.Username = incoming.Username
+	n.UseSSL = incoming.UseSSL
+	n.Domain = incoming.Domain
+	n.Path = incoming.Path
+
+	if incoming.Password != "" {
+		n.Password = incoming.Password
+	}
+}
+
 func (n *NASStorage) createSession() (*smb2.Session, error) {
 	// Create connection with timeout
 	conn, err := n.createConnection()

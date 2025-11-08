@@ -180,6 +180,25 @@ func (s *S3Storage) TestConnection() error {
 	return nil
 }
 
+func (s *S3Storage) HideSensitiveData() {
+	s.S3AccessKey = ""
+	s.S3SecretKey = ""
+}
+
+func (s *S3Storage) Update(incoming *S3Storage) {
+	s.S3Bucket = incoming.S3Bucket
+	s.S3Region = incoming.S3Region
+	s.S3Endpoint = incoming.S3Endpoint
+
+	if incoming.S3AccessKey != "" {
+		s.S3AccessKey = incoming.S3AccessKey
+	}
+
+	if incoming.S3SecretKey != "" {
+		s.S3SecretKey = incoming.S3SecretKey
+	}
+}
+
 func (s *S3Storage) getClient() (*minio.Client, error) {
 	endpoint := s.S3Endpoint
 	useSSL := true

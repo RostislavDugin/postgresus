@@ -112,17 +112,19 @@ func (s *DatabaseService) UpdateDatabase(
 		return err
 	}
 
-	if err := database.Validate(); err != nil {
+	existingDatabase.Update(database)
+
+	if err := existingDatabase.Validate(); err != nil {
 		return err
 	}
 
-	_, err = s.dbRepository.Save(database)
+	_, err = s.dbRepository.Save(existingDatabase)
 	if err != nil {
 		return err
 	}
 
 	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database updated: %s", database.Name),
+		fmt.Sprintf("Database updated: %s", existingDatabase.Name),
 		&user.ID,
 		existingDatabase.WorkspaceID,
 	)
@@ -187,6 +189,7 @@ func (s *DatabaseService) GetDatabase(
 		return nil, errors.New("insufficient permissions to access this database")
 	}
 
+	database.HideSensitiveData()
 	return database, nil
 }
 
@@ -202,7 +205,16 @@ func (s *DatabaseService) GetDatabasesByWorkspace(
 		return nil, errors.New("insufficient permissions to access this workspace")
 	}
 
-	return s.dbRepository.FindByWorkspaceID(workspaceID)
+	databases, err := s.dbRepository.FindByWorkspaceID(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, database := range databases {
+		database.HideSensitiveData()
+	}
+
+	return databases, nil
 }
 
 func (s *DatabaseService) IsNotifierUsing(
@@ -259,7 +271,31 @@ func (s *DatabaseService) TestDatabaseConnection(
 func (s *DatabaseService) TestDatabaseConnectionDirect(
 	database *Database,
 ) error {
-	return database.TestConnection(s.logger)
+	var usingDatabase *Database
+
+	if database.ID != uuid.Nil {
+		existingDatabase, err := s.dbRepository.FindByID(database.ID)
+		if err != nil {
+			return err
+		}
+
+		if database.WorkspaceID != nil && existingDatabase.WorkspaceID != nil &&
+			*existingDatabase.WorkspaceID != *database.WorkspaceID {
+			return errors.New("database does not belong to this workspace")
+		}
+
+		existingDatabase.Update(database)
+
+		if err := existingDatabase.Validate(); err != nil {
+			return err
+		}
+
+		usingDatabase = existingDatabase
+	} else {
+		usingDatabase = database
+	}
+
+	return usingDatabase.TestConnection(s.logger)
 }
 
 func (s *DatabaseService) GetDatabaseByID(

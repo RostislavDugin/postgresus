@@ -191,6 +191,23 @@ func (s *GoogleDriveStorage) TestConnection() error {
 	})
 }
 
+func (s *GoogleDriveStorage) HideSensitiveData() {
+	s.ClientSecret = ""
+	s.TokenJSON = ""
+}
+
+func (s *GoogleDriveStorage) Update(incoming *GoogleDriveStorage) {
+	s.ClientID = incoming.ClientID
+
+	if incoming.ClientSecret != "" {
+		s.ClientSecret = incoming.ClientSecret
+	}
+
+	if incoming.TokenJSON != "" {
+		s.TokenJSON = incoming.TokenJSON
+	}
+}
+
 // withRetryOnAuth executes the provided function with retry logic for authentication errors
 func (s *GoogleDriveStorage) withRetryOnAuth(fn func(*drive.Service) error) error {
 	driveService, err := s.getDriveService()

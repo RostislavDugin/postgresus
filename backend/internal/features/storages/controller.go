@@ -54,11 +54,6 @@ func (c *StorageController) SaveStorage(ctx *gin.Context) {
 		return
 	}
 
-	if err := request.Validate(); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	if err := c.storageService.SaveStorage(user, request.WorkspaceID, &request); err != nil {
 		if err.Error() == "insufficient permissions to manage storage in this workspace" {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -268,11 +263,6 @@ func (c *StorageController) TestStorageConnectionDirect(ctx *gin.Context) {
 			http.StatusForbidden,
 			gin.H{"error": "insufficient permissions to test storage in this workspace"},
 		)
-		return
-	}
-
-	if err := request.Validate(); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

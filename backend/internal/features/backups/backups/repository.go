@@ -195,3 +195,38 @@ func (r *BackupRepository) FindBackupsBeforeDate(
 
 	return backups, nil
 }
+
+func (r *BackupRepository) FindByDatabaseIDWithPagination(
+	databaseID uuid.UUID,
+	limit, offset int,
+) ([]*Backup, error) {
+	var backups []*Backup
+
+	if err := storage.
+		GetDb().
+		Preload("Database").
+		Preload("Storage").
+		Where("database_id = ?", databaseID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&backups).Error; err != nil {
+		return nil, err
+	}
+
+	return backups, nil
+}
+
+func (r *BackupRepository) CountByDatabaseID(databaseID uuid.UUID) (int64, error) {
+	var count int64
+
+	if err := storage.
+		GetDb().
+		Model(&Backup{}).
+		Where("database_id = ?", databaseID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}

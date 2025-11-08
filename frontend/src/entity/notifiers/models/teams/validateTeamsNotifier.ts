@@ -1,7 +1,7 @@
 import type { TeamsNotifier } from './TeamsNotifier';
 
-export const validateTeamsNotifier = (notifier: TeamsNotifier): boolean => {
-  if (!notifier?.powerAutomateUrl) {
+export const validateTeamsNotifier = (isCreate: boolean, notifier: TeamsNotifier): boolean => {
+  if (isCreate && !notifier?.powerAutomateUrl) {
     return false;
   }
 

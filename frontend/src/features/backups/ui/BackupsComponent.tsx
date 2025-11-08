@@ -12,23 +12,37 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
-import { type Backup, BackupStatus, backupConfigApi, backupsApi } from '../../../entity/backups';
+import {
+  type Backup,
+  type BackupConfig,
+  BackupStatus,
+  backupConfigApi,
+  backupsApi,
+} from '../../../entity/backups';
 import type { Database } from '../../../entity/databases';
 import { getUserTimeFormat } from '../../../shared/time';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { RestoresComponent } from '../../restores';
 
+const BACKUPS_PAGE_SIZE = 10;
+
 interface Props {
   database: Database;
   isCanManageDBs: boolean;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
+export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef }: Props) => {
   const [isBackupsLoading, setIsBackupsLoading] = useState(false);
   const [backups, setBackups] = useState<Backup[]>([]);
 
+  const [totalBackups, setTotalBackups] = useState(0);
+  const [currentLimit, setCurrentLimit] = useState(BACKUPS_PAGE_SIZE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
   const [isBackupConfigLoading, setIsBackupConfigLoading] = useState(false);
-  const [isShowBackupConfig, setIsShowBackupConfig] = useState(false);
 
   const [isMakeBackupRequestLoading, setIsMakeBackupRequestLoading] = useState(false);
 
@@ -40,6 +54,7 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
   const [showingRestoresBackupId, setShowingRestoresBackupId] = useState<string | undefined>();
 
   const isReloadInProgress = useRef(false);
+  const isLazyLoadInProgress = useRef(false);
 
   const [downloadingBackupId, setDownloadingBackupId] = useState<string | undefined>();
 
@@ -71,16 +86,20 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
     }
   };
 
-  const loadBackups = async () => {
-    if (isReloadInProgress.current) {
+  const loadBackups = async (limit?: number) => {
+    if (isReloadInProgress.current || isLazyLoadInProgress.current) {
       return;
     }
 
     isReloadInProgress.current = true;
 
     try {
-      const backups = await backupsApi.getBackups(database.id);
-      setBackups(backups);
+      const loadLimit = limit || currentLimit;
+      const response = await backupsApi.getBackups(database.id, loadLimit, 0);
+
+      setBackups(response.backups);
+      setTotalBackups(response.total);
+      setHasMore(response.backups.length < response.total);
     } catch (e) {
       alert((e as Error).message);
     }
@@ -88,12 +107,75 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
     isReloadInProgress.current = false;
   };
 
+  const reloadInProgressBackups = async () => {
+    if (isReloadInProgress.current || isLazyLoadInProgress.current) {
+      return;
+    }
+
+    isReloadInProgress.current = true;
+
+    try {
+      // Fetch only the recent backups that could be in progress
+      // We fetch a small number (20) to capture recent backups that might be in progress
+      const response = await backupsApi.getBackups(database.id, 20, 0);
+
+      // Update only the backups that exist in both lists
+      setBackups((prevBackups) => {
+        const updatedBackups = [...prevBackups];
+
+        response.backups.forEach((newBackup) => {
+          const index = updatedBackups.findIndex((b) => b.id === newBackup.id);
+          if (index !== -1) {
+            updatedBackups[index] = newBackup;
+          } else if (index === -1 && updatedBackups.length < currentLimit) {
+            // New backup that doesn't exist yet (e.g., just created)
+            updatedBackups.unshift(newBackup);
+          }
+        });
+
+        return updatedBackups;
+      });
+
+      setTotalBackups(response.total);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+
+    isReloadInProgress.current = false;
+  };
+
+  const loadMoreBackups = async () => {
+    if (isLoadingMore || !hasMore || isLazyLoadInProgress.current) {
+      return;
+    }
+
+    isLazyLoadInProgress.current = true;
+    setIsLoadingMore(true);
+
+    try {
+      const newLimit = currentLimit + BACKUPS_PAGE_SIZE;
+      const response = await backupsApi.getBackups(database.id, newLimit, 0);
+
+      setBackups(response.backups);
+      setCurrentLimit(newLimit);
+      setTotalBackups(response.total);
+      setHasMore(response.backups.length < response.total);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+
+    setIsLoadingMore(false);
+    isLazyLoadInProgress.current = false;
+  };
+
   const makeBackup = async () => {
     setIsMakeBackupRequestLoading(true);
 
     try {
       await backupsApi.makeBackup(database.id);
-      await loadBackups();
+      setCurrentLimit(BACKUPS_PAGE_SIZE);
+      setHasMore(true);
+      await loadBackups(BACKUPS_PAGE_SIZE);
     } catch (e) {
       alert((e as Error).message);
     }
@@ -111,7 +193,9 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
 
     try {
       await backupsApi.deleteBackup(deleteConfimationId);
-      await loadBackups();
+      setCurrentLimit(BACKUPS_PAGE_SIZE);
+      setHasMore(true);
+      await loadBackups(BACKUPS_PAGE_SIZE);
     } catch (e) {
       alert((e as Error).message);
     }
@@ -121,36 +205,63 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
   };
 
   useEffect(() => {
-    let isBackupsEnabled = false;
-
     setIsBackupConfigLoading(true);
-    backupConfigApi.getBackupConfigByDbID(database.id).then((backupConfig) => {
+    setCurrentLimit(BACKUPS_PAGE_SIZE);
+    setHasMore(true);
+
+    backupConfigApi.getBackupConfigByDbID(database.id).then((config) => {
+      setBackupConfig(config);
       setIsBackupConfigLoading(false);
 
-      if (backupConfig.isBackupsEnabled) {
-        // load backups
-        isBackupsEnabled = true;
-        setIsShowBackupConfig(true);
-
-        setIsBackupsLoading(true);
-        loadBackups().then(() => setIsBackupsLoading(false));
-      }
+      setIsBackupsLoading(true);
+      loadBackups(BACKUPS_PAGE_SIZE).then(() => setIsBackupsLoading(false));
     });
 
-    const interval = setInterval(() => {
-      if (isBackupsEnabled) {
-        loadBackups();
-      }
+    return () => {};
+  }, [database]);
+
+  // Reload backups that are in progress to update their state
+  useEffect(() => {
+    const hasInProgressBackups = backups.some(
+      (backup) => backup.status === BackupStatus.IN_PROGRESS,
+    );
+
+    if (!hasInProgressBackups) {
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      await reloadInProgressBackups();
     }, 1_000);
 
-    return () => clearInterval(interval);
-  }, [database]);
+    return () => clearTimeout(timeoutId);
+  }, [backups]);
 
   useEffect(() => {
     if (downloadingBackupId) {
       downloadBackup(downloadingBackupId);
     }
   }, [downloadingBackupId]);
+
+  useEffect(() => {
+    if (!scrollContainerRef?.current) {
+      return;
+    }
+
+    const handleScroll = () => {
+      if (!scrollContainerRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+
+      if (scrollHeight - scrollTop <= clientHeight + 100 && hasMore && !isLoadingMore) {
+        loadMoreBackups();
+      }
+    };
+
+    const container = scrollContainerRef.current;
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMore, isLoadingMore, currentLimit, scrollContainerRef]);
 
   const columns: ColumnsType<Backup> = [
     {
@@ -348,13 +459,15 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
     );
   }
 
-  if (!isShowBackupConfig) {
-    return <div />;
-  }
-
   return (
     <div className="mt-5 w-full rounded-md bg-white p-5 shadow">
       <h2 className="text-xl font-bold">Backups</h2>
+
+      {!isBackupConfigLoading && !backupConfig?.isBackupsEnabled && (
+        <div className="text-red-600">
+          Scheduled backups are disabled (you can enable it back in the backup configuration)
+        </div>
+      )}
 
       <div className="mt-5" />
 
@@ -380,6 +493,16 @@ export const BackupsComponent = ({ database, isCanManageDBs }: Props) => {
           size="small"
           pagination={false}
         />
+        {isLoadingMore && (
+          <div className="mt-2 flex justify-center">
+            <Spin />
+          </div>
+        )}
+        {!hasMore && backups.length > 0 && (
+          <div className="mt-2 text-center text-gray-500">
+            All backups loaded ({totalBackups} total)
+          </div>
+        )}
       </div>
 
       {deleteConfimationId && (

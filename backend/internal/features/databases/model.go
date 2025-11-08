@@ -60,6 +60,22 @@ func (d *Database) TestConnection(logger *slog.Logger) error {
 	return d.getSpecificDatabase().TestConnection(logger)
 }
 
+func (d *Database) HideSensitiveData() {
+	d.getSpecificDatabase().HideSensitiveData()
+}
+
+func (d *Database) Update(incoming *Database) {
+	d.Name = incoming.Name
+	d.Type = incoming.Type
+
+	switch d.Type {
+	case DatabaseTypePostgres:
+		if d.Postgresql != nil && incoming.Postgresql != nil {
+			d.Postgresql.Update(incoming.Postgresql)
+		}
+	}
+}
+
 func (d *Database) getSpecificDatabase() DatabaseConnector {
 	switch d.Type {
 	case DatabaseTypePostgres:

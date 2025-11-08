@@ -63,6 +63,34 @@ func (s *Storage) TestConnection() error {
 	return s.getSpecificStorage().TestConnection()
 }
 
+func (s *Storage) HideSensitiveData() {
+	s.getSpecificStorage().HideSensitiveData()
+}
+
+func (s *Storage) Update(incoming *Storage) {
+	s.Name = incoming.Name
+	s.Type = incoming.Type
+
+	switch s.Type {
+	case StorageTypeLocal:
+		if s.LocalStorage != nil && incoming.LocalStorage != nil {
+			s.LocalStorage.Update(incoming.LocalStorage)
+		}
+	case StorageTypeS3:
+		if s.S3Storage != nil && incoming.S3Storage != nil {
+			s.S3Storage.Update(incoming.S3Storage)
+		}
+	case StorageTypeGoogleDrive:
+		if s.GoogleDriveStorage != nil && incoming.GoogleDriveStorage != nil {
+			s.GoogleDriveStorage.Update(incoming.GoogleDriveStorage)
+		}
+	case StorageTypeNAS:
+		if s.NASStorage != nil && incoming.NASStorage != nil {
+			s.NASStorage.Update(incoming.NASStorage)
+		}
+	}
+}
+
 func (s *Storage) getSpecificStorage() StorageFileSaver {
 	switch s.Type {
 	case StorageTypeLocal:

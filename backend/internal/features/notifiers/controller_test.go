@@ -7,6 +7,10 @@ import (
 
 	"postgresus-backend/internal/config"
 	audit_logs "postgresus-backend/internal/features/audit_logs"
+	discord_notifier "postgresus-backend/internal/features/notifiers/models/discord"
+	email_notifier "postgresus-backend/internal/features/notifiers/models/email_notifier"
+	slack_notifier "postgresus-backend/internal/features/notifiers/models/slack"
+	teams_notifier "postgresus-backend/internal/features/notifiers/models/teams"
 	telegram_notifier "postgresus-backend/internal/features/notifiers/models/telegram"
 	webhook_notifier "postgresus-backend/internal/features/notifiers/models/webhook"
 	users_enums "postgresus-backend/internal/features/users/enums"
@@ -511,4 +515,301 @@ func deleteNotifier(
 		"Bearer "+token,
 		http.StatusOK,
 	)
+}
+
+func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
+	testCases := []struct {
+		name                string
+		notifierType        NotifierType
+		createNotifier      func(workspaceID uuid.UUID) *Notifier
+		updateNotifier      func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier
+		verifySensitiveData func(t *testing.T, notifier *Notifier)
+		verifyHiddenData    func(t *testing.T, notifier *Notifier)
+	}{
+		{
+			name:         "Telegram Notifier",
+			notifierType: NotifierTypeTelegram,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Telegram Notifier",
+					NotifierType: NotifierTypeTelegram,
+					TelegramNotifier: &telegram_notifier.TelegramNotifier{
+						BotToken:     "original-bot-token-12345",
+						TargetChatID: "123456789",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Telegram Notifier",
+					NotifierType: NotifierTypeTelegram,
+					TelegramNotifier: &telegram_notifier.TelegramNotifier{
+						BotToken:     "",
+						TargetChatID: "987654321",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "original-bot-token-12345", notifier.TelegramNotifier.BotToken)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.TelegramNotifier.BotToken)
+			},
+		},
+		{
+			name:         "Email Notifier",
+			notifierType: NotifierTypeEmail,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Email Notifier",
+					NotifierType: NotifierTypeEmail,
+					EmailNotifier: &email_notifier.EmailNotifier{
+						TargetEmail:  "test@example.com",
+						SMTPHost:     "smtp.example.com",
+						SMTPPort:     587,
+						SMTPUser:     "user@example.com",
+						SMTPPassword: "original-password-secret",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Email Notifier",
+					NotifierType: NotifierTypeEmail,
+					EmailNotifier: &email_notifier.EmailNotifier{
+						TargetEmail:  "updated@example.com",
+						SMTPHost:     "smtp.newhost.com",
+						SMTPPort:     465,
+						SMTPUser:     "newuser@example.com",
+						SMTPPassword: "",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "original-password-secret", notifier.EmailNotifier.SMTPPassword)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.EmailNotifier.SMTPPassword)
+			},
+		},
+		{
+			name:         "Slack Notifier",
+			notifierType: NotifierTypeSlack,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Slack Notifier",
+					NotifierType: NotifierTypeSlack,
+					SlackNotifier: &slack_notifier.SlackNotifier{
+						BotToken:     "xoxb-original-slack-token",
+						TargetChatID: "C123456",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Slack Notifier",
+					NotifierType: NotifierTypeSlack,
+					SlackNotifier: &slack_notifier.SlackNotifier{
+						BotToken:     "",
+						TargetChatID: "C789012",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "xoxb-original-slack-token", notifier.SlackNotifier.BotToken)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.SlackNotifier.BotToken)
+			},
+		},
+		{
+			name:         "Discord Notifier",
+			notifierType: NotifierTypeDiscord,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Discord Notifier",
+					NotifierType: NotifierTypeDiscord,
+					DiscordNotifier: &discord_notifier.DiscordNotifier{
+						ChannelWebhookURL: "https://discord.com/api/webhooks/123/original-token",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Discord Notifier",
+					NotifierType: NotifierTypeDiscord,
+					DiscordNotifier: &discord_notifier.DiscordNotifier{
+						ChannelWebhookURL: "",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(
+					t,
+					"https://discord.com/api/webhooks/123/original-token",
+					notifier.DiscordNotifier.ChannelWebhookURL,
+				)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.DiscordNotifier.ChannelWebhookURL)
+			},
+		},
+		{
+			name:         "Teams Notifier",
+			notifierType: NotifierTypeTeams,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Teams Notifier",
+					NotifierType: NotifierTypeTeams,
+					TeamsNotifier: &teams_notifier.TeamsNotifier{
+						WebhookURL: "https://outlook.office.com/webhook/original-token",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Teams Notifier",
+					NotifierType: NotifierTypeTeams,
+					TeamsNotifier: &teams_notifier.TeamsNotifier{
+						WebhookURL: "",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(
+					t,
+					"https://outlook.office.com/webhook/original-token",
+					notifier.TeamsNotifier.WebhookURL,
+				)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.TeamsNotifier.WebhookURL)
+			},
+		},
+		{
+			name:         "Webhook Notifier",
+			notifierType: NotifierTypeWebhook,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Webhook Notifier",
+					NotifierType: NotifierTypeWebhook,
+					WebhookNotifier: &webhook_notifier.WebhookNotifier{
+						WebhookURL:    "https://webhook.example.com/test",
+						WebhookMethod: webhook_notifier.WebhookMethodPOST,
+					},
+				}
+			},
+			updateNotifier: func(workspaceID uuid.UUID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Webhook Notifier",
+					NotifierType: NotifierTypeWebhook,
+					WebhookNotifier: &webhook_notifier.WebhookNotifier{
+						WebhookURL:    "https://webhook.example.com/updated",
+						WebhookMethod: webhook_notifier.WebhookMethodGET,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				// No sensitive data to verify for webhook
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				// No sensitive data to hide for webhook
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			router := createRouter()
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			// Phase 1: Create notifier with sensitive data
+			initialNotifier := tc.createNotifier(workspace.ID)
+			var createdNotifier Notifier
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/notifiers",
+				"Bearer "+owner.Token,
+				*initialNotifier,
+				http.StatusOK,
+				&createdNotifier,
+			)
+			assert.NotEmpty(t, createdNotifier.ID)
+			assert.Equal(t, initialNotifier.Name, createdNotifier.Name)
+
+			// Phase 2: Read via service - sensitive data should be hidden
+			var retrievedNotifier Notifier
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/notifiers/%s", createdNotifier.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&retrievedNotifier,
+			)
+			tc.verifyHiddenData(t, &retrievedNotifier)
+			assert.Equal(t, initialNotifier.Name, retrievedNotifier.Name)
+
+			// Phase 3: Update with non-sensitive changes only (sensitive fields empty)
+			updatedNotifier := tc.updateNotifier(workspace.ID, createdNotifier.ID)
+			var updateResponse Notifier
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/notifiers",
+				"Bearer "+owner.Token,
+				*updatedNotifier,
+				http.StatusOK,
+				&updateResponse,
+			)
+			// Verify non-sensitive fields were updated
+			assert.Equal(t, updatedNotifier.Name, updateResponse.Name)
+
+			// Phase 4: Retrieve directly from repository to verify sensitive data preservation
+			repository := &NotifierRepository{}
+			notifierFromDB, err := repository.FindByID(createdNotifier.ID)
+			assert.NoError(t, err)
+
+			// Verify original sensitive data is still present in DB
+			tc.verifySensitiveData(t, notifierFromDB)
+
+			// Verify non-sensitive fields were updated in DB
+			assert.Equal(t, updatedNotifier.Name, notifierFromDB.Name)
+
+			// Phase 5: Additional verification - Check via GET that data is still hidden
+			var finalRetrieved Notifier
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/notifiers/%s", createdNotifier.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&finalRetrieved,
+			)
+			tc.verifyHiddenData(t, &finalRetrieved)
+
+			deleteNotifier(t, router, createdNotifier.ID, workspace.ID, owner.Token)
+			workspaces_testing.RemoveTestWorkspace(workspace, router)
+		})
+	}
 }

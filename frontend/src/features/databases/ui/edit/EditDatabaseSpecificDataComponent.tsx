@@ -100,7 +100,7 @@ export const EditDatabaseSpecificDataComponent = ({
   if (!editingDatabase.postgresql?.host) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.port) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.username) isAllFieldsFilled = false;
-  if (!editingDatabase.postgresql?.password) isAllFieldsFilled = false;
+  if (!editingDatabase.id && !editingDatabase.postgresql?.password) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.database) isAllFieldsFilled = false;
 
   return (
@@ -161,6 +161,7 @@ export const EditDatabaseSpecificDataComponent = ({
                     host: e.target.value.trim().replace('https://', '').replace('http://', ''),
                   },
                 });
+                setIsConnectionTested(false);
               }}
               size="small"
               className="max-w-[200px] grow"
@@ -199,6 +200,7 @@ export const EditDatabaseSpecificDataComponent = ({
                   ...editingDatabase,
                   postgresql: { ...editingDatabase.postgresql, username: e.target.value.trim() },
                 });
+                setIsConnectionTested(false);
               }}
               size="small"
               className="max-w-[200px] grow"

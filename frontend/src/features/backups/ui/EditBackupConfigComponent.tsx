@@ -74,7 +74,6 @@ export const EditBackupConfigComponent = ({
   const [isShowCreateStorage, setShowCreateStorage] = useState(false);
 
   const [isShowWarn, setIsShowWarn] = useState(false);
-  const [isShowBackupDisableConfirm, setIsShowBackupDisableConfirm] = useState(false);
 
   const timeFormat = useMemo(() => {
     const is12 = getUserTimeFormat();
@@ -208,12 +207,7 @@ export const EditBackupConfigComponent = ({
         <Switch
           checked={backupConfig.isBackupsEnabled}
           onChange={(checked) => {
-            // If disabling backups on existing database, show confirmation
-            if (!checked && database.id && backupConfig.isBackupsEnabled) {
-              setIsShowBackupDisableConfirm(true);
-            } else {
-              updateBackupConfig({ isBackupsEnabled: checked });
-            }
+            updateBackupConfig({ isBackupsEnabled: checked });
           }}
           size="small"
         />
@@ -385,41 +379,47 @@ export const EditBackupConfigComponent = ({
             </Tooltip>
           </div>
 
-          <div className="mt-5 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Storage</div>
-            <Select
-              value={backupConfig.storage?.id}
-              onChange={(storageId) => {
-                if (storageId.includes('create-new-storage')) {
-                  setShowCreateStorage(true);
-                  return;
-                }
+          <div className="mb-3" />
+        </>
+      )}
 
-                const selectedStorage = storages.find((s) => s.id === storageId);
-                updateBackupConfig({ storage: selectedStorage });
+      <div className="mt-2 mb-1 flex w-full items-center">
+        <div className="min-w-[150px]">Storage</div>
+        <Select
+          value={backupConfig.storage?.id}
+          onChange={(storageId) => {
+            if (storageId.includes('create-new-storage')) {
+              setShowCreateStorage(true);
+              return;
+            }
 
-                if (backupConfig.storage?.id) {
-                  setIsShowWarn(true);
-                }
-              }}
-              size="small"
-              className="mr-2 max-w-[200px] grow"
-              options={[
-                ...storages.map((s) => ({ label: s.name, value: s.id })),
-                { label: 'Create new storage', value: 'create-new-storage' },
-              ]}
-              placeholder="Select storage"
-            />
+            const selectedStorage = storages.find((s) => s.id === storageId);
+            updateBackupConfig({ storage: selectedStorage });
 
-            {backupConfig.storage?.type && (
-              <img
-                src={getStorageLogoFromType(backupConfig.storage.type)}
-                alt="storageIcon"
-                className="ml-1 h-4 w-4"
-              />
-            )}
-          </div>
+            if (backupConfig.storage?.id) {
+              setIsShowWarn(true);
+            }
+          }}
+          size="small"
+          className="mr-2 max-w-[200px] grow"
+          options={[
+            ...storages.map((s) => ({ label: s.name, value: s.id })),
+            { label: 'Create new storage', value: 'create-new-storage' },
+          ]}
+          placeholder="Select storage"
+        />
 
+        {backupConfig.storage?.type && (
+          <img
+            src={getStorageLogoFromType(backupConfig.storage.type)}
+            alt="storageIcon"
+            className="ml-1 h-4 w-4"
+          />
+        )}
+      </div>
+
+      {backupConfig.isBackupsEnabled && (
+        <>
           <div className="mt-4 mb-1 flex w-full items-start">
             <div className="mt-1 min-w-[150px]">Notifications</div>
             <div className="flex flex-col space-y-2">
@@ -524,22 +524,6 @@ export const EditBackupConfigComponent = ({
           actionText="I understand"
           cancelText="Cancel"
           hideCancelButton
-        />
-      )}
-
-      {isShowBackupDisableConfirm && (
-        <ConfirmationComponent
-          onConfirm={() => {
-            updateBackupConfig({ isBackupsEnabled: false });
-            setIsShowBackupDisableConfirm(false);
-          }}
-          onDecline={() => {
-            setIsShowBackupDisableConfirm(false);
-          }}
-          description="All current backups will be removed? Are you sure?"
-          actionButtonColor="red"
-          actionText="Yes, disable backing up and remove all existing backup files"
-          cancelText="Cancel"
         />
       )}
     </div>

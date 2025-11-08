@@ -80,3 +80,16 @@ func (t *TelegramNotifier) Send(logger *slog.Logger, heading string, message str
 
 	return nil
 }
+
+func (t *TelegramNotifier) HideSensitiveData() {
+	t.BotToken = ""
+}
+
+func (t *TelegramNotifier) Update(incoming *TelegramNotifier) {
+	t.TargetChatID = incoming.TargetChatID
+	t.ThreadID = incoming.ThreadID
+
+	if incoming.BotToken != "" {
+		t.BotToken = incoming.BotToken
+	}
+}

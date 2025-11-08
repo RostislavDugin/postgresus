@@ -66,6 +66,23 @@ func (p *PostgresqlDatabase) TestConnection(logger *slog.Logger) error {
 	return testSingleDatabaseConnection(logger, ctx, p)
 }
 
+func (p *PostgresqlDatabase) HideSensitiveData() {
+	p.Password = ""
+}
+
+func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
+	p.Version = incoming.Version
+	p.Host = incoming.Host
+	p.Port = incoming.Port
+	p.Username = incoming.Username
+	p.Database = incoming.Database
+	p.IsHttps = incoming.IsHttps
+
+	if incoming.Password != "" {
+		p.Password = incoming.Password
+	}
+}
+
 // testSingleDatabaseConnection tests connection to a specific database for pg_dump
 func testSingleDatabaseConnection(
 	logger *slog.Logger,

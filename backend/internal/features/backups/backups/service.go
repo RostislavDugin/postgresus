@@ -93,7 +93,8 @@ func (s *BackupService) MakeBackupWithAuth(
 func (s *BackupService) GetBackups(
 	user *users_models.User,
 	databaseID uuid.UUID,
-) ([]*Backup, error) {
+	limit, offset int,
+) (*GetBackupsResponse, error) {
 	database, err := s.databaseService.GetDatabaseByID(databaseID)
 	if err != nil {
 		return nil, err
@@ -111,12 +112,29 @@ func (s *BackupService) GetBackups(
 		return nil, errors.New("insufficient permissions to access backups for this database")
 	}
 
-	backups, err := s.backupRepository.FindByDatabaseID(databaseID)
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	backups, err := s.backupRepository.FindByDatabaseIDWithPagination(databaseID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	return backups, nil
+	total, err := s.backupRepository.CountByDatabaseID(databaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetBackupsResponse{
+		Backups: backups,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+	}, nil
 }
 
 func (s *BackupService) DeleteBackup(

@@ -44,23 +44,34 @@ func (s *NotifierService) SaveNotifier(
 			return errors.New("notifier does not belong to this workspace")
 		}
 
-		notifier.WorkspaceID = existingNotifier.WorkspaceID
-	} else {
-		notifier.WorkspaceID = workspaceID
-	}
+		existingNotifier.Update(notifier)
 
-	_, err = s.notifierRepository.Save(notifier)
-	if err != nil {
-		return err
-	}
+		if err := existingNotifier.Validate(); err != nil {
+			return err
+		}
 
-	if isUpdate {
+		_, err = s.notifierRepository.Save(existingNotifier)
+		if err != nil {
+			return err
+		}
+
 		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf("Notifier updated: %s", notifier.Name),
+			fmt.Sprintf("Notifier updated: %s", existingNotifier.Name),
 			&user.ID,
 			&workspaceID,
 		)
 	} else {
+		notifier.WorkspaceID = workspaceID
+
+		if err := notifier.Validate(); err != nil {
+			return err
+		}
+
+		_, err = s.notifierRepository.Save(notifier)
+		if err != nil {
+			return err
+		}
+
 		s.auditLogService.WriteAuditLog(
 			fmt.Sprintf("Notifier created: %s", notifier.Name),
 			&user.ID,
@@ -119,6 +130,7 @@ func (s *NotifierService) GetNotifier(
 		return nil, errors.New("insufficient permissions to view notifier in this workspace")
 	}
 
+	notifier.HideSensitiveData()
 	return notifier, nil
 }
 
@@ -134,7 +146,16 @@ func (s *NotifierService) GetNotifiers(
 		return nil, errors.New("insufficient permissions to view notifiers in this workspace")
 	}
 
-	return s.notifierRepository.FindByWorkspaceID(workspaceID)
+	notifiers, err := s.notifierRepository.FindByWorkspaceID(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, notifier := range notifiers {
+		notifier.HideSensitiveData()
+	}
+
+	return notifiers, nil
 }
 
 func (s *NotifierService) SendTestNotification(
@@ -170,7 +191,30 @@ func (s *NotifierService) SendTestNotification(
 func (s *NotifierService) SendTestNotificationToNotifier(
 	notifier *Notifier,
 ) error {
-	return notifier.Send(s.logger, "Test message", "This is a test message")
+	var usingNotifier *Notifier
+
+	if notifier.ID != uuid.Nil {
+		existingNotifier, err := s.notifierRepository.FindByID(notifier.ID)
+		if err != nil {
+			return err
+		}
+
+		if existingNotifier.WorkspaceID != notifier.WorkspaceID {
+			return errors.New("notifier does not belong to this workspace")
+		}
+
+		existingNotifier.Update(notifier)
+
+		if err := existingNotifier.Validate(); err != nil {
+			return err
+		}
+
+		usingNotifier = existingNotifier
+	} else {
+		usingNotifier = notifier
+	}
+
+	return usingNotifier.Send(s.logger, "Test message", "This is a test message")
 }
 
 func (s *NotifierService) SendNotification(

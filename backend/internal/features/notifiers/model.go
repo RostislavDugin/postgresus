@@ -54,6 +54,42 @@ func (n *Notifier) Send(logger *slog.Logger, heading string, message string) err
 	return err
 }
 
+func (n *Notifier) HideSensitiveData() {
+	n.getSpecificNotifier().HideSensitiveData()
+}
+
+func (n *Notifier) Update(incoming *Notifier) {
+	n.Name = incoming.Name
+	n.NotifierType = incoming.NotifierType
+
+	switch n.NotifierType {
+	case NotifierTypeTelegram:
+		if n.TelegramNotifier != nil && incoming.TelegramNotifier != nil {
+			n.TelegramNotifier.Update(incoming.TelegramNotifier)
+		}
+	case NotifierTypeEmail:
+		if n.EmailNotifier != nil && incoming.EmailNotifier != nil {
+			n.EmailNotifier.Update(incoming.EmailNotifier)
+		}
+	case NotifierTypeWebhook:
+		if n.WebhookNotifier != nil && incoming.WebhookNotifier != nil {
+			n.WebhookNotifier.Update(incoming.WebhookNotifier)
+		}
+	case NotifierTypeSlack:
+		if n.SlackNotifier != nil && incoming.SlackNotifier != nil {
+			n.SlackNotifier.Update(incoming.SlackNotifier)
+		}
+	case NotifierTypeDiscord:
+		if n.DiscordNotifier != nil && incoming.DiscordNotifier != nil {
+			n.DiscordNotifier.Update(incoming.DiscordNotifier)
+		}
+	case NotifierTypeTeams:
+		if n.TeamsNotifier != nil && incoming.TeamsNotifier != nil {
+			n.TeamsNotifier.Update(incoming.TeamsNotifier)
+		}
+	}
+}
+
 func (n *Notifier) getSpecificNotifier() NotificationSender {
 	switch n.NotifierType {
 	case NotifierTypeTelegram:

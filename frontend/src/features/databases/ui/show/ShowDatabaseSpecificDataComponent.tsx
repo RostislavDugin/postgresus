@@ -44,7 +44,7 @@ export const ShowDatabaseSpecificDataComponent = ({ database }: Props) => {
 
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Password</div>
-            <div>{database.postgresql?.password ? '*********' : ''}</div>
+            <div>{'*************'}</div>
           </div>
 
           <div className="mb-1 flex w-full items-center">

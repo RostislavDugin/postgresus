@@ -208,3 +208,18 @@ func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string
 		return client.Quit()
 	}
 }
+
+func (e *EmailNotifier) HideSensitiveData() {
+	e.SMTPPassword = ""
+}
+
+func (e *EmailNotifier) Update(incoming *EmailNotifier) {
+	e.TargetEmail = incoming.TargetEmail
+	e.SMTPHost = incoming.SMTPHost
+	e.SMTPPort = incoming.SMTPPort
+	e.SMTPUser = incoming.SMTPUser
+
+	if incoming.SMTPPassword != "" {
+		e.SMTPPassword = incoming.SMTPPassword
+	}
+}

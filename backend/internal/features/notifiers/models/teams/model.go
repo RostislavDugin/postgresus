@@ -94,3 +94,13 @@ func (n *TeamsNotifier) Send(logger *slog.Logger, heading, message string) error
 
 	return nil
 }
+
+func (n *TeamsNotifier) HideSensitiveData() {
+	n.WebhookURL = ""
+}
+
+func (n *TeamsNotifier) Update(incoming *TeamsNotifier) {
+	if incoming.WebhookURL != "" {
+		n.WebhookURL = incoming.WebhookURL
+	}
+}

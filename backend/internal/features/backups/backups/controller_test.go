@@ -102,10 +102,11 @@ func Test_GetBackups_PermissionsEnforced(t *testing.T) {
 			)
 
 			if tt.expectSuccess {
-				var backups []*Backup
-				err := json.Unmarshal(testResp.Body, &backups)
+				var response GetBackupsResponse
+				err := json.Unmarshal(testResp.Body, &response)
 				assert.NoError(t, err)
-				assert.GreaterOrEqual(t, len(backups), 1)
+				assert.GreaterOrEqual(t, len(response.Backups), 1)
+				assert.GreaterOrEqual(t, response.Total, int64(1))
 			} else {
 				assert.Contains(t, string(testResp.Body), "insufficient permissions")
 			}
@@ -329,9 +330,9 @@ func Test_DeleteBackup_PermissionsEnforced(t *testing.T) {
 				ownerUser, err := userService.GetUserFromToken(owner.Token)
 				assert.NoError(t, err)
 
-				backups, err := GetBackupService().GetBackups(ownerUser, database.ID)
+				response, err := GetBackupService().GetBackups(ownerUser, database.ID, 10, 0)
 				assert.NoError(t, err)
-				assert.Equal(t, 0, len(backups))
+				assert.Equal(t, 0, len(response.Backups))
 			}
 		})
 	}

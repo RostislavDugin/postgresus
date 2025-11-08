@@ -132,3 +132,15 @@ func (s *SlackNotifier) Send(logger *slog.Logger, heading, message string) error
 		return nil
 	}
 }
+
+func (s *SlackNotifier) HideSensitiveData() {
+	s.BotToken = ""
+}
+
+func (s *SlackNotifier) Update(incoming *SlackNotifier) {
+	s.TargetChatID = incoming.TargetChatID
+
+	if incoming.BotToken != "" {
+		s.BotToken = incoming.BotToken
+	}
+}

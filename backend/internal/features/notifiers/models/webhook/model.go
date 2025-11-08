@@ -102,3 +102,11 @@ func (t *WebhookNotifier) Send(logger *slog.Logger, heading string, message stri
 		return fmt.Errorf("unsupported webhook method: %s", t.WebhookMethod)
 	}
 }
+
+func (t *WebhookNotifier) HideSensitiveData() {
+}
+
+func (t *WebhookNotifier) Update(incoming *WebhookNotifier) {
+	t.WebhookURL = incoming.WebhookURL
+	t.WebhookMethod = incoming.WebhookMethod
+}

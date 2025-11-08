@@ -23,11 +23,13 @@ func (c *BackupController) RegisterRoutes(router *gin.RouterGroup) {
 
 // GetBackups
 // @Summary Get backups for a database
-// @Description Get all backups for the specified database
+// @Description Get paginated backups for the specified database
 // @Tags backups
 // @Produce json
 // @Param database_id query string true "Database ID"
-// @Success 200 {array} Backup
+// @Param limit query int false "Number of items per page" default(10)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Success 200 {object} GetBackupsResponse
 // @Failure 400
 // @Failure 401
 // @Failure 500
@@ -39,25 +41,25 @@ func (c *BackupController) GetBackups(ctx *gin.Context) {
 		return
 	}
 
-	databaseIDStr := ctx.Query("database_id")
-	if databaseIDStr == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "database_id query parameter is required"})
+	var request GetBackupsRequest
+	if err := ctx.ShouldBindQuery(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	databaseID, err := uuid.Parse(databaseIDStr)
+	databaseID, err := uuid.Parse(request.DatabaseID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database_id"})
 		return
 	}
 
-	backups, err := c.backupService.GetBackups(user, databaseID)
+	response, err := c.backupService.GetBackups(user, databaseID, request.Limit, request.Offset)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, backups)
+	ctx.JSON(http.StatusOK, response)
 }
 
 // MakeBackup

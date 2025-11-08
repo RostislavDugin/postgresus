@@ -29,7 +29,7 @@ export function ShowNASStorageComponent({ storage }: Props) {
 
       <div className="mb-1 flex items-center">
         <div className="min-w-[110px]">Password</div>
-        {storage?.nasStorage?.password ? '*********' : '-'}
+        {'*************'}
       </div>
 
       <div className="mb-1 flex items-center">

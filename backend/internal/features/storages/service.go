@@ -42,23 +42,34 @@ func (s *StorageService) SaveStorage(
 			return errors.New("storage does not belong to this workspace")
 		}
 
-		storage.WorkspaceID = existingStorage.WorkspaceID
-	} else {
-		storage.WorkspaceID = workspaceID
-	}
+		existingStorage.Update(storage)
 
-	_, err = s.storageRepository.Save(storage)
-	if err != nil {
-		return err
-	}
+		if err := existingStorage.Validate(); err != nil {
+			return err
+		}
 
-	if isUpdate {
+		_, err = s.storageRepository.Save(existingStorage)
+		if err != nil {
+			return err
+		}
+
 		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf("Storage updated: %s", storage.Name),
+			fmt.Sprintf("Storage updated: %s", existingStorage.Name),
 			&user.ID,
 			&workspaceID,
 		)
 	} else {
+		storage.WorkspaceID = workspaceID
+
+		if err := storage.Validate(); err != nil {
+			return err
+		}
+
+		_, err = s.storageRepository.Save(storage)
+		if err != nil {
+			return err
+		}
+
 		s.auditLogService.WriteAuditLog(
 			fmt.Sprintf("Storage created: %s", storage.Name),
 			&user.ID,
@@ -117,6 +128,8 @@ func (s *StorageService) GetStorage(
 		return nil, errors.New("insufficient permissions to view storage in this workspace")
 	}
 
+	storage.HideSensitiveData()
+
 	return storage, nil
 }
 
@@ -132,7 +145,16 @@ func (s *StorageService) GetStorages(
 		return nil, errors.New("insufficient permissions to view storages in this workspace")
 	}
 
-	return s.storageRepository.FindByWorkspaceID(workspaceID)
+	storages, err := s.storageRepository.FindByWorkspaceID(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, storage := range storages {
+		storage.HideSensitiveData()
+	}
+
+	return storages, nil
 }
 
 func (s *StorageService) TestStorageConnection(
@@ -171,7 +193,30 @@ func (s *StorageService) TestStorageConnection(
 func (s *StorageService) TestStorageConnectionDirect(
 	storage *Storage,
 ) error {
-	return storage.TestConnection()
+	var usingStorage *Storage
+
+	if storage.ID != uuid.Nil {
+		existingStorage, err := s.storageRepository.FindByID(storage.ID)
+		if err != nil {
+			return err
+		}
+
+		if existingStorage.WorkspaceID != storage.WorkspaceID {
+			return errors.New("storage does not belong to this workspace")
+		}
+
+		existingStorage.Update(storage)
+
+		if err := existingStorage.Validate(); err != nil {
+			return err
+		}
+
+		usingStorage = existingStorage
+	} else {
+		usingStorage = storage
+	}
+
+	return usingStorage.TestConnection()
 }
 
 func (s *StorageService) GetStorageByID(

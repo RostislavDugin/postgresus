@@ -71,3 +71,13 @@ func (d *DiscordNotifier) Send(logger *slog.Logger, heading string, message stri
 
 	return nil
 }
+
+func (d *DiscordNotifier) HideSensitiveData() {
+	d.ChannelWebhookURL = ""
+}
+
+func (d *DiscordNotifier) Update(incoming *DiscordNotifier) {
+	if incoming.ChannelWebhookURL != "" {
+		d.ChannelWebhookURL = incoming.ChannelWebhookURL
+	}
+}

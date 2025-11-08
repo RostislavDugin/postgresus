@@ -12,6 +12,8 @@ type DatabaseValidator interface {
 
 type DatabaseConnector interface {
 	TestConnection(logger *slog.Logger) error
+
+	HideSensitiveData()
 }
 
 type DatabaseCreationListener interface {

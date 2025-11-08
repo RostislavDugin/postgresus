@@ -1,7 +1,10 @@
 import type { TelegramNotifier } from './TelegramNotifier';
 
-export const validateTelegramNotifier = (notifier: TelegramNotifier): boolean => {
-  if (!notifier.botToken) {
+export const validateTelegramNotifier = (
+  isCreate: boolean,
+  notifier: TelegramNotifier,
+): boolean => {
+  if (isCreate && !notifier.botToken) {
     return false;
   }
 

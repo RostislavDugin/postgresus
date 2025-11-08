@@ -1,12 +1,16 @@
 import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
-import type { Backup } from '../model/Backup';
+import type { GetBackupsResponse } from '../model/GetBackupsResponse';
 
 export const backupsApi = {
-  async getBackups(databaseId: string) {
-    return apiHelper.fetchGetJson<Backup[]>(
-      `${getApplicationServer()}/api/v1/backups?database_id=${databaseId}`,
+  async getBackups(databaseId: string, limit?: number, offset?: number) {
+    const params = new URLSearchParams({ database_id: databaseId });
+    if (limit !== undefined) params.append('limit', limit.toString());
+    if (offset !== undefined) params.append('offset', offset.toString());
+
+    return apiHelper.fetchGetJson<GetBackupsResponse>(
+      `${getApplicationServer()}/api/v1/backups?${params.toString()}`,
       undefined,
       true,
     );

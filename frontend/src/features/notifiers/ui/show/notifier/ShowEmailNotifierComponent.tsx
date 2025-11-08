@@ -29,7 +29,7 @@ export function ShowEmailNotifierComponent({ notifier }: Props) {
 
       <div className="mb-1 flex items-center">
         <div className="min-w-[110px]">SMTP password</div>
-        {notifier?.emailNotifier?.smtpPassword ? '*********' : ''}
+        {'*************'}
       </div>
     </>
   );

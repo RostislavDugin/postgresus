@@ -155,6 +155,10 @@ export function EditStorageComponent({
     }
 
     if (storage.type === StorageType.S3) {
+      if (storage.id) {
+        return storage.s3Storage?.s3Bucket;
+      }
+
       return (
         storage.s3Storage?.s3Bucket &&
         storage.s3Storage?.s3AccessKey &&
@@ -163,6 +167,10 @@ export function EditStorageComponent({
     }
 
     if (storage.type === StorageType.GOOGLE_DRIVE) {
+      if (storage.id) {
+        return storage.googleDriveStorage?.clientId;
+      }
+
       return (
         storage.googleDriveStorage?.clientId &&
         storage.googleDriveStorage?.clientSecret &&
@@ -171,6 +179,15 @@ export function EditStorageComponent({
     }
 
     if (storage.type === StorageType.NAS) {
+      if (storage.id) {
+        return (
+          storage.nasStorage?.host &&
+          storage.nasStorage?.port &&
+          storage.nasStorage?.share &&
+          storage.nasStorage?.username
+        );
+      }
+
       return (
         storage.nasStorage?.host &&
         storage.nasStorage?.port &&

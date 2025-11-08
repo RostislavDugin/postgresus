@@ -17,4 +17,6 @@ type StorageFileSaver interface {
 	Validate() error
 
 	TestConnection() error
+
+	HideSensitiveData()
 }

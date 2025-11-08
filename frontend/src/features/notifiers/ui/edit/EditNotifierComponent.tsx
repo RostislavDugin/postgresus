@@ -176,27 +176,27 @@ export function EditNotifierComponent({
     if (!notifier.name) return false;
 
     if (notifier.notifierType === NotifierType.TELEGRAM && notifier.telegramNotifier) {
-      return validateTelegramNotifier(notifier.telegramNotifier);
+      return validateTelegramNotifier(!notifier.id, notifier.telegramNotifier);
     }
 
     if (notifier.notifierType === NotifierType.EMAIL && notifier.emailNotifier) {
-      return validateEmailNotifier(notifier.emailNotifier);
+      return validateEmailNotifier(!notifier.id, notifier.emailNotifier);
     }
 
     if (notifier.notifierType === NotifierType.WEBHOOK && notifier.webhookNotifier) {
-      return validateWebhookNotifier(notifier.webhookNotifier);
+      return validateWebhookNotifier(!notifier.id, notifier.webhookNotifier);
     }
 
     if (notifier.notifierType === NotifierType.SLACK && notifier.slackNotifier) {
-      return validateSlackNotifier(notifier.slackNotifier);
+      return validateSlackNotifier(!notifier.id, notifier.slackNotifier);
     }
 
     if (notifier.notifierType === NotifierType.DISCORD && notifier.discordNotifier) {
-      return validateDiscordNotifier(notifier.discordNotifier);
+      return validateDiscordNotifier(!notifier.id, notifier.discordNotifier);
     }
 
     if (notifier.notifierType === NotifierType.TEAMS && notifier.teamsNotifier) {
-      return validateTeamsNotifier(notifier.teamsNotifier);
+      return validateTeamsNotifier(!notifier.id, notifier.teamsNotifier);
     }
 
     return false;

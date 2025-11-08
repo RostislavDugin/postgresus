@@ -1,7 +1,7 @@
 import type { WebhookNotifier } from './WebhookNotifier';
 
-export const validateWebhookNotifier = (notifier: WebhookNotifier): boolean => {
-  if (!notifier.webhookUrl) {
+export const validateWebhookNotifier = (isCreate: boolean, notifier: WebhookNotifier): boolean => {
+  if (isCreate && !notifier.webhookUrl) {
     return false;
   }
 

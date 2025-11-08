@@ -156,3 +156,9 @@ func (l *LocalStorage) TestConnection() error {
 
 	return nil
 }
+
+func (l *LocalStorage) HideSensitiveData() {
+}
+
+func (l *LocalStorage) Update(incoming *LocalStorage) {
+}

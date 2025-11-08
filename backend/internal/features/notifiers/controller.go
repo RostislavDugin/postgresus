@@ -54,11 +54,6 @@ func (c *NotifierController) SaveNotifier(ctx *gin.Context) {
 		return
 	}
 
-	if err := request.Validate(); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	if err := c.notifierService.SaveNotifier(user, request.WorkspaceID, &request); err != nil {
 		if err.Error() == "insufficient permissions to manage notifier in this workspace" {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

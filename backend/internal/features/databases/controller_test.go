@@ -768,3 +768,161 @@ func createTestDatabaseViaAPI(
 
 	return &database
 }
+
+func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
+	testCases := []struct {
+		name                string
+		databaseType        DatabaseType
+		createDatabase      func(workspaceID uuid.UUID) *Database
+		updateDatabase      func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database
+		verifySensitiveData func(t *testing.T, database *Database)
+		verifyHiddenData    func(t *testing.T, database *Database)
+	}{
+		{
+			name:         "PostgreSQL Database",
+			databaseType: DatabaseTypePostgres,
+			createDatabase: func(workspaceID uuid.UUID) *Database {
+				testDbName := "test_db"
+				return &Database{
+					WorkspaceID: &workspaceID,
+					Name:        "Test PostgreSQL Database",
+					Type:        DatabaseTypePostgres,
+					Postgresql: &postgresql.PostgresqlDatabase{
+						Version:  tools.PostgresqlVersion16,
+						Host:     "localhost",
+						Port:     5432,
+						Username: "postgres",
+						Password: "original-password-secret",
+						Database: &testDbName,
+					},
+				}
+			},
+			updateDatabase: func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database {
+				testDbName := "updated_test_db"
+				return &Database{
+					ID:          databaseID,
+					WorkspaceID: &workspaceID,
+					Name:        "Updated PostgreSQL Database",
+					Type:        DatabaseTypePostgres,
+					Postgresql: &postgresql.PostgresqlDatabase{
+						Version:  tools.PostgresqlVersion17,
+						Host:     "updated-host",
+						Port:     5433,
+						Username: "updated_user",
+						Password: "",
+						Database: &testDbName,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "original-password-secret", database.Postgresql.Password)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.Postgresql.Password)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			// Phase 1: Create database with sensitive data
+			initialDatabase := tc.createDatabase(workspace.ID)
+			var createdDatabase Database
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/create",
+				"Bearer "+owner.Token,
+				*initialDatabase,
+				http.StatusCreated,
+				&createdDatabase,
+			)
+			assert.NotEmpty(t, createdDatabase.ID)
+			assert.Equal(t, initialDatabase.Name, createdDatabase.Name)
+
+			// Phase 2: Read via service - sensitive data should be hidden
+			var retrievedDatabase Database
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/databases/%s", createdDatabase.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&retrievedDatabase,
+			)
+			tc.verifyHiddenData(t, &retrievedDatabase)
+			assert.Equal(t, initialDatabase.Name, retrievedDatabase.Name)
+
+			// Phase 3: Update with non-sensitive changes only (sensitive fields empty)
+			updatedDatabase := tc.updateDatabase(workspace.ID, createdDatabase.ID)
+			var updateResponse Database
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/databases/update",
+				"Bearer "+owner.Token,
+				*updatedDatabase,
+				http.StatusOK,
+				&updateResponse,
+			)
+
+			// Phase 4: Retrieve directly from repository to verify sensitive data preservation
+			repository := &DatabaseRepository{}
+			databaseFromDB, err := repository.FindByID(createdDatabase.ID)
+			assert.NoError(t, err)
+
+			// Verify original sensitive data is still present in DB
+			tc.verifySensitiveData(t, databaseFromDB)
+
+			// Verify non-sensitive fields were updated in DB
+			assert.Equal(t, updatedDatabase.Name, databaseFromDB.Name)
+
+			// Phase 5: Additional verification - Check via GET that data is still hidden
+			var finalRetrieved Database
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/databases/%s", createdDatabase.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&finalRetrieved,
+			)
+			tc.verifyHiddenData(t, &finalRetrieved)
+
+			// Phase 6: Verify GetDatabasesByWorkspace also hides sensitive data
+			var workspaceDatabases []Database
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/databases?workspace_id=%s", workspace.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&workspaceDatabases,
+			)
+			var foundDatabase *Database
+			for i := range workspaceDatabases {
+				if workspaceDatabases[i].ID == createdDatabase.ID {
+					foundDatabase = &workspaceDatabases[i]
+					break
+				}
+			}
+			assert.NotNil(t, foundDatabase, "Database should be found in workspace databases list")
+			tc.verifyHiddenData(t, foundDatabase)
+
+			// Clean up: Delete database before removing workspace
+			test_utils.MakeDeleteRequest(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/databases/%s", createdDatabase.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusNoContent,
+			)
+
+			workspaces_testing.RemoveTestWorkspace(workspace, router)
+		})
+	}
+}

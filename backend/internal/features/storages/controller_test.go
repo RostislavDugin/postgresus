@@ -7,6 +7,7 @@ import (
 
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
+	s3_storage "postgresus-backend/internal/features/storages/models/s3"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_middleware "postgresus-backend/internal/features/users/middleware"
 	users_services "postgresus-backend/internal/features/users/services"
@@ -483,4 +484,159 @@ func deleteStorage(
 		"Bearer "+token,
 		http.StatusOK,
 	)
+}
+
+func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
+	testCases := []struct {
+		name                string
+		storageType         StorageType
+		createStorage       func(workspaceID uuid.UUID) *Storage
+		updateStorage       func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage
+		verifySensitiveData func(t *testing.T, storage *Storage)
+		verifyHiddenData    func(t *testing.T, storage *Storage)
+	}{
+		{
+			name:        "S3 Storage",
+			storageType: StorageTypeS3,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeS3,
+					Name:        "Test S3 Storage",
+					S3Storage: &s3_storage.S3Storage{
+						S3Bucket:    "test-bucket",
+						S3Region:    "us-east-1",
+						S3AccessKey: "original-access-key",
+						S3SecretKey: "original-secret-key",
+						S3Endpoint:  "https://s3.amazonaws.com",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeS3,
+					Name:        "Updated S3 Storage",
+					S3Storage: &s3_storage.S3Storage{
+						S3Bucket:    "updated-bucket",
+						S3Region:    "us-west-2",
+						S3AccessKey: "",
+						S3SecretKey: "",
+						S3Endpoint:  "https://s3.us-west-2.amazonaws.com",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "original-access-key", storage.S3Storage.S3AccessKey)
+				assert.Equal(t, "original-secret-key", storage.S3Storage.S3SecretKey)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.S3Storage.S3AccessKey)
+				assert.Equal(t, "", storage.S3Storage.S3SecretKey)
+			},
+		},
+		{
+			name:        "Local Storage",
+			storageType: StorageTypeLocal,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID:  workspaceID,
+					Type:         StorageTypeLocal,
+					Name:         "Test Local Storage",
+					LocalStorage: &local_storage.LocalStorage{},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:           storageID,
+					WorkspaceID:  workspaceID,
+					Type:         StorageTypeLocal,
+					Name:         "Updated Local Storage",
+					LocalStorage: &local_storage.LocalStorage{},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			router := createRouter()
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			// Phase 1: Create storage with sensitive data
+			initialStorage := tc.createStorage(workspace.ID)
+			var createdStorage Storage
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/storages",
+				"Bearer "+owner.Token,
+				*initialStorage,
+				http.StatusOK,
+				&createdStorage,
+			)
+
+			assert.NotEmpty(t, createdStorage.ID)
+			assert.Equal(t, initialStorage.Name, createdStorage.Name)
+
+			// Phase 2: Read via service - sensitive data should be hidden
+			var retrievedStorage Storage
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/storages/%s", createdStorage.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&retrievedStorage,
+			)
+
+			tc.verifyHiddenData(t, &retrievedStorage)
+			assert.Equal(t, initialStorage.Name, retrievedStorage.Name)
+
+			// Phase 3: Update with non-sensitive changes only (sensitive fields empty)
+			updatedStorage := tc.updateStorage(workspace.ID, createdStorage.ID)
+			var updateResponse Storage
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/storages",
+				"Bearer "+owner.Token,
+				*updatedStorage,
+				http.StatusOK,
+				&updateResponse,
+			)
+
+			// Verify non-sensitive fields were updated
+			assert.Equal(t, updatedStorage.Name, updateResponse.Name)
+
+			// Phase 4: Retrieve directly from repository to verify sensitive data preservation
+			repository := &StorageRepository{}
+			storageFromDB, err := repository.FindByID(createdStorage.ID)
+			assert.NoError(t, err)
+
+			// Verify original sensitive data is still present in DB
+			tc.verifySensitiveData(t, storageFromDB)
+
+			// Verify non-sensitive fields were updated in DB
+			assert.Equal(t, updatedStorage.Name, storageFromDB.Name)
+
+			// Additional verification: Check via GET that data is still hidden
+			var finalRetrieved Storage
+			test_utils.MakeGetRequestAndUnmarshal(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/storages/%s", createdStorage.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+				&finalRetrieved,
+			)
+			tc.verifyHiddenData(t, &finalRetrieved)
+		})
+	}
 }
