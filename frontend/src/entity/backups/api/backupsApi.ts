@@ -32,4 +32,8 @@ export const backupsApi = {
   async downloadBackup(id: string): Promise<Blob> {
     return apiHelper.fetchGetBlob(`${getApplicationServer()}/api/v1/backups/${id}/file`);
   },
+
+  async cancelBackup(id: string) {
+    return apiHelper.fetchPostRaw(`${getApplicationServer()}/api/v1/backups/${id}/cancel`);
+  },
 };

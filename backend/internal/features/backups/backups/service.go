@@ -1,6 +1,7 @@
 package backups
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	users_models "postgresus-backend/internal/features/users/models"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,6 +36,7 @@ type BackupService struct {
 
 	workspaceService *workspaces_services.WorkspaceService
 	auditLogService  *audit_logs.AuditLogService
+	backupContextMgr *BackupContextManager
 }
 
 func (s *BackupService) AddBackupRemoveListener(listener BackupRemoveListener) {
@@ -247,7 +250,12 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	s.backupContextMgr.RegisterBackup(backup.ID, cancel)
+	defer s.backupContextMgr.UnregisterBackup(backup.ID)
+
 	err = s.createBackupUseCase.Execute(
+		ctx,
 		backup.ID,
 		backupConfig,
 		database,
@@ -256,6 +264,34 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 	)
 	if err != nil {
 		errMsg := err.Error()
+
+		// Check if backup was cancelled (not due to shutdown)
+		if strings.Contains(errMsg, "backup cancelled") && !strings.Contains(errMsg, "shutdown") {
+			backup.Status = BackupStatusCanceled
+			backup.BackupDurationMs = time.Since(start).Milliseconds()
+			backup.BackupSizeMb = 0
+
+			if err := s.backupRepository.Save(backup); err != nil {
+				s.logger.Error("Failed to save cancelled backup", "error", err)
+			}
+
+			// Delete partial backup from storage
+			storage, storageErr := s.storageService.GetStorageByID(backup.StorageID)
+			if storageErr == nil {
+				if deleteErr := storage.DeleteFile(backup.ID); deleteErr != nil {
+					s.logger.Error(
+						"Failed to delete partial backup file",
+						"backupId",
+						backup.ID,
+						"error",
+						deleteErr,
+					)
+				}
+			}
+
+			return
+		}
+
 		backup.FailMessage = &errMsg
 		backup.Status = BackupStatusFailed
 		backup.BackupDurationMs = time.Since(start).Milliseconds()
@@ -380,6 +416,48 @@ func (s *BackupService) SendBackupNotification(
 
 func (s *BackupService) GetBackup(backupID uuid.UUID) (*Backup, error) {
 	return s.backupRepository.FindByID(backupID)
+}
+
+func (s *BackupService) CancelBackup(
+	user *users_models.User,
+	backupID uuid.UUID,
+) error {
+	backup, err := s.backupRepository.FindByID(backupID)
+	if err != nil {
+		return err
+	}
+
+	if backup.Database.WorkspaceID == nil {
+		return errors.New("cannot cancel backup for database without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*backup.Database.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to cancel backup for this database")
+	}
+
+	if backup.Status != BackupStatusInProgress {
+		return errors.New("backup is not in progress")
+	}
+
+	if err := s.backupContextMgr.CancelBackup(backupID); err != nil {
+		return err
+	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf(
+			"Backup cancelled for database: %s (ID: %s)",
+			backup.Database.Name,
+			backupID.String(),
+		),
+		&user.ID,
+		backup.Database.WorkspaceID,
+	)
+
+	return nil
 }
 
 func (s *BackupService) GetBackupFile(

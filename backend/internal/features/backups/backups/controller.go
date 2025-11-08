@@ -19,6 +19,7 @@ func (c *BackupController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/backups", c.MakeBackup)
 	router.GET("/backups/:id/file", c.GetFile)
 	router.DELETE("/backups/:id", c.DeleteBackup)
+	router.POST("/backups/:id/cancel", c.CancelBackup)
 }
 
 // GetBackups
@@ -119,6 +120,37 @@ func (c *BackupController) DeleteBackup(ctx *gin.Context) {
 	}
 
 	if err := c.backupService.DeleteBackup(user, id); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+// CancelBackup
+// @Summary Cancel an in-progress backup
+// @Description Cancel a backup that is currently in progress
+// @Tags backups
+// @Param id path string true "Backup ID"
+// @Success 204
+// @Failure 400
+// @Failure 401
+// @Failure 500
+// @Router /backups/{id}/cancel [post]
+func (c *BackupController) CancelBackup(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup ID"})
+		return
+	}
+
+	if err := c.backupService.CancelBackup(user, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

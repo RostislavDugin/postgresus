@@ -1,5 +1,6 @@
 import {
   CheckCircleOutlined,
+  CloseCircleOutlined,
   CloudUploadOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -57,6 +58,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
   const isLazyLoadInProgress = useRef(false);
 
   const [downloadingBackupId, setDownloadingBackupId] = useState<string | undefined>();
+  const [cancellingBackupId, setCancellingBackupId] = useState<string | undefined>();
 
   const downloadBackup = async (backupId: string) => {
     try {
@@ -204,6 +206,19 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
     setDeleteConfimationId(undefined);
   };
 
+  const cancelBackup = async (backupId: string) => {
+    setCancellingBackupId(backupId);
+
+    try {
+      await backupsApi.cancelBackup(backupId);
+      await reloadInProgressBackups();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+
+    setCancellingBackupId(undefined);
+  };
+
   useEffect(() => {
     setIsBackupConfigLoading(true);
     setCurrentLimit(BACKUPS_PAGE_SIZE);
@@ -324,6 +339,15 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           );
         }
 
+        if (status === BackupStatus.CANCELED) {
+          return (
+            <div className="flex items-center text-gray-600">
+              <CloseCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
+              <div>Canceled</div>
+            </div>
+          );
+        }
+
         return <span className="font-bold">{status}</span>;
       },
       filters: [
@@ -342,6 +366,10 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
         {
           value: BackupStatus.DELETED,
           text: 'Deleted',
+        },
+        {
+          value: BackupStatus.CANCELED,
+          text: 'Canceled',
         },
       ],
       onFilter: (value, record) => record.status === value,
@@ -393,6 +421,25 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       render: (_, record: Backup) => {
         return (
           <div className="flex gap-2 text-lg">
+            {record.status === BackupStatus.IN_PROGRESS && isCanManageDBs && (
+              <div className="flex gap-2">
+                {cancellingBackupId === record.id ? (
+                  <SyncOutlined spin />
+                ) : (
+                  <Tooltip title="Cancel backup">
+                    <CloseCircleOutlined
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (cancellingBackupId) return;
+                        cancelBackup(record.id);
+                      }}
+                      style={{ color: '#ff0000', opacity: cancellingBackupId ? 0.2 : 1 }}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+            )}
+
             {record.status === BackupStatus.COMPLETED && (
               <div className="flex gap-2">
                 {deletingBackupId === record.id ? (

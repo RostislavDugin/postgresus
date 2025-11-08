@@ -492,6 +492,77 @@ func Test_DownloadBackup_AuditLogWritten(t *testing.T) {
 	assert.True(t, found, "Audit log for backup download not found")
 }
 
+func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+
+	configService := backups_config.GetBackupConfigService()
+	config, err := configService.GetBackupConfigByDbId(database.ID)
+	assert.NoError(t, err)
+
+	config.IsBackupsEnabled = true
+	config.StorageID = &storage.ID
+	config.Storage = storage
+	_, err = configService.SaveBackupConfig(config)
+	assert.NoError(t, err)
+
+	backup := &Backup{
+		ID:               uuid.New(),
+		DatabaseID:       database.ID,
+		Database:         database,
+		StorageID:        storage.ID,
+		Storage:          storage,
+		Status:           BackupStatusInProgress,
+		BackupSizeMb:     0,
+		BackupDurationMs: 0,
+		CreatedAt:        time.Now().UTC(),
+	}
+
+	repo := &BackupRepository{}
+	err = repo.Save(backup)
+	assert.NoError(t, err)
+
+	// Register a cancellable context for the backup
+	GetBackupService().backupContextMgr.RegisterBackup(backup.ID, func() {})
+
+	resp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/backups/%s/cancel", backup.ID.String()),
+		"Bearer "+owner.Token,
+		nil,
+		http.StatusNoContent,
+	)
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Verify audit log was created
+	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	userService := users_services.GetUserService()
+	adminUser, err := userService.GetUserFromToken(admin.Token)
+	assert.NoError(t, err)
+
+	auditLogService := audit_logs.GetAuditLogService()
+	auditLogs, err := auditLogService.GetGlobalAuditLogs(
+		adminUser,
+		&audit_logs.GetAuditLogsRequest{Limit: 100, Offset: 0},
+	)
+	assert.NoError(t, err)
+
+	foundCancelLog := false
+	for _, log := range auditLogs.AuditLogs {
+		if strings.Contains(log.Message, "Backup cancelled") &&
+			strings.Contains(log.Message, database.Name) {
+			foundCancelLog = true
+			break
+		}
+	}
+	assert.True(t, foundCancelLog, "Cancel audit log should be created")
+}
+
 func createTestRouter() *gin.Engine {
 	return CreateTestRouter()
 }

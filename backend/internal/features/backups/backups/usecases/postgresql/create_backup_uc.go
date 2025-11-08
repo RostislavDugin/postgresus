@@ -29,6 +29,7 @@ type CreatePostgresqlBackupUsecase struct {
 
 // Execute creates a backup of the database
 func (uc *CreatePostgresqlBackupUsecase) Execute(
+	ctx context.Context,
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	db *databases.Database,
@@ -81,6 +82,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	}
 
 	return uc.streamToStorage(
+		ctx,
 		backupID,
 		backupConfig,
 		tools.GetPostgresqlExecutable(
@@ -99,6 +101,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 
 // streamToStorage streams pg_dump output directly to storage
 func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
+	parentCtx context.Context,
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	pgBin string,
@@ -112,7 +115,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 
 	// if backup not fit into 23 hours, Postgresus
 	// seems not to work for such database size
-	ctx, cancel := context.WithTimeout(context.Background(), 23*time.Hour)
+	ctx, cancel := context.WithTimeout(parentCtx, 23*time.Hour)
 	defer cancel()
 
 	// Monitor for shutdown and cancel context if needed
@@ -272,8 +275,9 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	bytesWritten := <-bytesWrittenCh
 	waitErr := cmd.Wait()
 
-	// Check for shutdown before finalizing
-	if config.IsShouldShutdown() {
+	// Check for shutdown or cancellation before finalizing
+	select {
+	case <-ctx.Done():
 		if pipeWriter, ok := countingWriter.writer.(*io.PipeWriter); ok {
 			if err := pipeWriter.Close(); err != nil {
 				uc.logger.Error("Failed to close counting writer", "error", err)
@@ -281,7 +285,12 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		}
 
 		<-saveErrCh // Wait for storage to finish
-		return fmt.Errorf("backup cancelled due to shutdown")
+
+		if config.IsShouldShutdown() {
+			return fmt.Errorf("backup cancelled due to shutdown")
+		}
+		return fmt.Errorf("backup cancelled")
+	default:
 	}
 
 	// Close the pipe writer to signal end of data
@@ -303,8 +312,13 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 
 	switch {
 	case waitErr != nil:
-		if config.IsShouldShutdown() {
-			return fmt.Errorf("backup cancelled due to shutdown")
+		select {
+		case <-ctx.Done():
+			if config.IsShouldShutdown() {
+				return fmt.Errorf("backup cancelled due to shutdown")
+			}
+			return fmt.Errorf("backup cancelled")
+		default:
 		}
 
 		// Enhanced error handling for PostgreSQL connection and SSL issues
@@ -402,14 +416,24 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 
 		return errors.New(errorMsg)
 	case copyErr != nil:
-		if config.IsShouldShutdown() {
-			return fmt.Errorf("backup cancelled due to shutdown")
+		select {
+		case <-ctx.Done():
+			if config.IsShouldShutdown() {
+				return fmt.Errorf("backup cancelled due to shutdown")
+			}
+			return fmt.Errorf("backup cancelled")
+		default:
 		}
 
 		return fmt.Errorf("copy to storage: %w", copyErr)
 	case saveErr != nil:
-		if config.IsShouldShutdown() {
-			return fmt.Errorf("backup cancelled due to shutdown")
+		select {
+		case <-ctx.Done():
+			if config.IsShouldShutdown() {
+				return fmt.Errorf("backup cancelled due to shutdown")
+			}
+			return fmt.Errorf("backup cancelled")
+		default:
 		}
 
 		return fmt.Errorf("save to storage: %w", saveErr)

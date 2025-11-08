@@ -3,4 +3,5 @@ export enum BackupStatus {
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   DELETED = 'DELETED',
+  CANCELED = 'CANCELED',
 }

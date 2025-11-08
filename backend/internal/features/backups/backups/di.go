@@ -13,6 +13,9 @@ import (
 )
 
 var backupRepository = &BackupRepository{}
+
+var backupContextManager = NewBackupContextManager()
+
 var backupService = &BackupService{
 	databases.GetDatabaseService(),
 	storages.GetStorageService(),
@@ -25,6 +28,7 @@ var backupService = &BackupService{
 	[]BackupRemoveListener{},
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
+	backupContextManager,
 }
 
 var backupBackgroundService = &BackupBackgroundService{

@@ -1,6 +1,8 @@
 package backups
 
 import (
+	"context"
+
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
@@ -19,6 +21,7 @@ type NotificationSender interface {
 
 type CreateBackupUsecase interface {
 	Execute(
+		ctx context.Context,
 		backupID uuid.UUID,
 		backupConfig *backups_config.BackupConfig,
 		database *databases.Database,

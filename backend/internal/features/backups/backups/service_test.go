@@ -1,6 +1,7 @@
 package backups
 
 import (
+	"context"
 	"errors"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
@@ -56,6 +57,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			[]BackupRemoveListener{},
 			nil, // workspaceService
 			nil, // auditLogService
+			NewBackupContextManager(),
 		}
 
 		// Set up expectations
@@ -101,6 +103,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			[]BackupRemoveListener{},
 			nil, // workspaceService
 			nil, // auditLogService
+			NewBackupContextManager(),
 		}
 
 		backupService.MakeBackup(database.ID, true)
@@ -123,6 +126,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			[]BackupRemoveListener{},
 			nil, // workspaceService
 			nil, // auditLogService
+			NewBackupContextManager(),
 		}
 
 		// capture arguments
@@ -158,6 +162,7 @@ type CreateFailedBackupUsecase struct {
 }
 
 func (uc *CreateFailedBackupUsecase) Execute(
+	ctx context.Context,
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	database *databases.Database,
@@ -174,6 +179,7 @@ type CreateSuccessBackupUsecase struct {
 }
 
 func (uc *CreateSuccessBackupUsecase) Execute(
+	ctx context.Context,
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	database *databases.Database,

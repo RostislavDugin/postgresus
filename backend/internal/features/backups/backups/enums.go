@@ -6,4 +6,5 @@ const (
 	BackupStatusInProgress BackupStatus = "IN_PROGRESS"
 	BackupStatusCompleted  BackupStatus = "COMPLETED"
 	BackupStatusFailed     BackupStatus = "FAILED"
+	BackupStatusCanceled   BackupStatus = "CANCELED"
 )

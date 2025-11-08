@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -138,6 +139,7 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	// Make backup
 	progressTracker := func(completedMBs float64) {}
 	err = usecases_postgresql_backup.GetCreatePostgresqlBackupUsecase().Execute(
+		context.Background(),
 		backupID,
 		backupConfig,
 		backupDb,
