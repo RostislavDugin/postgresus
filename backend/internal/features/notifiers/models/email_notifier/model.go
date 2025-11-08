@@ -27,6 +27,7 @@ type EmailNotifier struct {
 	SMTPPort     int       `json:"smtpPort"     gorm:"not null;column:smtp_port"`
 	SMTPUser     string    `json:"smtpUser"     gorm:"type:varchar(255);column:smtp_user"`
 	SMTPPassword string    `json:"smtpPassword" gorm:"type:varchar(255);column:smtp_password"`
+	From         string    `json:"from"         gorm:"type:varchar(255);column:from_email"`
 }
 
 func (e *EmailNotifier) TableName() string {
@@ -56,9 +57,12 @@ func (e *EmailNotifier) Validate() error {
 
 func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string) error {
 	// Compose email
-	from := e.SMTPUser
+	from := e.From
 	if from == "" {
-		from = "noreply@" + e.SMTPHost
+		from = e.SMTPUser
+		if from == "" {
+			from = "noreply@" + e.SMTPHost
+		}
 	}
 
 	to := []string{e.TargetEmail}
@@ -218,6 +222,7 @@ func (e *EmailNotifier) Update(incoming *EmailNotifier) {
 	e.SMTPHost = incoming.SMTPHost
 	e.SMTPPort = incoming.SMTPPort
 	e.SMTPUser = incoming.SMTPUser
+	e.From = incoming.From
 
 	if incoming.SMTPPassword != "" {
 		e.SMTPPassword = incoming.SMTPPassword

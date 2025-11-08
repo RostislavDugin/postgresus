@@ -126,6 +126,35 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           placeholder="password"
         />
       </div>
+
+      <div className="mb-1 flex items-center">
+        <div className="w-[130px] min-w-[130px]">From</div>
+        <Input
+          value={notifier?.emailNotifier?.from || ''}
+          onChange={(e) => {
+            if (!notifier?.emailNotifier) return;
+
+            setNotifier({
+              ...notifier,
+              emailNotifier: {
+                ...notifier.emailNotifier,
+                from: e.target.value.trim(),
+              },
+            });
+            setIsUnsaved(true);
+          }}
+          size="small"
+          className="w-full max-w-[250px]"
+          placeholder="example@example.com"
+        />
+
+        <Tooltip
+          className="cursor-pointer"
+          title="Optional. Email address to use as sender. If empty, will use SMTP user or auto-generate from host"
+        >
+          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+        </Tooltip>
+      </div>
     </>
   );
 }

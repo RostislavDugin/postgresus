@@ -4,4 +4,5 @@ export interface EmailNotifier {
   smtpPort: number;
   smtpUser: string;
   smtpPassword: string;
+  from: string;
 }

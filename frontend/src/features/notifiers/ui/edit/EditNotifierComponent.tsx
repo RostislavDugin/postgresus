@@ -111,6 +111,7 @@ export function EditNotifierComponent({
         smtpPort: 0,
         smtpUser: '',
         smtpPassword: '',
+        from: '',
       };
     }
 

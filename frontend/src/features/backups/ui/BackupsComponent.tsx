@@ -25,7 +25,7 @@ import { getUserTimeFormat } from '../../../shared/time';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { RestoresComponent } from '../../restores';
 
-const BACKUPS_PAGE_SIZE = 10;
+const BACKUPS_PAGE_SIZE = 50;
 
 interface Props {
   database: Database;
