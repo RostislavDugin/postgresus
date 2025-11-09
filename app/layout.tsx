@@ -16,6 +16,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* DNS Prefetch & Preconnect for Analytics */}
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+        <link rel="dns-prefetch" href="https://mc.yandex.ru" />
+        <link
+          rel="preconnect"
+          href="https://www.googletagmanager.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preconnect"
+          href="https://mc.yandex.ru"
+          crossOrigin="anonymous"
+        />
+      </head>
+
       <body
         className={jost.className}
         style={{ fontFamily: "Jost, sans-serif" }}
