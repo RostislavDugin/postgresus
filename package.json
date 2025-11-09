@@ -1,20 +1,26 @@
 {
   "name": "postgresus-website",
-  "version": "1.0.0",
-  "description": "PostgreSQL backup and monitoring tool",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "build-css": "tailwindcss -i ./src/input.css -o ./styles.min.css --minify",
-    "watch-css": "tailwindcss -i ./src/input.css -o ./styles.min.css --watch",
-    "build": "npm run build-css"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
-  "author": "Postgresus",
-  "license": "MIT",
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "next": "16.0.1"
+  },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "prettier-plugin-tailwindcss": "^0.5.11",
-    "tailwindcss": "^3.4.16"
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1"
   }
 }
