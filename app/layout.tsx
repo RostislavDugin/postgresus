@@ -1,13 +1,6 @@
-import { Jost } from "next/font/google";
+/* eslint-disable @next/next/no-page-custom-font */
 import "./globals.css";
 import Script from "next/script";
-
-const jost = Jost({
-  weight: ["400", "500", "600", "700", "800"],
-  style: ["normal"],
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export default function RootLayout({
   children,
@@ -17,6 +10,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Google Fonts Preconnect */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+
         {/* DNS Prefetch & Preconnect for Analytics */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
@@ -33,10 +38,7 @@ export default function RootLayout({
         />
       </head>
 
-      <body
-        className={jost.className}
-        style={{ fontFamily: "Jost, sans-serif" }}
-      >
+      <body style={{ fontFamily: "Jost, sans-serif" }}>
         {children}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-GE01THYR9X"
