@@ -1,0 +1,183 @@
+# Postgresus - PostgreSQL Backup Tool
+
+> Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.
+
+## Project Information
+
+- Name: Postgresus
+- Type: Self-hosted PostgreSQL backup tool
+- License: Apache 2.0
+- Repository: https://github.com/RostislavDugin/postgresus
+- Website: https://postgresus.com
+- Community: https://t.me/postgresus_community
+
+## Key Features
+
+- Scheduled PostgreSQL backups (hourly, daily, weekly, monthly)
+- Multiple storage destinations: Local, S3, Cloudflare R2, Google Drive, Dropbox, NAS and more
+- Real-time notifications: Slack, Telegram, Discord, Microsoft Teams, Email, Webhooks and more
+- Database health monitoring with configurable health checks
+- Self-hosted via Docker with zero-config installation
+- Support for PostgreSQL versions 13, 14, 15, 16, 17 and 18
+- Backup compression (4-8x size reduction)
+- Open source and free
+
+## Documentation
+
+### Installation
+URL: /installation
+Content: Three installation methods - automated script, Docker run, Docker Compose
+
+### Password Reset
+URL: /password
+Content: How to reset user passwords using command-line tool
+
+### Storage Configuration
+URL: /storages
+Content: Overview of supported storage destinations
+
+#### Google Drive Storage
+URL: /storages/google-drive
+Content: Step-by-step guide to configure Google Drive storage with OAuth setup
+
+#### Cloudflare R2 Storage
+URL: /storages/cloudflare-r2
+Content: Guide to configure Cloudflare R2 S3-compatible storage
+
+### Notification Configuration
+URL: /notifiers
+Content: Overview of supported notification channels
+
+#### Slack Notifications
+URL: /notifiers/slack
+Content: How to set up Slack webhook notifications
+
+#### Microsoft Teams Notifications
+URL: /notifiers/teams
+Content: How to configure Teams webhook notifications
+
+## Technical Details
+
+### System Requirements
+- CPU: At least 1 core
+- RAM: Minimum 500 MB
+- Storage: 5 GB + backup storage space
+- Docker Engine 20.10+
+- Docker Compose v2.0+
+
+### Installation Options
+
+1. **Automated Script (Recommended for Linux)**
+   - Installs Docker and Docker Compose automatically
+   - Sets up Postgresus with auto-restart
+   - Installation directory: /opt/postgresus
+
+2. **Docker Run**
+   - Quick single-command deployment
+   - Data stored in ./postgresus-data
+   - Port: 4005
+
+3. **Docker Compose**
+   - Managed deployment with configuration file
+   - Automatic restart on system reboot
+
+### Backup Process
+
+1. Select schedule (hourly, daily, weekly, monthly, specific time)
+2. Configure database connection (host, port, credentials, version, SSL)
+3. Choose storage destination(s)
+4. Set up notification channels (optional)
+5. Automated backup execution with compression
+
+### Storage Destinations
+
+- **Local Storage**: Direct server/VPS storage
+- **S3**: Amazon S3 and S3-compatible services
+- **Cloudflare R2**: S3-compatible object storage
+- **Google Drive**: Cloud storage via Google Cloud API
+- **NAS**: Network-attached storage devices
+- **Dropbox**: Cloud storage integration
+- and more
+
+### Notification Channels
+
+- **Slack**: Via webhook integration
+- **Discord**: Channel notifications
+- **Telegram**: Bot-based notifications
+- **Microsoft Teams**: Workflow webhook integration
+- **Email**: SMTP-based email alerts
+- **Webhook**: Custom HTTP webhook integration
+- and more
+
+## Target Audience
+
+Postgresus is suitable for:
+- **Single Developers**: Managing personal projects and side projects
+- **DevOps Teams**: Maintaining production databases and infrastructure
+- **Organizations**: Requiring compliance, audit trails and enterprise backup solutions
+- **Startups**: Need reliable backups without enterprise costs
+- **System Administrators**: Managing multiple database environments
+- **IT Departments**: Seeking self-hosted backup solutions
+
+## Use Cases
+
+- Single developers managing personal projects
+- DevOps teams maintaining production databases
+- Organizations requiring compliance and audit trails
+- Self-hosted database backup solutions
+- Multi-environment database management
+- Automated disaster recovery preparation
+
+## Backup Features
+
+- **Compression**: Balanced compression with 4-8x size reduction
+- **Scheduling**: Flexible scheduling with exact time specification
+- **Health Checks**: Configurable database monitoring
+- **Multi-target**: Store backups to multiple destinations simultaneously
+- **Restoration**: One-click restore functionality
+- **Security**: All data stays within your infrastructure
+
+## FAQ
+
+### What is Postgresus?
+Apache 2.0 licensed, self-hosted service for backing up PostgreSQL v13-v18. Features frontend for scheduling, compression, multiple storage targets and team notifications. Designed to be more UX-friendly alternative to PgBackRest, Barman, pg_dump scripts and other traditional backup tools.
+
+### How is Postgresus different from PgBackRest, Barman or pg_dump?
+Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
+
+### Installation Time
+Typically less than 2 minutes on a standard VPS using the automated installer.
+
+### Backup Schedules
+Hourly, daily, weekly or monthly cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
+
+### Storage Space
+Archives saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Balanced compression typically shrinks dump size by 4-8x with ~20% runtime overhead.
+
+### Failure Notifications
+Real-time notifications via email, Slack, Telegram, webhooks, Mattermost, Discord and more. DevOps teams receive immediate alerts for successes and failures.
+
+### Security
+All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Open source allows full code inspection.
+
+## Developer Information
+
+- Docker Image: rostislavdugin/postgresus:latest
+- Default Port: 4005
+- Data Directory: ./postgresus-data or /postgresus-data
+- Configuration: Web-based UI
+- API: Internal backend API
+
+## Related Technologies
+
+- PostgreSQL: Supported versions 13-18
+- Docker: Containerization platform
+- pg_dump: PostgreSQL backup utility
+- S3 API: Storage protocol compatibility
+- OAuth 2.0: Google Drive authentication
+- Webhook: Notification integration protocol
+
+## Keywords
+
+PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation
+
