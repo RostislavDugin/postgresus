@@ -61,10 +61,7 @@ func (d *Database) TestConnection(logger *slog.Logger) error {
 }
 
 func (d *Database) HideSensitiveData() {
-	specificDB := d.getSpecificDatabase()
-	if specificDB != nil {
-		specificDB.HideSensitiveData()
-	}
+	d.getSpecificDatabase().HideSensitiveData()
 }
 
 func (d *Database) Update(incoming *Database) {

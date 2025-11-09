@@ -67,6 +67,10 @@ func (p *PostgresqlDatabase) TestConnection(logger *slog.Logger) error {
 }
 
 func (p *PostgresqlDatabase) HideSensitiveData() {
+	if p == nil {
+		return
+	}
+
 	p.Password = ""
 }
 
