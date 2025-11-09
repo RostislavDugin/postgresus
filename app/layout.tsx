@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-page-custom-font */
 import "./globals.css";
 import Script from "next/script";
 
@@ -10,18 +9,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Google Fonts Preconnect */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-
         {/* DNS Prefetch & Preconnect for Analytics */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
