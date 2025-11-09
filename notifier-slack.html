@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Minified TailwindCSS -->
+    <link rel="stylesheet" href="styles.min.css" />
+
+    <!-- Primary Meta Tags -->
+    <title>How to send notifications from Postgresus to Slack | Postgresus</title>
+    <meta name="title" content="How to send notifications from Postgresus to Slack | Postgresus" />
+    <meta
+      name="description"
+      content="Step-by-step guide to configure Slack notifications for PostgreSQL backups with Postgresus. Learn how to create Slack bot and get chat ID."
+    />
+    <meta
+      name="keywords"
+      content="Postgresus, Slack notifications, PostgreSQL backup, Slack bot, chat notifications, database backup"
+    />
+    <link rel="canonical" href="https://postgresus.com/notifier-slack" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+    <link rel="shortcut icon" href="favicon.ico" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="index.css" />
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GE01THYR9X"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-GE01THYR9X');
+    </script>
+  </head>
+
+  <body>
+    <!------------------ NAVBAR ------------------------->
+    <nav
+      class="fixed left-0 right-0 top-0 z-50 flex h-[60px] justify-center bg-white px-4 sm:h-[70px] md:h-[80px]"
+    >
+      <div
+        class="flex w-[320px] min-w-0 max-w-[320px] grow items-center border-b sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <a href="/" class="flex items-center">
+          <img
+            src="logo.svg"
+            loading="eager"
+            alt="Postgresus logo"
+            width="35"
+            height="35"
+            class="flex-shrink-0 sm:h-[40px] sm:w-[40px] md:h-[50px] md:w-[50px]"
+          />
+
+          <div class="ml-2 text-lg font-bold sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
+            Postgresus
+          </div>
+        </a>
+      </div>
+    </nav>
+    <!------------------ END OF NAVBAR ------------------>
+
+    <!------------------ MAIN CONTENT ------------------------->
+    <div class="flex justify-center py-[50px] pt-[110px] md:py-[100px] md:pt-[180px]">
+      <main
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="max-w-[800px]">
+          <h1 class="mb-6 max-w-[500px] text-2xl font-bold sm:text-4xl">
+            How to send notifications from Postgresus to Slack?
+          </h1>
+
+          <p class="mb-8 max-w-[500px] text-lg text-gray-700">
+            To send notifications to Slack you need to follow 2 steps:
+          </p>
+
+          <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="rounded-lg bg-blue-50 p-4">
+              <h3 class="mb-2 font-semibold text-blue-800">Step 1</h3>
+              <p class="text-blue-700">Create Slack bot</p>
+            </div>
+            <div class="rounded-lg bg-blue-50 p-4">
+              <h3 class="mb-2 font-semibold text-blue-800">Step 2</h3>
+              <p class="text-blue-700">Get chat ID (channel, group or user)</p>
+            </div>
+          </div>
+
+          <div class="space-y-8">
+            <!-- How to create Slack bot -->
+            <div class="pl-6">
+              <h2 class="mb-4 text-2xl font-semibold">How to create Slack bot?</h2>
+
+              <div class="space-y-4">
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >1</span
+                    >
+                    Create the app
+                  </h3>
+
+                  <div class="space-y-2">
+                    <p class="text-gray-700">
+                      Go to
+                      <a
+                        href="https://api.slack.com/apps"
+                        target="_blank"
+                        class="text-blue-600 underline hover:text-blue-800"
+                        >https://api.slack.com/apps</a
+                      >
+                    </p>
+
+                    <p class="text-gray-700">
+                      Choose <strong>"create an app"</strong> →
+                      <strong>"create an app from scratch"</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rounded-lg bg-orange-50 p-4">
+                  <div class="mb-2 font-semibold text-orange-800">After bot creation:</div>
+                </div>
+
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >2</span
+                    >
+                    Configure OAuth & Permissions
+                  </h3>
+                  <p class="mb-2 text-gray-700">Go to <strong>"OAuth & Permissions"</strong> tab</p>
+
+                  <img
+                    src="images/notifier-slack/image-1.png"
+                    alt="Step 1"
+                    class="mb-8 mt-5 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >3</span
+                    >
+                    Add bot scopes
+                  </h3>
+
+                  <p class="mb-2 text-gray-700">Add to bot scopes:</p>
+
+                  <ul class="ml-4 list-inside list-disc space-y-1 text-gray-700">
+                    <li><code class="rounded bg-gray-100 px-2 py-1 text-sm">im:write</code></li>
+                    <li><code class="rounded bg-gray-100 px-2 py-1 text-sm">chat:write</code></li>
+                    <li>
+                      <code class="rounded bg-gray-100 px-2 py-1 text-sm">channels:history</code>
+                    </li>
+                    <li>
+                      <code class="rounded bg-gray-100 px-2 py-1 text-sm">channels:join</code>
+                    </li>
+                  </ul>
+
+                  <img
+                    src="images/notifier-slack/image-2.png"
+                    alt="Step 1"
+                    class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+
+                <div class="border-l-4 border-green-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm text-white"
+                      >4</span
+                    >
+                    Install to workspace
+                  </h3>
+
+                  <p class="text-gray-700">
+                    Click <strong>"Install to {YOUR_WORKSPACE}"</strong> and complete steps
+                  </p>
+
+                  <img
+                    src="images/notifier-slack/image-3.png"
+                    alt="Step 1"
+                    class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- How to get chat ID -->
+            <div class="pl-6">
+              <h2 class="mb-4 text-2xl font-semibold">How to get chat ID?</h2>
+
+              <p class="mb-4 text-gray-700">You can send messages to:</p>
+              <ul class="mb-6 ml-4 list-inside list-disc space-y-1 text-gray-700">
+                <li>Public channel</li>
+                <li>Private channel</li>
+                <li>Group</li>
+                <li>Direct messages</li>
+              </ul>
+
+              <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <div class="mb-2 font-semibold text-yellow-800">⚠️ Warning</div>
+                <ul class="list-inside list-disc space-y-1 text-yellow-700">
+                  <li>
+                    For sending messages to <strong>private channel</strong> bot should be added via
+                    <code class="rounded bg-yellow-100 px-2 py-1 text-sm">@invite</code> command
+                  </li>
+                  <li>
+                    For sending messages to <strong>group</strong>, group should be created with bot
+                    initially
+                  </li>
+                </ul>
+              </div>
+
+              <div class="space-y-6">
+                <div class="border-l-4 border-indigo-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm text-white"
+                      >1</span
+                    >
+                    Get channel or group ID
+                  </h3>
+                  <div class="space-y-2">
+                    <p class="text-gray-700">Navigate to chat and take ID from URL</p>
+
+                    <div class="rounded-lg bg-gray-100 p-3">
+                      <p class="text-sm text-gray-600">
+                        💡 <strong>Tip:</strong> ID usually starts from
+                        <code class="rounded bg-gray-200 px-2 py-1 text-sm">"C"</code> letter
+                      </p>
+                    </div>
+
+                    <img
+                      src="images/notifier-slack/image-4.png"
+                      alt="Step 1"
+                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+
+                <div class="border-l-4 border-indigo-500 pl-6">
+                  <h3 class="mb-3 flex items-center text-xl font-semibold">
+                    <span
+                      class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-sm text-white"
+                      >2</span
+                    >
+                    Get user ID
+                  </h3>
+
+                  <div class="space-y-2">
+                    <p class="text-gray-700">
+                      Go to <strong>"Profile"</strong> and click
+                      <strong>"copy link to profile"</strong>
+                    </p>
+
+                    <img
+                      src="images/notifier-slack/image-5.png"
+                      alt="Step 1"
+                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                      loading="lazy"
+                    />
+
+                    <p class="text-gray-700">Then extract end part of URL, this is your user ID</p>
+
+                    <img
+                      src="images/notifier-slack/image-6.png"
+                      alt="Step 1"
+                      class="mb-8 mt-5 max-w-[500px] rounded-lg border border-gray-200 shadow-lg"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Final Step -->
+            <div class="max-w-[500px] rounded-lg border border-green-200 bg-green-50 p-6">
+              <h2 class="mb-3 text-xl font-semibold text-green-800">🎉 Setup Complete!</h2>
+              <p class="text-green-700">
+                Copy both token and ID to Postgresus, notification should appear and you're ready to
+                receive backup notifications in Slack!
+              </p>
+            </div>
+
+            <img
+              src="images/notifier-slack/image-7.png"
+              alt="Step 1"
+              class="mb-8 mt-5 max-w-[1000px] rounded-lg border border-gray-200 shadow-lg"
+              loading="lazy"
+            />
+          </div>
+
+          <!-- Navigation -->
+          <div class="mt-12 border-t border-gray-200 pt-8">
+            <a
+              href="/"
+              class="inline-flex items-center font-semibold text-blue-600 hover:text-blue-800"
+            >
+              ← Back to main page
+            </a>
+          </div>
+        </div>
+      </main>
+    </div>
+    <!------------------ END OF MAIN CONTENT ------------------>
+
+    <!------------------ FOOTER SECTION -------------------------------->
+    <div id="footer" class="flex justify-center bg-blue-600 py-[50px] md:py-[50px]">
+      <div
+        class="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]"
+      >
+        <div class="flex flex-col items-center space-y-4">
+          <div class="flex flex-wrap justify-center gap-6 text-white">
+            <a
+              href="https://github.com/RostislavDugin/postgresus"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              GitHub
+            </a>
+
+            <a
+              href="https://t.me/postgresus_community"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Community
+            </a>
+
+            <a
+              href="https://rostislav-dugin.com"
+              target="_blank"
+              class="transition-colors hover:text-blue-200"
+            >
+              Developer
+            </a>
+          </div>
+          <p class="text-center text-sm text-white">&copy; 2025 Postgresus. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+    <!------------------ END OF FOOTER SECTION ------------------------->
+
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript">
+      (function (m, e, t, r, i, k, a) {
+        m[i] =
+          m[i] ||
+          function () {
+            (m[i].a = m[i].a || []).push(arguments);
+          };
+        m[i].l = 1 * new Date();
+        for (var j = 0; j < document.scripts.length; j++) {
+          if (document.scripts[j].src === r) {
+            return;
+          }
+        }
+        ((k = e.createElement(t)),
+          (a = e.getElementsByTagName(t)[0]),
+          (k.async = 1),
+          (k.src = r),
+          a.parentNode.insertBefore(k, a));
+      })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=103482608', 'ym');
+
+      ym(103482608, 'init', {
+        ssr: true,
+        clickmap: true,
+        ecommerce: 'dataLayer',
+        accurateTrackBounce: true,
+        trackLinks: true,
+      });
+    </script>
+    <noscript
+      ><div>
+        <img
+          src="https://mc.yandex.ru/watch/103482608"
+          style="position: absolute; left: -9999px"
+          alt=""
+        /></div
+    ></noscript>
+    <!-- /Yandex.Metrika counter -->
+  </body>
+</html>
