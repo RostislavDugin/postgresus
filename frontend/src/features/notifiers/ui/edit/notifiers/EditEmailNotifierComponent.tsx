@@ -108,6 +108,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
       <div className="mb-1 flex items-center">
         <div className="w-[130px] min-w-[130px]">SMTP password</div>
         <Input
+          type="password"
           value={notifier?.emailNotifier?.smtpPassword || ''}
           onChange={(e) => {
             if (!notifier?.emailNotifier) return;
