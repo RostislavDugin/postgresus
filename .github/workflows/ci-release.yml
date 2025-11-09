@@ -185,7 +185,7 @@ jobs:
       - name: Run Go tests
         run: |
           cd backend
-          go test ./internal/...
+          go test -p=1 -count=1 -failfast ./internal/...
 
       - name: Stop test containers
         if: always()
