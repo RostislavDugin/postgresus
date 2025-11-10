@@ -32,6 +32,10 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    title: "Access management",
+    href: "/access-management",
+  },
+  {
     title: "Reset password",
     href: "/password",
   },
@@ -45,12 +49,29 @@ export default function DocsSidebarComponent() {
   >(new Set());
 
   const isActive = (href: string) => {
-    return pathname === href;
+    // Normalize paths by removing trailing slashes for comparison
+    const normalizedPathname =
+      pathname.endsWith("/") && pathname !== "/"
+        ? pathname.slice(0, -1)
+        : pathname;
+    const normalizedHref =
+      href.endsWith("/") && href !== "/" ? href.slice(0, -1) : href;
+    return normalizedPathname === normalizedHref;
   };
 
   const isParentActive = (item: NavItem) => {
     if (item.children) {
-      return item.children.some((child) => pathname === child.href);
+      const normalizedPathname =
+        pathname.endsWith("/") && pathname !== "/"
+          ? pathname.slice(0, -1)
+          : pathname;
+      return item.children.some((child) => {
+        const normalizedChildHref =
+          child.href.endsWith("/") && child.href !== "/"
+            ? child.href.slice(0, -1)
+            : child.href;
+        return normalizedPathname === normalizedChildHref;
+      });
     }
     return false;
   };
@@ -98,17 +119,17 @@ export default function DocsSidebarComponent() {
   };
 
   const renderSidebarContent = () => (
-    <nav className="space-y-1">
+    <nav className="space-y-0.5">
       {navItems.map((item) => (
         <div key={item.href}>
           <div className="flex items-center">
             <Link
               href={item.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md px-2 py-1.5 text-sm transition-colors ${
                 isActive(item.href)
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  ? "text-blue-600 font-medium"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
               {item.title}
@@ -116,26 +137,26 @@ export default function DocsSidebarComponent() {
             {item.children && (
               <button
                 onClick={() => toggleSection(item.href, !!item.children)}
-                className={`ml-1 rounded-lg p-2 transition-all duration-200 ${
+                className={`ml-1 rounded-md p-1 transition-all duration-200 ${
                   isActive(item.href)
-                    ? "text-blue-700 hover:bg-blue-100"
-                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    ? "text-gray-900"
+                    : "text-gray-400 hover:text-gray-600"
                 }`}
                 aria-label={`Toggle ${item.title} section`}
               >
                 <svg
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    isSectionExpanded(item.href) ? "rotate-180" : ""
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                    isSectionExpanded(item.href) ? "rotate-90" : ""
                   }`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  strokeWidth={2}
                 >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+                    d="M9 5l7 7-7 7"
                   />
                 </svg>
               </button>
@@ -143,22 +164,22 @@ export default function DocsSidebarComponent() {
           </div>
           {item.children && (
             <div
-              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              className={`overflow-hidden transition-all duration-200 ease-in-out ${
                 isSectionExpanded(item.href)
                   ? "max-h-96 opacity-100"
                   : "max-h-0 opacity-0"
               }`}
             >
-              <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
+              <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-200 pl-3">
                 {item.children.map((child) => (
                   <Link
                     key={child.href}
                     href={child.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                    className={`block rounded-md px-2 py-1.5 text-sm transition-colors ${
                       isActive(child.href)
-                        ? "bg-blue-50 text-blue-700 font-medium"
-                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        ? "text-blue-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
                     {child.title}

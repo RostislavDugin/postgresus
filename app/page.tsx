@@ -439,7 +439,7 @@ services:
               </div>
 
               <img
-                src="/images/index/backup-step-1.webp"
+                src="/images/index/backup-step-1.svg"
                 alt="Backup schedule configuration interface"
                 className="mt-5 rounded-lg border border-gray-200 shadow-lg md:ml-14 md:mt-10 lg:ml-0 lg:mt-0"
                 loading="lazy"
@@ -472,7 +472,7 @@ services:
               </div>
 
               <img
-                src="/images/index/backup-step-2.webp"
+                src="/images/index/backup-step-2.svg"
                 alt="Database configuration form"
                 className="mt-5 rounded-lg border border-gray-200 shadow-lg md:ml-14 md:mt-10 lg:ml-0 lg:mt-0"
                 loading="lazy"
@@ -504,7 +504,7 @@ services:
               </div>
 
               <img
-                src="/images/index/backup-step-3.webp"
+                src="/images/index/backup-step-3.svg"
                 alt="Storage options selection interface"
                 className="mt-5 rounded-lg border border-gray-200 shadow-lg md:ml-14 md:mt-10 lg:ml-0 lg:mt-0"
                 loading="lazy"
@@ -538,7 +538,7 @@ services:
             </div>
 
             <img
-              src="/images/index/backup-step-4.webp"
+              src="/images/index/backup-step-4.svg"
               alt="Notification settings configuration"
               className="mt-5 rounded-lg border border-gray-200 shadow-lg md:ml-14 md:mt-10 lg:ml-0 lg:mt-0"
               loading="lazy"
@@ -707,6 +707,66 @@ services:
               <div className="mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
                 Files are kept on VPS, cloud storages and other places. You can
                 choose any storage you. Files are always owned by you need
+              </div>
+            </div>
+
+            <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-xl font-bold md:text-2xl">
+                  Access management
+                </h3>
+                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-600 ml-auto mb-auto">
+                  for&nbsp;teams
+                </span>
+              </div>
+
+              <div className="flex max-h-[160px] justify-center sm:my-0 sm:h-[200px] sm:max-h-[200px] sm:pb-0 sm:pt-5">
+                <img
+                  className="max-h-[160px] mr-auto"
+                  src="/images/index/users.svg"
+                  alt="Access management"
+                  loading="lazy"
+                />
+              </div>
+
+              <div className="mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
+                Provide access for users to view or manage DBs. Suitable for
+                DevOps teams and developers.{" "}
+                <a
+                  href="/access-management#settings"
+                  className="font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  Read more →
+                </a>
+              </div>
+            </div>
+
+            <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-xl font-bold md:text-2xl">Audit logs</h3>
+                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-600 ml-auto mb-auto">
+                  for teams
+                </span>
+              </div>
+
+              <div className="flex h-[150px] max-h-[150px] justify-center sm:my-0 sm:h-[200px] sm:max-h-[200px] sm:pb-0 sm:pt-5">
+                <img
+                  className="max-h-[150px] sm:max-h-[150px] mr-auto"
+                  src="/images/index/audit-logs.svg"
+                  alt="Audit logs"
+                  loading="lazy"
+                />
+              </div>
+
+              <div className="sm:mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
+                Track all system activities with comprehensive audit logs. You
+                can view access and changes history for each user.{" "}
+                <a
+                  href="/access-management#audit-logs"
+                  className="font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  Read more →
+                </a>
               </div>
             </div>
           </div>
@@ -1019,6 +1079,25 @@ services:
                   built-in scheduling, compression, multiple storage
                   destinations, health monitoring and real-time notifications —
                   all managed through a simple web UI.
+                </p>
+              </div>
+
+              <div className="mb-8 w-full pr-10 lg:w-1/2">
+                <h3 className="mb-3 max-w-[350px] font-bold md:text-xl">
+                  11. Can I use Postgresus as an individual and as a team?
+                </h3>
+
+                <p className="max-w-[500px] md:text-lg">
+                  Yes, Postgresus works perfectly for both individual developers
+                  and teams. For individuals, you can manage all your databases
+                  with a simple, secure interface. For teams, Postgresus offers
+                  access management features that let you create multiple users
+                  with different permission levels (viewer, editor, admin). You
+                  can control who can view or manage specific databases, making
+                  it ideal for DevOps teams and development organizations.
+                  Additionally, audit logs track all system activities, showing
+                  who accessed what and when, which is essential for security
+                  compliance and team accountability.
                 </p>
               </div>
             </div>

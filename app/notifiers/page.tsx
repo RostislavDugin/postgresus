@@ -62,8 +62,6 @@ export default function NotifiersPage() {
                 url: "https://postgresus.com/logo.svg",
               },
             },
-            datePublished: "2025-01-01",
-            dateModified: "2025-01-01",
           }),
         }}
       />

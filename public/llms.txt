@@ -21,12 +21,18 @@
 - Support for PostgreSQL versions 13, 14, 15, 16, 17 and 18
 - Backup compression (4-8x size reduction)
 - Open source and free
+- Access management for workspaces and users
+- Suitable for single developers, DevOps teams, organizations, startups, system administrators and IT departments
 
 ## Documentation
 
 ### Installation
 URL: /installation
-Content: Three installation methods - automated script, Docker run, Docker Compose
+Content: Three installation methods - automated script, Docker run, Docker Compose. Here you can read how to install Postgresus
+
+### Access Management
+URL: /access-management
+Content: Workspaces, user roles, audit logs, and global settings for managing access control. Here you can read how to manage access to Postgresus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
 
 ### Password Reset
 URL: /password
@@ -34,7 +40,7 @@ Content: How to reset user passwords using command-line tool
 
 ### Storage Configuration
 URL: /storages
-Content: Overview of supported storage destinations
+Content: Overview of supported storage destinations. Here you can see which storages are supported and how to configure them.
 
 #### Google Drive Storage
 URL: /storages/google-drive
@@ -46,7 +52,7 @@ Content: Guide to configure Cloudflare R2 S3-compatible storage
 
 ### Notification Configuration
 URL: /notifiers
-Content: Overview of supported notification channels
+Content: Overview of supported notification channels. Here you can see which notifiers are supported and how to configure them.
 
 #### Slack Notifications
 URL: /notifiers/slack
