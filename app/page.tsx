@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { CopyButton } from "./components/CopyButton";
+import InstallationComponent from "./components/InstallationComponent";
 
 export const metadata: Metadata = {
   title: "Postgresus | PostgreSQL backup",
@@ -50,28 +50,6 @@ export const metadata: Metadata = {
 };
 
 export default function Index() {
-  const installScript = `sudo apt-get install -y curl && \\
-sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh | sudo bash`;
-
-  const dockerRun = `docker run -d \\
-  --name postgresus \\
-  -p 4005:4005 \\
-  -v ./postgresus-data:/postgresus-data \\
-  --restart unless-stopped \\
-  rostislavdugin/postgresus:latest`;
-
-  const dockerCompose = `version: "3"
-
-services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
-    ports:
-      - "4005:4005"
-    volumes:
-      - ./postgresus-data:/postgresus-data
-    restart: unless-stopped`;
-
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -780,7 +758,7 @@ services:
         className="flex justify-center py-[50px] md:py-[100px]"
       >
         <div className="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]">
-          <div className="mb-10 md:mb-20">
+          <div className="mb-10 md:mb-10">
             <h2 className="text-2xl font-bold sm:text-4xl">How to install?</h2>
 
             <p className="mt-5 max-w-[550px] text-base sm:text-lg">
@@ -789,116 +767,15 @@ services:
             </p>
           </div>
 
-          <div className="mt-20">
-            <div className="mb-16 block xl:flex">
-              <div className="w-full sm:pr-10 xl:w-1/2">
-                <h3 className="mb-3 text-xl font-bold md:text-2xl">
-                  Option 1: automated installation script (recommended)
-                </h3>
+          <InstallationComponent />
 
-                <p className="max-w-[500px] md:text-lg">
-                  The installation script will:
-                  <br />
-                  ✅ Install Docker with Docker Compose (if not already
-                  installed)
-                  <br />
-                  ✅ Set up Postgresus
-                  <br />✅ Configure automatic startup on system reboot
-                </p>
-
-                <div className="relative mt-5 max-w-[550px]">
-                  <code className="block w-full overflow-x-auto whitespace-nowrap rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-                    sudo apt-get install -y curl && \
-                    <br />
-                    sudo curl -sSL
-                    https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh
-                    \ | sudo bash
-                  </code>
-                  <div className="absolute right-2 top-2">
-                    <CopyButton text={installScript} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-20 w-full sm:pr-10 xl:mt-0 xl:w-1/2">
-                <h3 className="mb-3 text-xl font-bold md:text-2xl">
-                  Option 2: simple Docker run
-                </h3>
-
-                <p className="max-w-[500px] md:text-lg">
-                  The easiest way to run Postgresus with embedded PostgreSQL.
-                  This single command will:
-                  <br />
-                  ✅ Start Postgresus
-                  <br />
-                  ✅ Store all data in ./postgresus-data directory
-                  <br />✅ Automatically restart on system reboot
-                </p>
-
-                <div className="relative mt-5 max-w-[550px]">
-                  <code className="block w-full overflow-x-auto whitespace-nowrap rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-                    docker run -d \
-                    <br />
-                    &nbsp;&nbsp;--name postgresus \
-                    <br />
-                    &nbsp;&nbsp;-p 4005:4005 \
-                    <br />
-                    &nbsp;&nbsp;-v ./postgresus-data:/postgresus-data \
-                    <br />
-                    &nbsp;&nbsp;--restart unless-stopped \
-                    <br />
-                    &nbsp;&nbsp;rostislavdugin/postgresus:latest
-                  </code>
-                  <div className="absolute right-2 top-2">
-                    <CopyButton text={dockerRun} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="block xl:flex">
-              <div className="w-full sm:pr-10">
-                <h3 className="mb-3 text-xl font-bold md:text-2xl">
-                  Option 3: Docker Compose setup
-                </h3>
-
-                <p className="max-w-[500px] md:text-lg">
-                  Create a docker-compose.yml file with the following
-                  configuration, then run: <strong>docker compose up -d</strong>
-                </p>
-
-                <div className="relative mt-5 max-w-[550px]">
-                  <code className="block w-full overflow-x-auto whitespace-nowrap rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-                    version: &quot;3&quot;
-                    <br />
-                    <br />
-                    services:
-                    <br />
-                    &nbsp;&nbsp;postgresus:
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;container_name: postgresus
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;image:
-                    rostislavdugin/postgresus:latest
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;ports:
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- &quot;4005:4005&quot;
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;volumes:
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-
-                    ./postgresus-data:/postgresus-data
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;restart: unless-stopped
-                  </code>
-
-                  <div className="absolute right-2 top-2">
-                    <CopyButton text={dockerCompose} />
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="mt-4">
+            <a
+              href="/installation"
+              className="text-blue-600 hover:text-blue-700"
+            >
+              Read more about installation →
+            </a>
           </div>
         </div>
       </div>
