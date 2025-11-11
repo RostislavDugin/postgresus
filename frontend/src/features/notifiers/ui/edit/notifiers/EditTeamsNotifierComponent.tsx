@@ -30,7 +30,7 @@ export function EditTeamsNotifierComponent({ notifier, setNotifier, setIsUnsaved
       <div className="mb-1 ml-[130px] max-w-[200px]" style={{ lineHeight: 1 }}>
         <a
           className="text-xs !text-blue-600"
-          href="https://postgresus.com/notifier-teams"
+          href="https://postgresus.com/notifiers/teams"
           target="_blank"
           rel="noreferrer"
         >

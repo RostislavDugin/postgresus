@@ -40,13 +40,13 @@
 - **Precise timing**: run backups at specific times (e.g., 4 AM during low traffic)
 - **Smart compression**: 4-8x space savings with balanced compression (~20% overhead)
 
-### 🗄️ **Multiple Storage Destinations**
+### 🗄️ **Multiple Storage Destinations** <a href="https://postgresus.com/storages">(docs)</a>
 
 - **Local storage**: Keep backups on your VPS/server
 - **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox and more
 - **Secure**: All data stays under your control
 
-### 📱 **Smart Notifications**
+### 📱 **Smart Notifications** <a href="https://postgresus.com/notifiers">(docs)</a>
 
 - **Multiple channels**: Email, Telegram, Slack, Discord, webhooks
 - **Real-time updates**: Success and failure notifications
@@ -58,13 +58,20 @@
 - **SSL support**: Secure connections available
 - **Easy restoration**: One-click restore from any backup
 
+### 👥 **Suitable for Teams** <a href="https://postgresus.com/access-management">(docs)</a>
+
+- **Workspaces**: Group databases, notifiers and storages for different projects or teams
+- **Access management**: Control who can view or manage specific databases with role-based permissions
+- **Audit logs**: Track all system activities and changes made by users
+- **User roles**: Assign viewer, member, admin or owner roles within workspaces
+
 ### 🐳 **Self-Hosted & Secure**
 
 - **Docker-based**: Easy deployment and management
 - **Privacy-first**: All your data stays on your infrastructure
 - **Open source**: Apache 2.0 licensed, inspect every line of code
 
-### 📦 Installation
+### 📦 Installation <a href="https://postgresus.com/installation">(docs)</a>
 
 You have three ways to install Postgresus:
 
@@ -118,8 +125,6 @@ This single command will:
 Create a `docker-compose.yml` file with the following configuration:
 
 ```yaml
-version: "3"
-
 services:
   postgresus:
     container_name: postgresus
@@ -149,9 +154,9 @@ docker compose up -d
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications
 7. **Save and start**: Postgresus will validate settings and begin the backup schedule
 
-### 🔑 Resetting Admin Password
+### 🔑 Resetting Password <a href="https://postgresus.com/password">(docs)</a>
 
-If you need to reset the admin password, you can use the built-in password reset command:
+If you need to reset the password, you can use the built-in password reset command:
 
 ```bash
 docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"
@@ -169,4 +174,4 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! Read [contributing guide](contribute/README.md) for more details, prioerities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+Contributions are welcome! Read <a href="https://postgresus.com/contributing">contributing guide</a> for more details, prioerities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)

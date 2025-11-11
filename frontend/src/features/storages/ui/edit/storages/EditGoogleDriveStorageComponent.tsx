@@ -40,7 +40,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
         <div className="min-w-[110px]" />
 
         <div className="text-xs text-blue-600">
-          <a href="https://postgresus.com/google-drive-storage" target="_blank" rel="noreferrer">
+          <a href="https://postgresus.com/storages/google-drive" target="_blank" rel="noreferrer">
             How to connect Google Drive?
           </a>
         </div>
