@@ -39,6 +39,14 @@ const navItems: NavItem[] = [
     title: "Reset password",
     href: "/password",
   },
+  {
+    title: "Contribute",
+    href: "/contribute",
+    children: [
+      { title: "How to add storage", href: "/contribute/how-to-add-storage" },
+      { title: "How to add notifier", href: "/contribute/how-to-add-notifier" },
+    ],
+  },
 ];
 
 export default function DocsSidebarComponent() {

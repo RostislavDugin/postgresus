@@ -219,6 +219,11 @@ export default function Index() {
             <a className="hover:opacity-70" href="/installation">
               Docs
             </a>
+
+            <a className="hover:opacity-70" href="/contribute">
+              Contribute
+            </a>
+
             <a
               className="hover:opacity-70"
               href="https://t.me/postgresus_community"
