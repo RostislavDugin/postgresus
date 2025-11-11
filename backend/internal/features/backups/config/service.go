@@ -119,7 +119,6 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 
 func (s *BackupConfigService) IsStorageUsing(
 	user *users_models.User,
-	workspaceID uuid.UUID,
 	storageID uuid.UUID,
 ) (bool, error) {
 	_, err := s.storageService.GetStorage(user, storageID)

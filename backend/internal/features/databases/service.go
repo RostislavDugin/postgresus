@@ -219,7 +219,6 @@ func (s *DatabaseService) GetDatabasesByWorkspace(
 
 func (s *DatabaseService) IsNotifierUsing(
 	user *users_models.User,
-	workspaceID uuid.UUID,
 	notifierID uuid.UUID,
 ) (bool, error) {
 	_, err := s.notifierService.GetNotifier(user, notifierID)

@@ -271,7 +271,6 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 // @Tags databases
 // @Produce json
 // @Param id path string true "Notifier ID"
-// @Param workspace_id query string true "Workspace ID"
 // @Success 200 {object} map[string]bool
 // @Failure 400
 // @Failure 401
@@ -290,19 +289,7 @@ func (c *DatabaseController) IsNotifierUsing(ctx *gin.Context) {
 		return
 	}
 
-	workspaceIDStr := ctx.Query("workspace_id")
-	if workspaceIDStr == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id query parameter is required"})
-		return
-	}
-
-	workspaceID, err := uuid.Parse(workspaceIDStr)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
-		return
-	}
-
-	isUsing, err := c.databaseService.IsNotifierUsing(user, workspaceID, id)
+	isUsing, err := c.databaseService.IsNotifierUsing(user, id)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

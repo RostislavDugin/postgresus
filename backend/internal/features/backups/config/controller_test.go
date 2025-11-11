@@ -341,7 +341,7 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 				test_utils.MakeGetRequestAndUnmarshal(
 					t,
 					router,
-					"/api/v1/backup-configs/storage/"+storage.ID.String()+"/is-using?workspace_id="+workspace.ID.String(),
+					"/api/v1/backup-configs/storage/"+storage.ID.String()+"/is-using",
 					"Bearer "+testUserToken,
 					tt.expectedStatusCode,
 					&response,
@@ -354,7 +354,7 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 				testResp := test_utils.MakeGetRequest(
 					t,
 					router,
-					"/api/v1/backup-configs/storage/"+storage.ID.String()+"/is-using?workspace_id="+workspace.ID.String(),
+					"/api/v1/backup-configs/storage/"+storage.ID.String()+"/is-using",
 					"Bearer "+testUserToken,
 					tt.expectedStatusCode,
 				)
