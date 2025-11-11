@@ -128,6 +128,7 @@ export const EditDatabaseSpecificDataComponent = ({
               className="max-w-[200px] grow"
               placeholder="Select PG version"
               options={[
+                { label: '12', value: PostgresqlVersion.PostgresqlVersion12 },
                 { label: '13', value: PostgresqlVersion.PostgresqlVersion13 },
                 { label: '14', value: PostgresqlVersion.PostgresqlVersion14 },
                 { label: '15', value: PostgresqlVersion.PostgresqlVersion15 },

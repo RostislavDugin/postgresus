@@ -1,6 +1,6 @@
 This directory is needed only for development and CI\CD.
 
-We have to download and install all the PostgreSQL versions from 13 to 18 locally.
+We have to download and install all the PostgreSQL versions from 12 to 18 locally.
 This is needed so we can call pg_dump, pg_dumpall, etc. on each version of the PostgreSQL database.
 
 You do not need to install PostgreSQL fully with all the components.
@@ -8,6 +8,7 @@ We only need the client tools (pg_dump, pg_dumpall, psql, etc.) for each version
 
 We have to install the following:
 
+- PostgreSQL 12
 - PostgreSQL 13
 - PostgreSQL 14
 - PostgreSQL 15
@@ -72,6 +73,7 @@ The final directory structure should match:
 
 For example:
 
+- `./tools/postgresql/postgresql-12/bin/pg_dump`
 - `./tools/postgresql/postgresql-13/bin/pg_dump`
 - `./tools/postgresql/postgresql-14/bin/pg_dump`
 - `./tools/postgresql/postgresql-15/bin/pg_dump`

@@ -30,7 +30,7 @@ func GetPostgresqlExecutable(
 	return filepath.Join(basePath, executableName)
 }
 
-// VerifyPostgresesInstallation verifies that PostgreSQL versions 13-17 are installed
+// VerifyPostgresesInstallation verifies that PostgreSQL versions 12-18 are installed
 // in the current environment. Each version should be installed with the required
 // client tools (pg_dump, psql) available.
 // In development: ./tools/postgresql/postgresql-{VERSION}/bin
@@ -41,6 +41,7 @@ func VerifyPostgresesInstallation(
 	postgresesInstallDir string,
 ) {
 	versions := []PostgresqlVersion{
+		PostgresqlVersion12,
 		PostgresqlVersion13,
 		PostgresqlVersion14,
 		PostgresqlVersion15,

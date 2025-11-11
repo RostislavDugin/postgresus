@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo Downloading and installing PostgreSQL versions 13-18 for Windows...
+echo Downloading and installing PostgreSQL versions 12-18 for Windows...
 echo.
 
 :: Create downloads and postgresql directories if they don't exist
@@ -17,6 +17,7 @@ cd downloads
 set "BASE_URL=https://get.enterprisedb.com/postgresql"
 
 :: Define versions and their corresponding download URLs
+set "PG12_URL=%BASE_URL%/postgresql-12.20-1-windows-x64.exe"
 set "PG13_URL=%BASE_URL%/postgresql-13.16-1-windows-x64.exe"
 set "PG14_URL=%BASE_URL%/postgresql-14.13-1-windows-x64.exe"
 set "PG15_URL=%BASE_URL%/postgresql-15.8-1-windows-x64.exe"
@@ -25,7 +26,7 @@ set "PG17_URL=%BASE_URL%/postgresql-17.0-1-windows-x64.exe"
 set "PG18_URL=%BASE_URL%/postgresql-18.0-1-windows-x64.exe"
 
 :: Array of versions
-set "versions=13 14 15 16 17 18"
+set "versions=12 13 14 15 16 17 18"
 
 :: Download and install each version
 for %%v in (%versions%) do (
