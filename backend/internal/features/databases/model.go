@@ -67,6 +67,7 @@ func (d *Database) HideSensitiveData() {
 func (d *Database) Update(incoming *Database) {
 	d.Name = incoming.Name
 	d.Type = incoming.Type
+	d.Notifiers = incoming.Notifiers
 
 	switch d.Type {
 	case DatabaseTypePostgres:

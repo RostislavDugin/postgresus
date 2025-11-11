@@ -212,7 +212,7 @@ export function SettingsComponent({ contentHeight }: Props) {
           <div className="mt-3 text-sm text-gray-500">
             Read more about settings you can{' '}
             <a
-              href="https://postgresus.com/settings"
+              href="https://postgresus.com/access-management/#global-settings"
               target="_blank"
               rel="noreferrer"
               className="!text-blue-600"
@@ -230,23 +230,18 @@ export function SettingsComponent({ contentHeight }: Props) {
                 <code
                   className="flex-1 cursor-pointer transition-colors select-all hover:text-blue-600"
                   onClick={() => {
-                    window.open(
-                      `${getApplicationServer()}/api/v1/downdetect/is-available`,
-                      '_blank',
-                    );
+                    window.open(`${getApplicationServer()}/api/v1/system/health`, '_blank');
                   }}
                   title="Click to open in new tab"
                 >
-                  {getApplicationServer()}/api/v1/downdetect/is-available
+                  {getApplicationServer()}/api/v1/system/health
                 </code>
                 <Button
                   type="text"
                   size="small"
                   className="ml-2 opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={() => {
-                    navigator.clipboard.writeText(
-                      `${getApplicationServer()}/api/v1/downdetect/is-available`,
-                    );
+                    navigator.clipboard.writeText(`${getApplicationServer()}/api/v1/system/health`);
                     message.success('Health-check endpoint copied to clipboard');
                   }}
                 >
