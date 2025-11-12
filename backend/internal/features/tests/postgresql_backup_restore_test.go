@@ -69,6 +69,7 @@ func Test_BackupAndRestorePostgresql_RestoreIsSuccesful(t *testing.T) {
 		version string
 		port    string
 	}{
+		{"PostgreSQL 12", "12", env.TestPostgres12Port},
 		{"PostgreSQL 13", "13", env.TestPostgres13Port},
 		{"PostgreSQL 14", "14", env.TestPostgres14Port},
 		{"PostgreSQL 15", "15", env.TestPostgres15Port},

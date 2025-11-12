@@ -32,6 +32,17 @@ services:
     command: server /data --console-address ":9001"
 
   # Test PostgreSQL containers
+  test-postgres-12:
+    image: postgres:12
+    ports:
+      - "${TEST_POSTGRES_12_PORT}:5432"
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpassword
+    container_name: test-postgres-12
+    shm_size: 1gb
+
   test-postgres-13:
     image: postgres:13
     ports:
