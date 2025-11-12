@@ -33,6 +33,7 @@ type EnvVariables struct {
 	TestGoogleDriveClientSecret string `env:"TEST_GOOGLE_DRIVE_CLIENT_SECRET"`
 	TestGoogleDriveTokenJSON    string `env:"TEST_GOOGLE_DRIVE_TOKEN_JSON"`
 
+	TestPostgres12Port string `env:"TEST_POSTGRES_12_PORT"`
 	TestPostgres13Port string `env:"TEST_POSTGRES_13_PORT"`
 	TestPostgres14Port string `env:"TEST_POSTGRES_14_PORT"`
 	TestPostgres15Port string `env:"TEST_POSTGRES_15_PORT"`
@@ -145,6 +146,10 @@ func loadEnvVariables() {
 	env.TempFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "temp")
 
 	if env.IsTesting {
+		if env.TestPostgres12Port == "" {
+			log.Error("TEST_POSTGRES_12_PORT is empty")
+			os.Exit(1)
+		}
 		if env.TestPostgres13Port == "" {
 			log.Error("TEST_POSTGRES_13_PORT is empty")
 			os.Exit(1)

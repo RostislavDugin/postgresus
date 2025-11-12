@@ -70,10 +70,10 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		"--verbose", // Add verbose output to help with debugging
 	}
 
-	// Use zstd compression level 5 for PostgreSQL 15+ (better compression and speed)
-	// Fall back to gzip compression level 5 for older versions
-	if pg.Version == tools.PostgresqlVersion13 || pg.Version == tools.PostgresqlVersion14 ||
-		pg.Version == tools.PostgresqlVersion15 {
+	// Use zstd compression level 5 for PostgreSQL 16+ (better compression and speed)
+	// Fall back to gzip compression level 5 for older versions (12-15)
+	if pg.Version == tools.PostgresqlVersion12 || pg.Version == tools.PostgresqlVersion13 ||
+		pg.Version == tools.PostgresqlVersion14 || pg.Version == tools.PostgresqlVersion15 {
 		args = append(args, "-Z", "5")
 		uc.logger.Info("Using gzip compression level 5 (zstd not available)", "version", pg.Version)
 	} else {

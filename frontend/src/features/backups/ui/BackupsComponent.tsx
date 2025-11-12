@@ -175,6 +175,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
 
     try {
       await backupsApi.makeBackup(database.id);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setCurrentLimit(BACKUPS_PAGE_SIZE);
       setHasMore(true);
       await loadBackups(BACKUPS_PAGE_SIZE);

@@ -2,7 +2,7 @@
 
 set -e  # Exit on any error
 
-echo "Installing PostgreSQL client tools versions 13-18 for MacOS..."
+echo "Installing PostgreSQL client tools versions 12-18 for MacOS..."
 echo
 
 # Check if Homebrew is installed
@@ -31,6 +31,7 @@ brew install wget openssl readline zlib
 
 # PostgreSQL source URLs
 declare -A PG_URLS=(
+    ["12"]="https://ftp.postgresql.org/pub/source/v12.20/postgresql-12.20.tar.gz"
     ["13"]="https://ftp.postgresql.org/pub/source/v13.16/postgresql-13.16.tar.gz"
     ["14"]="https://ftp.postgresql.org/pub/source/v14.13/postgresql-14.13.tar.gz"
     ["15"]="https://ftp.postgresql.org/pub/source/v15.8/postgresql-15.8.tar.gz"
@@ -107,7 +108,7 @@ build_postgresql_client() {
 }
 
 # Build each version
-versions="13 14 15 16 17 18"
+versions="12 13 14 15 16 17 18"
 
 for version in $versions; do
     url=${PG_URLS[$version]}

@@ -127,6 +127,7 @@ jobs:
           TEST_GOOGLE_DRIVE_CLIENT_SECRET=${{ secrets.TEST_GOOGLE_DRIVE_CLIENT_SECRET }}
           TEST_GOOGLE_DRIVE_TOKEN_JSON=${{ secrets.TEST_GOOGLE_DRIVE_TOKEN_JSON }}
           # testing DBs
+          TEST_POSTGRES_12_PORT=5000
           TEST_POSTGRES_13_PORT=5001
           TEST_POSTGRES_14_PORT=5002
           TEST_POSTGRES_15_PORT=5003
@@ -154,6 +155,7 @@ jobs:
           timeout 60 bash -c 'until docker exec dev-db pg_isready -h localhost -p 5437 -U postgres; do sleep 2; done'
 
           # Wait for test databases
+          timeout 60 bash -c 'until nc -z localhost 5000; do sleep 2; done'
           timeout 60 bash -c 'until nc -z localhost 5001; do sleep 2; done'
           timeout 60 bash -c 'until nc -z localhost 5002; do sleep 2; done'
           timeout 60 bash -c 'until nc -z localhost 5003; do sleep 2; done'
