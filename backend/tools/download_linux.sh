@@ -5,7 +5,7 @@ set -e  # Exit on any error
 # Ensure non-interactive mode for apt
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing PostgreSQL client tools versions 13-18 for Linux (Debian/Ubuntu)..."
+echo "Installing PostgreSQL client tools versions 12-18 for Linux (Debian/Ubuntu)..."
 echo
 
 # Check if running on supported system
@@ -47,7 +47,7 @@ echo "Updating package list..."
 $SUDO apt-get update -qq -y
 
 # Install client tools for each version
-versions="13 14 15 16 17 18"
+versions="12 13 14 15 16 17 18"
 
 for version in $versions; do
     echo "Installing PostgreSQL $version client tools..."

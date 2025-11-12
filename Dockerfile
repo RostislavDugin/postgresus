@@ -77,7 +77,7 @@ ENV APP_VERSION=$APP_VERSION
 # Set production mode for Docker containers
 ENV ENV_MODE=production
 
-# Install PostgreSQL server and client tools (versions 13-17)
+# Install PostgreSQL server and client tools (versions 12-18)
 RUN apt-get update && apt-get install -y --no-install-recommends \
   wget ca-certificates gnupg lsb-release sudo gosu && \
   wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
@@ -85,7 +85,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   > /etc/apt/sources.list.d/pgdg.list && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-  postgresql-17 postgresql-18 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
+  postgresql-17 postgresql-18 postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
   postgresql-client-16 postgresql-client-17 postgresql-client-18 && \
   rm -rf /var/lib/apt/lists/*
 

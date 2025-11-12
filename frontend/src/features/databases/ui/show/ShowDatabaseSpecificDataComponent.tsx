@@ -5,6 +5,7 @@ interface Props {
 }
 
 const postgresqlVersionLabels = {
+  [PostgresqlVersion.PostgresqlVersion12]: '12',
   [PostgresqlVersion.PostgresqlVersion13]: '13',
   [PostgresqlVersion.PostgresqlVersion14]: '14',
   [PostgresqlVersion.PostgresqlVersion15]: '15',
