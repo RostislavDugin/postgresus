@@ -2,6 +2,7 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import { Input, Tooltip } from 'antd';
 
 import type { Notifier } from '../../../../../entity/notifiers';
+import { FormValidator } from '../../../../../shared/lib';
 
 interface Props {
   notifier: Notifier;
@@ -31,6 +32,12 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           size="small"
           className="w-full max-w-[250px]"
           placeholder="example@gmail.com"
+          status={
+            notifier?.emailNotifier?.targetEmail &&
+            !FormValidator.isValidEmail(notifier.emailNotifier.targetEmail)
+              ? 'error'
+              : undefined
+          }
         />
 
         <Tooltip className="cursor-pointer" title="The email where you want to receive the message">
@@ -102,6 +109,12 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
           size="small"
           className="w-full max-w-[250px]"
           placeholder="user@gmail.com"
+          status={
+            notifier?.emailNotifier?.smtpUser &&
+            !FormValidator.isValidEmail(notifier.emailNotifier.smtpUser)
+              ? 'error'
+              : undefined
+          }
         />
       </div>
 
