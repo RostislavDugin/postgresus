@@ -198,13 +198,13 @@ export default function Index() {
           <Image
             src="/logo.svg"
             alt="Postgresus logo"
-            width={35}
-            height={35}
-            className="h-auto w-[35px] shrink-0 sm:w-[40px] md:w-[50px]"
+            width={50}
+            height={50}
+            className="h-auto w-[35px] shrink-0 sm:w-[50px] md:w-[50px]"
             priority
           />
 
-          <div className="ml-2 select-none text-lg font-bold sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
+          <div className="select-none ml-1 text-lg font-bold sm:ml-3 sm:text-xl md:ml-3 md:text-2xl">
             Postgresus
           </div>
 
