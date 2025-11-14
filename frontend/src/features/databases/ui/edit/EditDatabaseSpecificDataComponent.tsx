@@ -103,6 +103,10 @@ export const EditDatabaseSpecificDataComponent = ({
   if (!editingDatabase.id && !editingDatabase.postgresql?.password) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.database) isAllFieldsFilled = false;
 
+  const isLocalhostDb =
+    editingDatabase.postgresql?.host?.includes('localhost') ||
+    editingDatabase.postgresql?.host?.includes('127.0.0.1');
+
   return (
     <div>
       {editingDatabase.type === DatabaseType.POSTGRES && (
@@ -169,6 +173,23 @@ export const EditDatabaseSpecificDataComponent = ({
               placeholder="Enter PG host"
             />
           </div>
+
+          {isLocalhostDb && (
+            <div className="mb-1 flex">
+              <div className="min-w-[150px]" />
+              <div className="max-w-[200px] text-xs text-gray-500">
+                Please{' '}
+                <a
+                  href="https://postgresus.com/faq#how-to-backup-localhost"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  read this document
+                </a>{' '}
+                to study how to backup local database
+              </div>
+            </div>
+          )}
 
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Port</div>

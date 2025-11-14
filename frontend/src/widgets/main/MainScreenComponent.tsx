@@ -124,11 +124,11 @@ export const MainScreenComponent = () => {
       <div className="mb-3 flex h-[60px] items-center rounded bg-white p-3 shadow">
         <div className="flex items-center gap-3 hover:opacity-80">
           <a href="https://postgresus.com" target="_blank" rel="noreferrer">
-            <img className="h-[45px] w-[45px]" src="/logo.svg" />
+            <img className="h-[40px] w-[40px]" src="/logo.svg" />
           </a>
         </div>
 
-        <div className="ml-4">
+        <div className="ml-5">
           {!isLoading && (
             <WorkspaceSelectionComponent
               workspaces={workspaces}

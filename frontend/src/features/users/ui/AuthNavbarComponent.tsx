@@ -5,7 +5,7 @@ export function AuthNavbarComponent() {
     <div className="m-3 flex h-[65px] items-center justify-center p-3 sm:justify-start">
       <div className="flex items-center gap-3 hover:opacity-80">
         <a href="https://postgresus.com" target="_blank" rel="noreferrer">
-          <img className="h-[35px] w-[35px]" src="/logo.svg" />
+          <img className="h-[45px] w-[45px]" src="/logo.svg" />
         </a>
 
         <div className="text-xl font-bold">
