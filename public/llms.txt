@@ -38,6 +38,10 @@ Content: Workspaces, user roles, audit logs, and global settings for managing ac
 URL: /password
 Content: How to reset user passwords using command-line tool
 
+### FAQ - Frequently Asked Questions
+URL: /faq
+Content: Frequently asked questions about Postgresus, including how to backup localhost databases, why Postgresus uses directory format with zstd compression instead of raw SQL dumps, and other common questions about installation, configuration, and backup strategies.
+
 ### Storage Configuration
 URL: /storages
 Content: Overview of supported storage destinations. Here you can see which storages are supported and how to configure them.

@@ -40,6 +40,10 @@ const navItems: NavItem[] = [
     href: "/password",
   },
   {
+    title: "FAQ",
+    href: "/faq",
+  },
+  {
     title: "Contribute",
     href: "/contribute",
     children: [
