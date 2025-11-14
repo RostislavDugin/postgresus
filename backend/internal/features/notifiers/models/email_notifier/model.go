@@ -76,9 +76,10 @@ func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string
 	)
 	body := message
 	fromHeader := fmt.Sprintf("From: %s\r\n", from)
+	toHeader := fmt.Sprintf("To: %s\r\n", e.TargetEmail)
 
 	// Combine all parts of the email
-	emailContent := []byte(fromHeader + subject + mime + body)
+	emailContent := []byte(fromHeader + toHeader + subject + mime + body)
 
 	addr := net.JoinHostPort(e.SMTPHost, fmt.Sprintf("%d", e.SMTPPort))
 	timeout := DefaultTimeout
