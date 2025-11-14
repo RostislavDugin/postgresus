@@ -204,7 +204,7 @@ export default function Index() {
             priority
           />
 
-          <div className="select-none ml-1 text-lg font-bold sm:ml-3 sm:text-xl md:ml-3 md:text-2xl">
+          <div className="select-none ml-2 text-lg font-bold sm:ml-3 sm:text-xl md:ml-3 md:text-2xl">
             Postgresus
           </div>
 
