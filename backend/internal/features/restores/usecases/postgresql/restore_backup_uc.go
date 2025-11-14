@@ -31,12 +31,13 @@ type RestorePostgresqlBackupUsecase struct {
 }
 
 func (uc *RestorePostgresqlBackupUsecase) Execute(
+	database *databases.Database,
 	backupConfig *backups_config.BackupConfig,
 	restore models.Restore,
 	backup *backups.Backup,
 	storage *storages.Storage,
 ) error {
-	if backup.Database.Type != databases.DatabaseTypePostgres {
+	if database.Type != databases.DatabaseTypePostgres {
 		return errors.New("database type not supported")
 	}
 
@@ -76,6 +77,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	}
 
 	return uc.restoreFromStorage(
+		database,
 		tools.GetPostgresqlExecutable(
 			pg.Version,
 			"pg_restore",
@@ -92,6 +94,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 
 // restoreFromStorage restores backup data from storage using pg_restore
 func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
+	database *databases.Database,
 	pgBin string,
 	args []string,
 	password string,
@@ -164,7 +167,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	// Add the temporary backup file as the last argument to pg_restore
 	args = append(args, tempBackupFile)
 
-	return uc.executePgRestore(ctx, pgBin, args, pgpassFile, pgConfig, backup)
+	return uc.executePgRestore(ctx, database, pgBin, args, pgpassFile, pgConfig)
 }
 
 // downloadBackupToTempFile downloads backup data from storage to a temporary file
@@ -240,11 +243,11 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 // executePgRestore executes the pg_restore command with proper environment setup
 func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 	ctx context.Context,
+	database *databases.Database,
 	pgBin string,
 	args []string,
 	pgpassFile string,
 	pgConfig *pgtypes.PostgresqlDatabase,
-	backup *backups.Backup,
 ) error {
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 	uc.logger.Info("Executing PostgreSQL restore command", "command", cmd.String())
@@ -293,7 +296,7 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 			return fmt.Errorf("restore cancelled due to shutdown")
 		}
 
-		return uc.handlePgRestoreError(waitErr, stderrOutput, pgBin, args, backup, pgConfig)
+		return uc.handlePgRestoreError(database, waitErr, stderrOutput, pgBin, args, pgConfig)
 	}
 
 	return nil
@@ -341,11 +344,11 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 
 // handlePgRestoreError processes and formats pg_restore errors
 func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
+	database *databases.Database,
 	waitErr error,
 	stderrOutput []byte,
 	pgBin string,
 	args []string,
-	backup *backups.Backup,
 	pgConfig *pgtypes.PostgresqlDatabase,
 ) error {
 	// Enhanced error handling for PostgreSQL connection and restore issues
@@ -416,8 +419,8 @@ func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
 				)
 			} else if containsIgnoreCase(stderrStr, "database") && containsIgnoreCase(stderrStr, "does not exist") {
 				backupDbName := "unknown"
-				if backup.Database != nil && backup.Database.Postgresql != nil && backup.Database.Postgresql.Database != nil {
-					backupDbName = *backup.Database.Postgresql.Database
+				if database.Postgresql != nil && database.Postgresql.Database != nil {
+					backupDbName = *database.Postgresql.Database
 				}
 
 				targetDbName := "unknown"

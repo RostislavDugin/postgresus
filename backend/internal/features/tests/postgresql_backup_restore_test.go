@@ -171,8 +171,6 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 		StorageID:  storage.ID,
 		Status:     backups.BackupStatusCompleted,
 		CreatedAt:  time.Now().UTC(),
-		Storage:    storage,
-		Database:   backupDb,
 	}
 
 	restoreID := uuid.New()
@@ -192,7 +190,7 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 
 	// Restore the backup
 	restoreBackupUC := usecases_postgresql_restore.GetRestorePostgresqlBackupUsecase()
-	err = restoreBackupUC.Execute(backupConfig, restore, completedBackup, storage)
+	err = restoreBackupUC.Execute(backupDb, backupConfig, restore, completedBackup, storage)
 	assert.NoError(t, err)
 
 	// Verify restored table exists

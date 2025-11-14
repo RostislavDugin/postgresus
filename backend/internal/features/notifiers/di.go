@@ -26,6 +26,9 @@ func GetNotifierService() *NotifierService {
 	return notifierService
 }
 
+func GetNotifierRepository() *NotifierRepository {
+	return notifierRepository
+}
 func SetupDependencies() {
 	workspaces_services.GetWorkspaceService().AddWorkspaceDeletionListener(notifierService)
 }

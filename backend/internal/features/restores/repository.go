@@ -62,8 +62,6 @@ func (r *RestoreRepository) FindByStatus(status enums.RestoreStatus) ([]*models.
 
 	if err := storage.
 		GetDb().
-		Preload("Backup.Storage").
-		Preload("Backup.Database").
 		Preload("Backup").
 		Preload("Postgresql").
 		Where("status = ?", status).

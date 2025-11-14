@@ -44,11 +44,8 @@ func Test_MakeBackupForDbHavingBackupDayAgo_BackupCreated(t *testing.T) {
 
 	// add old backup
 	backupRepository.Save(&Backup{
-		Database:   database,
 		DatabaseID: database.ID,
-
-		Storage:   storage,
-		StorageID: storage.ID,
+		StorageID:  storage.ID,
 
 		Status: BackupStatusCompleted,
 
@@ -105,11 +102,8 @@ func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
 
 	// add recent backup (1 hour ago)
 	backupRepository.Save(&Backup{
-		Database:   database,
 		DatabaseID: database.ID,
-
-		Storage:   storage,
-		StorageID: storage.ID,
+		StorageID:  storage.ID,
 
 		Status: BackupStatusCompleted,
 
@@ -169,11 +163,8 @@ func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T)
 	// add failed backup
 	failMessage := "backup failed"
 	backupRepository.Save(&Backup{
-		Database:   database,
 		DatabaseID: database.ID,
-
-		Storage:   storage,
-		StorageID: storage.ID,
+		StorageID:  storage.ID,
 
 		Status:      BackupStatusFailed,
 		FailMessage: &failMessage,
@@ -234,11 +225,8 @@ func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 	// add failed backup
 	failMessage := "backup failed"
 	backupRepository.Save(&Backup{
-		Database:   database,
 		DatabaseID: database.ID,
-
-		Storage:   storage,
-		StorageID: storage.ID,
+		StorageID:  storage.ID,
 
 		Status:      BackupStatusFailed,
 		FailMessage: &failMessage,
@@ -262,7 +250,7 @@ func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 	}
 
 	databases.RemoveTestDatabase(database)
-	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
+	time.Sleep(100 * time.Millisecond) // Wait for cascading deletes
 	notifiers.RemoveTestNotifier(notifier)
 	storages.RemoveTestStorage(storage.ID)
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -300,11 +288,8 @@ func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *tes
 
 	for i := 0; i < 3; i++ {
 		backupRepository.Save(&Backup{
-			Database:   database,
 			DatabaseID: database.ID,
-
-			Storage:   storage,
-			StorageID: storage.ID,
+			StorageID:  storage.ID,
 
 			Status:      BackupStatusFailed,
 			FailMessage: &failMessage,

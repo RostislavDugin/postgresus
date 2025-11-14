@@ -210,7 +210,7 @@ export const DatabaseConfigComponent = ({
             Last backup error
           </div>
 
-          <div className="mt-3 text-sm">
+          <div className="mt-3 text-sm break-words whitespace-pre-wrap">
             The error:
             <br />
             {database.lastBackupErrorMessage}

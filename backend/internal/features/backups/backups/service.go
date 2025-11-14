@@ -149,11 +149,16 @@ func (s *BackupService) DeleteBackup(
 		return err
 	}
 
-	if backup.Database.WorkspaceID == nil {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return err
+	}
+
+	if database.WorkspaceID == nil {
 		return errors.New("cannot delete backup for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*backup.Database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -168,11 +173,11 @@ func (s *BackupService) DeleteBackup(
 	s.auditLogService.WriteAuditLog(
 		fmt.Sprintf(
 			"Backup deleted for database: %s (ID: %s)",
-			backup.Database.Name,
+			database.Name,
 			backupID.String(),
 		),
 		&user.ID,
-		backup.Database.WorkspaceID,
+		database.WorkspaceID,
 	)
 
 	return s.deleteBackup(backup)
@@ -220,10 +225,7 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 
 	backup := &Backup{
 		DatabaseID: databaseID,
-		Database:   database,
-
-		StorageID: storage.ID,
-		Storage:   storage,
+		StorageID:  storage.ID,
 
 		Status: BackupStatusInProgress,
 
@@ -427,11 +429,16 @@ func (s *BackupService) CancelBackup(
 		return err
 	}
 
-	if backup.Database.WorkspaceID == nil {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return err
+	}
+
+	if database.WorkspaceID == nil {
 		return errors.New("cannot cancel backup for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*backup.Database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -450,11 +457,11 @@ func (s *BackupService) CancelBackup(
 	s.auditLogService.WriteAuditLog(
 		fmt.Sprintf(
 			"Backup cancelled for database: %s (ID: %s)",
-			backup.Database.Name,
+			database.Name,
 			backupID.String(),
 		),
 		&user.ID,
-		backup.Database.WorkspaceID,
+		database.WorkspaceID,
 	)
 
 	return nil
@@ -469,12 +476,17 @@ func (s *BackupService) GetBackupFile(
 		return nil, err
 	}
 
-	if backup.Database.WorkspaceID == nil {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if database.WorkspaceID == nil {
 		return nil, errors.New("cannot download backup for database without workspace")
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
-		*backup.Database.WorkspaceID,
+		*database.WorkspaceID,
 		user,
 	)
 	if err != nil {
@@ -492,11 +504,11 @@ func (s *BackupService) GetBackupFile(
 	s.auditLogService.WriteAuditLog(
 		fmt.Sprintf(
 			"Backup file downloaded for database: %s (ID: %s)",
-			backup.Database.Name,
+			database.Name,
 			backupID.String(),
 		),
 		&user.ID,
-		backup.Database.WorkspaceID,
+		database.WorkspaceID,
 	)
 
 	return storage.GetFile(backup.ID)

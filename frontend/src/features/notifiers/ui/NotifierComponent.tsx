@@ -198,7 +198,7 @@ export const NotifierComponent = ({
                   {notifier.lastSendError}
                 </div>
 
-                <div className="mt-3 text-sm text-gray-500">
+                <div className="mt-3 text-sm break-words whitespace-pre-wrap text-gray-500">
                   To clean this error (choose any):
                   <ul>
                     <li>

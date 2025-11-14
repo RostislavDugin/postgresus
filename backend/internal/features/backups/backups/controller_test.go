@@ -512,9 +512,7 @@ func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
 	backup := &Backup{
 		ID:               uuid.New(),
 		DatabaseID:       database.ID,
-		Database:         database,
 		StorageID:        storage.ID,
-		Storage:          storage,
 		Status:           BackupStatusInProgress,
 		BackupSizeMb:     0,
 		BackupDurationMs: 0,
@@ -686,9 +684,7 @@ func createTestBackup(
 	backup := &Backup{
 		ID:               uuid.New(),
 		DatabaseID:       database.ID,
-		Database:         database,
 		StorageID:        storages[0].ID,
-		Storage:          storages[0],
 		Status:           BackupStatusCompleted,
 		BackupSizeMb:     10.5,
 		BackupDurationMs: 1000,

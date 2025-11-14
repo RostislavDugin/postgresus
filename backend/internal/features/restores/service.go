@@ -62,12 +62,17 @@ func (s *RestoreService) GetRestores(
 		return nil, err
 	}
 
-	if backup.Database.WorkspaceID == nil {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if database.WorkspaceID == nil {
 		return nil, errors.New("cannot get restores for database without workspace")
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
-		*backup.Database.WorkspaceID,
+		*database.WorkspaceID,
 		user,
 	)
 	if err != nil {
@@ -90,12 +95,17 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
-	if backup.Database.WorkspaceID == nil {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return err
+	}
+
+	if database.WorkspaceID == nil {
 		return errors.New("cannot restore backup for database without workspace")
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
-		*backup.Database.WorkspaceID,
+		*database.WorkspaceID,
 		user,
 	)
 	if err != nil {
@@ -135,10 +145,10 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		fmt.Sprintf(
 			"Database restored from backup %s for database: %s",
 			backupID.String(),
-			backup.Database.Name,
+			database.Name,
 		),
 		&user.ID,
-		backup.Database.WorkspaceID,
+		database.WorkspaceID,
 	)
 
 	return nil
@@ -152,7 +162,12 @@ func (s *RestoreService) RestoreBackup(
 		return errors.New("backup is not completed")
 	}
 
-	if backup.Database.Type == databases.DatabaseTypePostgres {
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
+	if err != nil {
+		return err
+	}
+
+	if database.Type == databases.DatabaseTypePostgres {
 		if requestDTO.PostgresqlDatabase == nil {
 			return errors.New("postgresql database is required")
 		}
@@ -193,7 +208,7 @@ func (s *RestoreService) RestoreBackup(
 	}
 
 	backupConfig, err := s.backupConfigService.GetBackupConfigByDbId(
-		backup.Database.ID,
+		database.ID,
 	)
 	if err != nil {
 		return err
@@ -204,6 +219,7 @@ func (s *RestoreService) RestoreBackup(
 	err = s.restoreBackupUsecase.Execute(
 		backupConfig,
 		restore,
+		database,
 		backup,
 		storage,
 	)

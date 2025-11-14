@@ -165,7 +165,6 @@ func (r *NotifierRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Notifi
 
 func (r *NotifierRepository) Delete(notifier *Notifier) error {
 	return storage.GetDb().Transaction(func(tx *gorm.DB) error {
-
 		switch notifier.NotifierType {
 		case NotifierTypeTelegram:
 			if notifier.TelegramNotifier != nil {

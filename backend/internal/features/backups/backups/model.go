@@ -1,8 +1,6 @@
 package backups
 
 import (
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/storages"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,11 +9,8 @@ import (
 type Backup struct {
 	ID uuid.UUID `json:"id" gorm:"column:id;type:uuid;primaryKey"`
 
-	Database   *databases.Database `json:"database"   gorm:"foreignKey:DatabaseID"`
-	DatabaseID uuid.UUID           `json:"databaseId" gorm:"column:database_id;type:uuid;not null"`
-
-	Storage   *storages.Storage `json:"storage"   gorm:"foreignKey:StorageID"`
-	StorageID uuid.UUID         `json:"storageId" gorm:"column:storage_id;type:uuid;not null"`
+	DatabaseID uuid.UUID `json:"databaseId" gorm:"column:database_id;type:uuid;not null"`
+	StorageID  uuid.UUID `json:"storageId"  gorm:"column:storage_id;type:uuid;not null"`
 
 	Status      BackupStatus `json:"status"      gorm:"column:status;not null"`
 	FailMessage *string      `json:"failMessage" gorm:"column:fail_message"`

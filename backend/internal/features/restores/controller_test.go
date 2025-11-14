@@ -323,9 +323,7 @@ func createTestBackup(
 	backup := &backups.Backup{
 		ID:               uuid.New(),
 		DatabaseID:       database.ID,
-		Database:         database,
 		StorageID:        storages[0].ID,
-		Storage:          storages[0],
 		Status:           backups.BackupStatusCompleted,
 		BackupSizeMb:     10.5,
 		BackupDurationMs: 1000,
