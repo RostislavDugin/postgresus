@@ -516,7 +516,10 @@ func (s *BackupService) deleteBackup(backup *Backup) error {
 
 	err = storage.DeleteFile(backup.ID)
 	if err != nil {
-		return err
+		// we do not return error here, because sometimes clean up performed
+		// before unavailable storage removal or change - therefore we should
+		// proceed even in case of error
+		s.logger.Error("Failed to delete backup file", "error", err)
 	}
 
 	return s.backupRepository.DeleteByID(backup.ID)
