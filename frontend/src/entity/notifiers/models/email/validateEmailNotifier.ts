@@ -1,8 +1,7 @@
-import { FormValidator } from '../../../../shared/lib';
 import type { EmailNotifier } from './EmailNotifier';
 
 export const validateEmailNotifier = (isCreate: boolean, notifier: EmailNotifier): boolean => {
-  if (!notifier.targetEmail || !FormValidator.isValidEmail(notifier.targetEmail)) {
+  if (!notifier.targetEmail) {
     return false;
   }
 
@@ -15,10 +14,6 @@ export const validateEmailNotifier = (isCreate: boolean, notifier: EmailNotifier
   }
 
   if (isCreate && !notifier.smtpPassword) {
-    return false;
-  }
-
-  if (notifier.smtpUser && !FormValidator.isValidEmail(notifier.smtpUser)) {
     return false;
   }
 
