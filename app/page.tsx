@@ -262,8 +262,8 @@ export default function Index() {
       {/* END OF NAVBAR */}
 
       {/* MAIN SECTION */}
-      <div className="flex justify-center py-[50px] pt-[110px] md:py-[100px] md:pt-[180px]">
-        <main className="w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:flex lg:w-[1200px] lg:max-w-[1200px]">
+      <div className="flex justify-center">
+        <main className="w-[320px] py-[50px] pt-[110px] md:py-[100px] md:pt-[180px] border-blue-600 max-w-[320px] sm:w-[640px] border-b sm:max-w-[640px] lg:flex lg:w-[1200px] lg:max-w-[1200px]">
           <div className="lg:w-[500px] lg:min-w-[500px]">
             <h1 className="max-w-[300px] text-2xl font-bold sm:max-w-[400px] sm:text-3xl">
               PostgreSQL backup tool
@@ -378,6 +378,98 @@ export default function Index() {
         </main>
       </div>
       {/* END OF MAIN SECTION */}
+
+      {/* OVERVIEW SECTION */}
+      <div className="bg-linear-to-b from-white to-gray-50 py-12 sm:py-16 md:py-20">
+        <div className="flex justify-center">
+          <div className="flex flex-col gap-6 lg:flex-row lg:gap-8 w-[320px] max-w-[320px] sm:w-[640px] sm:max-w-[640px] lg:w-[1200px] lg:max-w-[1200px]">
+            {/* Quote Section */}
+            <div className="flex-1 rounded-lg border border-blue-600 bg-linear-to-br p-5 shadow-lg md:p-6">
+              <div className="space-y-3 text-base leading-relaxed md:text-base">
+                <p className="mb-5">
+                  I am backuping a lot of databases for my projects. Before I
+                  used manual written scripts with{" "}
+                  <span className="text-gray-700">
+                    <code>pg_dump</code>
+                  </span>{" "}
+                  and it was a pain: I have to manage them, maintain, care about
+                  whether they are really working.
+                </p>
+
+                <p className="mb-5">
+                  So I decided to create Postgresus:{" "}
+                  <span className="underline decoration-blue-600 decoration-2">
+                    to make scheduled backups of tens of DBs via simple UI
+                  </span>{" "}
+                  and receive notifications when backups are done or failed.
+                  Moreover, it was important to me to make{" "}
+                  <b>Postgresus easy deployable within 2 minutes</b>.
+                </p>
+
+                <p>
+                  Now I really happy to say that I use it it production and it
+                  works great! Also, now I can share access to backups with my
+                  team that may be useful for DevOps and DBAs teams as well.
+                </p>
+
+                <p>
+                  By the way, the project is written in Go. If you like what
+                  I&apos;ve created — please star it on GitHub ⭐. It&apos;s
+                  really will help me.
+                </p>
+
+                <div className="mt-5 flex items-center gap-3 border-t border-blue-200 pt-3">
+                  <img
+                    src="/images/index/rostislav.png"
+                    alt="Rostislav Dugin"
+                    loading="lazy"
+                    className="h-12 w-12 shrink-0 rounded-full object-cover"
+                  />
+
+                  <div>
+                    <a
+                      href="https://rostislav-dugin.com"
+                      target="_blank"
+                      className="font-semibold text-blue-600 transition-colors hover:text-blue-700"
+                    >
+                      Rostislav Dugin
+                    </a>
+                    <p className="text-sm text-gray-600">
+                      Developer of Postgresus
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Video Section */}
+            <div className="flex-1">
+              <div className="">
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg shadow">
+                  <iframe
+                    src="https://www.youtube.com/embed/1qsAnijJfJE?si=LgbFoNc_Xg5C1saW"
+                    title="How to use Postgresus (overview)?"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </div>
+
+                <h3 className="mb-1 mt-5 text-xl font-semibold md:text-xl">
+                  How to use Postgresus (overview)?
+                </h3>
+
+                <p>
+                  Watch in this short 4 minutes video how to use Postgresus: how
+                  connect datase, how to configure backups schedule, how to
+                  download and restore backups, how to add team members and what
+                  is users&apos; audit logs
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* HOW TO MAKE BACKUPS SECTION */}
       <div id="guide" className="flex justify-center py-[50px] md:py-[100px]">
@@ -781,6 +873,24 @@ export default function Index() {
             >
               Read more about installation →
             </a>
+          </div>
+
+          <div className="mt-12">
+            <p className="mb-6 text-base sm:text-lg">
+              Also you can watch the video with guide how to install Postgresus
+              on VPS (all 3 ways)
+            </p>
+            <div className="max-w-[800px]">
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg shadow-lg">
+                <iframe
+                  src="https://www.youtube.com/embed/1qsAnijJfJE?si=KCa_IhCtPbOv5XfO"
+                  title="How to install Postgresus on VPS"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
