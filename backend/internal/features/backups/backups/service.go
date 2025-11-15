@@ -366,6 +366,11 @@ func (s *BackupService) SendBackupNotification(
 		return
 	}
 
+	workspace, err := s.workspaceService.GetWorkspaceByID(*database.WorkspaceID)
+	if err != nil {
+		return
+	}
+
 	for _, notifier := range database.Notifiers {
 		if !slices.Contains(
 			backupConfig.SendNotificationsOn,
@@ -377,9 +382,17 @@ func (s *BackupService) SendBackupNotification(
 		title := ""
 		switch notificationType {
 		case backups_config.NotificationBackupFailed:
-			title = fmt.Sprintf("❌ Backup failed for database \"%s\"", database.Name)
+			title = fmt.Sprintf(
+				"❌ Backup failed for database \"%s\" (workspace \"%s\")",
+				database.Name,
+				workspace.Name,
+			)
 		case backups_config.NotificationBackupSuccess:
-			title = fmt.Sprintf("✅ Backup completed for database \"%s\"", database.Name)
+			title = fmt.Sprintf(
+				"✅ Backup completed for database \"%s\" (workspace \"%s\")",
+				database.Name,
+				workspace.Name,
+			)
 		}
 
 		message := ""

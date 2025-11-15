@@ -309,7 +309,7 @@ func (s *WorkspaceService) GetAllWorkspaces() ([]*workspaces_models.Workspace, e
 	return s.workspaceRepository.GetAllWorkspaces()
 }
 
-func (s *WorkspaceService) GetWorkspaceByIDInternal(
+func (s *WorkspaceService) GetWorkspaceByID(
 	workspaceID uuid.UUID,
 ) (*workspaces_models.Workspace, error) {
 	return s.workspaceRepository.GetWorkspaceByID(workspaceID)

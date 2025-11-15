@@ -9,6 +9,7 @@ import (
 	"postgresus-backend/internal/features/storages"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_testing "postgresus-backend/internal/features/users/testing"
+	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
 	"postgresus-backend/internal/util/logger"
 	"strings"
@@ -55,7 +56,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateFailedBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
-			nil, // workspaceService
+			workspaces_services.GetWorkspaceService(),
 			nil, // auditLogService
 			NewBackupContextManager(),
 		}
@@ -101,7 +102,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
-			nil, // workspaceService
+			workspaces_services.GetWorkspaceService(),
 			nil, // auditLogService
 			NewBackupContextManager(),
 		}
@@ -124,7 +125,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
-			nil, // workspaceService
+			workspaces_services.GetWorkspaceService(),
 			nil, // auditLogService
 			NewBackupContextManager(),
 		}
