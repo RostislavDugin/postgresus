@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import InstallationComponent from "./components/InstallationComponent";
+import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 
 export const metadata: Metadata = {
   title: "Postgresus | PostgreSQL backup",
@@ -445,15 +446,11 @@ export default function Index() {
             {/* Video Section */}
             <div className="flex-1">
               <div className="">
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg shadow">
-                  <iframe
-                    src="https://www.youtube.com/embed/1qsAnijJfJE?si=LgbFoNc_Xg5C1saW"
-                    title="How to use Postgresus (overview)?"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="absolute inset-0 h-full w-full"
-                  />
-                </div>
+                <LiteYouTubeEmbed
+                  videoId="1qsAnijJfJE"
+                  title="How to use Postgresus (overview)?"
+                  thumbnailSrc="/images/index/how-to-use-preview.png"
+                />
 
                 <h3 className="mb-1 mt-5 text-xl font-semibold md:text-xl">
                   How to use Postgresus (overview)?
@@ -881,15 +878,11 @@ export default function Index() {
               on VPS (all 3 ways)
             </p>
             <div className="max-w-[800px]">
-              <div className="relative aspect-video w-full overflow-hidden rounded-lg shadow-lg">
-                <iframe
-                  src="https://www.youtube.com/embed/1qsAnijJfJE?si=KCa_IhCtPbOv5XfO"
-                  title="How to install Postgresus on VPS"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="absolute inset-0 h-full w-full"
-                />
-              </div>
+              <LiteYouTubeEmbed
+                videoId="1qsAnijJfJE"
+                title="How to install Postgresus on VPS"
+                thumbnailSrc="/images/index/how-to-install-preview.png"
+              />
             </div>
           </div>
         </div>
