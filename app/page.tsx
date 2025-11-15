@@ -879,7 +879,7 @@ export default function Index() {
             </p>
             <div className="max-w-[800px]">
               <LiteYouTubeEmbed
-                videoId="1qsAnijJfJE"
+                videoId="KaNLPkuu03M"
                 title="How to install Postgresus on VPS"
                 thumbnailSrc="/images/index/how-to-install-preview.png"
               />

@@ -77,7 +77,15 @@ export default function FAQPage() {
                 name: "Why does Postgresus not use raw SQL dump format?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus uses the directory format with zstd compression because it provides the most efficient backup and restore speed after extensive testing. The directory format with zstd compression level 5 offers the optimal balance between backup creation speed, restore speed, and file size.",
+                  text: "Postgresus uses the directory format with zstd compression because it provides the most efficient backup and restore speed after extensive testing. The directory format with zstd compression level 5 offers the optimal balance between backup creation speed, restore speed and file size.",
+                },
+              },
+              {
+                "@type": "Question",
+                name: "Where is Postgresus installed?",
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: "Postgresus is installed in /opt/postgresus/",
                 },
               },
             ],
@@ -99,7 +107,7 @@ export default function FAQPage() {
 
               <p className="text-lg text-gray-700">
                 Find answers to the most common questions about Postgresus,
-                including installation, configuration, and backup strategies.
+                including installation, configuration and backup strategies.
               </p>
 
               <h2 id="how-to-backup-localhost">
@@ -219,6 +227,15 @@ export default function FAQPage() {
               <p>
                 As for Nov 2025 Postgresus is going to add incremental backups
                 support. So this is priority in addition to current dump format.
+              </p>
+
+              <h2 id="installation-directory">
+                Where is Postgresus installed if installed via .sh script?
+              </h2>
+
+              <p>
+                Postgresus is installed in <code>/opt/postgresus/</code>{" "}
+                directory.
               </p>
             </article>
           </div>
