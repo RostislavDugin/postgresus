@@ -10,6 +10,8 @@ export const getStorageNameFromType = (type: StorageType) => {
       return 'Google Drive';
     case StorageType.NAS:
       return 'NAS';
+    case StorageType.AZURE_BLOB:
+      return 'Azure Blob Storage';
     default:
       return '';
   }

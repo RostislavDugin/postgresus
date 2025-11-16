@@ -137,6 +137,8 @@ jobs:
           # testing S3
           TEST_MINIO_PORT=9000
           TEST_MINIO_CONSOLE_PORT=9001
+          # testing Azure Blob
+          TEST_AZURITE_BLOB_PORT=10000
           # testing NAS
           TEST_NAS_PORT=7006
           # testing Telegram
@@ -164,6 +166,9 @@ jobs:
 
           # Wait for MinIO
           timeout 60 bash -c 'until nc -z localhost 9000; do sleep 2; done'
+
+          # Wait for Azurite
+          timeout 60 bash -c 'until nc -z localhost 10000; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |

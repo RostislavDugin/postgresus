@@ -8,6 +8,7 @@ import {
   storageApi,
 } from '../../../../entity/storages';
 import { ToastHelper } from '../../../../shared/toast';
+import { EditAzureBlobStorageComponent } from './storages/EditAzureBlobStorageComponent';
 import { EditGoogleDriveStorageComponent } from './storages/EditGoogleDriveStorageComponent';
 import { EditNASStorageComponent } from './storages/EditNASStorageComponent';
 import { EditS3StorageComponent } from './storages/EditS3StorageComponent';
@@ -80,6 +81,7 @@ export function EditStorageComponent({
     storage.localStorage = undefined;
     storage.s3Storage = undefined;
     storage.googleDriveStorage = undefined;
+    storage.azureBlobStorage = undefined;
 
     if (type === StorageType.LOCAL) {
       storage.localStorage = {};
@@ -112,6 +114,18 @@ export function EditStorageComponent({
         useSsl: false,
         domain: '',
         path: '',
+      };
+    }
+
+    if (type === StorageType.AZURE_BLOB) {
+      storage.azureBlobStorage = {
+        authMethod: 'ACCOUNT_KEY',
+        connectionString: '',
+        accountName: '',
+        accountKey: '',
+        containerName: '',
+        endpoint: '',
+        prefix: '',
       };
     }
 
@@ -197,6 +211,26 @@ export function EditStorageComponent({
       );
     }
 
+    if (storage.type === StorageType.AZURE_BLOB) {
+      if (storage.id) {
+        return storage.azureBlobStorage?.containerName;
+      }
+
+      const isContainerNameFilled = storage.azureBlobStorage?.containerName;
+
+      if (storage.azureBlobStorage?.authMethod === 'CONNECTION_STRING') {
+        return isContainerNameFilled && storage.azureBlobStorage?.connectionString;
+      }
+
+      if (storage.azureBlobStorage?.authMethod === 'ACCOUNT_KEY') {
+        return (
+          isContainerNameFilled &&
+          storage.azureBlobStorage?.accountName &&
+          storage.azureBlobStorage?.accountKey
+        );
+      }
+    }
+
     return false;
   };
 
@@ -231,6 +265,7 @@ export function EditStorageComponent({
             { label: 'S3', value: StorageType.S3 },
             { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
             { label: 'NAS', value: StorageType.NAS },
+            { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
           ]}
           onChange={(value) => {
             setStorageType(value);
@@ -270,6 +305,17 @@ export function EditStorageComponent({
 
         {storage?.type === StorageType.NAS && (
           <EditNASStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.AZURE_BLOB && (
+          <EditAzureBlobStorageComponent
             storage={storage}
             setStorage={setStorage}
             setUnsaved={() => {

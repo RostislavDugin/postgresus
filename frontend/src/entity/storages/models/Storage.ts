@@ -1,3 +1,4 @@
+import type { AzureBlobStorage } from './AzureBlobStorage';
 import type { GoogleDriveStorage } from './GoogleDriveStorage';
 import type { LocalStorage } from './LocalStorage';
 import type { NASStorage } from './NASStorage';
@@ -16,4 +17,5 @@ export interface Storage {
   s3Storage?: S3Storage;
   googleDriveStorage?: GoogleDriveStorage;
   nasStorage?: NASStorage;
+  azureBlobStorage?: AzureBlobStorage;
 }

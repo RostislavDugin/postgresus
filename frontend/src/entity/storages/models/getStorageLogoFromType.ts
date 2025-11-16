@@ -10,6 +10,8 @@ export const getStorageLogoFromType = (type: StorageType) => {
       return '/icons/storages/google-drive.svg';
     case StorageType.NAS:
       return '/icons/storages/nas.svg';
+    case StorageType.AZURE_BLOB:
+      return '/icons/storages/azure.svg';
     default:
       return '';
   }

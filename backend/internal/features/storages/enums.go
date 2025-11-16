@@ -7,4 +7,5 @@ const (
 	StorageTypeS3          StorageType = "S3"
 	StorageTypeGoogleDrive StorageType = "GOOGLE_DRIVE"
 	StorageTypeNAS         StorageType = "NAS"
+	StorageTypeAzureBlob   StorageType = "AZURE_BLOB"
 )

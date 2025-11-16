@@ -44,6 +44,8 @@ type EnvVariables struct {
 	TestMinioPort        string `env:"TEST_MINIO_PORT"`
 	TestMinioConsolePort string `env:"TEST_MINIO_CONSOLE_PORT"`
 
+	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
+
 	TestNASPort string `env:"TEST_NAS_PORT"`
 
 	// oauth
@@ -181,6 +183,11 @@ func loadEnvVariables() {
 		}
 		if env.TestMinioConsolePort == "" {
 			log.Error("TEST_MINIO_CONSOLE_PORT is empty")
+			os.Exit(1)
+		}
+
+		if env.TestAzuriteBlobPort == "" {
+			log.Error("TEST_AZURITE_BLOB_PORT is empty")
 			os.Exit(1)
 		}
 

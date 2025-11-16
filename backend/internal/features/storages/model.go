@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
@@ -24,6 +25,7 @@ type Storage struct {
 	S3Storage          *s3_storage.S3Storage                    `json:"s3Storage"          gorm:"foreignKey:StorageID"`
 	GoogleDriveStorage *google_drive_storage.GoogleDriveStorage `json:"googleDriveStorage" gorm:"foreignKey:StorageID"`
 	NASStorage         *nas_storage.NASStorage                  `json:"nasStorage"         gorm:"foreignKey:StorageID"`
+	AzureBlobStorage   *azure_blob_storage.AzureBlobStorage     `json:"azureBlobStorage"   gorm:"foreignKey:StorageID"`
 }
 
 func (s *Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
@@ -88,6 +90,10 @@ func (s *Storage) Update(incoming *Storage) {
 		if s.NASStorage != nil && incoming.NASStorage != nil {
 			s.NASStorage.Update(incoming.NASStorage)
 		}
+	case StorageTypeAzureBlob:
+		if s.AzureBlobStorage != nil && incoming.AzureBlobStorage != nil {
+			s.AzureBlobStorage.Update(incoming.AzureBlobStorage)
+		}
 	}
 }
 
@@ -101,6 +107,8 @@ func (s *Storage) getSpecificStorage() StorageFileSaver {
 		return s.GoogleDriveStorage
 	case StorageTypeNAS:
 		return s.NASStorage
+	case StorageTypeAzureBlob:
+		return s.AzureBlobStorage
 	default:
 		panic("invalid storage type: " + string(s.Type))
 	}

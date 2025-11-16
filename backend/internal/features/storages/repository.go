@@ -30,17 +30,21 @@ func (r *StorageRepository) Save(storage *Storage) (*Storage, error) {
 			if storage.NASStorage != nil {
 				storage.NASStorage.StorageID = storage.ID
 			}
+		case StorageTypeAzureBlob:
+			if storage.AzureBlobStorage != nil {
+				storage.AzureBlobStorage.StorageID = storage.ID
+			}
 		}
 
 		if storage.ID == uuid.Nil {
 			if err := tx.Create(storage).
-				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage").
+				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage").
 				Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Save(storage).
-				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage").
+				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage").
 				Error; err != nil {
 				return err
 			}
@@ -75,6 +79,13 @@ func (r *StorageRepository) Save(storage *Storage) (*Storage, error) {
 					return err
 				}
 			}
+		case StorageTypeAzureBlob:
+			if storage.AzureBlobStorage != nil {
+				storage.AzureBlobStorage.StorageID = storage.ID // Ensure ID is set
+				if err := tx.Save(storage.AzureBlobStorage).Error; err != nil {
+					return err
+				}
+			}
 		}
 
 		return nil
@@ -96,6 +107,7 @@ func (r *StorageRepository) FindByID(id uuid.UUID) (*Storage, error) {
 		Preload("S3Storage").
 		Preload("GoogleDriveStorage").
 		Preload("NASStorage").
+		Preload("AzureBlobStorage").
 		Where("id = ?", id).
 		First(&s).Error; err != nil {
 		return nil, err
@@ -113,6 +125,7 @@ func (r *StorageRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Storage
 		Preload("S3Storage").
 		Preload("GoogleDriveStorage").
 		Preload("NASStorage").
+		Preload("AzureBlobStorage").
 		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&storages).Error; err != nil {
@@ -147,6 +160,12 @@ func (r *StorageRepository) Delete(s *Storage) error {
 		case StorageTypeNAS:
 			if s.NASStorage != nil {
 				if err := tx.Delete(s.NASStorage).Error; err != nil {
+					return err
+				}
+			}
+		case StorageTypeAzureBlob:
+			if s.AzureBlobStorage != nil {
+				if err := tx.Delete(s.AzureBlobStorage).Error; err != nil {
 					return err
 				}
 			}

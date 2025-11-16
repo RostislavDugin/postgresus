@@ -31,6 +31,14 @@ services:
     container_name: test-minio
     command: server /data --console-address ":9001"
 
+  # Test Azurite container
+  test-azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - "${TEST_AZURITE_BLOB_PORT:-10000}:10000"
+    container_name: test-azurite
+    command: azurite-blob --blobHost 0.0.0.0
+
   # Test PostgreSQL containers
   test-postgres-12:
     image: postgres:12
