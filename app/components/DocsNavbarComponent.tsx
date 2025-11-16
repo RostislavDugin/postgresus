@@ -17,7 +17,7 @@ export default function DocsNavbarComponent() {
             priority
           />
 
-          <div className="ml-2 select-none text-lg font-bold sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
+          <div className="ml-2 select-none text-lg font-bold sm:ml-3 sm:text-xl md:ml-3 md:text-2xl">
             Postgresus
           </div>
         </Link>

@@ -674,7 +674,39 @@ export default function Index() {
 
               <div className="pt-5 text-sm text-gray-600 sm:pt-5 sm:text-base">
                 You can receive notifications about success or fail of the
-                process. This is useful for developers or DevOps teams
+                process. This is useful for developers or DevOps teams.{" "}
+                <a
+                  href="/notifiers"
+                  className="font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  View all →
+                </a>
+              </div>
+            </div>
+
+            <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
+              <h3 className="mb-3 text-xl font-bold md:text-2xl">
+                Many destinations to store
+              </h3>
+
+              <div className="flex h-[120px] max-h-[120px] justify-center pb-5 pt-5 sm:my-0 sm:h-[200px] sm:max-h-[200px] sm:pb-0 sm:pt-10">
+                <img
+                  className="max-h-[120px] sm:max-h-[120px]"
+                  src="/images/index/feature-google-drive.svg"
+                  alt="Many destinations to store"
+                  loading="lazy"
+                />
+              </div>
+
+              <div className="mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
+                Files are kept on VPS, cloud storages and other places. You can
+                choose any storage you. Files are always owned by you need.{" "}
+                <a
+                  href="/storages"
+                  className="font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  View all →
+                </a>
               </div>
             </div>
 
@@ -759,26 +791,6 @@ export default function Index() {
               <div className="pt-10 text-sm text-gray-600 md:mt-0 md:text-base">
                 PostgreSQL 13, 14, 15, 16, 17 and 18 are supported by the
                 project. You can backup any version from 2020
-              </div>
-            </div>
-
-            <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
-              <h3 className="mb-3 text-xl font-bold md:text-2xl">
-                Many destinations to store
-              </h3>
-
-              <div className="flex h-[120px] max-h-[120px] justify-center pb-5 pt-5 sm:my-0 sm:h-[200px] sm:max-h-[200px] sm:pb-0 sm:pt-10">
-                <img
-                  className="max-h-[120px] sm:max-h-[120px]"
-                  src="/images/index/feature-google-drive.svg"
-                  alt="Many destinations to store"
-                  loading="lazy"
-                />
-              </div>
-
-              <div className="mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
-                Files are kept on VPS, cloud storages and other places. You can
-                choose any storage you. Files are always owned by you need
               </div>
             </div>
 
