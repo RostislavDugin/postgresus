@@ -644,7 +644,7 @@ export default function Index() {
 
               <div className="h-[120px] max-h-[120px] sm:h-[220px] sm:max-h-[220px]">
                 <img
-                  src="/images/index/feature-scheduled-backups.webp"
+                  src="/images/index/backup-step-1.svg"
                   className="max-h-[120px] sm:max-h-[220px]"
                   alt="Scheduled backups"
                   loading="lazy"
