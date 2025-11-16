@@ -5,10 +5,10 @@ import type { Notifier } from '../../../../../entity/notifiers';
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditDiscordNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditDiscordNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   return (
     <>
       <div className="flex">
@@ -26,7 +26,7 @@ export function EditDiscordNotifierComponent({ notifier, setNotifier, setIsUnsav
                   channelWebhookUrl: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"

@@ -6,10 +6,10 @@ import type { Notifier } from '../../../../../entity/notifiers';
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditEmailNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   return (
     <>
       <div className="mb-1 flex items-center">
@@ -26,7 +26,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 targetEmail: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -52,7 +52,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 smtpHost: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -75,7 +75,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 smtpPort: Number(e.target.value),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -97,7 +97,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 smtpUser: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -120,7 +120,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 smtpPassword: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -142,7 +142,7 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setIsUnsaved
                 from: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"

@@ -7,10 +7,10 @@ import type { Notifier } from '../../../../../entity/notifiers';
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditTeamsNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditTeamsNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   const value = notifier?.teamsNotifier?.powerAutomateUrl || '';
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -22,7 +22,7 @@ export function EditTeamsNotifierComponent({ notifier, setNotifier, setIsUnsaved
         powerAutomateUrl,
       },
     });
-    setIsUnsaved(true);
+    setUnsaved();
   };
 
   return (

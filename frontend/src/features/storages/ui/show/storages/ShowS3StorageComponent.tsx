@@ -31,6 +31,20 @@ export function ShowS3StorageComponent({ storage }: Props) {
         <div className="min-w-[110px]">Endpoint</div>
         {storage?.s3Storage?.s3Endpoint || '-'}
       </div>
+
+      {storage?.s3Storage?.s3Prefix && (
+        <div className="mb-1 flex items-center">
+          <div className="min-w-[110px]">Prefix</div>
+          {storage.s3Storage.s3Prefix}
+        </div>
+      )}
+
+      {storage?.s3Storage?.s3UseVirtualHostedStyle && (
+        <div className="mb-1 flex items-center">
+          <div className="min-w-[110px]">Virtual Host</div>
+          Enabled
+        </div>
+      )}
     </>
   );
 }

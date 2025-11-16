@@ -7,10 +7,10 @@ import type { Notifier } from '../../../../../entity/notifiers';
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   const [isShowHowToGetChatId, setIsShowHowToGetChatId] = useState(false);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
                   botToken: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"
@@ -78,7 +78,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
                   targetChatId: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"
@@ -137,7 +137,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
                 threadId: checked ? notifier.telegramNotifier.threadId : undefined,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
         />
@@ -171,7 +171,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setIsUnsa
                       threadId: !isNaN(threadId!) ? threadId : undefined,
                     },
                   });
-                  setIsUnsaved(true);
+                  setUnsaved();
                 }}
                 size="small"
                 className="w-full"

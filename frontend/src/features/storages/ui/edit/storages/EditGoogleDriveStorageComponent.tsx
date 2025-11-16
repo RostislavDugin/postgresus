@@ -7,10 +7,10 @@ import type { StorageOauthDto } from '../../../../../entity/storages/models/Stor
 interface Props {
   storage: Storage;
   setStorage: (storage: Storage) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+export function EditGoogleDriveStorageComponent({ storage, setStorage, setUnsaved }: Props) {
   const goToAuthUrl = () => {
     if (!storage?.googleDriveStorage?.clientId || !storage?.googleDriveStorage?.clientSecret) {
       return;
@@ -60,7 +60,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
                 clientId: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -83,7 +83,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setIsUnsa
                 clientSecret: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"

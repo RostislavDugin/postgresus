@@ -16,7 +16,7 @@ import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDa
 interface Props {
   workspaceId: string;
 
-  onCreated: () => void;
+  onCreated: (databaseId: string) => void;
   onClose: () => void;
 }
 
@@ -58,7 +58,7 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
         await backupsApi.makeBackup(createdDatabase.id);
       }
 
-      onCreated();
+      onCreated(createdDatabase.id);
       onClose();
     } catch (error) {
       alert(error);

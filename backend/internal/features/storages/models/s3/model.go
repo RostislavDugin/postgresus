@@ -22,6 +22,9 @@ type S3Storage struct {
 	S3AccessKey string    `json:"s3AccessKey" gorm:"not null;type:text;column:s3_access_key"`
 	S3SecretKey string    `json:"s3SecretKey" gorm:"not null;type:text;column:s3_secret_key"`
 	S3Endpoint  string    `json:"s3Endpoint"  gorm:"type:text;column:s3_endpoint"`
+
+	S3Prefix                string `json:"s3Prefix"                gorm:"type:text;column:s3_prefix"`
+	S3UseVirtualHostedStyle bool   `json:"s3UseVirtualHostedStyle" gorm:"default:false;column:s3_use_virtual_hosted_style"`
 }
 
 func (s *S3Storage) TableName() string {
@@ -34,11 +37,13 @@ func (s *S3Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Read
 		return err
 	}
 
+	objectKey := s.buildObjectKey(fileID.String())
+
 	// Upload the file using MinIO client with streaming (size = -1 for unknown size)
 	_, err = client.PutObject(
 		context.TODO(),
 		s.S3Bucket,
-		fileID.String(),
+		objectKey,
 		file,
 		-1,
 		minio.PutObjectOptions{},
@@ -56,10 +61,12 @@ func (s *S3Storage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 		return nil, err
 	}
 
+	objectKey := s.buildObjectKey(fileID.String())
+
 	object, err := client.GetObject(
 		context.TODO(),
 		s.S3Bucket,
-		fileID.String(),
+		objectKey,
 		minio.GetObjectOptions{},
 	)
 	if err != nil {
@@ -90,11 +97,13 @@ func (s *S3Storage) DeleteFile(fileID uuid.UUID) error {
 		return err
 	}
 
+	objectKey := s.buildObjectKey(fileID.String())
+
 	// Delete the object using MinIO client
 	err = client.RemoveObject(
 		context.TODO(),
 		s.S3Bucket,
-		fileID.String(),
+		objectKey,
 		minio.RemoveObjectOptions{},
 	)
 	if err != nil {
@@ -150,6 +159,7 @@ func (s *S3Storage) TestConnection() error {
 
 	// Test write and delete permissions by uploading and removing a small test file
 	testFileID := uuid.New().String() + "-test"
+	testObjectKey := s.buildObjectKey(testFileID)
 	testData := []byte("test connection")
 	testReader := bytes.NewReader(testData)
 
@@ -157,7 +167,7 @@ func (s *S3Storage) TestConnection() error {
 	_, err = client.PutObject(
 		ctx,
 		s.S3Bucket,
-		testFileID,
+		testObjectKey,
 		testReader,
 		int64(len(testData)),
 		minio.PutObjectOptions{},
@@ -170,7 +180,7 @@ func (s *S3Storage) TestConnection() error {
 	err = client.RemoveObject(
 		ctx,
 		s.S3Bucket,
-		testFileID,
+		testObjectKey,
 		minio.RemoveObjectOptions{},
 	)
 	if err != nil {
@@ -189,6 +199,7 @@ func (s *S3Storage) Update(incoming *S3Storage) {
 	s.S3Bucket = incoming.S3Bucket
 	s.S3Region = incoming.S3Region
 	s.S3Endpoint = incoming.S3Endpoint
+	s.S3UseVirtualHostedStyle = incoming.S3UseVirtualHostedStyle
 
 	if incoming.S3AccessKey != "" {
 		s.S3AccessKey = incoming.S3AccessKey
@@ -197,6 +208,24 @@ func (s *S3Storage) Update(incoming *S3Storage) {
 	if incoming.S3SecretKey != "" {
 		s.S3SecretKey = incoming.S3SecretKey
 	}
+
+	// we do not allow to change the prefix after creation,
+	// otherwise we will have to migrate all the data to the new prefix
+}
+
+func (s *S3Storage) buildObjectKey(fileName string) string {
+	if s.S3Prefix == "" {
+		return fileName
+	}
+
+	prefix := s.S3Prefix
+	prefix = strings.TrimPrefix(prefix, "/")
+
+	if !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+
+	return prefix + fileName
 }
 
 func (s *S3Storage) getClient() (*minio.Client, error) {
@@ -215,11 +244,18 @@ func (s *S3Storage) getClient() (*minio.Client, error) {
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", s.S3Region)
 	}
 
+	// Configure bucket lookup strategy
+	bucketLookup := minio.BucketLookupAuto
+	if s.S3UseVirtualHostedStyle {
+		bucketLookup = minio.BucketLookupDNS
+	}
+
 	// Initialize the MinIO client
 	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(s.S3AccessKey, s.S3SecretKey, ""),
-		Secure: useSSL,
-		Region: s.S3Region,
+		Creds:        credentials.NewStaticV4(s.S3AccessKey, s.S3SecretKey, ""),
+		Secure:       useSSL,
+		Region:       s.S3Region,
+		BucketLookup: bucketLookup,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MinIO client: %w", err)

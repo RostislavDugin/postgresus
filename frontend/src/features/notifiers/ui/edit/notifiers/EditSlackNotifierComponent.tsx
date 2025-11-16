@@ -5,10 +5,10 @@ import type { Notifier } from '../../../../../entity/notifiers';
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditSlackNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   return (
     <>
       <div className="mb-1 ml-[130px] max-w-[200px]" style={{ lineHeight: 1 }}>
@@ -38,7 +38,7 @@ export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved
                   botToken: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"
@@ -63,7 +63,7 @@ export function EditSlackNotifierComponent({ notifier, setNotifier, setIsUnsaved
                   targetChatId: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"

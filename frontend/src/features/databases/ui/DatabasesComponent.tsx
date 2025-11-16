@@ -14,6 +14,8 @@ interface Props {
   isCanManageDBs: boolean;
 }
 
+const SELECTED_DATABASE_STORAGE_KEY = 'selectedDatabaseId';
+
 export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }: Props) => {
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
@@ -22,7 +24,16 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
   const [isShowAddDatabase, setIsShowAddDatabase] = useState(false);
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | undefined>(undefined);
 
-  const loadDatabases = (isSilent = false) => {
+  const updateSelectedDatabaseId = (databaseId: string | undefined) => {
+    setSelectedDatabaseId(databaseId);
+    if (databaseId) {
+      localStorage.setItem(`${SELECTED_DATABASE_STORAGE_KEY}_${workspace.id}`, databaseId);
+    } else {
+      localStorage.removeItem(`${SELECTED_DATABASE_STORAGE_KEY}_${workspace.id}`);
+    }
+  };
+
+  const loadDatabases = (isSilent = false, selectDatabaseId?: string) => {
     if (!isSilent) {
       setIsLoading(true);
     }
@@ -31,8 +42,17 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
       .getDatabases(workspace.id)
       .then((databases) => {
         setDatabases(databases);
-        if (!selectedDatabaseId && !isSilent) {
-          setSelectedDatabaseId(databases[0]?.id);
+        if (selectDatabaseId) {
+          updateSelectedDatabaseId(selectDatabaseId);
+        } else if (!selectedDatabaseId && !isSilent) {
+          const savedDatabaseId = localStorage.getItem(
+            `${SELECTED_DATABASE_STORAGE_KEY}_${workspace.id}`,
+          );
+          const databaseToSelect =
+            savedDatabaseId && databases.some((db) => db.id === savedDatabaseId)
+              ? savedDatabaseId
+              : databases[0]?.id;
+          updateSelectedDatabaseId(databaseToSelect);
         }
       })
       .catch((e) => alert(e.message))
@@ -95,7 +115,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
                   key={database.id}
                   database={database}
                   selectedDatabaseId={selectedDatabaseId}
-                  setSelectedDatabaseId={setSelectedDatabaseId}
+                  setSelectedDatabaseId={updateSelectedDatabaseId}
                 />
               ))
             : searchQuery && (
@@ -119,10 +139,11 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
               loadDatabases();
             }}
             onDatabaseDeleted={() => {
-              loadDatabases();
-              setSelectedDatabaseId(
-                databases.filter((database) => database.id !== selectedDatabaseId)[0]?.id,
+              const remainingDatabases = databases.filter(
+                (database) => database.id !== selectedDatabaseId,
               );
+              updateSelectedDatabaseId(remainingDatabases[0]?.id);
+              loadDatabases();
             }}
             isCanManageDBs={isCanManageDBs}
           />
@@ -141,8 +162,8 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
 
           <CreateDatabaseComponent
             workspaceId={workspace.id}
-            onCreated={() => {
-              loadDatabases();
+            onCreated={(databaseId) => {
+              loadDatabases(false, databaseId);
               setIsShowAddDatabase(false);
             }}
             onClose={() => setIsShowAddDatabase(false)}

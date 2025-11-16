@@ -1,15 +1,20 @@
-import { InfoCircleOutlined } from '@ant-design/icons';
-import { Input, Tooltip } from 'antd';
+import { DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { Checkbox, Input, Tooltip } from 'antd';
+import { useState } from 'react';
 
 import type { Storage } from '../../../../../entity/storages';
 
 interface Props {
   storage: Storage;
   setStorage: (storage: Storage) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Props) {
+  const hasAdvancedValues =
+    !!storage?.s3Storage?.s3Prefix || !!storage?.s3Storage?.s3UseVirtualHostedStyle;
+  const [showAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
+
   return (
     <>
       <div className="mb-2 flex items-center">
@@ -36,7 +41,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
                 s3Bucket: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -58,7 +63,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
                 s3Region: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -67,7 +72,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Access Key</div>
+        <div className="min-w-[110px]">Access key</div>
         <Input.Password
           value={storage?.s3Storage?.s3AccessKey || ''}
           onChange={(e) => {
@@ -80,7 +85,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
                 s3AccessKey: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -89,7 +94,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
       </div>
 
       <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Secret Key</div>
+        <div className="min-w-[110px]">Secret key</div>
         <Input.Password
           value={storage?.s3Storage?.s3SecretKey || ''}
           onChange={(e) => {
@@ -102,7 +107,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
                 s3SecretKey: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -124,7 +129,7 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
                 s3Endpoint: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -138,6 +143,85 @@ export function EditS3StorageComponent({ storage, setStorage, setIsUnsaved }: Pr
           <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
         </Tooltip>
       </div>
+
+      <div className="mt-4 mb-3 flex items-center">
+        <div
+          className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          <span className="mr-2">Advanced settings</span>
+
+          {showAdvanced ? (
+            <UpOutlined style={{ fontSize: '12px' }} />
+          ) : (
+            <DownOutlined style={{ fontSize: '12px' }} />
+          )}
+        </div>
+      </div>
+
+      {showAdvanced && (
+        <>
+          <div className="mb-1 flex items-center">
+            <div className="min-w-[110px]">Folder prefix</div>
+            <Input
+              value={storage?.s3Storage?.s3Prefix || ''}
+              onChange={(e) => {
+                if (!storage?.s3Storage) return;
+
+                setStorage({
+                  ...storage,
+                  s3Storage: {
+                    ...storage.s3Storage,
+                    s3Prefix: e.target.value.trim(),
+                  },
+                });
+                setUnsaved();
+              }}
+              size="small"
+              className="w-full max-w-[250px]"
+              placeholder="my-prefix/ (optional)"
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Optional prefix for all object keys (e.g., 'backups/' or 'my_team/'). May not work with some S3-compatible storages."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+
+          <div className="mb-1 flex items-center">
+            <div className="min-w-[110px]">Virtual host</div>
+
+            <Checkbox
+              checked={storage?.s3Storage?.s3UseVirtualHostedStyle || false}
+              onChange={(e) => {
+                if (!storage?.s3Storage) return;
+
+                setStorage({
+                  ...storage,
+                  s3Storage: {
+                    ...storage.s3Storage,
+                    s3UseVirtualHostedStyle: e.target.checked,
+                  },
+                });
+                setUnsaved();
+              }}
+            >
+              Use virtual-styled domains
+            </Checkbox>
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Use virtual-hosted-style URLs (bucket.s3.region.amazonaws.com) instead of path-style (s3.region.amazonaws.com/bucket). May be required if you see COS errors."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+        </>
+      )}
+
+      <div className="mb-5" />
     </>
   );
 }

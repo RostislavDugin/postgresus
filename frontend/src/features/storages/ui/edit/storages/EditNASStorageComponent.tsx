@@ -6,10 +6,10 @@ import type { Storage } from '../../../../../entity/storages';
 interface Props {
   storage: Storage;
   setStorage: (storage: Storage) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: Props) {
+export function EditNASStorageComponent({ storage, setStorage, setUnsaved }: Props) {
   return (
     <>
       <div className="mb-1 flex items-center">
@@ -26,7 +26,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 host: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -48,7 +48,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 port: value,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -72,7 +72,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 share: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -94,7 +94,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 username: e.target.value.trim(),
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -116,7 +116,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 password: e.target.value,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -138,7 +138,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 useSsl: checked,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
         />
@@ -162,7 +162,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 domain: e.target.value.trim() || undefined,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"
@@ -197,7 +197,7 @@ export function EditNASStorageComponent({ storage, setStorage, setIsUnsaved }: P
                 path: pathValue || undefined,
               },
             });
-            setIsUnsaved(true);
+            setUnsaved();
           }}
           size="small"
           className="w-full max-w-[250px]"

@@ -250,7 +250,10 @@ export function EditStorageComponent({
           <EditS3StorageComponent
             storage={storage}
             setStorage={setStorage}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
           />
         )}
 
@@ -258,7 +261,10 @@ export function EditStorageComponent({
           <EditGoogleDriveStorageComponent
             storage={storage}
             setStorage={setStorage}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
           />
         )}
 
@@ -266,7 +272,10 @@ export function EditStorageComponent({
           <EditNASStorageComponent
             storage={storage}
             setStorage={setStorage}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
           />
         )}
       </div>

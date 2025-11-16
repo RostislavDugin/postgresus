@@ -7,10 +7,10 @@ import { WebhookMethod } from '../../../../../entity/notifiers/models/webhook/We
 interface Props {
   notifier: Notifier;
   setNotifier: (notifier: Notifier) => void;
-  setIsUnsaved: (isUnsaved: boolean) => void;
+  setUnsaved: () => void;
 }
 
-export function EditWebhookNotifierComponent({ notifier, setNotifier, setIsUnsaved }: Props) {
+export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   return (
     <>
       <div className="flex items-center">
@@ -27,7 +27,7 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setIsUnsav
                   webhookUrl: e.target.value.trim(),
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"
@@ -50,7 +50,7 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setIsUnsav
                   webhookMethod: value,
                 },
               });
-              setIsUnsaved(true);
+              setUnsaved();
             }}
             size="small"
             className="w-full"

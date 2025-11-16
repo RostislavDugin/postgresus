@@ -255,7 +255,10 @@ export function EditNotifierComponent({
           <EditTelegramNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
 
@@ -263,7 +266,10 @@ export function EditNotifierComponent({
           <EditEmailNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
 
@@ -271,7 +277,10 @@ export function EditNotifierComponent({
           <EditWebhookNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
 
@@ -279,7 +288,10 @@ export function EditNotifierComponent({
           <EditSlackNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
 
@@ -287,14 +299,20 @@ export function EditNotifierComponent({
           <EditDiscordNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
         {notifier?.notifierType === NotifierType.TEAMS && (
           <EditTeamsNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
-            setIsUnsaved={setIsUnsaved}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
           />
         )}
       </div>
