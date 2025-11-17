@@ -309,15 +309,6 @@ func (s *UserService) ChangeUserPasswordByEmail(email string, newPassword string
 }
 
 func (s *UserService) ChangeUserPassword(userID uuid.UUID, newPassword string) error {
-	user, err := s.userRepository.GetUserByID(userID)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-
-	if !user.HasPassword() {
-		return errors.New("user has no password set")
-	}
-
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash new password: %w", err)
