@@ -20,6 +20,7 @@
 - Self-hosted via Docker with zero-config installation
 - Support for PostgreSQL versions 13, 14, 15, 16, 17 and 18
 - Backup compression (4-8x size reduction)
+- Enterprise-grade AES-256-GCM encryption for backup files
 - Open source and free
 - Access management for workspaces and users
 - Suitable for single developers, DevOps teams, organizations, startups, system administrators and IT departments
@@ -145,6 +146,7 @@ Postgresus is suitable for:
 - **Health Checks**: Configurable database monitoring
 - **Multi-target**: Store backups to multiple destinations simultaneously
 - **Restoration**: One-click restore functionality
+- **Encryption**: Enterprise-grade AES-256-GCM encryption for backup files
 - **Security**: All data stays within your infrastructure
 
 ## FAQ
@@ -168,7 +170,7 @@ Archives saved to local volumes, S3-compatible buckets, Google Drive, Dropbox an
 Real-time notifications via email, Slack, Telegram, webhooks, Mattermost, Discord and more. DevOps teams receive immediate alerts for successes and failures.
 
 ### Security
-All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Open source allows full code inspection.
+All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Enterprise-grade AES-256-GCM encryption protects backup files, making them useless even if storage is compromised. Open source allows full code inspection.
 
 ## Developer Information
 
@@ -189,5 +191,5 @@ All data executes within containers you control on servers you own. Credentials 
 
 ## Keywords
 
-PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation
+PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation, encryption, AES-256-GCM, backup encryption, enterprise security
 

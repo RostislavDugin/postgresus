@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description:
     "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
   keywords:
-    "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore",
+    "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, encryption, AES-256, backup encryption",
   robots: "index, follow",
   alternates: {
     canonical: "https://postgresus.com",
@@ -81,8 +81,8 @@ export default function Index() {
               "Database health monitoring",
               "Self-hosted via Docker",
               "Open source and free",
-              "Support for PostgreSQL 13-17",
-              "Backup compression and encryption",
+              "Support for PostgreSQL 13-18",
+              "Backup compression and AES-256-GCM encryption",
             ],
             screenshot: "https://postgresus.com/images/index/dashboard.svg",
             softwareVersion: "latest",
@@ -700,7 +700,7 @@ export default function Index() {
 
               <div className="mt-3 text-sm text-gray-600 md:mt-0 md:text-base">
                 Files are kept on VPS, cloud storages and other places. You can
-                choose any storage you. Files are always owned by you need.{" "}
+                choose any storage you. Files are always owned by you.{" "}
                 <a
                   href="/storages"
                   className="font-semibold text-blue-600 hover:text-blue-700"
@@ -853,6 +853,27 @@ export default function Index() {
                 </a>
               </div>
             </div>
+
+            <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
+              <h3 className="mb-3 text-xl font-bold md:text-2xl">
+                Encryption
+              </h3>
+
+              <div className="flex h-[120px] max-h-[120px] justify-center pt-7 sm:h-[200px] sm:max-h-[200px]">
+                <img
+                  className="max-h-[100px] sm:max-h-[130px]"
+                  src="/images/index/feature-encryption.svg"
+                  alt="Backup encryption"
+                  loading="lazy"
+                />
+              </div>
+
+              <div className="pt-5 text-sm text-gray-600 sm:pt-5 sm:text-base">
+                Enterprise-grade encryption protects your backups.
+                Store encrypted files safely in shared cloud storage without
+                security concerns
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1002,10 +1023,13 @@ export default function Index() {
                 <p className="max-w-[500px] md:text-lg">
                   No. All the data executes within containers you control, on
                   servers you own. Credentials and backup files are left on your
-                  server or in the cloud account of your choice. Because
-                  it&apos;s open source, you or your security team, can inspect
-                  every line to make sure it meets your organization&apos;s
-                  needs before it&apos;s run.
+                  server or in the cloud account of your choice. Additionally,
+                  Postgresus offers enterprise-grade AES-256-GCM encryption for
+                  your backup files. This means even if someone gains access to
+                  your storage, encrypted backups remain useless without the
+                  decryption key. Because it&apos;s open source, you or your
+                  security team can inspect every line to make sure it meets
+                  your organization&apos;s needs before it&apos;s run.
                 </p>
               </div>
 
