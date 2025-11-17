@@ -15,7 +15,7 @@ type CreateBackupUsecase struct {
 	CreatePostgresqlBackupUsecase *usecases_postgresql.CreatePostgresqlBackupUsecase
 }
 
-// Execute creates a backup of the database and returns the backup size in MB
+// Execute creates a backup of the database and returns the backup metadata
 func (uc *CreateBackupUsecase) Execute(
 	ctx context.Context,
 	backupID uuid.UUID,
@@ -25,7 +25,7 @@ func (uc *CreateBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) error {
+) (*usecases_postgresql.BackupMetadata, error) {
 	if database.Type == databases.DatabaseTypePostgres {
 		return uc.CreatePostgresqlBackupUsecase.Execute(
 			ctx,
@@ -37,5 +37,5 @@ func (uc *CreateBackupUsecase) Execute(
 		)
 	}
 
-	return errors.New("database type not supported")
+	return nil, errors.New("database type not supported")
 }

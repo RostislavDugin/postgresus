@@ -40,13 +40,13 @@
 - **Precise timing**: run backups at specific times (e.g., 4 AM during low traffic)
 - **Smart compression**: 4-8x space savings with balanced compression (~20% overhead)
 
-### 🗄️ **Multiple Storage Destinations** <a href="https://postgresus.com/storages">(docs)</a>
+### 🗄️ **Multiple Storage Destinations** <a href="https://postgresus.com/storages">(view supported)</a>
 
 - **Local storage**: Keep backups on your VPS/server
 - **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox and more
 - **Secure**: All data stays under your control
 
-### 📱 **Smart Notifications** <a href="https://postgresus.com/notifiers">(docs)</a>
+### 📱 **Smart Notifications** <a href="https://postgresus.com/notifiers">(view supported)</a>
 
 - **Multiple channels**: Email, Telegram, Slack, Discord, webhooks
 - **Real-time updates**: Success and failure notifications
@@ -57,6 +57,13 @@
 - **Multiple versions**: PostgreSQL 12, 13, 14, 15, 16, 17 and 18
 - **SSL support**: Secure connections available
 - **Easy restoration**: One-click restore from any backup
+
+### 🔒 **Backup Encryption** <a href="https://postgresus.com/encryption">(docs)</a>
+
+- **AES-256-GCM encryption**: Enterprise-grade protection for backup files
+- **Zero-trust storage**: Encrypted backups are useless so you can keep in shared storages like S3, Azure Blob Storage, etc.
+- **Optionality**: Encrypted backups are optional and can be enabled or disabled if you wish
+- **Download unencrypted**: You can still download unencrypted backups via the 'Download' button to use them in `pg_restore` or other tools.
 
 ### 👥 **Suitable for Teams** <a href="https://postgresus.com/access-management">(docs)</a>
 

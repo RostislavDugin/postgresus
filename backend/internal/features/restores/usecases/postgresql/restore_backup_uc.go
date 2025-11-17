@@ -2,6 +2,7 @@ package usecases_postgresql
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -15,11 +16,13 @@ import (
 
 	"postgresus-backend/internal/config"
 	"postgresus-backend/internal/features/backups/backups"
+	"postgresus-backend/internal/features/backups/backups/encryption"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/restores/models"
 	"postgresus-backend/internal/features/storages"
+	users_repositories "postgresus-backend/internal/features/users/repositories"
 	files_utils "postgresus-backend/internal/util/files"
 	"postgresus-backend/internal/util/tools"
 
@@ -27,7 +30,8 @@ import (
 )
 
 type RestorePostgresqlBackupUsecase struct {
-	logger *slog.Logger
+	logger        *slog.Logger
+	secretKeyRepo *users_repositories.SecretKeyRepository
 }
 
 func (uc *RestorePostgresqlBackupUsecase) Execute(
@@ -202,17 +206,65 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		backup.ID,
 		"tempFile",
 		tempBackupFile,
+		"encrypted",
+		backup.Encryption == backups_config.BackupEncryptionEncrypted,
 	)
-	backupReader, err := storage.GetFile(backup.ID)
+	rawReader, err := storage.GetFile(backup.ID)
 	if err != nil {
 		cleanupFunc()
 		return "", nil, fmt.Errorf("failed to get backup file from storage: %w", err)
 	}
 	defer func() {
-		if err := backupReader.Close(); err != nil {
+		if err := rawReader.Close(); err != nil {
 			uc.logger.Error("Failed to close backup reader", "error", err)
 		}
 	}()
+
+	// Create a reader that handles decryption if needed
+	var backupReader io.Reader = rawReader
+	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
+		// Validate encryption metadata
+		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
+			cleanupFunc()
+			return "", nil, fmt.Errorf("backup is encrypted but missing encryption metadata")
+		}
+
+		// Get master key
+		masterKey, err := uc.secretKeyRepo.GetSecretKey()
+		if err != nil {
+			cleanupFunc()
+			return "", nil, fmt.Errorf("failed to get master key for decryption: %w", err)
+		}
+
+		// Decode salt and IV from base64
+		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
+		if err != nil {
+			cleanupFunc()
+			return "", nil, fmt.Errorf("failed to decode encryption salt: %w", err)
+		}
+
+		iv, err := base64.StdEncoding.DecodeString(*backup.EncryptionIV)
+		if err != nil {
+			cleanupFunc()
+			return "", nil, fmt.Errorf("failed to decode encryption IV: %w", err)
+		}
+
+		// Create decryption reader
+		decryptReader, err := encryption.NewDecryptionReader(
+			rawReader,
+			masterKey,
+			backup.ID,
+			salt,
+			iv,
+		)
+		if err != nil {
+			cleanupFunc()
+			return "", nil, fmt.Errorf("failed to create decryption reader: %w", err)
+		}
+
+		backupReader = decryptReader
+		uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+	}
 
 	// Create temporary backup file
 	tempFile, err := os.Create(tempBackupFile)

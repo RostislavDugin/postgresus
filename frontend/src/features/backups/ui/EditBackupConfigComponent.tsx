@@ -13,7 +13,7 @@ import {
 import dayjs, { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 
-import { type BackupConfig, backupConfigApi } from '../../../entity/backups';
+import { type BackupConfig, BackupEncryption, backupConfigApi } from '../../../entity/backups';
 import { BackupNotificationType } from '../../../entity/backups/model/BackupNotificationType';
 import type { Database } from '../../../entity/databases';
 import { Period } from '../../../entity/databases/model/Period';
@@ -153,6 +153,7 @@ export const EditBackupConfigComponent = ({
         sendNotificationsOn: [],
         isRetryIfFailed: true,
         maxFailedTriesCount: 3,
+        encryption: BackupEncryption.ENCRYPTED,
       });
     }
     loadStorages();
@@ -195,6 +196,7 @@ export const EditBackupConfigComponent = ({
     (Boolean(backupConfig.storePeriod) &&
       Boolean(backupConfig.storage?.id) &&
       Boolean(backupConfig.cpuCount) &&
+      Boolean(backupConfig.encryption) &&
       Boolean(backupInterval?.interval) &&
       (!backupInterval ||
         ((backupInterval.interval !== IntervalType.WEEKLY || displayedWeekday) &&
@@ -416,6 +418,27 @@ export const EditBackupConfigComponent = ({
             className="ml-1 h-4 w-4"
           />
         )}
+      </div>
+
+      <div className="mb-1 flex w-full items-center">
+        <div className="min-w-[150px]">Encryption</div>
+        <Select
+          value={backupConfig.encryption}
+          onChange={(v) => updateBackupConfig({ encryption: v })}
+          size="small"
+          className="max-w-[200px] grow"
+          options={[
+            { label: 'None', value: BackupEncryption.NONE },
+            { label: 'Encrypt backup files', value: BackupEncryption.ENCRYPTED },
+          ]}
+        />
+
+        <Tooltip
+          className="cursor-pointer"
+          title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Postgresus or download them unencrypted via the 'Download' button."
+        >
+          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+        </Tooltip>
       </div>
 
       {backupConfig.isBackupsEnabled && (

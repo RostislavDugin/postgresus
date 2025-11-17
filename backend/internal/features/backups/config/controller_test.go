@@ -368,6 +368,86 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 	}
 }
 
+func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+	timeOfDay := "04:00"
+	request := BackupConfig{
+		DatabaseID:       database.ID,
+		IsBackupsEnabled: true,
+		StorePeriod:      period.PeriodWeek,
+		BackupInterval: &intervals.Interval{
+			Interval:  intervals.IntervalDaily,
+			TimeOfDay: &timeOfDay,
+		},
+		SendNotificationsOn: []BackupNotificationType{
+			NotificationBackupFailed,
+		},
+		CpuCount:            2,
+		IsRetryIfFailed:     true,
+		MaxFailedTriesCount: 3,
+		Encryption:          BackupEncryptionNone,
+	}
+
+	var response BackupConfig
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/backup-configs/save",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.Equal(t, database.ID, response.DatabaseID)
+	assert.Equal(t, BackupEncryptionNone, response.Encryption)
+}
+
+func Test_SaveBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+
+	timeOfDay := "04:00"
+	request := BackupConfig{
+		DatabaseID:       database.ID,
+		IsBackupsEnabled: true,
+		StorePeriod:      period.PeriodWeek,
+		BackupInterval: &intervals.Interval{
+			Interval:  intervals.IntervalDaily,
+			TimeOfDay: &timeOfDay,
+		},
+		SendNotificationsOn: []BackupNotificationType{
+			NotificationBackupFailed,
+		},
+		CpuCount:            2,
+		IsRetryIfFailed:     true,
+		MaxFailedTriesCount: 3,
+		Encryption:          BackupEncryptionEncrypted,
+	}
+
+	var response BackupConfig
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/backup-configs/save",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.Equal(t, database.ID, response.DatabaseID)
+	assert.Equal(t, BackupEncryptionEncrypted, response.Encryption)
+}
+
 func createTestDatabaseViaAPI(
 	name string,
 	workspaceID uuid.UUID,

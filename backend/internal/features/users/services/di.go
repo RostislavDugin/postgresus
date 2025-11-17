@@ -1,25 +1,19 @@
 package users_services
 
-import (
-	user_repositories "postgresus-backend/internal/features/users/repositories"
-)
-
-var secretKeyRepository = &user_repositories.SecretKeyRepository{}
-var userRepository = &user_repositories.UserRepository{}
-var usersSettingsRepository = &user_repositories.UsersSettingsRepository{}
+import users_repositories "postgresus-backend/internal/features/users/repositories"
 
 var userService = &UserService{
-	userRepository,
-	secretKeyRepository,
+	users_repositories.GetUserRepository(),
+	users_repositories.GetSecretKeyRepository(),
 	settingsService,
 	nil,
 }
 var settingsService = &SettingsService{
-	usersSettingsRepository,
+	users_repositories.GetUsersSettingsRepository(),
 	nil,
 }
 var managementService = &UserManagementService{
-	userRepository,
+	users_repositories.GetUserRepository(),
 	nil,
 }
 

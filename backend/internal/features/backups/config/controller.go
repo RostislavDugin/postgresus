@@ -20,15 +20,15 @@ func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 
 // SaveBackupConfig
 // @Summary Save backup configuration
-// @Description Save or update backup configuration for a database
+// @Description Save or update backup configuration for a database. Encryption can be set to NONE (no encryption) or ENCRYPTED (AES-256-GCM encryption).
 // @Tags backup-configs
 // @Accept json
 // @Produce json
-// @Param request body BackupConfig true "Backup configuration data"
-// @Success 200 {object} BackupConfig
-// @Failure 400
-// @Failure 401
-// @Failure 500
+// @Param request body BackupConfig true "Backup configuration data (encryption field: NONE or ENCRYPTED)"
+// @Success 200 {object} BackupConfig "Returns the saved backup configuration including encryption settings"
+// @Failure 400 {object} map[string]string "Invalid encryption value or other validation errors"
+// @Failure 401 {object} map[string]string "User not authenticated"
+// @Failure 500 {object} map[string]string "Internal server error"
 // @Router /backup-configs/save [post]
 func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
@@ -57,14 +57,14 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 
 // GetBackupConfigByDbID
 // @Summary Get backup configuration by database ID
-// @Description Get backup configuration for a specific database
+// @Description Get backup configuration for a specific database including encryption settings (NONE or ENCRYPTED)
 // @Tags backup-configs
 // @Produce json
 // @Param id path string true "Database ID"
-// @Success 200 {object} BackupConfig
-// @Failure 400
-// @Failure 401
-// @Failure 404
+// @Success 200 {object} BackupConfig "Returns backup configuration with encryption field"
+// @Failure 400 {object} map[string]string "Invalid database ID"
+// @Failure 401 {object} map[string]string "User not authenticated"
+// @Failure 404 {object} map[string]string "Backup configuration not found"
 // @Router /backup-configs/database/{id} [get]
 func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)

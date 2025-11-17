@@ -1,8 +1,10 @@
+import { InfoCircleOutlined } from '@ant-design/icons';
+import { Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
 import { useEffect, useState } from 'react';
 
-import { type BackupConfig, backupConfigApi } from '../../../entity/backups';
+import { type BackupConfig, BackupEncryption, backupConfigApi } from '../../../entity/backups';
 import { BackupNotificationType } from '../../../entity/backups/model/BackupNotificationType';
 import type { Database } from '../../../entity/databases';
 import { Period } from '../../../entity/databases/model/Period';
@@ -165,6 +167,18 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
                 />
               )}
             </div>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Encryption</div>
+            <div>{backupConfig.encryption === BackupEncryption.ENCRYPTED ? 'Enabled' : 'None'}</div>
+
+            <Tooltip
+              className="cursor-pointer"
+              title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Postgresus or download them unencrypted via the 'Download' button."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
           </div>
 
           <div className="mb-1 flex w-full items-center">

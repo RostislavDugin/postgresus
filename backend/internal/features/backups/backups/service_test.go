@@ -3,11 +3,13 @@ package backups
 import (
 	"context"
 	"errors"
+	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
 	users_enums "postgresus-backend/internal/features/users/enums"
+	users_repositories "postgresus-backend/internal/features/users/repositories"
 	users_testing "postgresus-backend/internal/features/users/testing"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
@@ -53,6 +55,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
+			users_repositories.GetSecretKeyRepository(),
 			&CreateFailedBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
@@ -99,6 +102,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
+			users_repositories.GetSecretKeyRepository(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
@@ -122,6 +126,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
+			users_repositories.GetSecretKeyRepository(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
@@ -171,9 +176,9 @@ func (uc *CreateFailedBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) error {
+) (*usecases_postgresql.BackupMetadata, error) {
 	backupProgressListener(10) // Assume we completed 10MB
-	return errors.New("backup failed")
+	return nil, errors.New("backup failed")
 }
 
 type CreateSuccessBackupUsecase struct {
@@ -188,7 +193,11 @@ func (uc *CreateSuccessBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) error {
+) (*usecases_postgresql.BackupMetadata, error) {
 	backupProgressListener(10) // Assume we completed 10MB
-	return nil
+	return &usecases_postgresql.BackupMetadata{
+		EncryptionSalt: nil,
+		EncryptionIV:   nil,
+		Encryption:     backups_config.BackupEncryptionNone,
+	}, nil
 }

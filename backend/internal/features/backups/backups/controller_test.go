@@ -524,7 +524,7 @@ func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Register a cancellable context for the backup
-	GetBackupService().backupContextMgr.RegisterBackup(backup.ID, func() {})
+	GetBackupService().backupContextManager.RegisterBackup(backup.ID, func() {})
 
 	resp := test_utils.MakePostRequest(
 		t,

@@ -31,6 +31,8 @@ type BackupConfig struct {
 	MaxFailedTriesCount int  `json:"maxFailedTriesCount" gorm:"column:max_failed_tries_count;type:int;not null"`
 
 	CpuCount int `json:"cpuCount" gorm:"type:int;not null"`
+
+	Encryption BackupEncryption `json:"encryption" gorm:"column:encryption;type:text;not null;default:'NONE'"`
 }
 
 func (h *BackupConfig) TableName() string {
@@ -88,6 +90,11 @@ func (b *BackupConfig) Validate() error {
 		return errors.New("max failed tries count must be greater than 0")
 	}
 
+	if b.Encryption != "" && b.Encryption != BackupEncryptionNone &&
+		b.Encryption != BackupEncryptionEncrypted {
+		return errors.New("encryption must be NONE or ENCRYPTED")
+	}
+
 	return nil
 }
 
@@ -103,5 +110,6 @@ func (b *BackupConfig) Copy(newDatabaseID uuid.UUID) *BackupConfig {
 		IsRetryIfFailed:     b.IsRetryIfFailed,
 		MaxFailedTriesCount: b.MaxFailedTriesCount,
 		CpuCount:            b.CpuCount,
+		Encryption:          b.Encryption,
 	}
 }

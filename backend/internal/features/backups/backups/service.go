@@ -2,16 +2,19 @@ package backups
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	audit_logs "postgresus-backend/internal/features/audit_logs"
+	"postgresus-backend/internal/features/backups/backups/encryption"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
+	users_repositories "postgresus-backend/internal/features/users/repositories"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"slices"
 	"strings"
@@ -27,6 +30,7 @@ type BackupService struct {
 	notifierService     *notifiers.NotifierService
 	notificationSender  NotificationSender
 	backupConfigService *backups_config.BackupConfigService
+	secretKeyRepo       *users_repositories.SecretKeyRepository
 
 	createBackupUseCase CreateBackupUsecase
 
@@ -34,9 +38,9 @@ type BackupService struct {
 
 	backupRemoveListeners []BackupRemoveListener
 
-	workspaceService *workspaces_services.WorkspaceService
-	auditLogService  *audit_logs.AuditLogService
-	backupContextMgr *BackupContextManager
+	workspaceService     *workspaces_services.WorkspaceService
+	auditLogService      *audit_logs.AuditLogService
+	backupContextManager *BackupContextManager
 }
 
 func (s *BackupService) AddBackupRemoveListener(listener BackupRemoveListener) {
@@ -253,10 +257,10 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s.backupContextMgr.RegisterBackup(backup.ID, cancel)
-	defer s.backupContextMgr.UnregisterBackup(backup.ID)
+	s.backupContextManager.RegisterBackup(backup.ID, cancel)
+	defer s.backupContextManager.UnregisterBackup(backup.ID)
 
-	err = s.createBackupUseCase.Execute(
+	backupMetadata, err := s.createBackupUseCase.Execute(
 		ctx,
 		backup.ID,
 		backupConfig,
@@ -325,6 +329,13 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 
 	backup.Status = BackupStatusCompleted
 	backup.BackupDurationMs = time.Since(start).Milliseconds()
+
+	// Update backup with encryption metadata if provided
+	if backupMetadata != nil {
+		backup.EncryptionSalt = backupMetadata.EncryptionSalt
+		backup.EncryptionIV = backupMetadata.EncryptionIV
+		backup.Encryption = backupMetadata.Encryption
+	}
 
 	if err := s.backupRepository.Save(backup); err != nil {
 		s.logger.Error("Failed to save backup", "error", err)
@@ -463,7 +474,7 @@ func (s *BackupService) CancelBackup(
 		return errors.New("backup is not in progress")
 	}
 
-	if err := s.backupContextMgr.CancelBackup(backupID); err != nil {
+	if err := s.backupContextManager.CancelBackup(backupID); err != nil {
 		return err
 	}
 
@@ -509,11 +520,6 @@ func (s *BackupService) GetBackupFile(
 		return nil, errors.New("insufficient permissions to download backup for this database")
 	}
 
-	storage, err := s.storageService.GetStorageByID(backup.StorageID)
-	if err != nil {
-		return nil, err
-	}
-
 	s.auditLogService.WriteAuditLog(
 		fmt.Sprintf(
 			"Backup file downloaded for database: %s (ID: %s)",
@@ -524,7 +530,7 @@ func (s *BackupService) GetBackupFile(
 		database.WorkspaceID,
 	)
 
-	return storage.GetFile(backup.ID)
+	return s.getBackupReader(backupID)
 }
 
 func (s *BackupService) deleteBackup(backup *Backup) error {
@@ -578,4 +584,92 @@ func (s *BackupService) deleteDbBackups(databaseID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+// GetBackupReader returns a reader for the backup file
+// If encrypted, wraps with DecryptionReader
+func (s *BackupService) getBackupReader(backupID uuid.UUID) (io.ReadCloser, error) {
+	backup, err := s.backupRepository.FindByID(backupID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find backup: %w", err)
+	}
+
+	storage, err := s.storageService.GetStorageByID(backup.StorageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage: %w", err)
+	}
+
+	fileReader, err := storage.GetFile(backup.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get backup file: %w", err)
+	}
+
+	// If not encrypted, return raw reader
+	if backup.Encryption == backups_config.BackupEncryptionNone {
+		s.logger.Info("Returning non-encrypted backup", "backupId", backupID)
+		return fileReader, nil
+	}
+
+	// Decrypt on-the-fly for encrypted backups
+	if backup.Encryption != backups_config.BackupEncryptionEncrypted {
+		if err := fileReader.Close(); err != nil {
+			s.logger.Error("Failed to close file reader", "error", err)
+		}
+		return nil, fmt.Errorf("unsupported encryption type: %s", backup.Encryption)
+	}
+
+	if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
+		if err := fileReader.Close(); err != nil {
+			s.logger.Error("Failed to close file reader", "error", err)
+		}
+		return nil, fmt.Errorf("backup marked as encrypted but missing encryption metadata")
+	}
+
+	// Get master key
+	masterKey, err := s.secretKeyRepo.GetSecretKey()
+	if err != nil {
+		if closeErr := fileReader.Close(); closeErr != nil {
+			s.logger.Error("Failed to close file reader", "error", closeErr)
+		}
+		return nil, fmt.Errorf("failed to get master key: %w", err)
+	}
+
+	// Decode salt and IV
+	salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
+	if err != nil {
+		if closeErr := fileReader.Close(); closeErr != nil {
+			s.logger.Error("Failed to close file reader", "error", closeErr)
+		}
+		return nil, fmt.Errorf("failed to decode salt: %w", err)
+	}
+
+	iv, err := base64.StdEncoding.DecodeString(*backup.EncryptionIV)
+	if err != nil {
+		if closeErr := fileReader.Close(); closeErr != nil {
+			s.logger.Error("Failed to close file reader", "error", closeErr)
+		}
+		return nil, fmt.Errorf("failed to decode IV: %w", err)
+	}
+
+	// Wrap with decrypting reader
+	decryptionReader, err := encryption.NewDecryptionReader(
+		fileReader,
+		masterKey,
+		backup.ID,
+		salt,
+		iv,
+	)
+	if err != nil {
+		if closeErr := fileReader.Close(); closeErr != nil {
+			s.logger.Error("Failed to close file reader", "error", closeErr)
+		}
+		return nil, fmt.Errorf("failed to create decrypting reader: %w", err)
+	}
+
+	s.logger.Info("Returning encrypted backup with decryption", "backupId", backupID)
+
+	return &decryptionReaderCloser{
+		decryptionReader,
+		fileReader,
+	}, nil
 }

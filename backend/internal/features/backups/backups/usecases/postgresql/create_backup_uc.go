@@ -2,6 +2,7 @@ package usecases_postgresql
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -14,17 +15,33 @@ import (
 	"time"
 
 	"postgresus-backend/internal/config"
+	"postgresus-backend/internal/features/backups/backups/encryption"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/storages"
+	users_repositories "postgresus-backend/internal/features/users/repositories"
 	"postgresus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
 )
 
+const (
+	backupTimeout            = 23 * time.Hour
+	shutdownCheckInterval    = 1 * time.Second
+	copyBufferSize           = 32 * 1024
+	progressReportIntervalMB = 1.0
+	pgConnectTimeout         = 30
+	compressionLevel         = 5
+	defaultBackupLimit       = 1000
+	exitCodeAccessViolation  = -1073741819
+	exitCodeGenericError     = 1
+	exitCodeConnectionError  = 2
+)
+
 type CreatePostgresqlBackupUsecase struct {
-	logger *slog.Logger
+	logger        *slog.Logger
+	secretKeyRepo *users_repositories.SecretKeyRepository
 }
 
 // Execute creates a backup of the database
@@ -37,7 +54,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) error {
+) (*BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating PostgreSQL backup via pg_dump custom format",
 		"databaseId",
@@ -47,39 +64,20 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	)
 
 	if !backupConfig.IsBackupsEnabled {
-		return fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
+		return nil, fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
 	}
 
 	pg := db.Postgresql
 
 	if pg == nil {
-		return fmt.Errorf("postgresql database configuration is required for pg_dump backups")
+		return nil, fmt.Errorf("postgresql database configuration is required for pg_dump backups")
 	}
 
 	if pg.Database == nil || *pg.Database == "" {
-		return fmt.Errorf("database name is required for pg_dump backups")
+		return nil, fmt.Errorf("database name is required for pg_dump backups")
 	}
 
-	args := []string{
-		"-Fc",           // custom format with built-in compression
-		"--no-password", // Use environment variable for password, prevent prompts
-		"-h", pg.Host,
-		"-p", strconv.Itoa(pg.Port),
-		"-U", pg.Username,
-		"-d", *pg.Database,
-		"--verbose", // Add verbose output to help with debugging
-	}
-
-	// Use zstd compression level 5 for PostgreSQL 16+ (better compression and speed)
-	// Fall back to gzip compression level 5 for older versions (12-15)
-	if pg.Version == tools.PostgresqlVersion12 || pg.Version == tools.PostgresqlVersion13 ||
-		pg.Version == tools.PostgresqlVersion14 || pg.Version == tools.PostgresqlVersion15 {
-		args = append(args, "-Z", "5")
-		uc.logger.Info("Using gzip compression level 5 (zstd not available)", "version", pg.Version)
-	} else {
-		args = append(args, "--compress=zstd:5")
-		uc.logger.Info("Using zstd compression level 5", "version", pg.Version)
-	}
+	args := uc.buildPgDumpArgs(pg)
 
 	return uc.streamToStorage(
 		ctx,
@@ -110,36 +108,15 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	db *databases.Database,
 	backupProgressListener func(completedMBs float64),
-) error {
+) (*BackupMetadata, error) {
 	uc.logger.Info("Streaming PostgreSQL backup to storage", "pgBin", pgBin, "args", args)
 
-	// if backup not fit into 23 hours, Postgresus
-	// seems not to work for such database size
-	ctx, cancel := context.WithTimeout(parentCtx, 23*time.Hour)
+	ctx, cancel := uc.createBackupContext(parentCtx)
 	defer cancel()
 
-	// Monitor for shutdown and cancel context if needed
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if config.IsShouldShutdown() {
-					cancel()
-					return
-				}
-			}
-		}
-	}()
-
-	// Create temporary .pgpass file as a more reliable alternative to PGPASSWORD
-	pgpassFile, err := uc.createTempPgpassFile(db.Postgresql, password)
+	pgpassFile, err := uc.setupPgpassFile(db.Postgresql, password)
 	if err != nil {
-		return fmt.Errorf("failed to create temporary .pgpass file: %w", err)
+		return nil, err
 	}
 	defer func() {
 		if pgpassFile != "" {
@@ -147,87 +124,21 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		}
 	}()
 
-	// Verify .pgpass file was created successfully
-	if pgpassFile == "" {
-		return fmt.Errorf("temporary .pgpass file was not created")
-	}
-
-	// Verify .pgpass file was created correctly
-	if info, err := os.Stat(pgpassFile); err == nil {
-		uc.logger.Info("Temporary .pgpass file created successfully",
-			"pgpassFile", pgpassFile,
-			"size", info.Size(),
-			"mode", info.Mode(),
-		)
-	} else {
-		return fmt.Errorf("failed to verify .pgpass file: %w", err)
-	}
-
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 	uc.logger.Info("Executing PostgreSQL backup command", "command", cmd.String())
 
-	// Start with system environment variables to preserve Windows PATH, SystemRoot, etc.
-	cmd.Env = os.Environ()
-
-	// Use the .pgpass file for authentication
-	cmd.Env = append(cmd.Env, "PGPASSFILE="+pgpassFile)
-	uc.logger.Info("Using temporary .pgpass file for authentication", "pgpassFile", pgpassFile)
-
-	// Debug password setup (without exposing the actual password)
-	uc.logger.Info("Setting up PostgreSQL environment",
-		"passwordLength", len(password),
-		"passwordEmpty", password == "",
-		"pgBin", pgBin,
-		"usingPgpassFile", true,
-		"parallelJobs", backupConfig.CpuCount,
-	)
-
-	// Add PostgreSQL-specific environment variables
-	cmd.Env = append(cmd.Env, "PGCLIENTENCODING=UTF8")
-	cmd.Env = append(cmd.Env, "PGCONNECT_TIMEOUT=30")
-
-	// Add encoding-related environment variables to handle character encoding issues
-	cmd.Env = append(cmd.Env, "LC_ALL=C.UTF-8")
-	cmd.Env = append(cmd.Env, "LANG=C.UTF-8")
-
-	// Add PostgreSQL-specific encoding settings
-	cmd.Env = append(cmd.Env, "PGOPTIONS=--client-encoding=UTF8")
-
-	shouldRequireSSL := db.Postgresql.IsHttps
-
-	// Require SSL when explicitly configured
-	if shouldRequireSSL {
-		cmd.Env = append(cmd.Env, "PGSSLMODE=require")
-		uc.logger.Info("Using required SSL mode", "configuredHttps", db.Postgresql.IsHttps)
-	} else {
-		// SSL not explicitly required, but prefer it if available
-		cmd.Env = append(cmd.Env, "PGSSLMODE=prefer")
-		uc.logger.Info("Using preferred SSL mode", "configuredHttps", db.Postgresql.IsHttps)
-	}
-
-	// Set other SSL parameters to avoid certificate issues
-	cmd.Env = append(cmd.Env, "PGSSLCERT=")     // No client certificate
-	cmd.Env = append(cmd.Env, "PGSSLKEY=")      // No client key
-	cmd.Env = append(cmd.Env, "PGSSLROOTCERT=") // No root certificate verification
-	cmd.Env = append(cmd.Env, "PGSSLCRL=")      // No certificate revocation list
-
-	// Verify executable exists and is accessible
-	if _, err := exec.LookPath(pgBin); err != nil {
-		return fmt.Errorf(
-			"PostgreSQL executable not found or not accessible: %s - %w",
-			pgBin,
-			err,
-		)
+	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, backupConfig.CpuCount, pgBin); err != nil {
+		return nil, err
 	}
 
 	pgStdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("stdout pipe: %w", err)
+		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
 	pgStderr, err := cmd.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
+		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
 
 	// Capture stderr in a separate goroutine to ensure we don't miss any error output
@@ -237,23 +148,31 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		stderrCh <- stderrOutput
 	}()
 
-	// A pipe connecting pg_dump output → storage
 	storageReader, storageWriter := io.Pipe()
 
-	// Create a counting writer to track bytes
-	countingWriter := &CountingWriter{writer: storageWriter}
+	finalWriter, encryptionWriter, backupMetadata, err := uc.setupBackupEncryption(
+		backupID,
+		backupConfig,
+		storageWriter,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	countingWriter := &CountingWriter{writer: finalWriter}
 
 	// The backup ID becomes the object key / filename in storage
 
 	// Start streaming into storage in its own goroutine
 	saveErrCh := make(chan error, 1)
 	go func() {
-		saveErrCh <- storage.SaveFile(uc.logger, backupID, storageReader)
+		saveErr := storage.SaveFile(uc.logger, backupID, storageReader)
+		saveErrCh <- saveErr
 	}()
 
 	// Start pg_dump
 	if err = cmd.Start(); err != nil {
-		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
+		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
 	// Copy pg output directly to storage with shutdown checks
@@ -278,26 +197,14 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	// Check for shutdown or cancellation before finalizing
 	select {
 	case <-ctx.Done():
-		if pipeWriter, ok := countingWriter.writer.(*io.PipeWriter); ok {
-			if err := pipeWriter.Close(); err != nil {
-				uc.logger.Error("Failed to close counting writer", "error", err)
-			}
-		}
-
-		<-saveErrCh // Wait for storage to finish
-
-		if config.IsShouldShutdown() {
-			return fmt.Errorf("backup cancelled due to shutdown")
-		}
-		return fmt.Errorf("backup cancelled")
+		uc.cleanupOnCancellation(encryptionWriter, storageWriter, saveErrCh)
+		return nil, uc.checkCancellationReason()
 	default:
 	}
 
-	// Close the pipe writer to signal end of data
-	if pipeWriter, ok := countingWriter.writer.(*io.PipeWriter); ok {
-		if err := pipeWriter.Close(); err != nil {
-			uc.logger.Error("Failed to close counting writer", "error", err)
-		}
+	if err := uc.closeWriters(encryptionWriter, storageWriter); err != nil {
+		<-saveErrCh
+		return nil, err
 	}
 
 	// Wait until storage ends reading
@@ -312,149 +219,34 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 
 	switch {
 	case waitErr != nil:
-		select {
-		case <-ctx.Done():
-			if config.IsShouldShutdown() {
-				return fmt.Errorf("backup cancelled due to shutdown")
-			}
-			return fmt.Errorf("backup cancelled")
-		default:
+		if err := uc.checkCancellation(ctx); err != nil {
+			return nil, err
 		}
-
-		// Enhanced error handling for PostgreSQL connection and SSL issues
-		stderrStr := string(stderrOutput)
-		errorMsg := fmt.Sprintf(
-			"%s failed: %v – stderr: %s",
-			filepath.Base(pgBin),
-			waitErr,
-			stderrStr,
-		)
-
-		// Check for specific PostgreSQL error patterns
-		if exitErr, ok := waitErr.(*exec.ExitError); ok {
-			exitCode := exitErr.ExitCode()
-
-			// Enhanced debugging for exit status 1 with empty stderr
-			if exitCode == 1 && strings.TrimSpace(stderrStr) == "" {
-				uc.logger.Error("pg_dump failed with exit status 1 but no stderr output",
-					"pgBin", pgBin,
-					"args", args,
-					"env_vars", []string{
-						"PGCLIENTENCODING=UTF8",
-						"PGCONNECT_TIMEOUT=30",
-						"LC_ALL=C.UTF-8",
-						"LANG=C.UTF-8",
-						"PGOPTIONS=--client-encoding=UTF8",
-					},
-				)
-
-				errorMsg = fmt.Sprintf(
-					"%s failed with exit status 1 but provided no error details. "+
-						"This often indicates: "+
-						"1) Connection timeout or refused connection, "+
-						"2) Authentication failure with incorrect credentials, "+
-						"3) Database does not exist, "+
-						"4) Network connectivity issues, "+
-						"5) PostgreSQL server not running. "+
-						"Command executed: %s %s",
-					filepath.Base(pgBin),
-					pgBin,
-					strings.Join(args, " "),
-				)
-			} else if exitCode == -1073741819 { // 0xC0000005 in decimal
-				uc.logger.Error("PostgreSQL tool crashed with access violation",
-					"pgBin", pgBin,
-					"args", args,
-					"exitCode", fmt.Sprintf("0x%X", uint32(exitCode)),
-				)
-
-				errorMsg = fmt.Sprintf(
-					"%s crashed with access violation (0xC0000005). This may indicate incompatible PostgreSQL version, corrupted installation, or connection issues. stderr: %s",
-					filepath.Base(pgBin),
-					stderrStr,
-				)
-			} else if exitCode == 1 || exitCode == 2 {
-				// Check for common connection and authentication issues
-				if containsIgnoreCase(stderrStr, "pg_hba.conf") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL connection rejected by server configuration (pg_hba.conf). The server may not allow connections from your IP address or may require different authentication settings. stderr: %s",
-						stderrStr,
-					)
-				} else if containsIgnoreCase(stderrStr, "no password supplied") || containsIgnoreCase(stderrStr, "fe_sendauth") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL authentication failed - no password supplied. "+
-							"PGPASSWORD environment variable may not be working correctly on this system. "+
-							"Password length: %d, Password empty: %v. "+
-							"Consider using a .pgpass file as an alternative. stderr: %s",
-						len(password),
-						password == "",
-						stderrStr,
-					)
-				} else if containsIgnoreCase(stderrStr, "ssl") && containsIgnoreCase(stderrStr, "connection") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL SSL connection failed. The server may require SSL encryption or have SSL configuration issues. stderr: %s",
-						stderrStr,
-					)
-				} else if containsIgnoreCase(stderrStr, "connection") && containsIgnoreCase(stderrStr, "refused") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL connection refused. Check if the server is running and accessible from your network. stderr: %s",
-						stderrStr,
-					)
-				} else if containsIgnoreCase(stderrStr, "authentication") || containsIgnoreCase(stderrStr, "password") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL authentication failed. Check username and password. stderr: %s",
-						stderrStr,
-					)
-				} else if containsIgnoreCase(stderrStr, "timeout") {
-					errorMsg = fmt.Sprintf(
-						"PostgreSQL connection timeout. The server may be unreachable or overloaded. stderr: %s",
-						stderrStr,
-					)
-				}
-			}
-		}
-
-		return errors.New(errorMsg)
+		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput, pgBin, args, password)
 	case copyErr != nil:
-		select {
-		case <-ctx.Done():
-			if config.IsShouldShutdown() {
-				return fmt.Errorf("backup cancelled due to shutdown")
-			}
-			return fmt.Errorf("backup cancelled")
-		default:
+		if err := uc.checkCancellation(ctx); err != nil {
+			return nil, err
 		}
-
-		return fmt.Errorf("copy to storage: %w", copyErr)
+		return nil, fmt.Errorf("copy to storage: %w", copyErr)
 	case saveErr != nil:
-		select {
-		case <-ctx.Done():
-			if config.IsShouldShutdown() {
-				return fmt.Errorf("backup cancelled due to shutdown")
-			}
-			return fmt.Errorf("backup cancelled")
-		default:
+		if err := uc.checkCancellation(ctx); err != nil {
+			return nil, err
 		}
-
-		return fmt.Errorf("save to storage: %w", saveErr)
+		return nil, fmt.Errorf("save to storage: %w", saveErr)
 	}
 
-	return nil
+	return &backupMetadata, nil
 }
 
-// copyWithShutdownCheck copies data from src to dst while checking for shutdown
 func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
 	ctx context.Context,
 	dst io.Writer,
 	src io.Reader,
 	backupProgressListener func(completedMBs float64),
 ) (int64, error) {
-	buf := make([]byte, 32*1024) // 32KB buffer
+	buf := make([]byte, copyBufferSize)
 	var totalBytesWritten int64
-
-	// Progress reporting interval - report every 1MB of data
 	var lastReportedMB float64
-	const reportIntervalMB = 1.0
 
 	for {
 		select {
@@ -487,12 +279,9 @@ func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
 
 			totalBytesWritten += int64(bytesWritten)
 
-			// Report progress based on total size
 			if backupProgressListener != nil {
 				currentSizeMB := float64(totalBytesWritten) / (1024 * 1024)
-
-				// Only report if we've written at least 1MB more data than last report
-				if currentSizeMB >= lastReportedMB+reportIntervalMB {
+				if currentSizeMB >= lastReportedMB+progressReportIntervalMB {
 					backupProgressListener(currentSizeMB)
 					lastReportedMB = currentSizeMB
 				}
@@ -503,7 +292,6 @@ func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
 			if readErr != io.EOF {
 				return totalBytesWritten, readErr
 			}
-
 			break
 		}
 	}
@@ -511,12 +299,412 @@ func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
 	return totalBytesWritten, nil
 }
 
-// containsIgnoreCase checks if a string contains a substring, ignoring case
-func containsIgnoreCase(str, substr string) bool {
-	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
+func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlDatabase) []string {
+	args := []string{
+		"-Fc",
+		"--no-password",
+		"-h", pg.Host,
+		"-p", strconv.Itoa(pg.Port),
+		"-U", pg.Username,
+		"-d", *pg.Database,
+		"--verbose",
+	}
+
+	compressionArgs := uc.getCompressionArgs(pg.Version)
+	return append(args, compressionArgs...)
 }
 
-// createTempPgpassFile creates a temporary .pgpass file with the given password
+func (uc *CreatePostgresqlBackupUsecase) getCompressionArgs(
+	version tools.PostgresqlVersion,
+) []string {
+	if uc.isOlderPostgresVersion(version) {
+		uc.logger.Info("Using gzip compression level 5 (zstd not available)", "version", version)
+		return []string{"-Z", strconv.Itoa(compressionLevel)}
+	}
+
+	uc.logger.Info("Using zstd compression level 5", "version", version)
+	return []string{fmt.Sprintf("--compress=zstd:%d", compressionLevel)}
+}
+
+func (uc *CreatePostgresqlBackupUsecase) isOlderPostgresVersion(
+	version tools.PostgresqlVersion,
+) bool {
+	return version == tools.PostgresqlVersion12 ||
+		version == tools.PostgresqlVersion13 ||
+		version == tools.PostgresqlVersion14 ||
+		version == tools.PostgresqlVersion15
+}
+
+func (uc *CreatePostgresqlBackupUsecase) createBackupContext(
+	parentCtx context.Context,
+) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(parentCtx, backupTimeout)
+
+	go func() {
+		ticker := time.NewTicker(shutdownCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if config.IsShouldShutdown() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	return ctx, cancel
+}
+
+func (uc *CreatePostgresqlBackupUsecase) setupPgpassFile(
+	pgConfig *pgtypes.PostgresqlDatabase,
+	password string,
+) (string, error) {
+	pgpassFile, err := uc.createTempPgpassFile(pgConfig, password)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary .pgpass file: %w", err)
+	}
+
+	if pgpassFile == "" {
+		return "", fmt.Errorf("temporary .pgpass file was not created")
+	}
+
+	if info, err := os.Stat(pgpassFile); err == nil {
+		uc.logger.Info("Temporary .pgpass file created successfully",
+			"pgpassFile", pgpassFile,
+			"size", info.Size(),
+			"mode", info.Mode(),
+		)
+	} else {
+		return "", fmt.Errorf("failed to verify .pgpass file: %w", err)
+	}
+
+	return pgpassFile, nil
+}
+
+func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
+	cmd *exec.Cmd,
+	pgpassFile string,
+	shouldRequireSSL bool,
+	password string,
+	cpuCount int,
+	pgBin string,
+) error {
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "PGPASSFILE="+pgpassFile)
+
+	uc.logger.Info("Using temporary .pgpass file for authentication", "pgpassFile", pgpassFile)
+	uc.logger.Info("Setting up PostgreSQL environment",
+		"passwordLength", len(password),
+		"passwordEmpty", password == "",
+		"pgBin", pgBin,
+		"usingPgpassFile", true,
+		"parallelJobs", cpuCount,
+	)
+
+	cmd.Env = append(cmd.Env,
+		"PGCLIENTENCODING=UTF8",
+		"PGCONNECT_TIMEOUT="+strconv.Itoa(pgConnectTimeout),
+		"LC_ALL=C.UTF-8",
+		"LANG=C.UTF-8",
+		"PGOPTIONS=--client-encoding=UTF8",
+	)
+
+	if shouldRequireSSL {
+		cmd.Env = append(cmd.Env, "PGSSLMODE=require")
+		uc.logger.Info("Using required SSL mode", "configuredHttps", shouldRequireSSL)
+	} else {
+		cmd.Env = append(cmd.Env, "PGSSLMODE=prefer")
+		uc.logger.Info("Using preferred SSL mode", "configuredHttps", shouldRequireSSL)
+	}
+
+	cmd.Env = append(cmd.Env,
+		"PGSSLCERT=",
+		"PGSSLKEY=",
+		"PGSSLROOTCERT=",
+		"PGSSLCRL=",
+	)
+
+	if _, err := exec.LookPath(pgBin); err != nil {
+		return fmt.Errorf("PostgreSQL executable not found or not accessible: %s - %w", pgBin, err)
+	}
+
+	return nil
+}
+
+func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
+	backupID uuid.UUID,
+	backupConfig *backups_config.BackupConfig,
+	storageWriter io.WriteCloser,
+) (io.Writer, *encryption.EncryptionWriter, BackupMetadata, error) {
+	metadata := BackupMetadata{}
+
+	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
+		metadata.Encryption = backups_config.BackupEncryptionNone
+		uc.logger.Info("Encryption disabled for backup", "backupId", backupID)
+		return storageWriter, nil, metadata, nil
+	}
+
+	salt, err := encryption.GenerateSalt()
+	if err != nil {
+		return nil, nil, metadata, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	nonce, err := encryption.GenerateNonce()
+	if err != nil {
+		return nil, nil, metadata, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	masterKey, err := uc.secretKeyRepo.GetSecretKey()
+	if err != nil {
+		return nil, nil, metadata, fmt.Errorf("failed to get master key: %w", err)
+	}
+
+	encWriter, err := encryption.NewEncryptionWriter(
+		storageWriter,
+		masterKey,
+		backupID,
+		salt,
+		nonce,
+	)
+	if err != nil {
+		return nil, nil, metadata, fmt.Errorf("failed to create encrypting writer: %w", err)
+	}
+
+	saltBase64 := base64.StdEncoding.EncodeToString(salt)
+	nonceBase64 := base64.StdEncoding.EncodeToString(nonce)
+	metadata.EncryptionSalt = &saltBase64
+	metadata.EncryptionIV = &nonceBase64
+	metadata.Encryption = backups_config.BackupEncryptionEncrypted
+
+	uc.logger.Info("Encryption enabled for backup", "backupId", backupID)
+	return encWriter, encWriter, metadata, nil
+}
+
+func (uc *CreatePostgresqlBackupUsecase) cleanupOnCancellation(
+	encryptionWriter *encryption.EncryptionWriter,
+	storageWriter io.WriteCloser,
+	saveErrCh chan error,
+) {
+	if encryptionWriter != nil {
+		go func() {
+			if closeErr := encryptionWriter.Close(); closeErr != nil {
+				uc.logger.Error(
+					"Failed to close encrypting writer during cancellation",
+					"error",
+					closeErr,
+				)
+			}
+		}()
+	}
+
+	if err := storageWriter.Close(); err != nil {
+		uc.logger.Error("Failed to close pipe writer during cancellation", "error", err)
+	}
+
+	<-saveErrCh
+}
+
+func (uc *CreatePostgresqlBackupUsecase) closeWriters(
+	encryptionWriter *encryption.EncryptionWriter,
+	storageWriter io.WriteCloser,
+) error {
+	encryptionCloseErrCh := make(chan error, 1)
+	if encryptionWriter != nil {
+		go func() {
+			closeErr := encryptionWriter.Close()
+			if closeErr != nil {
+				uc.logger.Error("Failed to close encrypting writer", "error", closeErr)
+			}
+			encryptionCloseErrCh <- closeErr
+		}()
+	} else {
+		encryptionCloseErrCh <- nil
+	}
+
+	encryptionCloseErr := <-encryptionCloseErrCh
+	if encryptionCloseErr != nil {
+		if err := storageWriter.Close(); err != nil {
+			uc.logger.Error("Failed to close pipe writer after encryption error", "error", err)
+		}
+		return fmt.Errorf("failed to close encryption writer: %w", encryptionCloseErr)
+	}
+
+	if err := storageWriter.Close(); err != nil {
+		uc.logger.Error("Failed to close pipe writer", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (uc *CreatePostgresqlBackupUsecase) checkCancellation(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		if config.IsShouldShutdown() {
+			return fmt.Errorf("backup cancelled due to shutdown")
+		}
+		return fmt.Errorf("backup cancelled")
+	default:
+		return nil
+	}
+}
+
+func (uc *CreatePostgresqlBackupUsecase) checkCancellationReason() error {
+	if config.IsShouldShutdown() {
+		return fmt.Errorf("backup cancelled due to shutdown")
+	}
+	return fmt.Errorf("backup cancelled")
+}
+
+func (uc *CreatePostgresqlBackupUsecase) buildPgDumpErrorMessage(
+	waitErr error,
+	stderrOutput []byte,
+	pgBin string,
+	args []string,
+	password string,
+) error {
+	stderrStr := string(stderrOutput)
+	errorMsg := fmt.Sprintf("%s failed: %v – stderr: %s", filepath.Base(pgBin), waitErr, stderrStr)
+
+	exitErr, ok := waitErr.(*exec.ExitError)
+	if !ok {
+		return errors.New(errorMsg)
+	}
+
+	exitCode := exitErr.ExitCode()
+
+	if exitCode == exitCodeGenericError && strings.TrimSpace(stderrStr) == "" {
+		return uc.handleExitCode1NoStderr(pgBin, args)
+	}
+
+	if exitCode == exitCodeAccessViolation {
+		return uc.handleAccessViolation(pgBin, stderrStr)
+	}
+
+	if exitCode == exitCodeGenericError || exitCode == exitCodeConnectionError {
+		return uc.handleConnectionErrors(stderrStr, password)
+	}
+
+	return errors.New(errorMsg)
+}
+
+func (uc *CreatePostgresqlBackupUsecase) handleExitCode1NoStderr(
+	pgBin string,
+	args []string,
+) error {
+	uc.logger.Error("pg_dump failed with exit status 1 but no stderr output",
+		"pgBin", pgBin,
+		"args", args,
+		"env_vars", []string{
+			"PGCLIENTENCODING=UTF8",
+			"PGCONNECT_TIMEOUT=" + strconv.Itoa(pgConnectTimeout),
+			"LC_ALL=C.UTF-8",
+			"LANG=C.UTF-8",
+			"PGOPTIONS=--client-encoding=UTF8",
+		},
+	)
+
+	return fmt.Errorf(
+		"%s failed with exit status 1 but provided no error details. "+
+			"This often indicates: "+
+			"1) Connection timeout or refused connection, "+
+			"2) Authentication failure with incorrect credentials, "+
+			"3) Database does not exist, "+
+			"4) Network connectivity issues, "+
+			"5) PostgreSQL server not running. "+
+			"Command executed: %s %s",
+		filepath.Base(pgBin),
+		pgBin,
+		strings.Join(args, " "),
+	)
+}
+
+func (uc *CreatePostgresqlBackupUsecase) handleAccessViolation(
+	pgBin string,
+	stderrStr string,
+) error {
+	uc.logger.Error("PostgreSQL tool crashed with access violation",
+		"pgBin", pgBin,
+		"exitCode", "0xC0000005",
+	)
+
+	return fmt.Errorf(
+		"%s crashed with access violation (0xC0000005). "+
+			"This may indicate incompatible PostgreSQL version, corrupted installation, or connection issues. "+
+			"stderr: %s",
+		filepath.Base(pgBin),
+		stderrStr,
+	)
+}
+
+func (uc *CreatePostgresqlBackupUsecase) handleConnectionErrors(
+	stderrStr string,
+	password string,
+) error {
+	if containsIgnoreCase(stderrStr, "pg_hba.conf") {
+		return fmt.Errorf(
+			"PostgreSQL connection rejected by server configuration (pg_hba.conf). "+
+				"The server may not allow connections from your IP address or may require different authentication settings. "+
+				"stderr: %s",
+			stderrStr,
+		)
+	}
+
+	if containsIgnoreCase(stderrStr, "no password supplied") ||
+		containsIgnoreCase(stderrStr, "fe_sendauth") {
+		return fmt.Errorf(
+			"PostgreSQL authentication failed - no password supplied. "+
+				"PGPASSWORD environment variable may not be working correctly on this system. "+
+				"Password length: %d, Password empty: %v. "+
+				"Consider using a .pgpass file as an alternative. "+
+				"stderr: %s",
+			len(password),
+			password == "",
+			stderrStr,
+		)
+	}
+
+	if containsIgnoreCase(stderrStr, "ssl") && containsIgnoreCase(stderrStr, "connection") {
+		return fmt.Errorf(
+			"PostgreSQL SSL connection failed. "+
+				"The server may require SSL encryption or have SSL configuration issues. "+
+				"stderr: %s",
+			stderrStr,
+		)
+	}
+
+	if containsIgnoreCase(stderrStr, "connection") && containsIgnoreCase(stderrStr, "refused") {
+		return fmt.Errorf(
+			"PostgreSQL connection refused. "+
+				"Check if the server is running and accessible from your network. "+
+				"stderr: %s",
+			stderrStr,
+		)
+	}
+
+	if containsIgnoreCase(stderrStr, "authentication") ||
+		containsIgnoreCase(stderrStr, "password") {
+		return fmt.Errorf(
+			"PostgreSQL authentication failed. Check username and password. stderr: %s",
+			stderrStr,
+		)
+	}
+
+	if containsIgnoreCase(stderrStr, "timeout") {
+		return fmt.Errorf(
+			"PostgreSQL connection timeout. The server may be unreachable or overloaded. stderr: %s",
+			stderrStr,
+		)
+	}
+
+	return fmt.Errorf("PostgreSQL connection or authentication error. stderr: %s", stderrStr)
+}
+
 func (uc *CreatePostgresqlBackupUsecase) createTempPgpassFile(
 	pgConfig *pgtypes.PostgresqlDatabase,
 	password string,
@@ -532,7 +720,6 @@ func (uc *CreatePostgresqlBackupUsecase) createTempPgpassFile(
 		password,
 	)
 
-	// it always create unique directory like /tmp/pgpass-1234567890
 	tempDir, err := os.MkdirTemp("", "pgpass")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
@@ -545,4 +732,8 @@ func (uc *CreatePostgresqlBackupUsecase) createTempPgpassFile(
 	}
 
 	return pgpassFile, nil
+}
+
+func containsIgnoreCase(str, substr string) bool {
+	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
 }

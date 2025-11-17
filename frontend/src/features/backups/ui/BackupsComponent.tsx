@@ -6,6 +6,7 @@ import {
   DownloadOutlined,
   ExclamationCircleOutlined,
   InfoCircleOutlined,
+  LockOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
 import { Button, Modal, Spin, Table, Tooltip } from 'antd';
@@ -16,6 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   type Backup,
   type BackupConfig,
+  BackupEncryption,
   BackupStatus,
   backupConfigApi,
   backupsApi,
@@ -318,6 +320,12 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
             <div className="flex items-center text-green-600">
               <CheckCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
               <div>Successful</div>
+
+              {record.encryption === BackupEncryption.ENCRYPTED && (
+                <Tooltip title="Encrypted">
+                  <LockOutlined className="ml-1" style={{ fontSize: 14 }} />
+                </Tooltip>
+              )}
             </div>
           );
         }

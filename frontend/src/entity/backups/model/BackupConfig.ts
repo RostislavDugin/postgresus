@@ -1,6 +1,7 @@
 import type { Period } from '../../databases/model/Period';
 import type { Interval } from '../../intervals';
 import type { Storage } from '../../storages';
+import { BackupEncryption } from './BackupEncryption';
 import type { BackupNotificationType } from './BackupNotificationType';
 
 export interface BackupConfig {
@@ -14,4 +15,5 @@ export interface BackupConfig {
   cpuCount: number;
   isRetryIfFailed: boolean;
   maxFailedTriesCount: number;
+  encryption: BackupEncryption;
 }

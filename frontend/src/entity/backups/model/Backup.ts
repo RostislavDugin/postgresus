@@ -1,5 +1,6 @@
 import type { Database } from '../../databases/model/Database';
 import type { Storage } from '../../storages';
+import { BackupEncryption } from './BackupEncryption';
 import { BackupStatus } from './BackupStatus';
 
 export interface Backup {
@@ -14,6 +15,8 @@ export interface Backup {
   backupSizeMb: number;
 
   backupDurationMs: number;
+
+  encryption: BackupEncryption;
 
   createdAt: Date;
 }

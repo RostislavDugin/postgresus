@@ -14,9 +14,7 @@ type SecretKeyRepository struct{}
 func (r *SecretKeyRepository) GetSecretKey() (string, error) {
 	var secretKey user_models.SecretKey
 
-	if err := storage.
-		GetDb().
-		First(&secretKey).Error; err != nil {
+	if err := storage.GetDb().First(&secretKey).Error; err != nil {
 		// create a new secret key if not found
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			newSecretKey := user_models.SecretKey{

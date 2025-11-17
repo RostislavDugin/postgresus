@@ -171,6 +171,7 @@ func (s *BackupConfigService) initializeDefaultConfig(
 		CpuCount:            1,
 		IsRetryIfFailed:     true,
 		MaxFailedTriesCount: 3,
+		Encryption:          BackupEncryptionNone,
 	})
 
 	return err
