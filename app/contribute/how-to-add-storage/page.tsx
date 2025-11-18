@@ -87,7 +87,7 @@ export default function HowToAddStoragePage() {
                 build the frontend UI components for managing storage providers.
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
                 <p className="text-sm text-blue-900 m-0">
                   <strong>💡 Note:</strong> This is a contribution guide for
                   developers who want to add new storage integrations to the
@@ -124,34 +124,63 @@ export default function HowToAddStoragePage() {
               <ul>
                 <li>
                   <code>
-                    SaveFile(logger *slog.Logger, fileID uuid.UUID, file
-                    io.Reader) error
+                    SaveFile(encryptor encryption.FieldEncryptor, logger
+                    *slog.Logger, fileID uuid.UUID, file io.Reader) error
                   </code>{" "}
                   - saves a backup file to the storage
                 </li>
                 <li>
-                  <code>GetFile(fileID uuid.UUID) (io.ReadCloser, error)</code>{" "}
+                  <code>
+                    GetFile(encryptor encryption.FieldEncryptor, fileID
+                    uuid.UUID) (io.ReadCloser, error)
+                  </code>{" "}
                   - retrieves a backup file from the storage
                 </li>
                 <li>
-                  <code>DeleteFile(fileID uuid.UUID) error</code> - deletes a
-                  backup file from the storage
+                  <code>
+                    DeleteFile(encryptor encryption.FieldEncryptor, fileID
+                    uuid.UUID) error
+                  </code>{" "}
+                  - deletes a backup file from the storage
                 </li>
                 <li>
-                  <code>Validate() error</code> - validates the storage
-                  configuration
+                  <code>
+                    Validate(encryptor encryption.FieldEncryptor) error
+                  </code>{" "}
+                  - validates the storage configuration
                 </li>
                 <li>
-                  <code>TestConnection() error</code> - tests connectivity to
-                  the storage provider
+                  <code>
+                    TestConnection(encryptor encryption.FieldEncryptor) error
+                  </code>{" "}
+                  - tests connectivity to the storage provider
                 </li>
                 <li>
                   <code>HideSensitiveData()</code> - masks sensitive fields like
                   API keys before logging/display
                 </li>
+                <li>
+                  <code>
+                    EncryptSensitiveData(encryptor encryption.FieldEncryptor)
+                    error
+                  </code>{" "}
+                  - encrypts sensitive fields before saving
+                </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
+                <p className="text-sm text-blue-900 m-0">
+                  <strong>🔐 Encryption requirement:</strong> All sensitive
+                  fields (API keys, passwords, access tokens, secrets) must be
+                  encrypted using the <code>EncryptSensitiveData()</code> method
+                  before saving to the database. Decrypt credentials before
+                  using them. See <code>azure_blob</code>,{" "}
+                  <code>google_drive</code> or <code>s3</code> storage models
+                  for implementation examples.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
                 <p className="text-sm text-gray-700 m-0">
                   <strong>🔑 Important:</strong> Use UUID primary key as{" "}
                   <code>StorageID</code> that references the main storages
@@ -258,7 +287,7 @@ export default function HowToAddStoragePage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
                 <p className="text-sm text-gray-700 m-0">
                   <strong>💡 Tip:</strong> The <code>CASCADE DELETE</code>{" "}
                   ensures that when a storage is deleted from the main storages
@@ -282,6 +311,39 @@ export default function HowToAddStoragePage() {
                 <li>Validation of configuration parameters</li>
               </ul>
 
+              <p>
+                Additionally, update{" "}
+                <code>
+                  backend/internal/features/storages/controller_test.go
+                </code>{" "}
+                to add encryption verification tests:
+              </p>
+
+              <ul>
+                <li>
+                  Add a test case to{" "}
+                  <code>Test_StorageSensitiveDataLifecycle_AllTypes</code> for
+                  your storage type
+                </li>
+                <li>
+                  Add a test case to{" "}
+                  <code>
+                    Test_CreateStorage_AllSensitiveFieldsEncryptedInDB
+                  </code>{" "}
+                  (if not already present)
+                </li>
+                <li>
+                  Verify that sensitive fields are encrypted with{" "}
+                  <code>enc:</code> prefix in the database
+                </li>
+                <li>
+                  Verify that decryption returns the original plaintext values
+                </li>
+                <li>
+                  Verify that sensitive data is hidden when retrieved via API
+                </li>
+              </ul>
+
               <h3 id="step-9-run-tests">9. Run all tests</h3>
 
               <p>
@@ -299,7 +361,7 @@ export default function HowToAddStoragePage() {
                 provider.
               </p>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 my-6">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 pt-4 px-4 my-6">
                 <p className="text-sm text-amber-900 m-0">
                   <strong>ℹ️ Backend-only contributions:</strong> If you&apos;re
                   only comfortable with backend development, that&apos;s
@@ -466,7 +528,7 @@ export default function HowToAddStoragePage() {
                 </li>
               </ol>
 
-              <div className="rounded-lg border border-green-200 bg-green-50 p-4 my-6">
+              <div className="rounded-lg border border-green-200 bg-green-50 pt-4 px-4 my-6">
                 <p className="text-sm text-green-900 m-0">
                   <strong>🎉 Thank you!</strong> Your contributions help make
                   Postgresus more versatile and valuable for the community. We

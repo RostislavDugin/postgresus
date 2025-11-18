@@ -86,7 +86,7 @@ export default function HowToAddNotifierPage() {
                 and build the frontend UI components.
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
                 <p className="text-sm text-blue-900 m-0">
                   <strong>💡 Note:</strong> This is a contribution guide for
                   developers who want to add new notification integrations to
@@ -118,26 +118,49 @@ export default function HowToAddNotifierPage() {
                 folder.
               </p>
 
-              <p>The interface requires three methods:</p>
+              <p>The interface requires the following methods:</p>
 
               <ul>
                 <li>
                   <code>
-                    Send(logger *slog.Logger, heading string, message string)
-                    error
+                    Send(encryptor encryption.FieldEncryptor, logger
+                    *slog.Logger, heading string, message string) error
                   </code>{" "}
                   - sends the notification
                 </li>
                 <li>
-                  <code>Validate() error</code> - validates the configuration
+                  <code>
+                    Validate(encryptor encryption.FieldEncryptor) error
+                  </code>{" "}
+                  - validates the configuration
                 </li>
                 <li>
                   <code>HideSensitiveData()</code> - masks sensitive fields
                   before logging/display
                 </li>
+                <li>
+                  <code>
+                    EncryptSensitiveData(encryptor encryption.FieldEncryptor)
+                    error
+                  </code>{" "}
+                  - encrypts sensitive fields before saving
+                </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
+                <p className="text-sm text-blue-900 m-0">
+                  <strong>🔐 Encryption requirement:</strong> All sensitive
+                  fields (bot tokens, webhook URLs, API keys, passwords) must be
+                  encrypted using the <code>EncryptSensitiveData()</code> method
+                  before saving to the database. Decrypt credentials in the{" "}
+                  <code>Send()</code> method before sending notifications. See{" "}
+                  <code>discord</code>, <code>telegram</code>,{" "}
+                  <code>slack</code>, or <code>teams</code> notifier models for
+                  implementation examples.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
                 <p className="text-sm text-gray-700 m-0">
                   <strong>🔑 Important:</strong> Use UUID primary key as{" "}
                   <code>NotifierID</code> that references the main notifiers
@@ -235,7 +258,7 @@ export default function HowToAddNotifierPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
                 <p className="text-sm text-gray-700 m-0">
                   <strong>💡 Tip:</strong> The <code>CASCADE DELETE</code>{" "}
                   ensures that when a notifier is deleted from the main
@@ -244,12 +267,43 @@ export default function HowToAddNotifierPage() {
                 </p>
               </div>
 
-              <h3 id="step-8-run-tests">8. Run tests</h3>
+              <h3 id="step-8-run-tests">8. Update and run tests</h3>
+
+              <p>
+                Update{" "}
+                <code>
+                  backend/internal/features/notifiers/controller_test.go
+                </code>{" "}
+                to add encryption verification tests for your notifier:
+              </p>
+
+              <ul>
+                <li>
+                  Add a test case to{" "}
+                  <code>Test_NotifierSensitiveDataLifecycle_AllTypes</code> for
+                  your notifier type
+                </li>
+                <li>
+                  Add a test case to{" "}
+                  <code>
+                    Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB
+                  </code>
+                </li>
+                <li>
+                  Verify that sensitive fields are encrypted with{" "}
+                  <code>enc:</code> prefix in the database
+                </li>
+                <li>
+                  Verify that decryption returns the original plaintext values
+                </li>
+                <li>
+                  Verify that sensitive data is hidden when retrieved via API
+                </li>
+              </ul>
 
               <p>
                 Before submitting your pull request, make sure all existing
-                tests pass and consider adding new tests for your notifier
-                implementation.
+                tests pass and your new encryption tests are working correctly.
               </p>
 
               <h2 id="frontend-implementation">Frontend implementation</h2>
@@ -259,7 +313,7 @@ export default function HowToAddNotifierPage() {
                 validators and React components for managing your notifier.
               </p>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 my-6">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 pt-4 px-4 my-6">
                 <p className="text-sm text-amber-900 m-0">
                   <strong>ℹ️ Backend-only contributions:</strong> If you&apos;re
                   only comfortable with backend development, that&apos;s
