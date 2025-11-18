@@ -310,12 +310,6 @@ export default function ContributePage() {
               <h3 id="storages">Storages</h3>
 
               <ul>
-                <li>Allow to specify prefix for S3 storage</li>
-                <li>
-                  Change backups naming from &#123;uuid&#125;.dump to
-                  &#123;db_name&#125;_&#123;date&#125;_&#123;uuid&#125;.dump
-                  with back compatibility
-                </li>
                 <li>Verify AWS S3 support</li>
                 <li>Verify Google Cloud S3 support</li>
                 <li>Verify Tencent Cloud S3 support</li>
@@ -336,6 +330,11 @@ export default function ContributePage() {
               <h2 id="project-plans">Project plans (not for contribution)</h2>
 
               <ul>
+                <li>
+                  Change backups naming from &#123;uuid&#125;.dump to
+                  &#123;db_name&#125;_&#123;date&#125;_&#123;uuid&#125;.dump
+                  with back compatibility
+                </li>
                 <li>Add customization of webhook</li>
                 <li>Add SSH tunneling</li>
                 <li>Add encryption for backups and read-only access to DBs</li>
