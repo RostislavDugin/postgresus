@@ -11,6 +11,7 @@ import (
 	"postgresus-backend/internal/features/notifiers"
 	users_models "postgresus-backend/internal/features/users/models"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -26,6 +27,7 @@ type DatabaseService struct {
 
 	workspaceService *workspaces_services.WorkspaceService
 	auditLogService  *audit_logs.AuditLogService
+	fieldEncryptor   encryption.FieldEncryptor
 }
 
 func (s *DatabaseService) AddDbCreationListener(
@@ -63,6 +65,10 @@ func (s *DatabaseService) CreateDatabase(
 
 	if err := database.Validate(); err != nil {
 		return nil, err
+	}
+
+	if err := database.EncryptSensitiveFields(s.fieldEncryptor); err != nil {
+		return nil, fmt.Errorf("failed to encrypt sensitive fields: %w", err)
 	}
 
 	database, err = s.dbRepository.Save(database)
@@ -116,6 +122,10 @@ func (s *DatabaseService) UpdateDatabase(
 
 	if err := existingDatabase.Validate(); err != nil {
 		return err
+	}
+
+	if err := existingDatabase.EncryptSensitiveFields(s.fieldEncryptor); err != nil {
+		return fmt.Errorf("failed to encrypt sensitive fields: %w", err)
 	}
 
 	_, err = s.dbRepository.Save(existingDatabase)
@@ -250,7 +260,7 @@ func (s *DatabaseService) TestDatabaseConnection(
 		return errors.New("insufficient permissions to test connection for this database")
 	}
 
-	err = database.TestConnection(s.logger)
+	err = database.TestConnection(s.logger, s.fieldEncryptor)
 	if err != nil {
 		lastSaveError := err.Error()
 		database.LastBackupErrorMessage = &lastSaveError
@@ -294,7 +304,7 @@ func (s *DatabaseService) TestDatabaseConnectionDirect(
 		usingDatabase = database
 	}
 
-	return usingDatabase.TestConnection(s.logger)
+	return usingDatabase.TestConnection(s.logger, s.fieldEncryptor)
 }
 
 func (s *DatabaseService) GetDatabaseByID(

@@ -2,6 +2,7 @@ package databases
 
 import (
 	"log/slog"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -11,7 +12,11 @@ type DatabaseValidator interface {
 }
 
 type DatabaseConnector interface {
-	TestConnection(logger *slog.Logger) error
+	TestConnection(
+		logger *slog.Logger,
+		encryptor encryption.FieldEncryptor,
+		databaseID uuid.UUID,
+	) error
 
 	HideSensitiveData()
 }

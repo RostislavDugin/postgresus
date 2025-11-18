@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -21,7 +22,7 @@ func (d *DiscordNotifier) TableName() string {
 	return "discord_notifiers"
 }
 
-func (d *DiscordNotifier) Validate() error {
+func (d *DiscordNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if d.ChannelWebhookURL == "" {
 		return errors.New("webhook URL is required")
 	}
@@ -29,7 +30,17 @@ func (d *DiscordNotifier) Validate() error {
 	return nil
 }
 
-func (d *DiscordNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (d *DiscordNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading string,
+	message string,
+) error {
+	webhookURL, err := encryptor.Decrypt(d.NotifierID, d.ChannelWebhookURL)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt webhook URL: %w", err)
+	}
+
 	fullMessage := heading
 	if message != "" {
 		fullMessage = fmt.Sprintf("%s\n\n%s", heading, message)
@@ -44,7 +55,7 @@ func (d *DiscordNotifier) Send(logger *slog.Logger, heading string, message stri
 		return fmt.Errorf("failed to marshal Discord payload: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", d.ChannelWebhookURL, bytes.NewReader(jsonPayload))
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewReader(jsonPayload))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -80,4 +91,15 @@ func (d *DiscordNotifier) Update(incoming *DiscordNotifier) {
 	if incoming.ChannelWebhookURL != "" {
 		d.ChannelWebhookURL = incoming.ChannelWebhookURL
 	}
+}
+
+func (d *DiscordNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if d.ChannelWebhookURL != "" {
+		encrypted, err := encryptor.Encrypt(d.NotifierID, d.ChannelWebhookURL)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt webhook URL: %w", err)
+		}
+		d.ChannelWebhookURL = encrypted
+	}
+	return nil
 }

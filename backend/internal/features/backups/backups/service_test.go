@@ -13,6 +13,7 @@ import (
 	users_testing "postgresus-backend/internal/features/users/testing"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 	"strings"
 	"testing"
@@ -56,11 +57,12 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
 			users_repositories.GetSecretKeyRepository(),
+			encryption.GetFieldEncryptor(),
 			&CreateFailedBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
 			workspaces_services.GetWorkspaceService(),
-			nil, // auditLogService
+			nil,
 			NewBackupContextManager(),
 		}
 
@@ -103,11 +105,12 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
 			users_repositories.GetSecretKeyRepository(),
+			encryption.GetFieldEncryptor(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
 			workspaces_services.GetWorkspaceService(),
-			nil, // auditLogService
+			nil,
 			NewBackupContextManager(),
 		}
 
@@ -127,11 +130,12 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
 			users_repositories.GetSecretKeyRepository(),
+			encryption.GetFieldEncryptor(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
 			[]BackupRemoveListener{},
 			workspaces_services.GetWorkspaceService(),
-			nil, // auditLogService
+			nil,
 			NewBackupContextManager(),
 		}
 

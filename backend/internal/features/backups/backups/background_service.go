@@ -5,6 +5,7 @@ import (
 	"postgresus-backend/internal/config"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/storages"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/period"
 	"time"
 )
@@ -131,7 +132,8 @@ func (s *BackupBackgroundService) cleanOldBackups() error {
 				continue
 			}
 
-			err = storage.DeleteFile(backup.ID)
+			encryptor := encryption.GetFieldEncryptor()
+			err = storage.DeleteFile(encryptor, backup.ID)
 			if err != nil {
 				s.logger.Error("Failed to delete backup file", "backupId", backup.ID, "error", err)
 			}

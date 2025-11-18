@@ -16,6 +16,7 @@ import (
 	users_models "postgresus-backend/internal/features/users/models"
 	users_repositories "postgresus-backend/internal/features/users/repositories"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	util_encryption "postgresus-backend/internal/util/encryption"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ type BackupService struct {
 	notificationSender  NotificationSender
 	backupConfigService *backups_config.BackupConfigService
 	secretKeyRepo       *users_repositories.SecretKeyRepository
+	fieldEncryptor      util_encryption.FieldEncryptor
 
 	createBackupUseCase CreateBackupUsecase
 
@@ -284,7 +286,7 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 			// Delete partial backup from storage
 			storage, storageErr := s.storageService.GetStorageByID(backup.StorageID)
 			if storageErr == nil {
-				if deleteErr := storage.DeleteFile(backup.ID); deleteErr != nil {
+				if deleteErr := storage.DeleteFile(s.fieldEncryptor, backup.ID); deleteErr != nil {
 					s.logger.Error(
 						"Failed to delete partial backup file",
 						"backupId",
@@ -545,7 +547,7 @@ func (s *BackupService) deleteBackup(backup *Backup) error {
 		return err
 	}
 
-	err = storage.DeleteFile(backup.ID)
+	err = storage.DeleteFile(s.fieldEncryptor, backup.ID)
 	if err != nil {
 		// we do not return error here, because sometimes clean up performed
 		// before unavailable storage removal or change - therefore we should
@@ -599,7 +601,7 @@ func (s *BackupService) getBackupReader(backupID uuid.UUID) (io.ReadCloser, erro
 		return nil, fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	fileReader, err := storage.GetFile(backup.ID)
+	fileReader, err := storage.GetFile(s.fieldEncryptor, backup.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get backup file: %w", err)
 	}

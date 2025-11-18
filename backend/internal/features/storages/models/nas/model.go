@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
@@ -31,10 +32,15 @@ func (n *NASStorage) TableName() string {
 	return "nas_storages"
 }
 
-func (n *NASStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
+func (n *NASStorage) SaveFile(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileID uuid.UUID,
+	file io.Reader,
+) error {
 	logger.Info("Starting to save file to NAS storage", "fileId", fileID.String(), "host", n.Host)
 
-	session, err := n.createSession()
+	session, err := n.createSession(encryptor)
 	if err != nil {
 		logger.Error("Failed to create NAS session", "fileId", fileID.String(), "error", err)
 		return fmt.Errorf("failed to create NAS session: %w", err)
@@ -131,8 +137,11 @@ func (n *NASStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Rea
 	return nil
 }
 
-func (n *NASStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
-	session, err := n.createSession()
+func (n *NASStorage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
+	session, err := n.createSession(encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NAS session: %w", err)
 	}
@@ -168,8 +177,8 @@ func (n *NASStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 	}, nil
 }
 
-func (n *NASStorage) DeleteFile(fileID uuid.UUID) error {
-	session, err := n.createSession()
+func (n *NASStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
+	session, err := n.createSession(encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to create NAS session: %w", err)
 	}
@@ -202,7 +211,7 @@ func (n *NASStorage) DeleteFile(fileID uuid.UUID) error {
 	return nil
 }
 
-func (n *NASStorage) Validate() error {
+func (n *NASStorage) Validate(encryptor encryption.FieldEncryptor) error {
 	if n.Host == "" {
 		return errors.New("NAS host is required")
 	}
@@ -219,12 +228,11 @@ func (n *NASStorage) Validate() error {
 		return errors.New("NAS port must be between 1 and 65535")
 	}
 
-	// Test the configuration by creating a session
-	return n.TestConnection()
+	return nil
 }
 
-func (n *NASStorage) TestConnection() error {
-	session, err := n.createSession()
+func (n *NASStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
+	session, err := n.createSession(encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NAS: %w", err)
 	}
@@ -255,6 +263,18 @@ func (n *NASStorage) HideSensitiveData() {
 	n.Password = ""
 }
 
+func (n *NASStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if n.Password != "" {
+		encrypted, err := encryptor.Encrypt(n.StorageID, n.Password)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt NAS password: %w", err)
+		}
+		n.Password = encrypted
+	}
+
+	return nil
+}
+
 func (n *NASStorage) Update(incoming *NASStorage) {
 	n.Host = incoming.Host
 	n.Port = incoming.Port
@@ -269,18 +289,25 @@ func (n *NASStorage) Update(incoming *NASStorage) {
 	}
 }
 
-func (n *NASStorage) createSession() (*smb2.Session, error) {
+func (n *NASStorage) createSession(encryptor encryption.FieldEncryptor) (*smb2.Session, error) {
 	// Create connection with timeout
 	conn, err := n.createConnection()
 	if err != nil {
 		return nil, err
 	}
 
+	// Decrypt password before use
+	password, err := encryptor.Decrypt(n.StorageID, n.Password)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to decrypt NAS password: %w", err)
+	}
+
 	// Create SMB2 dialer
 	d := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
 			User:     n.Username,
-			Password: n.Password,
+			Password: password,
 			Domain:   n.Domain,
 		},
 	}

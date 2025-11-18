@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/tools"
 	"regexp"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,11 +59,15 @@ func (p *PostgresqlDatabase) Validate() error {
 	return nil
 }
 
-func (p *PostgresqlDatabase) TestConnection(logger *slog.Logger) error {
+func (p *PostgresqlDatabase) TestConnection(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	return testSingleDatabaseConnection(logger, ctx, p)
+	return testSingleDatabaseConnection(logger, ctx, p, encryptor, databaseID)
 }
 
 func (p *PostgresqlDatabase) HideSensitiveData() {
@@ -87,19 +91,42 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	}
 }
 
+func (p *PostgresqlDatabase) EncryptSensitiveFields(
+	databaseID uuid.UUID,
+	encryptor encryption.FieldEncryptor,
+) error {
+	if p.Password != "" {
+		encrypted, err := encryptor.Encrypt(databaseID, p.Password)
+		if err != nil {
+			return err
+		}
+		p.Password = encrypted
+	}
+
+	return nil
+}
+
 // testSingleDatabaseConnection tests connection to a specific database for pg_dump
 func testSingleDatabaseConnection(
 	logger *slog.Logger,
 	ctx context.Context,
 	postgresDb *PostgresqlDatabase,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
 ) error {
 	// For single database backup, we need to connect to the specific database
 	if postgresDb.Database == nil || *postgresDb.Database == "" {
 		return errors.New("database name is required for single database backup (pg_dump)")
 	}
 
+	// Decrypt password if needed
+	password, err := decryptPasswordIfNeeded(postgresDb.Password, encryptor, databaseID)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
 	// Build connection string for the specific database
-	connStr := buildConnectionStringForDB(postgresDb, *postgresDb.Database)
+	connStr := buildConnectionStringForDB(postgresDb, *postgresDb.Database, password)
 
 	// Test connection
 	conn, err := pgx.Connect(ctx, connStr)
@@ -182,7 +209,7 @@ func testBasicOperations(ctx context.Context, conn *pgx.Conn, dbName string) err
 }
 
 // buildConnectionStringForDB builds connection string for specific database
-func buildConnectionStringForDB(p *PostgresqlDatabase, dbName string) string {
+func buildConnectionStringForDB(p *PostgresqlDatabase, dbName string, password string) string {
 	sslMode := "disable"
 	if p.IsHttps {
 		sslMode = "require"
@@ -192,106 +219,19 @@ func buildConnectionStringForDB(p *PostgresqlDatabase, dbName string) string {
 		p.Host,
 		p.Port,
 		p.Username,
-		p.Password,
+		password,
 		dbName,
 		sslMode,
 	)
 }
 
-func (p *PostgresqlDatabase) InstallExtensions(extensions []tools.PostgresqlExtension) error {
-	if len(extensions) == 0 {
-		return nil
+func decryptPasswordIfNeeded(
+	password string,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) (string, error) {
+	if encryptor == nil {
+		return password, nil
 	}
-
-	if p.Database == nil || *p.Database == "" {
-		return errors.New("database name is required for installing extensions")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Build connection string for the specific database
-	connStr := buildConnectionStringForDB(p, *p.Database)
-
-	// Connect to database
-	conn, err := pgx.Connect(ctx, connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database '%s': %w", *p.Database, err)
-	}
-	defer func() {
-		if closeErr := conn.Close(ctx); closeErr != nil {
-			fmt.Println("failed to close connection: %w", closeErr)
-		}
-	}()
-
-	// Check which extensions are already installed
-	installedExtensions, err := p.getInstalledExtensions(ctx, conn)
-	if err != nil {
-		return fmt.Errorf("failed to check installed extensions: %w", err)
-	}
-
-	// Install missing extensions
-	for _, extension := range extensions {
-		if contains(installedExtensions, string(extension)) {
-			continue // Extension already installed
-		}
-
-		if err := p.installExtension(ctx, conn, string(extension)); err != nil {
-			return fmt.Errorf("failed to install extension '%s': %w", extension, err)
-		}
-	}
-
-	return nil
-}
-
-// getInstalledExtensions queries the database for currently installed extensions
-func (p *PostgresqlDatabase) getInstalledExtensions(
-	ctx context.Context,
-	conn *pgx.Conn,
-) ([]string, error) {
-	query := "SELECT extname FROM pg_extension"
-
-	rows, err := conn.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query installed extensions: %w", err)
-	}
-	defer rows.Close()
-
-	var extensions []string
-	for rows.Next() {
-		var extname string
-
-		if err := rows.Scan(&extname); err != nil {
-			return nil, fmt.Errorf("failed to scan extension name: %w", err)
-		}
-
-		extensions = append(extensions, extname)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over extension rows: %w", err)
-	}
-
-	return extensions, nil
-}
-
-// installExtension installs a single PostgreSQL extension
-func (p *PostgresqlDatabase) installExtension(
-	ctx context.Context,
-	conn *pgx.Conn,
-	extensionName string,
-) error {
-	query := fmt.Sprintf("CREATE EXTENSION IF NOT EXISTS %s", extensionName)
-
-	_, err := conn.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to execute CREATE EXTENSION: %w", err)
-	}
-
-	return nil
-}
-
-// contains checks if a string slice contains a specific string
-func contains(slice []string, item string) bool {
-	return slices.Contains(slice, item)
+	return encryptor.Decrypt(databaseID, password)
 }

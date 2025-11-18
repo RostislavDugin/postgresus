@@ -23,6 +23,7 @@ import (
 	"postgresus-backend/internal/features/restores/models"
 	"postgresus-backend/internal/features/storages"
 	users_repositories "postgresus-backend/internal/features/users/repositories"
+	util_encryption "postgresus-backend/internal/util/encryption"
 	files_utils "postgresus-backend/internal/util/files"
 	"postgresus-backend/internal/util/tools"
 
@@ -209,7 +210,8 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		"encrypted",
 		backup.Encryption == backups_config.BackupEncryptionEncrypted,
 	)
-	rawReader, err := storage.GetFile(backup.ID)
+	fieldEncryptor := util_encryption.GetFieldEncryptor()
+	rawReader, err := storage.GetFile(fieldEncryptor, backup.ID)
 	if err != nil {
 		cleanupFunc()
 		return "", nil, fmt.Errorf("failed to get backup file from storage: %w", err)

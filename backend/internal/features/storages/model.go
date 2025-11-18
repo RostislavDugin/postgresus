@@ -9,6 +9,7 @@ import (
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -28,8 +29,13 @@ type Storage struct {
 	AzureBlobStorage   *azure_blob_storage.AzureBlobStorage     `json:"azureBlobStorage"   gorm:"foreignKey:StorageID"`
 }
 
-func (s *Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
-	err := s.getSpecificStorage().SaveFile(logger, fileID, file)
+func (s *Storage) SaveFile(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileID uuid.UUID,
+	file io.Reader,
+) error {
+	err := s.getSpecificStorage().SaveFile(encryptor, logger, fileID, file)
 	if err != nil {
 		lastSaveError := err.Error()
 		s.LastSaveError = &lastSaveError
@@ -41,15 +47,18 @@ func (s *Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader
 	return nil
 }
 
-func (s *Storage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
-	return s.getSpecificStorage().GetFile(fileID)
+func (s *Storage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
+	return s.getSpecificStorage().GetFile(encryptor, fileID)
 }
 
-func (s *Storage) DeleteFile(fileID uuid.UUID) error {
-	return s.getSpecificStorage().DeleteFile(fileID)
+func (s *Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
+	return s.getSpecificStorage().DeleteFile(encryptor, fileID)
 }
 
-func (s *Storage) Validate() error {
+func (s *Storage) Validate(encryptor encryption.FieldEncryptor) error {
 	if s.Type == "" {
 		return errors.New("storage type is required")
 	}
@@ -58,15 +67,19 @@ func (s *Storage) Validate() error {
 		return errors.New("storage name is required")
 	}
 
-	return s.getSpecificStorage().Validate()
+	return s.getSpecificStorage().Validate(encryptor)
 }
 
-func (s *Storage) TestConnection() error {
-	return s.getSpecificStorage().TestConnection()
+func (s *Storage) TestConnection(encryptor encryption.FieldEncryptor) error {
+	return s.getSpecificStorage().TestConnection(encryptor)
 }
 
 func (s *Storage) HideSensitiveData() {
 	s.getSpecificStorage().HideSensitiveData()
+}
+
+func (s *Storage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	return s.getSpecificStorage().EncryptSensitiveData(encryptor)
 }
 
 func (s *Storage) Update(incoming *Storage) {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/smtp"
+	"postgresus-backend/internal/util/encryption"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +35,7 @@ func (e *EmailNotifier) TableName() string {
 	return "email_notifiers"
 }
 
-func (e *EmailNotifier) Validate() error {
+func (e *EmailNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if e.TargetEmail == "" {
 		return errors.New("target email is required")
 	}
@@ -55,7 +56,22 @@ func (e *EmailNotifier) Validate() error {
 	return nil
 }
 
-func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (e *EmailNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading string,
+	message string,
+) error {
+	// Decrypt SMTP password if provided
+	var smtpPassword string
+	if e.SMTPPassword != "" {
+		decrypted, err := encryptor.Decrypt(e.NotifierID, e.SMTPPassword)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt SMTP password: %w", err)
+		}
+		smtpPassword = decrypted
+	}
+
 	// Compose email
 	from := e.From
 	if from == "" {
@@ -85,7 +101,7 @@ func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string
 	timeout := DefaultTimeout
 
 	// Determine if authentication is required
-	isAuthRequired := e.SMTPUser != "" && e.SMTPPassword != ""
+	isAuthRequired := e.SMTPUser != "" && smtpPassword != ""
 
 	// Handle different port scenarios
 	if e.SMTPPort == ImplicitTLSPort {
@@ -116,7 +132,7 @@ func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string
 
 		// Set up authentication only if credentials are provided
 		if isAuthRequired {
-			auth := smtp.PlainAuth("", e.SMTPUser, e.SMTPPassword, e.SMTPHost)
+			auth := smtp.PlainAuth("", e.SMTPUser, smtpPassword, e.SMTPHost)
 			if err := client.Auth(auth); err != nil {
 				return fmt.Errorf("SMTP authentication failed: %w", err)
 			}
@@ -179,7 +195,7 @@ func (e *EmailNotifier) Send(logger *slog.Logger, heading string, message string
 
 		// Authenticate only if credentials are provided
 		if isAuthRequired {
-			auth := smtp.PlainAuth("", e.SMTPUser, e.SMTPPassword, e.SMTPHost)
+			auth := smtp.PlainAuth("", e.SMTPUser, smtpPassword, e.SMTPHost)
 			if err := client.Auth(auth); err != nil {
 				return fmt.Errorf("SMTP authentication failed: %w", err)
 			}
@@ -228,4 +244,15 @@ func (e *EmailNotifier) Update(incoming *EmailNotifier) {
 	if incoming.SMTPPassword != "" {
 		e.SMTPPassword = incoming.SMTPPassword
 	}
+}
+
+func (e *EmailNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if e.SMTPPassword != "" {
+		encrypted, err := encryptor.Encrypt(e.NotifierID, e.SMTPPassword)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt SMTP password: %w", err)
+		}
+		e.SMTPPassword = encrypted
+	}
+	return nil
 }

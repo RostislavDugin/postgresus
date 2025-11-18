@@ -26,6 +26,7 @@ import (
 	users_testing "postgresus-backend/internal/features/users/testing"
 	workspaces_models "postgresus-backend/internal/features/workspaces/models"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
+	"postgresus-backend/internal/util/encryption"
 	test_utils "postgresus-backend/internal/util/testing"
 	"postgresus-backend/internal/util/tools"
 )
@@ -700,7 +701,7 @@ func createTestBackup(
 	dummyContent := []byte("dummy backup content for testing")
 	reader := strings.NewReader(string(dummyContent))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := storages[0].SaveFile(logger, backup.ID, reader); err != nil {
+	if err := storages[0].SaveFile(encryption.GetFieldEncryptor(), logger, backup.ID, reader); err != nil {
 		panic(fmt.Sprintf("Failed to create test backup file: %v", err))
 	}
 

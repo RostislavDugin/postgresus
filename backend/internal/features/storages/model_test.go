@@ -13,6 +13,7 @@ import (
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 	"strconv"
 	"testing"
@@ -147,13 +148,15 @@ func Test_Storage_BasicOperations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			encryptor := encryption.GetFieldEncryptor()
+
 			t.Run("Test_TestConnection_ConnectionSucceeds", func(t *testing.T) {
-				err := tc.storage.TestConnection()
+				err := tc.storage.TestConnection(encryptor)
 				assert.NoError(t, err, "TestConnection should succeed")
 			})
 
 			t.Run("Test_TestValidation_ValidationSucceeds", func(t *testing.T) {
-				err := tc.storage.Validate()
+				err := tc.storage.Validate(encryptor)
 				assert.NoError(t, err, "Validate should succeed")
 			})
 
@@ -163,10 +166,15 @@ func Test_Storage_BasicOperations(t *testing.T) {
 
 				fileID := uuid.New()
 
-				err = tc.storage.SaveFile(logger.GetLogger(), fileID, bytes.NewReader(fileData))
+				err = tc.storage.SaveFile(
+					encryptor,
+					logger.GetLogger(),
+					fileID,
+					bytes.NewReader(fileData),
+				)
 				require.NoError(t, err, "SaveFile should succeed")
 
-				file, err := tc.storage.GetFile(fileID)
+				file, err := tc.storage.GetFile(encryptor, fileID)
 				assert.NoError(t, err, "GetFile should succeed")
 				defer file.Close()
 
@@ -180,13 +188,18 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				require.NoError(t, err, "Should be able to read test file")
 
 				fileID := uuid.New()
-				err = tc.storage.SaveFile(logger.GetLogger(), fileID, bytes.NewReader(fileData))
+				err = tc.storage.SaveFile(
+					encryptor,
+					logger.GetLogger(),
+					fileID,
+					bytes.NewReader(fileData),
+				)
 				require.NoError(t, err, "SaveFile should succeed")
 
-				err = tc.storage.DeleteFile(fileID)
+				err = tc.storage.DeleteFile(encryptor, fileID)
 				assert.NoError(t, err, "DeleteFile should succeed")
 
-				file, err := tc.storage.GetFile(fileID)
+				file, err := tc.storage.GetFile(encryptor, fileID)
 				assert.Error(t, err, "GetFile should fail for non-existent file")
 				if file != nil {
 					file.Close()
@@ -196,7 +209,7 @@ func Test_Storage_BasicOperations(t *testing.T) {
 			t.Run("Test_TestDeleteNonExistentFile_DoesNotError", func(t *testing.T) {
 				// Try to delete a non-existent file
 				nonExistentID := uuid.New()
-				err := tc.storage.DeleteFile(nonExistentID)
+				err := tc.storage.DeleteFile(encryptor, nonExistentID)
 				assert.NoError(t, err, "DeleteFile should not error for non-existent file")
 			})
 		})

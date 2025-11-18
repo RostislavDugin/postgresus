@@ -1,11 +1,21 @@
 package notifiers
 
-import "log/slog"
+import (
+	"log/slog"
+	"postgresus-backend/internal/util/encryption"
+)
 
 type NotificationSender interface {
-	Send(logger *slog.Logger, heading string, message string) error
+	Send(
+		encryptor encryption.FieldEncryptor,
+		logger *slog.Logger,
+		heading string,
+		message string,
+	) error
 
-	Validate() error
+	Validate(encryptor encryption.FieldEncryptor) error
 
 	HideSensitiveData()
+
+	EncryptSensitiveData(encryptor encryption.FieldEncryptor) error
 }

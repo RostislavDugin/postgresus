@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -23,7 +24,7 @@ func (t *WebhookNotifier) TableName() string {
 	return "webhook_notifiers"
 }
 
-func (t *WebhookNotifier) Validate() error {
+func (t *WebhookNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if t.WebhookURL == "" {
 		return errors.New("webhook URL is required")
 	}
@@ -35,11 +36,21 @@ func (t *WebhookNotifier) Validate() error {
 	return nil
 }
 
-func (t *WebhookNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (t *WebhookNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading string,
+	message string,
+) error {
+	webhookURL, err := encryptor.Decrypt(t.NotifierID, t.WebhookURL)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt webhook URL: %w", err)
+	}
+
 	switch t.WebhookMethod {
 	case WebhookMethodGET:
 		reqURL := fmt.Sprintf("%s?heading=%s&message=%s",
-			t.WebhookURL,
+			webhookURL,
 			url.QueryEscape(heading),
 			url.QueryEscape(message),
 		)
@@ -76,7 +87,7 @@ func (t *WebhookNotifier) Send(logger *slog.Logger, heading string, message stri
 			return fmt.Errorf("failed to marshal webhook payload: %w", err)
 		}
 
-		resp, err := http.Post(t.WebhookURL, "application/json", bytes.NewReader(body))
+		resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("failed to send POST webhook: %w", err)
 		}
@@ -109,4 +120,15 @@ func (t *WebhookNotifier) HideSensitiveData() {
 func (t *WebhookNotifier) Update(incoming *WebhookNotifier) {
 	t.WebhookURL = incoming.WebhookURL
 	t.WebhookMethod = incoming.WebhookMethod
+}
+
+func (t *WebhookNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if t.WebhookURL != "" {
+		encrypted, err := encryptor.Encrypt(t.NotifierID, t.WebhookURL)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt webhook URL: %w", err)
+		}
+		t.WebhookURL = encrypted
+	}
+	return nil
 }

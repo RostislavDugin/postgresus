@@ -8,6 +8,7 @@ import (
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	users_models "postgresus-backend/internal/features/users/models"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -17,6 +18,7 @@ type NotifierService struct {
 	logger             *slog.Logger
 	workspaceService   *workspaces_services.WorkspaceService
 	auditLogService    *audit_logs.AuditLogService
+	fieldEncryptor     encryption.FieldEncryptor
 }
 
 func (s *NotifierService) SaveNotifier(
@@ -46,7 +48,11 @@ func (s *NotifierService) SaveNotifier(
 
 		existingNotifier.Update(notifier)
 
-		if err := existingNotifier.Validate(); err != nil {
+		if err := existingNotifier.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
+		if err := existingNotifier.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
@@ -63,7 +69,11 @@ func (s *NotifierService) SaveNotifier(
 	} else {
 		notifier.WorkspaceID = workspaceID
 
-		if err := notifier.Validate(); err != nil {
+		if err := notifier.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
+		if err := notifier.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
@@ -175,7 +185,7 @@ func (s *NotifierService) SendTestNotification(
 		return errors.New("insufficient permissions to test notifier in this workspace")
 	}
 
-	err = notifier.Send(s.logger, "Test message", "This is a test message")
+	err = notifier.Send(s.fieldEncryptor, s.logger, "Test message", "This is a test message")
 	if err != nil {
 		return err
 	}
@@ -205,16 +215,24 @@ func (s *NotifierService) SendTestNotificationToNotifier(
 
 		existingNotifier.Update(notifier)
 
-		if err := existingNotifier.Validate(); err != nil {
+		if err := existingNotifier.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
+		if err := existingNotifier.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
 		usingNotifier = existingNotifier
 	} else {
+		if err := notifier.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
 		usingNotifier = notifier
 	}
 
-	return usingNotifier.Send(s.logger, "Test message", "This is a test message")
+	return usingNotifier.Send(s.fieldEncryptor, s.logger, "Test message", "This is a test message")
 }
 
 func (s *NotifierService) SendNotification(
@@ -233,7 +251,7 @@ func (s *NotifierService) SendNotification(
 		return
 	}
 
-	err = notifiedFromDb.Send(s.logger, title, message)
+	err = notifiedFromDb.Send(s.fieldEncryptor, s.logger, title, message)
 	if err != nil {
 		errMsg := err.Error()
 		notifiedFromDb.LastSendError = &errMsg

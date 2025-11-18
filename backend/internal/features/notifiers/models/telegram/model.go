@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"postgresus-backend/internal/util/encryption"
 	"strconv"
 	"strings"
 
@@ -24,7 +25,7 @@ func (t *TelegramNotifier) TableName() string {
 	return "telegram_notifiers"
 }
 
-func (t *TelegramNotifier) Validate() error {
+func (t *TelegramNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if t.BotToken == "" {
 		return errors.New("bot token is required")
 	}
@@ -36,13 +37,23 @@ func (t *TelegramNotifier) Validate() error {
 	return nil
 }
 
-func (t *TelegramNotifier) Send(logger *slog.Logger, heading string, message string) error {
+func (t *TelegramNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading string,
+	message string,
+) error {
+	botToken, err := encryptor.Decrypt(t.NotifierID, t.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt bot token: %w", err)
+	}
+
 	fullMessage := heading
 	if message != "" {
 		fullMessage = fmt.Sprintf("%s\n\n%s", heading, message)
 	}
 
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.BotToken)
+	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 
 	data := url.Values{}
 	data.Set("chat_id", t.TargetChatID)
@@ -92,4 +103,15 @@ func (t *TelegramNotifier) Update(incoming *TelegramNotifier) {
 	if incoming.BotToken != "" {
 		t.BotToken = incoming.BotToken
 	}
+}
+
+func (t *TelegramNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if t.BotToken != "" {
+		encrypted, err := encryptor.Encrypt(t.NotifierID, t.BotToken)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt bot token: %w", err)
+		}
+		t.BotToken = encrypted
+	}
+	return nil
 }

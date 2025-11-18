@@ -9,6 +9,7 @@ import (
 	"postgresus-backend/internal/features/storages"
 	users_repositories "postgresus-backend/internal/features/users/repositories"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 	"time"
 )
@@ -25,6 +26,7 @@ var backupService = &BackupService{
 	notifiers.GetNotifierService(),
 	backups_config.GetBackupConfigService(),
 	users_repositories.GetSecretKeyRepository(),
+	encryption.GetFieldEncryptor(),
 	usecases.GetCreateBackupUsecase(),
 	logger.GetLogger(),
 	[]BackupRemoveListener{},

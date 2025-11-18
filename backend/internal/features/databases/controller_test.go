@@ -16,6 +16,7 @@ import (
 	users_testing "postgresus-backend/internal/features/users/testing"
 	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
+	"postgresus-backend/internal/util/encryption"
 	test_utils "postgresus-backend/internal/util/testing"
 	"postgresus-backend/internal/util/tools"
 )
@@ -769,6 +770,71 @@ func createTestDatabaseViaAPI(
 	return &database
 }
 
+func Test_CreateDatabase_PasswordIsEncryptedInDB(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	testDbName := "test_db"
+	plainPassword := "my-super-secret-password-123"
+	request := Database{
+		Name:        "Test Database",
+		WorkspaceID: &workspace.ID,
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Version:  tools.PostgresqlVersion16,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "postgres",
+			Password: plainPassword,
+			Database: &testDbName,
+		},
+	}
+
+	var createdDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusCreated,
+		&createdDatabase,
+	)
+
+	repository := &DatabaseRepository{}
+	databaseFromDB, err := repository.FindByID(createdDatabase.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, databaseFromDB)
+	assert.NotNil(t, databaseFromDB.Postgresql)
+
+	assert.True(
+		t,
+		strings.HasPrefix(databaseFromDB.Postgresql.Password, "enc:"),
+		"Password should be encrypted in database with 'enc:' prefix, got: %s",
+		databaseFromDB.Postgresql.Password,
+	)
+
+	encryptor := encryption.GetFieldEncryptor()
+	decryptedPassword, err := encryptor.Decrypt(
+		databaseFromDB.ID,
+		databaseFromDB.Postgresql.Password,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, plainPassword, decryptedPassword,
+		"Decrypted password should match original plaintext password")
+
+	test_utils.MakeDeleteRequest(
+		t,
+		router,
+		"/api/v1/databases/"+createdDatabase.ID.String(),
+		"Bearer "+owner.Token,
+		http.StatusNoContent,
+	)
+
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
+}
+
 func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 	testCases := []struct {
 		name                string
@@ -815,7 +881,15 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 				}
 			},
 			verifySensitiveData: func(t *testing.T, database *Database) {
-				assert.Equal(t, "original-password-secret", database.Postgresql.Password)
+				// Verify password is encrypted
+				assert.True(t, strings.HasPrefix(database.Postgresql.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				// Verify it can be decrypted back to original
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.ID, database.Postgresql.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password-secret", decrypted)
 			},
 			verifyHiddenData: func(t *testing.T, database *Database) {
 				assert.Equal(t, "", database.Postgresql.Password)

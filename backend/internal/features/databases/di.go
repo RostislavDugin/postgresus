@@ -5,6 +5,7 @@ import (
 	"postgresus-backend/internal/features/notifiers"
 	users_services "postgresus-backend/internal/features/users/services"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -19,6 +20,7 @@ var databaseService = &DatabaseService{
 	[]DatabaseCopyListener{},
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
+	encryption.GetFieldEncryptor(),
 }
 
 var databaseController = &DatabaseController{

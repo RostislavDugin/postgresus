@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -21,11 +22,17 @@ func (TeamsNotifier) TableName() string {
 	return "teams_notifiers"
 }
 
-func (n *TeamsNotifier) Validate() error {
+func (n *TeamsNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if n.WebhookURL == "" {
 		return errors.New("webhook_url is required")
 	}
-	u, err := url.Parse(n.WebhookURL)
+
+	webhookURL, err := encryptor.Decrypt(n.NotifierID, n.WebhookURL)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt webhook URL: %w", err)
+	}
+
+	u, err := url.Parse(webhookURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return errors.New("invalid webhook_url")
 	}
@@ -33,8 +40,8 @@ func (n *TeamsNotifier) Validate() error {
 }
 
 type cardAttachment struct {
-	ContentType string      `json:"contentType"`
-	Content     interface{} `json:"content"`
+	ContentType string `json:"contentType"`
+	Content     any    `json:"content"`
 }
 
 type payload struct {
@@ -43,9 +50,18 @@ type payload struct {
 	Attachments []cardAttachment `json:"attachments,omitempty"`
 }
 
-func (n *TeamsNotifier) Send(logger *slog.Logger, heading, message string) error {
-	if err := n.Validate(); err != nil {
+func (n *TeamsNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading, message string,
+) error {
+	if err := n.Validate(encryptor); err != nil {
 		return err
+	}
+
+	webhookURL, err := encryptor.Decrypt(n.NotifierID, n.WebhookURL)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt webhook URL: %w", err)
 	}
 
 	card := map[string]any{
@@ -71,7 +87,7 @@ func (n *TeamsNotifier) Send(logger *slog.Logger, heading, message string) error
 	}
 
 	body, _ := json.Marshal(p)
-	req, err := http.NewRequest(http.MethodPost, n.WebhookURL, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -103,4 +119,15 @@ func (n *TeamsNotifier) Update(incoming *TeamsNotifier) {
 	if incoming.WebhookURL != "" {
 		n.WebhookURL = incoming.WebhookURL
 	}
+}
+
+func (n *TeamsNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if n.WebhookURL != "" {
+		encrypted, err := encryptor.Encrypt(n.NotifierID, n.WebhookURL)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt webhook URL: %w", err)
+		}
+		n.WebhookURL = encrypted
+	}
+	return nil
 }

@@ -9,6 +9,7 @@ import (
 	teams_notifier "postgresus-backend/internal/features/notifiers/models/teams"
 	telegram_notifier "postgresus-backend/internal/features/notifiers/models/telegram"
 	webhook_notifier "postgresus-backend/internal/features/notifiers/models/webhook"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -33,16 +34,21 @@ func (n *Notifier) TableName() string {
 	return "notifiers"
 }
 
-func (n *Notifier) Validate() error {
+func (n *Notifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if n.Name == "" {
 		return errors.New("name is required")
 	}
 
-	return n.getSpecificNotifier().Validate()
+	return n.getSpecificNotifier().Validate(encryptor)
 }
 
-func (n *Notifier) Send(logger *slog.Logger, heading string, message string) error {
-	err := n.getSpecificNotifier().Send(logger, heading, message)
+func (n *Notifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading string,
+	message string,
+) error {
+	err := n.getSpecificNotifier().Send(encryptor, logger, heading, message)
 
 	if err != nil {
 		lastSendError := err.Error()
@@ -56,6 +62,10 @@ func (n *Notifier) Send(logger *slog.Logger, heading string, message string) err
 
 func (n *Notifier) HideSensitiveData() {
 	n.getSpecificNotifier().HideSensitiveData()
+}
+
+func (n *Notifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	return n.getSpecificNotifier().EncryptSensitiveData(encryptor)
 }
 
 func (n *Notifier) Update(incoming *Notifier) {

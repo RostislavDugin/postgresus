@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/features/backups/backups/encryption"
+	backup_encryption "postgresus-backend/internal/features/backups/backups/encryption"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/storages"
 	users_repositories "postgresus-backend/internal/features/users/repositories"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
@@ -40,8 +41,9 @@ const (
 )
 
 type CreatePostgresqlBackupUsecase struct {
-	logger        *slog.Logger
-	secretKeyRepo *users_repositories.SecretKeyRepository
+	logger         *slog.Logger
+	secretKeyRepo  *users_repositories.SecretKeyRepository
+	fieldEncryptor encryption.FieldEncryptor
 }
 
 // Execute creates a backup of the database
@@ -166,7 +168,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	// Start streaming into storage in its own goroutine
 	saveErrCh := make(chan error, 1)
 	go func() {
-		saveErr := storage.SaveFile(uc.logger, backupID, storageReader)
+		saveErr := storage.SaveFile(uc.fieldEncryptor, uc.logger, backupID, storageReader)
 		saveErrCh <- saveErr
 	}()
 
@@ -440,7 +442,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *encryption.EncryptionWriter, BackupMetadata, error) {
+) (io.Writer, *backup_encryption.EncryptionWriter, BackupMetadata, error) {
 	metadata := BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
@@ -449,12 +451,12 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 		return storageWriter, nil, metadata, nil
 	}
 
-	salt, err := encryption.GenerateSalt()
+	salt, err := backup_encryption.GenerateSalt()
 	if err != nil {
 		return nil, nil, metadata, fmt.Errorf("failed to generate salt: %w", err)
 	}
 
-	nonce, err := encryption.GenerateNonce()
+	nonce, err := backup_encryption.GenerateNonce()
 	if err != nil {
 		return nil, nil, metadata, fmt.Errorf("failed to generate nonce: %w", err)
 	}
@@ -464,7 +466,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 		return nil, nil, metadata, fmt.Errorf("failed to get master key: %w", err)
 	}
 
-	encWriter, err := encryption.NewEncryptionWriter(
+	encWriter, err := backup_encryption.NewEncryptionWriter(
 		storageWriter,
 		masterKey,
 		backupID,
@@ -486,7 +488,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 }
 
 func (uc *CreatePostgresqlBackupUsecase) cleanupOnCancellation(
-	encryptionWriter *encryption.EncryptionWriter,
+	encryptionWriter *backup_encryption.EncryptionWriter,
 	storageWriter io.WriteCloser,
 	saveErrCh chan error,
 ) {
@@ -510,7 +512,7 @@ func (uc *CreatePostgresqlBackupUsecase) cleanupOnCancellation(
 }
 
 func (uc *CreatePostgresqlBackupUsecase) closeWriters(
-	encryptionWriter *encryption.EncryptionWriter,
+	encryptionWriter *backup_encryption.EncryptionWriter,
 	storageWriter io.WriteCloser,
 ) error {
 	encryptionCloseErrCh := make(chan error, 1)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
@@ -31,8 +32,13 @@ func (s *S3Storage) TableName() string {
 	return "s3_storages"
 }
 
-func (s *S3Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
-	client, err := s.getClient()
+func (s *S3Storage) SaveFile(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileID uuid.UUID,
+	file io.Reader,
+) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -55,8 +61,11 @@ func (s *S3Storage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Read
 	return nil
 }
 
-func (s *S3Storage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
-	client, err := s.getClient()
+func (s *S3Storage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +100,8 @@ func (s *S3Storage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 	return object, nil
 }
 
-func (s *S3Storage) DeleteFile(fileID uuid.UUID) error {
-	client, err := s.getClient()
+func (s *S3Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -113,7 +122,7 @@ func (s *S3Storage) DeleteFile(fileID uuid.UUID) error {
 	return nil
 }
 
-func (s *S3Storage) Validate() error {
+func (s *S3Storage) Validate(encryptor encryption.FieldEncryptor) error {
 	if s.S3Bucket == "" {
 		return errors.New("S3 bucket is required")
 	}
@@ -124,17 +133,11 @@ func (s *S3Storage) Validate() error {
 		return errors.New("S3 secret key is required")
 	}
 
-	// Try to create a client to validate the configuration
-	_, err := s.getClient()
-	if err != nil {
-		return fmt.Errorf("invalid S3 configuration: %w", err)
-	}
-
 	return nil
 }
 
-func (s *S3Storage) TestConnection() error {
-	client, err := s.getClient()
+func (s *S3Storage) TestConnection(encryptor encryption.FieldEncryptor) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -195,6 +198,26 @@ func (s *S3Storage) HideSensitiveData() {
 	s.S3SecretKey = ""
 }
 
+func (s *S3Storage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	var err error
+
+	if s.S3AccessKey != "" {
+		s.S3AccessKey, err = encryptor.Encrypt(s.StorageID, s.S3AccessKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt S3 access key: %w", err)
+		}
+	}
+
+	if s.S3SecretKey != "" {
+		s.S3SecretKey, err = encryptor.Encrypt(s.StorageID, s.S3SecretKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt S3 secret key: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (s *S3Storage) Update(incoming *S3Storage) {
 	s.S3Bucket = incoming.S3Bucket
 	s.S3Region = incoming.S3Region
@@ -228,7 +251,7 @@ func (s *S3Storage) buildObjectKey(fileName string) string {
 	return prefix + fileName
 }
 
-func (s *S3Storage) getClient() (*minio.Client, error) {
+func (s *S3Storage) getClient(encryptor encryption.FieldEncryptor) (*minio.Client, error) {
 	endpoint := s.S3Endpoint
 	useSSL := true
 
@@ -244,6 +267,17 @@ func (s *S3Storage) getClient() (*minio.Client, error) {
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", s.S3Region)
 	}
 
+	// Decrypt credentials before use
+	accessKey, err := encryptor.Decrypt(s.StorageID, s.S3AccessKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt S3 access key: %w", err)
+	}
+
+	secretKey, err := encryptor.Decrypt(s.StorageID, s.S3SecretKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt S3 secret key: %w", err)
+	}
+
 	// Configure bucket lookup strategy
 	bucketLookup := minio.BucketLookupAuto
 	if s.S3UseVirtualHostedStyle {
@@ -252,7 +286,7 @@ func (s *S3Storage) getClient() (*minio.Client, error) {
 
 	// Initialize the MinIO client
 	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:        credentials.NewStaticV4(s.S3AccessKey, s.S3SecretKey, ""),
+		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure:       useSSL,
 		Region:       s.S3Region,
 		BucketLookup: bucketLookup,

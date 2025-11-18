@@ -7,6 +7,7 @@ import (
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	users_models "postgresus-backend/internal/features/users/models"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +16,7 @@ type StorageService struct {
 	storageRepository *StorageRepository
 	workspaceService  *workspaces_services.WorkspaceService
 	auditLogService   *audit_logs.AuditLogService
+	fieldEncryptor    encryption.FieldEncryptor
 }
 
 func (s *StorageService) SaveStorage(
@@ -44,7 +46,11 @@ func (s *StorageService) SaveStorage(
 
 		existingStorage.Update(storage)
 
-		if err := existingStorage.Validate(); err != nil {
+		if err := existingStorage.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
+		if err := existingStorage.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
@@ -61,7 +67,11 @@ func (s *StorageService) SaveStorage(
 	} else {
 		storage.WorkspaceID = workspaceID
 
-		if err := storage.Validate(); err != nil {
+		if err := storage.EncryptSensitiveData(s.fieldEncryptor); err != nil {
+			return err
+		}
+
+		if err := storage.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
@@ -174,7 +184,7 @@ func (s *StorageService) TestStorageConnection(
 		return errors.New("insufficient permissions to test storage in this workspace")
 	}
 
-	err = storage.TestConnection()
+	err = storage.TestConnection(s.fieldEncryptor)
 	if err != nil {
 		lastSaveError := err.Error()
 		storage.LastSaveError = &lastSaveError
@@ -207,7 +217,7 @@ func (s *StorageService) TestStorageConnectionDirect(
 
 		existingStorage.Update(storage)
 
-		if err := existingStorage.Validate(); err != nil {
+		if err := existingStorage.Validate(s.fieldEncryptor); err != nil {
 			return err
 		}
 
@@ -216,7 +226,7 @@ func (s *StorageService) TestStorageConnectionDirect(
 		usingStorage = storage
 	}
 
-	return usingStorage.TestConnection()
+	return usingStorage.TestConnection(s.fieldEncryptor)
 }
 
 func (s *StorageService) GetStorageByID(

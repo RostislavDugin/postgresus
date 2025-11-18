@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
@@ -37,8 +38,13 @@ func (s *AzureBlobStorage) TableName() string {
 	return "azure_blob_storages"
 }
 
-func (s *AzureBlobStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
-	client, err := s.getClient()
+func (s *AzureBlobStorage) SaveFile(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileID uuid.UUID,
+	file io.Reader,
+) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -59,8 +65,11 @@ func (s *AzureBlobStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file 
 	return nil
 }
 
-func (s *AzureBlobStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
-	client, err := s.getClient()
+func (s *AzureBlobStorage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +89,8 @@ func (s *AzureBlobStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 	return response.Body, nil
 }
 
-func (s *AzureBlobStorage) DeleteFile(fileID uuid.UUID) error {
-	client, err := s.getClient()
+func (s *AzureBlobStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -105,7 +114,7 @@ func (s *AzureBlobStorage) DeleteFile(fileID uuid.UUID) error {
 	return nil
 }
 
-func (s *AzureBlobStorage) Validate() error {
+func (s *AzureBlobStorage) Validate(encryptor encryption.FieldEncryptor) error {
 	if s.ContainerName == "" {
 		return errors.New("container name is required")
 	}
@@ -128,16 +137,11 @@ func (s *AzureBlobStorage) Validate() error {
 		return fmt.Errorf("invalid auth method: %s", s.AuthMethod)
 	}
 
-	_, err := s.getClient()
-	if err != nil {
-		return fmt.Errorf("invalid Azure Blob configuration: %w", err)
-	}
-
 	return nil
 }
 
-func (s *AzureBlobStorage) TestConnection() error {
-	client, err := s.getClient()
+func (s *AzureBlobStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
+	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
@@ -192,6 +196,26 @@ func (s *AzureBlobStorage) HideSensitiveData() {
 	s.AccountKey = ""
 }
 
+func (s *AzureBlobStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	var err error
+
+	if s.ConnectionString != "" {
+		s.ConnectionString, err = encryptor.Encrypt(s.StorageID, s.ConnectionString)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt Azure connection string: %w", err)
+		}
+	}
+
+	if s.AccountKey != "" {
+		s.AccountKey, err = encryptor.Encrypt(s.StorageID, s.AccountKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt Azure account key: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (s *AzureBlobStorage) Update(incoming *AzureBlobStorage) {
 	s.AuthMethod = incoming.AuthMethod
 	s.ContainerName = incoming.ContainerName
@@ -225,13 +249,18 @@ func (s *AzureBlobStorage) buildBlobName(fileName string) string {
 	return prefix + fileName
 }
 
-func (s *AzureBlobStorage) getClient() (*azblob.Client, error) {
+func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azblob.Client, error) {
 	var client *azblob.Client
 	var err error
 
 	switch s.AuthMethod {
 	case AuthMethodConnectionString:
-		client, err = azblob.NewClientFromConnectionString(s.ConnectionString, nil)
+		connectionString, decryptErr := encryptor.Decrypt(s.StorageID, s.ConnectionString)
+		if decryptErr != nil {
+			return nil, fmt.Errorf("failed to decrypt Azure connection string: %w", decryptErr)
+		}
+
+		client, err = azblob.NewClientFromConnectionString(connectionString, nil)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to create Azure Blob client from connection string: %w",
@@ -239,8 +268,13 @@ func (s *AzureBlobStorage) getClient() (*azblob.Client, error) {
 			)
 		}
 	case AuthMethodAccountKey:
+		accountKey, decryptErr := encryptor.Decrypt(s.StorageID, s.AccountKey)
+		if decryptErr != nil {
+			return nil, fmt.Errorf("failed to decrypt Azure account key: %w", decryptErr)
+		}
+
 		accountURL := s.buildAccountURL()
-		credential, credErr := azblob.NewSharedKeyCredential(s.AccountName, s.AccountKey)
+		credential, credErr := azblob.NewSharedKeyCredential(s.AccountName, accountKey)
 		if credErr != nil {
 			return nil, fmt.Errorf("failed to create Azure shared key credential: %w", credErr)
 		}

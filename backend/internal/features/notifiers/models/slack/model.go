@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"postgresus-backend/internal/util/encryption"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ type SlackNotifier struct {
 
 func (s *SlackNotifier) TableName() string { return "slack_notifiers" }
 
-func (s *SlackNotifier) Validate() error {
+func (s *SlackNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 	if s.BotToken == "" {
 		return errors.New("bot token is required")
 	}
@@ -43,7 +44,16 @@ func (s *SlackNotifier) Validate() error {
 	return nil
 }
 
-func (s *SlackNotifier) Send(logger *slog.Logger, heading, message string) error {
+func (s *SlackNotifier) Send(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	heading, message string,
+) error {
+	botToken, err := encryptor.Decrypt(s.NotifierID, s.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt bot token: %w", err)
+	}
+
 	full := fmt.Sprintf("*%s*", heading)
 
 	if message != "" {
@@ -80,7 +90,7 @@ func (s *SlackNotifier) Send(logger *slog.Logger, heading, message string) error
 		}
 
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("Authorization", "Bearer "+s.BotToken)
+		req.Header.Set("Authorization", "Bearer "+botToken)
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -143,4 +153,15 @@ func (s *SlackNotifier) Update(incoming *SlackNotifier) {
 	if incoming.BotToken != "" {
 		s.BotToken = incoming.BotToken
 	}
+}
+
+func (s *SlackNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	if s.BotToken != "" {
+		encrypted, err := encryptor.Encrypt(s.NotifierID, s.BotToken)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt bot token: %w", err)
+		}
+		s.BotToken = encrypted
+	}
+	return nil
 }

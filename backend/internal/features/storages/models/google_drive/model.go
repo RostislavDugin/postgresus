@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
@@ -30,11 +31,12 @@ func (s *GoogleDriveStorage) TableName() string {
 }
 
 func (s *GoogleDriveStorage) SaveFile(
+	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
-	return s.withRetryOnAuth(func(driveService *drive.Service) error {
+	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
 		ctx := context.Background()
 		filename := fileID.String()
 
@@ -68,9 +70,12 @@ func (s *GoogleDriveStorage) SaveFile(
 	})
 }
 
-func (s *GoogleDriveStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
+func (s *GoogleDriveStorage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
 	var result io.ReadCloser
-	err := s.withRetryOnAuth(func(driveService *drive.Service) error {
+	err := s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
 		folderID, err := s.findBackupsFolder(driveService)
 		if err != nil {
 			return fmt.Errorf("failed to find backups folder: %w", err)
@@ -93,8 +98,11 @@ func (s *GoogleDriveStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 	return result, err
 }
 
-func (s *GoogleDriveStorage) DeleteFile(fileID uuid.UUID) error {
-	return s.withRetryOnAuth(func(driveService *drive.Service) error {
+func (s *GoogleDriveStorage) DeleteFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) error {
+	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
 		ctx := context.Background()
 		folderID, err := s.findBackupsFolder(driveService)
 		if err != nil {
@@ -105,7 +113,7 @@ func (s *GoogleDriveStorage) DeleteFile(fileID uuid.UUID) error {
 	})
 }
 
-func (s *GoogleDriveStorage) Validate() error {
+func (s *GoogleDriveStorage) Validate(encryptor encryption.FieldEncryptor) error {
 	switch {
 	case s.ClientID == "":
 		return errors.New("client ID is required")
@@ -115,7 +123,12 @@ func (s *GoogleDriveStorage) Validate() error {
 		return errors.New("token JSON is required")
 	}
 
-	// Also validate that the token JSON contains a refresh token
+	// Skip JSON validation if token is already encrypted
+	if strings.HasPrefix(s.TokenJSON, "enc:") {
+		return nil
+	}
+
+	// Validate that the token JSON contains a refresh token
 	var token oauth2.Token
 	if err := json.Unmarshal([]byte(s.TokenJSON), &token); err != nil {
 		return fmt.Errorf("invalid token JSON format: %w", err)
@@ -128,8 +141,8 @@ func (s *GoogleDriveStorage) Validate() error {
 	return nil
 }
 
-func (s *GoogleDriveStorage) TestConnection() error {
-	return s.withRetryOnAuth(func(driveService *drive.Service) error {
+func (s *GoogleDriveStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
+	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
 		ctx := context.Background()
 		testFilename := "test-connection-" + uuid.New().String()
 		testData := []byte("test")
@@ -196,6 +209,26 @@ func (s *GoogleDriveStorage) HideSensitiveData() {
 	s.TokenJSON = ""
 }
 
+func (s *GoogleDriveStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	var err error
+
+	if s.ClientSecret != "" {
+		s.ClientSecret, err = encryptor.Encrypt(s.StorageID, s.ClientSecret)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt Google Drive client secret: %w", err)
+		}
+	}
+
+	if s.TokenJSON != "" {
+		s.TokenJSON, err = encryptor.Encrypt(s.StorageID, s.TokenJSON)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt Google Drive token JSON: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (s *GoogleDriveStorage) Update(incoming *GoogleDriveStorage) {
 	s.ClientID = incoming.ClientID
 
@@ -209,8 +242,11 @@ func (s *GoogleDriveStorage) Update(incoming *GoogleDriveStorage) {
 }
 
 // withRetryOnAuth executes the provided function with retry logic for authentication errors
-func (s *GoogleDriveStorage) withRetryOnAuth(fn func(*drive.Service) error) error {
-	driveService, err := s.getDriveService()
+func (s *GoogleDriveStorage) withRetryOnAuth(
+	encryptor encryption.FieldEncryptor,
+	fn func(*drive.Service) error,
+) error {
+	driveService, err := s.getDriveService(encryptor)
 	if err != nil {
 		return err
 	}
@@ -220,7 +256,7 @@ func (s *GoogleDriveStorage) withRetryOnAuth(fn func(*drive.Service) error) erro
 		// Try to refresh token and retry once
 		fmt.Printf("Google Drive auth error detected, attempting token refresh: %v\n", err)
 
-		if refreshErr := s.refreshToken(); refreshErr != nil {
+		if refreshErr := s.refreshToken(encryptor); refreshErr != nil {
 			// If refresh fails, return a more helpful error message
 			if strings.Contains(refreshErr.Error(), "invalid_grant") ||
 				strings.Contains(refreshErr.Error(), "refresh token") {
@@ -237,7 +273,7 @@ func (s *GoogleDriveStorage) withRetryOnAuth(fn func(*drive.Service) error) erro
 		fmt.Printf("Token refresh successful, retrying operation\n")
 
 		// Get new service with refreshed token
-		driveService, err = s.getDriveService()
+		driveService, err = s.getDriveService(encryptor)
 		if err != nil {
 			return fmt.Errorf("failed to create service after token refresh: %w", err)
 		}
@@ -268,13 +304,24 @@ func (s *GoogleDriveStorage) isAuthError(err error) bool {
 }
 
 // refreshToken refreshes the OAuth2 token and updates the TokenJSON field
-func (s *GoogleDriveStorage) refreshToken() error {
-	if err := s.Validate(); err != nil {
+func (s *GoogleDriveStorage) refreshToken(encryptor encryption.FieldEncryptor) error {
+	if err := s.Validate(encryptor); err != nil {
 		return err
 	}
 
+	// Decrypt credentials before use
+	clientSecret, err := encryptor.Decrypt(s.StorageID, s.ClientSecret)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt Google Drive client secret: %w", err)
+	}
+
+	tokenJSON, err := encryptor.Decrypt(s.StorageID, s.TokenJSON)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt Google Drive token JSON: %w", err)
+	}
+
 	var token oauth2.Token
-	if err := json.Unmarshal([]byte(s.TokenJSON), &token); err != nil {
+	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
 		return fmt.Errorf("invalid token JSON: %w", err)
 	}
 
@@ -289,12 +336,12 @@ func (s *GoogleDriveStorage) refreshToken() error {
 		token.Expiry)
 
 	// Debug: Print the full token JSON structure (sensitive data masked)
-	fmt.Printf("Original token JSON structure: %s\n", maskSensitiveData(s.TokenJSON))
+	fmt.Printf("Original token JSON structure: %s\n", maskSensitiveData(tokenJSON))
 
 	ctx := context.Background()
 	cfg := &oauth2.Config{
 		ClientID:     s.ClientID,
-		ClientSecret: s.ClientSecret,
+		ClientSecret: clientSecret,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{"https://www.googleapis.com/auth/drive.file"},
 	}
@@ -330,7 +377,7 @@ func (s *GoogleDriveStorage) refreshToken() error {
 		newToken.RefreshToken = token.RefreshToken
 	}
 
-	// Update the stored token JSON
+	// Update the stored token JSON (keep as plaintext in memory, encryption happens on save)
 	newTokenJSON, err := json.Marshal(newToken)
 	if err != nil {
 		return fmt.Errorf("failed to marshal refreshed token: %w", err)
@@ -368,13 +415,26 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen]
 }
 
-func (s *GoogleDriveStorage) getDriveService() (*drive.Service, error) {
-	if err := s.Validate(); err != nil {
+func (s *GoogleDriveStorage) getDriveService(
+	encryptor encryption.FieldEncryptor,
+) (*drive.Service, error) {
+	if err := s.Validate(encryptor); err != nil {
 		return nil, err
 	}
 
+	// Decrypt credentials before use
+	clientSecret, err := encryptor.Decrypt(s.StorageID, s.ClientSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt Google Drive client secret: %w", err)
+	}
+
+	tokenJSON, err := encryptor.Decrypt(s.StorageID, s.TokenJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt Google Drive token JSON: %w", err)
+	}
+
 	var token oauth2.Token
-	if err := json.Unmarshal([]byte(s.TokenJSON), &token); err != nil {
+	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
 		return nil, fmt.Errorf("invalid token JSON: %w", err)
 	}
 
@@ -382,7 +442,7 @@ func (s *GoogleDriveStorage) getDriveService() (*drive.Service, error) {
 
 	cfg := &oauth2.Config{
 		ClientID:     s.ClientID,
-		ClientSecret: s.ClientSecret,
+		ClientSecret: clientSecret,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{"https://www.googleapis.com/auth/drive.file"},
 	}

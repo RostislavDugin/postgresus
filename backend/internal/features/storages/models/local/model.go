@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"postgresus-backend/internal/config"
+	"postgresus-backend/internal/util/encryption"
 	files_utils "postgresus-backend/internal/util/files"
 
 	"github.com/google/uuid"
@@ -23,7 +24,12 @@ func (l *LocalStorage) TableName() string {
 	return "local_storages"
 }
 
-func (l *LocalStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.Reader) error {
+func (l *LocalStorage) SaveFile(
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileID uuid.UUID,
+	file io.Reader,
+) error {
 	logger.Info("Starting to save file to local storage", "fileId", fileID.String())
 
 	err := files_utils.EnsureDirectories([]string{
@@ -107,7 +113,10 @@ func (l *LocalStorage) SaveFile(logger *slog.Logger, fileID uuid.UUID, file io.R
 	return nil
 }
 
-func (l *LocalStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
+func (l *LocalStorage) GetFile(
+	encryptor encryption.FieldEncryptor,
+	fileID uuid.UUID,
+) (io.ReadCloser, error) {
 	filePath := filepath.Join(config.GetEnv().DataFolder, fileID.String())
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -122,7 +131,7 @@ func (l *LocalStorage) GetFile(fileID uuid.UUID) (io.ReadCloser, error) {
 	return file, nil
 }
 
-func (l *LocalStorage) DeleteFile(fileID uuid.UUID) error {
+func (l *LocalStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
 	filePath := filepath.Join(config.GetEnv().DataFolder, fileID.String())
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -136,11 +145,11 @@ func (l *LocalStorage) DeleteFile(fileID uuid.UUID) error {
 	return nil
 }
 
-func (l *LocalStorage) Validate() error {
+func (l *LocalStorage) Validate(encryptor encryption.FieldEncryptor) error {
 	return nil
 }
 
-func (l *LocalStorage) TestConnection() error {
+func (l *LocalStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
 	testFile := filepath.Join(config.GetEnv().TempFolder, "test_connection")
 	f, err := os.Create(testFile)
 	if err != nil {
@@ -158,6 +167,10 @@ func (l *LocalStorage) TestConnection() error {
 }
 
 func (l *LocalStorage) HideSensitiveData() {
+}
+
+func (l *LocalStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
+	return nil
 }
 
 func (l *LocalStorage) Update(incoming *LocalStorage) {

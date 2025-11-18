@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
+	"postgresus-backend/internal/util/encryption"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,12 +57,22 @@ func (d *Database) ValidateUpdate(old, new Database) error {
 	return nil
 }
 
-func (d *Database) TestConnection(logger *slog.Logger) error {
-	return d.getSpecificDatabase().TestConnection(logger)
+func (d *Database) TestConnection(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+) error {
+	return d.getSpecificDatabase().TestConnection(logger, encryptor, d.ID)
 }
 
 func (d *Database) HideSensitiveData() {
 	d.getSpecificDatabase().HideSensitiveData()
+}
+
+func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) error {
+	if d.Postgresql != nil {
+		return d.Postgresql.EncryptSensitiveFields(d.ID, encryptor)
+	}
+	return nil
 }
 
 func (d *Database) Update(incoming *Database) {
