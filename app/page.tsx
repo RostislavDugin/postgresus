@@ -452,9 +452,9 @@ export default function Index() {
                   thumbnailSrc="/images/index/how-to-use-preview.png"
                 />
 
-                <h3 className="mb-1 mt-5 text-xl font-semibold md:text-xl">
+                <p className="mb-1 mt-5 text-xl font-semibold md:text-xl">
                   How to use Postgresus (overview)?
-                </h3>
+                </p>
 
                 <p>
                   Watch in this short 4 minutes video how to use Postgresus: how
@@ -799,7 +799,7 @@ export default function Index() {
                 <h3 className="text-xl font-bold md:text-2xl">
                   Access management
                 </h3>
-                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-600 ml-auto mb-auto">
+                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700 ml-auto mb-auto">
                   for&nbsp;teams
                 </span>
               </div>
@@ -828,7 +828,7 @@ export default function Index() {
             <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
               <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-xl font-bold md:text-2xl">Audit logs</h3>
-                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-600 ml-auto mb-auto">
+                <span className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700 ml-auto mb-auto">
                   for teams
                 </span>
               </div>
