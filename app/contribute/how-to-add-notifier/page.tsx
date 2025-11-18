@@ -140,7 +140,7 @@ export default function HowToAddNotifierPage() {
                 </li>
                 <li>
                   <code>
-                    EncryptSensitiveData(encryptor encryption.FieldEncryptor)
+                    EncryptSensitiveData(encryptor encryption.FieldEncryptor) 
                     error
                   </code>{" "}
                   - encrypts sensitive fields before saving
