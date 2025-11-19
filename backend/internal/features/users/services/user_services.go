@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"postgresus-backend/internal/config"
+	"postgresus-backend/internal/features/encryption/secrets"
 	users_dto "postgresus-backend/internal/features/users/dto"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_interfaces "postgresus-backend/internal/features/users/interfaces"
@@ -25,10 +26,10 @@ import (
 )
 
 type UserService struct {
-	userRepository      *users_repositories.UserRepository
-	secretKeyRepository *users_repositories.SecretKeyRepository
-	settingsService     *SettingsService
-	auditLogWriter      users_interfaces.AuditLogWriter
+	userRepository   *users_repositories.UserRepository
+	secretKeyService *secrets.SecretKeyService
+	settingsService  *SettingsService
+	auditLogWriter   users_interfaces.AuditLogWriter
 }
 
 func (s *UserService) SetAuditLogWriter(writer users_interfaces.AuditLogWriter) {
@@ -162,7 +163,7 @@ func (s *UserService) SignIn(
 }
 
 func (s *UserService) GetUserFromToken(token string) (*users_models.User, error) {
-	secretKey, err := s.secretKeyRepository.GetSecretKey()
+	secretKey, err := s.secretKeyService.GetSecretKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret key: %w", err)
 	}
@@ -221,7 +222,7 @@ func (s *UserService) GetUserFromToken(token string) (*users_models.User, error)
 func (s *UserService) GenerateAccessToken(
 	user *users_models.User,
 ) (*users_dto.SignInResponseDTO, error) {
-	secretKey, err := s.secretKeyRepository.GetSecretKey()
+	secretKey, err := s.secretKeyService.GetSecretKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret key: %w", err)
 	}

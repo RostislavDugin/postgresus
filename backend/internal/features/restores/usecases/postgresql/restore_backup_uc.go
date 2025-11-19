@@ -20,9 +20,9 @@ import (
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
+	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
 	"postgresus-backend/internal/features/restores/models"
 	"postgresus-backend/internal/features/storages"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 	util_encryption "postgresus-backend/internal/util/encryption"
 	files_utils "postgresus-backend/internal/util/files"
 	"postgresus-backend/internal/util/tools"
@@ -31,8 +31,8 @@ import (
 )
 
 type RestorePostgresqlBackupUsecase struct {
-	logger        *slog.Logger
-	secretKeyRepo *users_repositories.SecretKeyRepository
+	logger           *slog.Logger
+	secretKeyService *encryption_secrets.SecretKeyService
 }
 
 func (uc *RestorePostgresqlBackupUsecase) Execute(
@@ -232,7 +232,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		}
 
 		// Get master key
-		masterKey, err := uc.secretKeyRepo.GetSecretKey()
+		masterKey, err := uc.secretKeyService.GetSecretKey()
 		if err != nil {
 			cleanupFunc()
 			return "", nil, fmt.Errorf("failed to get master key for decryption: %w", err)

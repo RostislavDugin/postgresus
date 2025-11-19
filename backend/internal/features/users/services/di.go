@@ -1,10 +1,13 @@
 package users_services
 
-import users_repositories "postgresus-backend/internal/features/users/repositories"
+import (
+	"postgresus-backend/internal/features/encryption/secrets"
+	users_repositories "postgresus-backend/internal/features/users/repositories"
+)
 
 var userService = &UserService{
 	users_repositories.GetUserRepository(),
-	users_repositories.GetSecretKeyRepository(),
+	secrets.GetSecretKeyService(),
 	settingsService,
 	nil,
 }

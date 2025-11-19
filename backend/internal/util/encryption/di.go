@@ -1,9 +1,9 @@
 package encryption
 
-import users_repositories "postgresus-backend/internal/features/users/repositories"
+import "postgresus-backend/internal/features/encryption/secrets"
 
 var fieldEncryptor = &SecretKeyFieldEncryptor{
-	users_repositories.GetSecretKeyRepository(),
+	secrets.GetSecretKeyService(),
 }
 
 func GetFieldEncryptor() FieldEncryptor {

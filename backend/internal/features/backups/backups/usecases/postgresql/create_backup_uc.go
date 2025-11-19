@@ -19,8 +19,8 @@ import (
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
+	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
 	"postgresus-backend/internal/features/storages"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/tools"
 
@@ -34,16 +34,15 @@ const (
 	progressReportIntervalMB = 1.0
 	pgConnectTimeout         = 30
 	compressionLevel         = 5
-	defaultBackupLimit       = 1000
 	exitCodeAccessViolation  = -1073741819
 	exitCodeGenericError     = 1
 	exitCodeConnectionError  = 2
 )
 
 type CreatePostgresqlBackupUsecase struct {
-	logger         *slog.Logger
-	secretKeyRepo  *users_repositories.SecretKeyRepository
-	fieldEncryptor encryption.FieldEncryptor
+	logger           *slog.Logger
+	secretKeyService *encryption_secrets.SecretKeyService
+	fieldEncryptor   encryption.FieldEncryptor
 }
 
 // Execute creates a backup of the database
@@ -466,7 +465,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 		return nil, nil, metadata, fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	masterKey, err := uc.secretKeyRepo.GetSecretKey()
+	masterKey, err := uc.secretKeyService.GetSecretKey()
 	if err != nil {
 		return nil, nil, metadata, fmt.Errorf("failed to get master key: %w", err)
 	}

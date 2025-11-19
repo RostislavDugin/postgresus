@@ -26,8 +26,9 @@ type EnvVariables struct {
 	EnvMode              env_utils.EnvMode `env:"ENV_MODE"             required:"true"`
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
 
-	DataFolder string
-	TempFolder string
+	DataFolder    string
+	TempFolder    string
+	SecretKeyPath string
 
 	TestGoogleDriveClientID     string `env:"TEST_GOOGLE_DRIVE_CLIENT_ID"`
 	TestGoogleDriveClientSecret string `env:"TEST_GOOGLE_DRIVE_CLIENT_SECRET"`
@@ -146,6 +147,7 @@ func loadEnvVariables() {
 	// (projectRoot/postgresus-data -> /postgresus-data)
 	env.DataFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "backups")
 	env.TempFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "temp")
+	env.SecretKeyPath = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "secret.key")
 
 	if env.IsTesting {
 		if env.TestPostgres12Port == "" {

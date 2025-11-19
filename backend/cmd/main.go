@@ -18,6 +18,7 @@ import (
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/disk"
+	"postgresus-backend/internal/features/encryption/secrets"
 	healthcheck_attempt "postgresus-backend/internal/features/healthcheck/attempt"
 	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
 	"postgresus-backend/internal/features/notifiers"
@@ -61,6 +62,12 @@ func main() {
 
 	if err != nil {
 		log.Error("Failed to ensure directories", "error", err)
+		os.Exit(1)
+	}
+
+	err = secrets.GetSecretKeyService().MigrateKeyFromDbToFileIfExist()
+	if err != nil {
+		log.Error("Failed to migrate secret key from database to file", "error", err)
 		os.Exit(1)
 	}
 

@@ -7,19 +7,20 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
+	"strings"
+	"time"
+
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups/encryption"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
+	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	util_encryption "postgresus-backend/internal/util/encryption"
-	"slices"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -31,7 +32,7 @@ type BackupService struct {
 	notifierService     *notifiers.NotifierService
 	notificationSender  NotificationSender
 	backupConfigService *backups_config.BackupConfigService
-	secretKeyRepo       *users_repositories.SecretKeyRepository
+	secretKeyService    *encryption_secrets.SecretKeyService
 	fieldEncryptor      util_encryption.FieldEncryptor
 
 	createBackupUseCase CreateBackupUsecase
@@ -628,7 +629,7 @@ func (s *BackupService) getBackupReader(backupID uuid.UUID) (io.ReadCloser, erro
 	}
 
 	// Get master key
-	masterKey, err := s.secretKeyRepo.GetSecretKey()
+	masterKey, err := s.secretKeyService.GetSecretKey()
 	if err != nil {
 		if closeErr := fileReader.Close(); closeErr != nil {
 			s.logger.Error("Failed to close file reader", "error", closeErr)

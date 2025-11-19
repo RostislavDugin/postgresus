@@ -1,17 +1,18 @@
 package backups
 
 import (
+	"time"
+
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups/usecases"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
+	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
-	"time"
 )
 
 var backupRepository = &BackupRepository{}
@@ -25,7 +26,7 @@ var backupService = &BackupService{
 	notifiers.GetNotifierService(),
 	notifiers.GetNotifierService(),
 	backups_config.GetBackupConfigService(),
-	users_repositories.GetSecretKeyRepository(),
+	encryption_secrets.GetSecretKeyService(),
 	encryption.GetFieldEncryptor(),
 	usecases.GetCreateBackupUsecase(),
 	logger.GetLogger(),

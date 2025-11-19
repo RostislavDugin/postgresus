@@ -3,21 +3,22 @@ package backups
 import (
 	"context"
 	"errors"
+	"strings"
+	"testing"
+	"time"
+
 	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
+	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/features/storages"
 	users_enums "postgresus-backend/internal/features/users/enums"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 	users_testing "postgresus-backend/internal/features/users/testing"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
-			users_repositories.GetSecretKeyRepository(),
+			encryption_secrets.GetSecretKeyService(),
 			encryption.GetFieldEncryptor(),
 			&CreateFailedBackupUsecase{},
 			logger.GetLogger(),
@@ -104,7 +105,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
-			users_repositories.GetSecretKeyRepository(),
+			encryption_secrets.GetSecretKeyService(),
 			encryption.GetFieldEncryptor(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),
@@ -129,7 +130,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			notifiers.GetNotifierService(),
 			mockNotificationSender,
 			backups_config.GetBackupConfigService(),
-			users_repositories.GetSecretKeyRepository(),
+			encryption_secrets.GetSecretKeyService(),
 			encryption.GetFieldEncryptor(),
 			&CreateSuccessBackupUsecase{},
 			logger.GetLogger(),

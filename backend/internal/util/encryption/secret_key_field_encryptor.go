@@ -8,9 +8,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"postgresus-backend/internal/features/encryption/secrets"
 	"strings"
-
-	users_repositories "postgresus-backend/internal/features/users/repositories"
 
 	"github.com/google/uuid"
 )
@@ -18,7 +17,7 @@ import (
 const encryptedPrefix = "enc:"
 
 type SecretKeyFieldEncryptor struct {
-	secretKeyRepository *users_repositories.SecretKeyRepository
+	secretKeyService *secrets.SecretKeyService
 }
 
 func (e *SecretKeyFieldEncryptor) Encrypt(itemID uuid.UUID, plaintext string) (string, error) {
@@ -30,7 +29,7 @@ func (e *SecretKeyFieldEncryptor) Encrypt(itemID uuid.UUID, plaintext string) (s
 		return plaintext, nil
 	}
 
-	masterKey, err := e.secretKeyRepository.GetSecretKey()
+	masterKey, err := e.secretKeyService.GetSecretKey()
 	if err != nil {
 		return "", fmt.Errorf("failed to get master key: %w", err)
 	}
@@ -82,7 +81,7 @@ func (e *SecretKeyFieldEncryptor) Decrypt(itemID uuid.UUID, ciphertext string) (
 		return "", fmt.Errorf("failed to decode ciphertext: %w", err)
 	}
 
-	masterKey, err := e.secretKeyRepository.GetSecretKey()
+	masterKey, err := e.secretKeyService.GetSecretKey()
 	if err != nil {
 		return "", fmt.Errorf("failed to get master key: %w", err)
 	}
