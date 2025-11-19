@@ -81,6 +81,11 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 
 	args := uc.buildPgDumpArgs(pg)
 
+	decryptedPassword, err := uc.fieldEncryptor.Decrypt(db.ID, pg.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
+	}
+
 	return uc.streamToStorage(
 		ctx,
 		backupID,
@@ -92,7 +97,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 			config.GetEnv().PostgresesInstallDir,
 		),
 		args,
-		pg.Password,
+		decryptedPassword,
 		storage,
 		db,
 		backupProgressListener,

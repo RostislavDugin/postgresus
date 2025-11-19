@@ -142,6 +142,23 @@ export const MainScreenComponent = () => {
         <div className="ml-auto flex items-center gap-5">
           <a
             className="!text-black hover:opacity-80"
+            href="https://postgresus.com/installation"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Docs
+          </a>
+
+          <a
+            className="!text-black hover:opacity-80"
+            href="https://postgresus.com/contribute"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Contribute
+          </a>
+          <a
+            className="!text-black hover:opacity-80"
             href="https://t.me/postgresus_community"
             target="_blank"
             rel="noreferrer"
