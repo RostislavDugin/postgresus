@@ -26,7 +26,8 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/databases/test-connection-direct", c.TestDatabaseConnectionDirect)
 	router.POST("/databases/:id/copy", c.CopyDatabase)
 	router.GET("/databases/notifier/:id/is-using", c.IsNotifierUsing)
-
+	router.POST("/databases/is-readonly", c.IsUserReadOnly)
+	router.POST("/databases/create-readonly-user", c.CreateReadOnlyUser)
 }
 
 // CreateDatabase
@@ -329,4 +330,77 @@ func (c *DatabaseController) CopyDatabase(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, copiedDatabase)
+}
+
+// IsUserReadOnly
+// @Summary Check if database user is read-only
+// @Description Check if current database credentials have only read (SELECT) privileges
+// @Tags databases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body Database true "Database configuration to check"
+// @Success 200 {object} IsReadOnlyResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /databases/is-readonly [post]
+func (c *DatabaseController) IsUserReadOnly(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var request Database
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	isReadOnly, err := c.databaseService.IsUserReadOnly(user, &request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, IsReadOnlyResponse{IsReadOnly: isReadOnly})
+}
+
+// CreateReadOnlyUser
+// @Summary Create read-only database user
+// @Description Create a new PostgreSQL user with read-only privileges for backup operations
+// @Tags databases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body Database true "Database configuration to create user for"
+// @Success 200 {object} CreateReadOnlyUserResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /databases/create-readonly-user [post]
+func (c *DatabaseController) CreateReadOnlyUser(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var request Database
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	username, password, err := c.databaseService.CreateReadOnlyUser(user, &request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, CreateReadOnlyUserResponse{
+		Username: username,
+		Password: password,
+	})
 }

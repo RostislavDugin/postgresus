@@ -1,6 +1,7 @@
 package databases
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -455,4 +456,149 @@ func (s *DatabaseService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error
 	}
 
 	return nil
+}
+
+func (s *DatabaseService) IsUserReadOnly(
+	user *users_models.User,
+	database *Database,
+) (bool, error) {
+	var usingDatabase *Database
+
+	if database.ID != uuid.Nil {
+		existingDatabase, err := s.dbRepository.FindByID(database.ID)
+		if err != nil {
+			return false, err
+		}
+
+		if existingDatabase.WorkspaceID == nil {
+			return false, errors.New("cannot check user for database without workspace")
+		}
+
+		canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+			*existingDatabase.WorkspaceID,
+			user,
+		)
+		if err != nil {
+			return false, err
+		}
+		if !canAccess {
+			return false, errors.New("insufficient permissions to access this database")
+		}
+
+		if database.WorkspaceID != nil && *existingDatabase.WorkspaceID != *database.WorkspaceID {
+			return false, errors.New("database does not belong to this workspace")
+		}
+
+		existingDatabase.Update(database)
+
+		if err := existingDatabase.Validate(); err != nil {
+			return false, err
+		}
+
+		usingDatabase = existingDatabase
+	} else {
+		if database.WorkspaceID != nil {
+			canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+			if err != nil {
+				return false, err
+			}
+			if !canAccess {
+				return false, errors.New("insufficient permissions to access this workspace")
+			}
+		}
+
+		usingDatabase = database
+	}
+
+	if usingDatabase.Type != DatabaseTypePostgres {
+		return false, errors.New("read-only check only supported for PostgreSQL databases")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	return usingDatabase.Postgresql.IsUserReadOnly(
+		ctx,
+		s.logger,
+		s.fieldEncryptor,
+		usingDatabase.ID,
+	)
+}
+
+func (s *DatabaseService) CreateReadOnlyUser(
+	user *users_models.User,
+	database *Database,
+) (string, string, error) {
+	var usingDatabase *Database
+
+	if database.ID != uuid.Nil {
+		existingDatabase, err := s.dbRepository.FindByID(database.ID)
+		if err != nil {
+			return "", "", err
+		}
+
+		if existingDatabase.WorkspaceID == nil {
+			return "", "", errors.New("cannot create user for database without workspace")
+		}
+
+		canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+		if err != nil {
+			return "", "", err
+		}
+		if !canManage {
+			return "", "", errors.New("insufficient permissions to manage this database")
+		}
+
+		if database.WorkspaceID != nil && *existingDatabase.WorkspaceID != *database.WorkspaceID {
+			return "", "", errors.New("database does not belong to this workspace")
+		}
+
+		existingDatabase.Update(database)
+
+		if err := existingDatabase.Validate(); err != nil {
+			return "", "", err
+		}
+
+		usingDatabase = existingDatabase
+	} else {
+		if database.WorkspaceID != nil {
+			canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+			if err != nil {
+				return "", "", err
+			}
+			if !canManage {
+				return "", "", errors.New("insufficient permissions to manage this workspace")
+			}
+		}
+
+		usingDatabase = database
+	}
+
+	if usingDatabase.Type != DatabaseTypePostgres {
+		return "", "", errors.New("read-only user creation only supported for PostgreSQL")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	username, password, err := usingDatabase.Postgresql.CreateReadOnlyUser(
+		ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+	)
+	if err != nil {
+		return "", "", err
+	}
+
+	if usingDatabase.WorkspaceID != nil {
+		s.auditLogService.WriteAuditLog(
+			fmt.Sprintf(
+				"Read-only user created for database: %s (username: %s)",
+				usingDatabase.Name,
+				username,
+			),
+			&user.ID,
+			usingDatabase.WorkspaceID,
+		)
+	}
+
+	return username, password, nil
 }

@@ -78,7 +78,8 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		"--verbose",   // Add verbose output to help with debugging
 		"--clean",     // Clean (drop) database objects before recreating them
 		"--if-exists", // Use IF EXISTS when dropping objects
-		"--no-owner",
+		"--no-owner",  // Skip restoring ownership
+		"--no-acl",    // Skip restoring access privileges (GRANT/REVOKE commands)
 	}
 
 	return uc.restoreFromStorage(

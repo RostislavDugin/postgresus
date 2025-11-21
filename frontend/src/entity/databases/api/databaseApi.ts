@@ -1,7 +1,9 @@
 import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import type { CreateReadOnlyUserResponse } from '../model/CreateReadOnlyUserResponse';
 import type { Database } from '../model/Database';
+import type { IsReadOnlyResponse } from '../model/IsReadOnlyResponse';
 
 export const databaseApi = {
   async createDatabase(database: Database) {
@@ -84,5 +86,23 @@ export const databaseApi = {
         true,
       )
       .then((res) => res.isUsing);
+  },
+
+  async isUserReadOnly(database: Database) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(database));
+    return apiHelper.fetchPostJson<IsReadOnlyResponse>(
+      `${getApplicationServer()}/api/v1/databases/is-readonly`,
+      requestOptions,
+    );
+  },
+
+  async createReadOnlyUser(database: Database) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(database));
+    return apiHelper.fetchPostJson<CreateReadOnlyUserResponse>(
+      `${getApplicationServer()}/api/v1/databases/create-readonly-user`,
+      requestOptions,
+    );
   },
 };

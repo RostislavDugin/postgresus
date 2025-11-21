@@ -1,6 +1,6 @@
-import { ExclamationCircleOutlined, SyncOutlined } from '@ant-design/icons';
+import { CopyOutlined, ExclamationCircleOutlined, SyncOutlined } from '@ant-design/icons';
 import { CheckCircleOutlined } from '@ant-design/icons';
-import { Button, Modal, Spin, Tooltip } from 'antd';
+import { App, Button, Modal, Spin, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
@@ -16,11 +16,14 @@ interface Props {
 }
 
 export const RestoresComponent = ({ database, backup }: Props) => {
+  const { message } = App.useApp();
+
   const [editingDatabase, setEditingDatabase] = useState<Database>({
     ...database,
     postgresql: database.postgresql
       ? ({
           ...database.postgresql,
+          username: undefined,
           host: undefined,
           port: undefined,
           password: undefined,
@@ -231,9 +234,21 @@ export const RestoresComponent = ({ database, backup }: Props) => {
           title="Restore error details"
           open={!!showingRestoreError}
           onCancel={() => setShowingRestoreError(undefined)}
-          footer={null}
+          footer={
+            <Button
+              icon={<CopyOutlined />}
+              onClick={() => {
+                navigator.clipboard.writeText(showingRestoreError.failMessage || '');
+                message.success('Error message copied to clipboard');
+              }}
+            >
+              Copy
+            </Button>
+          }
         >
-          <div className="text-sm">{showingRestoreError.failMessage}</div>
+          <div className="overflow-y-auto text-sm whitespace-pre-wrap" style={{ height: '400px' }}>
+            {showingRestoreError.failMessage}
+          </div>
         </Modal>
       )}
     </div>

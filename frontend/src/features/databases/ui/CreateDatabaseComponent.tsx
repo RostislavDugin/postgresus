@@ -9,6 +9,7 @@ import {
   databaseApi,
 } from '../../../entity/databases';
 import { EditBackupConfigComponent } from '../../backups';
+import { CreateReadOnlyComponent } from './edit/CreateReadOnlyComponent';
 import { EditDatabaseBaseInfoComponent } from './edit/EditDatabaseBaseInfoComponent';
 import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComponent';
 import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDataComponent';
@@ -41,9 +42,9 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
     sendNotificationsOn: [],
   } as Database);
 
-  const [step, setStep] = useState<'base-info' | 'db-settings' | 'backup-config' | 'notifiers'>(
-    'base-info',
-  );
+  const [step, setStep] = useState<
+    'base-info' | 'db-settings' | 'create-readonly-user' | 'backup-config' | 'notifiers'
+  >('base-info');
 
   const createDatabase = async (database: Database, backupConfig: BackupConfig) => {
     setIsCreating(true);
@@ -97,8 +98,21 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
         isSaveToApi={false}
         onSaved={(database) => {
           setDatabase({ ...database });
-          setStep('backup-config');
+          setStep('create-readonly-user');
         }}
+      />
+    );
+  }
+
+  if (step === 'create-readonly-user') {
+    return (
+      <CreateReadOnlyComponent
+        database={database}
+        onReadOnlyUserUpdated={(database) => {
+          setDatabase({ ...database });
+        }}
+        onGoBack={() => setStep('db-settings')}
+        onContinue={() => setStep('backup-config')}
       />
     );
   }
