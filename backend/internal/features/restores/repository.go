@@ -32,7 +32,6 @@ func (r *RestoreRepository) FindByBackupID(backupID uuid.UUID) ([]*models.Restor
 	if err := storage.
 		GetDb().
 		Preload("Backup").
-		Preload("Postgresql").
 		Where("backup_id = ?", backupID).
 		Order("created_at DESC").
 		Find(&restores).Error; err != nil {
@@ -48,7 +47,6 @@ func (r *RestoreRepository) FindByID(id uuid.UUID) (*models.Restore, error) {
 	if err := storage.
 		GetDb().
 		Preload("Backup").
-		Preload("Postgresql").
 		Where("id = ?", id).
 		First(&restore).Error; err != nil {
 		return nil, err
@@ -63,7 +61,6 @@ func (r *RestoreRepository) FindByStatus(status enums.RestoreStatus) ([]*models.
 	if err := storage.
 		GetDb().
 		Preload("Backup").
-		Preload("Postgresql").
 		Where("status = ?", status).
 		Order("created_at DESC").
 		Find(&restores).Error; err != nil {

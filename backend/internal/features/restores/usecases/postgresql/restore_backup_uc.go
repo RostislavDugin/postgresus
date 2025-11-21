@@ -36,13 +36,14 @@ type RestorePostgresqlBackupUsecase struct {
 }
 
 func (uc *RestorePostgresqlBackupUsecase) Execute(
-	database *databases.Database,
+	originalDB *databases.Database,
+	restoringToDB *databases.Database,
 	backupConfig *backups_config.BackupConfig,
 	restore models.Restore,
 	backup *backups.Backup,
 	storage *storages.Storage,
 ) error {
-	if database.Type != databases.DatabaseTypePostgres {
+	if originalDB.Type != databases.DatabaseTypePostgres {
 		return errors.New("database type not supported")
 	}
 
@@ -54,7 +55,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		backup.ID,
 	)
 
-	pg := restore.Postgresql
+	pg := restoringToDB.Postgresql
 	if pg == nil {
 		return fmt.Errorf("postgresql configuration is required for restore")
 	}
@@ -83,7 +84,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	}
 
 	return uc.restoreFromStorage(
-		database,
+		originalDB,
 		tools.GetPostgresqlExecutable(
 			pg.Version,
 			"pg_restore",

@@ -17,13 +17,15 @@ type RestoreBackupUsecase struct {
 func (uc *RestoreBackupUsecase) Execute(
 	backupConfig *backups_config.BackupConfig,
 	restore models.Restore,
-	database *databases.Database,
+	originalDB *databases.Database,
+	restoringToDB *databases.Database,
 	backup *backups.Backup,
 	storage *storages.Storage,
 ) error {
-	if database.Type == databases.DatabaseTypePostgres {
+	if originalDB.Type == databases.DatabaseTypePostgres {
 		return uc.restorePostgresqlBackupUsecase.Execute(
-			database,
+			originalDB,
+			restoringToDB,
 			backupConfig,
 			restore,
 			backup,

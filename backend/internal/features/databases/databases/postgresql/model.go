@@ -19,7 +19,6 @@ type PostgresqlDatabase struct {
 	ID uuid.UUID `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 
 	DatabaseID *uuid.UUID `json:"databaseId" gorm:"type:uuid;column:database_id"`
-	RestoreID  *uuid.UUID `json:"restoreId"  gorm:"type:uuid;column:restore_id"`
 
 	Version tools.PostgresqlVersion `json:"version" gorm:"type:text;not null"`
 

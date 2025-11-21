@@ -58,12 +58,12 @@
 - **SSL support**: Secure connections available
 - **Easy restoration**: One-click restore from any backup
 
-### 🔒 **Backup Encryption** <a href="https://postgresus.com/encryption">(docs)</a>
+### 🔒 **Enterprise-grade security** <a href="https://postgresus.com/security">(docs)</a>
 
 - **AES-256-GCM encryption**: Enterprise-grade protection for backup files
-- **Zero-trust storage**: Encrypted backups are useless so you can keep in shared storages like S3, Azure Blob Storage, etc.
-- **Optionality**: Encrypted backups are optional and can be enabled or disabled if you wish
-- **Download unencrypted**: You can still download unencrypted backups via the 'Download' button to use them in `pg_restore` or other tools.
+- **Zero-trust storage**: Backups are encrypted and they are useless to attackers, so you can keep them in shared storages like S3, Azure Blob Storage, etc.
+- **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
+- **Read-only user**: Postgresus uses by default a read-only user for backups and never stores anything that can change your data
 
 ### 👥 **Suitable for Teams** <a href="https://postgresus.com/access-management">(docs)</a>
 

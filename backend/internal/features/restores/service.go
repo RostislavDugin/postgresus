@@ -191,15 +191,9 @@ func (s *RestoreService) RestoreBackup(
 		return err
 	}
 
-	// Set the RestoreID on the PostgreSQL database and save it
-	if requestDTO.PostgresqlDatabase != nil {
-		requestDTO.PostgresqlDatabase.RestoreID = &restore.ID
-		restore.Postgresql = requestDTO.PostgresqlDatabase
-
-		// Save the restore again to include the postgresql database
-		if err := s.restoreRepository.Save(&restore); err != nil {
-			return err
-		}
+	// Save the restore again to include the postgresql database
+	if err := s.restoreRepository.Save(&restore); err != nil {
+		return err
 	}
 
 	storage, err := s.storageService.GetStorageByID(backup.StorageID)
@@ -216,10 +210,15 @@ func (s *RestoreService) RestoreBackup(
 
 	start := time.Now().UTC()
 
+	restoringToDB := &databases.Database{
+		Postgresql: requestDTO.PostgresqlDatabase,
+	}
+
 	err = s.restoreBackupUsecase.Execute(
 		backupConfig,
 		restore,
 		database,
+		restoringToDB,
 		backup,
 		storage,
 	)

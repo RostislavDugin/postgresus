@@ -2,7 +2,6 @@ package models
 
 import (
 	"postgresus-backend/internal/features/backups/backups"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/restores/enums"
 	"time"
 
@@ -15,8 +14,6 @@ type Restore struct {
 
 	BackupID uuid.UUID `json:"backupId" gorm:"column:backup_id;type:uuid;not null"`
 	Backup   *backups.Backup
-
-	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:RestoreID"`
 
 	FailMessage *string `json:"failMessage" gorm:"column:fail_message"`
 
