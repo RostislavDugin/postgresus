@@ -40,6 +40,10 @@ const navItems: NavItem[] = [
     href: "/password",
   },
   {
+    title: "How Postgresus is secured?",
+    href: "/security",
+  },
+  {
     title: "FAQ",
     href: "/faq",
   },

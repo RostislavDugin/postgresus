@@ -166,10 +166,10 @@ export default function Index() {
               },
               {
                 "@type": "Question",
-                name: "Does Postgresus reduce database security?",
+                name: "How does Postgresus ensure security?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "No. All the data executes within containers you control, on servers you own. Credentials and backup files are left on your server or in the cloud account of your choice. Because it's open source, you or your security team, can inspect every line to make sure it meets your organization's needs before it's run.",
+                  text: "Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised. All operations run in containers you control on servers you own, and because it's open source, your security team can audit every line of code before deployment.",
                 },
               },
               {
@@ -855,23 +855,27 @@ export default function Index() {
             </div>
 
             <div className="h-[320px] max-h-[320px] w-[320px] rounded-2xl bg-white p-8 md:h-[390px] md:max-h-[390px] md:w-[390px]">
-              <h3 className="mb-3 text-xl font-bold md:text-2xl">
-                Encryption
-              </h3>
+              <h3 className="mb-3 text-xl font-bold md:text-2xl">Security</h3>
 
               <div className="flex h-[120px] max-h-[120px] justify-center pt-7 sm:h-[200px] sm:max-h-[200px]">
                 <img
                   className="max-h-[100px] sm:max-h-[130px]"
                   src="/images/index/feature-encryption.svg"
-                  alt="Backup encryption"
+                  alt="Security features"
                   loading="lazy"
                 />
               </div>
 
               <div className="pt-5 text-sm text-gray-600 sm:pt-5 sm:text-base">
-                Enterprise-grade encryption protects your backups.
-                Store encrypted files safely in shared cloud storage without
-                security concerns
+                Enterprise-grade encryption protects your sensitive
+                data and backups. Read-only database access prevents data
+                corruption.{" "}
+                <a
+                  href="/security"
+                  className="font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  Read more →
+                </a>
               </div>
             </div>
           </div>
@@ -1017,19 +1021,21 @@ export default function Index() {
 
               <div className="mb-8 w-full pr-10 lg:w-1/2">
                 <h3 className="mb-3 max-w-[350px] font-bold md:text-xl">
-                  6. Does Postgresus reduce database security?
+                  6. How does Postgresus ensure security?
                 </h3>
 
                 <p className="max-w-[500px] md:text-lg">
-                  No. All the data executes within containers you control, on
-                  servers you own. Credentials and backup files are left on your
-                  server or in the cloud account of your choice. Additionally,
-                  Postgresus offers enterprise-grade AES-256-GCM encryption for
-                  your backup files. This means even if someone gains access to
-                  your storage, encrypted backups remain useless without the
-                  decryption key. Because it&apos;s open source, you or your
-                  security team can inspect every line to make sure it meets
-                  your organization&apos;s needs before it&apos;s run.
+                  Postgresus enforces security on three levels: (1) Sensitive
+                  data encryption — all passwords, tokens and credentials are
+                  encrypted with AES-256-GCM and stored separately from the
+                  database; (2) Backup encryption — each backup file is
+                  encrypted with a unique key derived from a master key, backup
+                  ID and random salt, making backups useless without your
+                  encryption key even if someone gains storage access; (3)
+                  Read-only database access — Postgresus only requires SELECT
+                  permissions and performs comprehensive checks to ensure no
+                  write privileges exist, preventing data corruption even if the
+                  tool is compromised. 
                 </p>
               </div>
 
