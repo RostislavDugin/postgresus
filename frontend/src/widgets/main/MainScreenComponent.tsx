@@ -31,7 +31,7 @@ export const MainScreenComponent = () => {
   const { message } = App.useApp();
   const screenHeight = useScreenHeight();
   const isMobile = useIsMobile();
-  const contentHeight = screenHeight - (isMobile ? 65 : 95);
+  const contentHeight = screenHeight - (isMobile ? 70 : 95);
 
   const [selectedTab, setSelectedTab] = useState<
     | 'notifiers'
@@ -267,12 +267,13 @@ export const MainScreenComponent = () => {
           )}
         </div>
 
-        <Button
-          type="text"
-          icon={<MenuOutlined style={{ fontSize: '20px' }} />}
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="mt-1 ml-auto md:hidden"
-        />
+        <div className="mt-1 ml-auto md:hidden">
+          <Button
+            type="text"
+            icon={<MenuOutlined style={{ fontSize: '20px' }} />}
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          />
+        </div>
       </div>
       {isLoading ? (
         <div className="flex items-center justify-center py-2" style={{ height: contentHeight }}>

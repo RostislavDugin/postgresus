@@ -225,7 +225,7 @@ export function EditNotifierComponent({
       )}
 
       <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Type</div>
+        <div className="w-[150px] min-w-[150px]">Type</div>
 
         <Select
           value={notifier?.notifierType}

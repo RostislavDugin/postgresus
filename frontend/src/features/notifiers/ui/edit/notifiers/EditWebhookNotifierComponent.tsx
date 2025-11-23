@@ -13,33 +13,29 @@ interface Props {
 export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved }: Props) {
   return (
     <>
-      <div className="flex items-center">
-        <div className="w-[130px] min-w-[130px]">Webhook URL</div>
-
-        <div className="w-[250px]">
-          <Input
-            value={notifier?.webhookNotifier?.webhookUrl || ''}
-            onChange={(e) => {
-              setNotifier({
-                ...notifier,
-                webhookNotifier: {
-                  ...(notifier.webhookNotifier || { webhookMethod: WebhookMethod.POST }),
-                  webhookUrl: e.target.value.trim(),
-                },
-              });
-              setUnsaved();
-            }}
-            size="small"
-            className="w-full"
-            placeholder="https://example.com/webhook"
-          />
-        </div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Webhook URL</div>
+        <Input
+          value={notifier?.webhookNotifier?.webhookUrl || ''}
+          onChange={(e) => {
+            setNotifier({
+              ...notifier,
+              webhookNotifier: {
+                ...(notifier.webhookNotifier || { webhookMethod: WebhookMethod.POST }),
+                webhookUrl: e.target.value.trim(),
+              },
+            });
+            setUnsaved();
+          }}
+          size="small"
+          className="w-full max-w-[250px]"
+          placeholder="https://example.com/webhook"
+        />
       </div>
 
-      <div className="mt-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Method</div>
-
-        <div className="w-[250px]">
+      <div className="mt-1 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Method</div>
+        <div className="flex items-center">
           <Select
             value={notifier?.webhookNotifier?.webhookMethod || WebhookMethod.POST}
             onChange={(value) => {
@@ -53,20 +49,20 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved
               setUnsaved();
             }}
             size="small"
-            className="w-full"
+            className="w-full max-w-[250px]"
             options={[
               { value: WebhookMethod.POST, label: 'POST' },
               { value: WebhookMethod.GET, label: 'GET' },
             ]}
           />
-        </div>
 
-        <Tooltip
-          className="cursor-pointer"
-          title="The HTTP method that will be used to call the webhook"
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="The HTTP method that will be used to call the webhook"
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
 
       {notifier?.webhookNotifier?.webhookUrl && (

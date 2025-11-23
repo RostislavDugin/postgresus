@@ -10,7 +10,7 @@ export function ShowTelegramNotifierComponent({ notifier }: Props) {
       <div className="flex items-center">
         <div className="min-w-[110px]">Bot token</div>
 
-        <div className="w-[250px]">*********</div>
+        <div>*********</div>
       </div>
 
       <div className="mb-1 flex items-center">

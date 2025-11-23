@@ -10,7 +10,7 @@ export function ShowDiscordNotifierComponent({ notifier }: Props) {
       <div className="flex">
         <div className="max-w-[110px] min-w-[110px] pr-3">Channel webhook URL</div>
 
-        <div className="w-[250px]">{notifier.webhookNotifier?.webhookUrl.slice(0, 10)}*******</div>
+        <div>{notifier.webhookNotifier?.webhookUrl.slice(0, 10)}*******</div>
       </div>
     </>
   );

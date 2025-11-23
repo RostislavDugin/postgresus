@@ -27,31 +27,28 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
 
   return (
     <>
-      <div className="flex items-center">
-        <div className="w-[130px] min-w-[130px]">Bot token</div>
-
-        <div className="w-[250px]">
-          <Input
-            value={notifier?.telegramNotifier?.botToken || ''}
-            onChange={(e) => {
-              if (!notifier?.telegramNotifier) return;
-              setNotifier({
-                ...notifier,
-                telegramNotifier: {
-                  ...notifier.telegramNotifier,
-                  botToken: e.target.value.trim(),
-                },
-              });
-              setUnsaved();
-            }}
-            size="small"
-            className="w-full"
-            placeholder="1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-          />
-        </div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Bot token</div>
+        <Input
+          value={notifier?.telegramNotifier?.botToken || ''}
+          onChange={(e) => {
+            if (!notifier?.telegramNotifier) return;
+            setNotifier({
+              ...notifier,
+              telegramNotifier: {
+                ...notifier.telegramNotifier,
+                botToken: e.target.value.trim(),
+              },
+            });
+            setUnsaved();
+          }}
+          size="small"
+          className="w-full max-w-[250px]"
+          placeholder="1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        />
       </div>
 
-      <div className="mb-1 ml-[130px]">
+      <div className="mb-1 sm:ml-[150px]">
         <a
           className="text-xs !text-blue-600"
           href="https://www.siteguarding.com/en/how-to-get-telegram-bot-api-token"
@@ -62,10 +59,9 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
         </a>
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px]">Target chat ID</div>
-
-        <div className="w-[250px]">
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Target chat ID</div>
+        <div className="flex items-center">
           <Input
             value={notifier?.telegramNotifier?.targetChatId || ''}
             onChange={(e) => {
@@ -81,20 +77,20 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
               setUnsaved();
             }}
             size="small"
-            className="w-full"
+            className="w-full max-w-[250px]"
             placeholder="-1001234567890"
           />
-        </div>
 
-        <Tooltip
-          className="cursor-pointer"
-          title="The chat where you want to receive the message (it can be your private chat or a group)"
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="The chat where you want to receive the message (it can be your private chat or a group)"
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
 
-      <div className="ml-[130px] max-w-[250px]">
+      <div className="max-w-[250px] sm:ml-[150px]">
         {!isShowHowToGetChatId ? (
           <div
             className="mt-1 cursor-pointer text-xs text-blue-600"
@@ -120,42 +116,42 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
         )}
       </div>
 
-      <div className="mt-4 mb-1 flex items-center">
-        <div className="w-[130px] min-w-[130px] break-all">Send to group topic</div>
+      <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Send to group topic</div>
+        <div className="flex items-center">
+          <Switch
+            checked={notifier?.telegramNotifier?.isSendToThreadEnabled || false}
+            onChange={(checked) => {
+              if (!notifier?.telegramNotifier) return;
 
-        <Switch
-          checked={notifier?.telegramNotifier?.isSendToThreadEnabled || false}
-          onChange={(checked) => {
-            if (!notifier?.telegramNotifier) return;
+              setNotifier({
+                ...notifier,
+                telegramNotifier: {
+                  ...notifier.telegramNotifier,
+                  isSendToThreadEnabled: checked,
+                  // Clear thread ID if disabling
+                  threadId: checked ? notifier.telegramNotifier.threadId : undefined,
+                },
+              });
+              setUnsaved();
+            }}
+            size="small"
+          />
 
-            setNotifier({
-              ...notifier,
-              telegramNotifier: {
-                ...notifier.telegramNotifier,
-                isSendToThreadEnabled: checked,
-                // Clear thread ID if disabling
-                threadId: checked ? notifier.telegramNotifier.threadId : undefined,
-              },
-            });
-            setUnsaved();
-          }}
-          size="small"
-        />
-
-        <Tooltip
-          className="cursor-pointer"
-          title="Enable this to send messages to a specific thread in a group chat"
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="Enable this to send messages to a specific thread in a group chat"
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
 
       {notifier?.telegramNotifier?.isSendToThreadEnabled && (
         <>
-          <div className="mb-1 flex items-center">
-            <div className="w-[130px] min-w-[130px]">Thread ID</div>
-
-            <div className="w-[250px]">
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[150px] sm:mb-0">Thread ID</div>
+            <div className="flex items-center">
               <Input
                 value={notifier?.telegramNotifier?.threadId?.toString() || ''}
                 onChange={(e) => {
@@ -174,22 +170,22 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
                   setUnsaved();
                 }}
                 size="small"
-                className="w-full"
+                className="w-full max-w-[250px]"
                 placeholder="3"
                 type="number"
                 min="1"
               />
-            </div>
 
-            <Tooltip
-              className="cursor-pointer"
-              title="The ID of the thread where messages should be sent"
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
+              <Tooltip
+                className="cursor-pointer"
+                title="The ID of the thread where messages should be sent"
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
           </div>
 
-          <div className="ml-[130px] max-w-[250px]">
+          <div className="max-w-[250px] sm:ml-[150px]">
             <div className="mt-1 text-xs text-gray-500">
               To get the thread ID, go to the thread in your Telegram group, tap on the thread name
               at the top, then tap &ldquo;Thread Info&rdquo;. Copy the thread link and take the last

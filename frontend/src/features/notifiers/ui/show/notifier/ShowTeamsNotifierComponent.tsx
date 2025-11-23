@@ -18,7 +18,7 @@ export function ShowTeamsNotifierComponent({ notifier }: Props) {
     <>
       <div className="flex items-center">
         <div className="min-w-[110px]">Power Automate URL: </div>
-        <div className="w-[250px] break-all">
+        <div className="w-[50px] break-all md:w-[250px]">
           {url ? (
             <>
               <span title={url}>{display}</span>

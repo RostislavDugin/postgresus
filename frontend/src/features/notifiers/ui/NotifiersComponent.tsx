@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { notifierApi } from '../../../entity/notifiers';
 import type { Notifier } from '../../../entity/notifiers';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
+import { useIsMobile } from '../../../shared/hooks';
 import { NotifierCardComponent } from './NotifierCardComponent';
 import { NotifierComponent } from './NotifierComponent';
 import { EditNotifierComponent } from './edit/EditNotifierComponent';
@@ -14,21 +15,47 @@ interface Props {
   isCanManageNotifiers: boolean;
 }
 
+const SELECTED_NOTIFIER_STORAGE_KEY = 'selectedNotifierId';
+
 export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifiers }: Props) => {
+  const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [notifiers, setNotifiers] = useState<Notifier[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isShowAddNotifier, setIsShowAddNotifier] = useState(false);
   const [selectedNotifierId, setSelectedNotifierId] = useState<string | undefined>(undefined);
-  const loadNotifiers = () => {
-    setIsLoading(true);
+
+  const updateSelectedNotifierId = (notifierId: string | undefined) => {
+    setSelectedNotifierId(notifierId);
+    if (notifierId) {
+      localStorage.setItem(`${SELECTED_NOTIFIER_STORAGE_KEY}_${workspace.id}`, notifierId);
+    } else {
+      localStorage.removeItem(`${SELECTED_NOTIFIER_STORAGE_KEY}_${workspace.id}`);
+    }
+  };
+
+  const loadNotifiers = (isSilent = false, selectNotifierId?: string) => {
+    if (!isSilent) {
+      setIsLoading(true);
+    }
 
     notifierApi
       .getNotifiers(workspace.id)
       .then((notifiers) => {
         setNotifiers(notifiers);
-        if (!selectedNotifierId) {
-          setSelectedNotifierId(notifiers[0]?.id);
+        if (selectNotifierId) {
+          updateSelectedNotifierId(selectNotifierId);
+        } else if (!selectedNotifierId && !isSilent && !isMobile) {
+          // On desktop, auto-select a notifier; on mobile, keep it unselected
+          const savedNotifierId = localStorage.getItem(
+            `${SELECTED_NOTIFIER_STORAGE_KEY}_${workspace.id}`,
+          );
+          const notifierToSelect =
+            savedNotifierId && notifiers.some((n) => n.id === savedNotifierId)
+              ? savedNotifierId
+              : notifiers[0]?.id;
+          updateSelectedNotifierId(notifierToSelect);
         }
       })
       .catch((e) => alert(e.message))
@@ -37,6 +64,12 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
 
   useEffect(() => {
     loadNotifiers();
+
+    const interval = setInterval(() => {
+      loadNotifiers(true);
+    }, 5 * 60_000);
+
+    return () => clearInterval(interval);
   }, []);
 
   if (isLoading) {
@@ -53,45 +86,89 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
     </Button>
   );
 
+  const filteredNotifiers = notifiers.filter((notifier) =>
+    notifier.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // On mobile, show either the list or the notifier details
+  const showNotifierList = !isMobile || !selectedNotifierId;
+  const showNotifierDetails = selectedNotifierId && (!isMobile || selectedNotifierId);
+
   return (
     <>
       <div className="flex grow">
-        <div
-          className="mx-3 w-[250px] min-w-[250px] overflow-y-auto"
-          style={{ height: contentHeight }}
-        >
-          {notifiers.length >= 5 && isCanManageNotifiers && addNotifierButton}
+        {showNotifierList && (
+          <div
+            className="w-full overflow-y-auto md:mx-3 md:w-[250px] md:min-w-[250px] md:pr-2"
+            style={{ height: contentHeight }}
+          >
+            {notifiers.length >= 5 && (
+              <>
+                {isCanManageNotifiers && addNotifierButton}
 
-          {notifiers.map((notifier) => (
-            <NotifierCardComponent
-              key={notifier.id}
-              notifier={notifier}
-              selectedNotifierId={selectedNotifierId}
-              setSelectedNotifierId={setSelectedNotifierId}
-            />
-          ))}
+                <div className="mb-2">
+                  <input
+                    placeholder="Search notifier"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none"
+                  />
+                </div>
+              </>
+            )}
 
-          {notifiers.length < 5 && isCanManageNotifiers && addNotifierButton}
+            {filteredNotifiers.length > 0
+              ? filteredNotifiers.map((notifier) => (
+                  <NotifierCardComponent
+                    key={notifier.id}
+                    notifier={notifier}
+                    selectedNotifierId={selectedNotifierId}
+                    setSelectedNotifierId={updateSelectedNotifierId}
+                  />
+                ))
+              : searchQuery && (
+                  <div className="mb-4 text-center text-sm text-gray-500">
+                    No notifiers found matching &quot;{searchQuery}&quot;
+                  </div>
+                )}
 
-          <div className="mx-3 text-center text-xs text-gray-500">
-            Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
+            {notifiers.length < 5 && isCanManageNotifiers && addNotifierButton}
+
+            <div className="mx-3 text-center text-xs text-gray-500">
+              Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
+            </div>
           </div>
-        </div>
+        )}
 
-        {selectedNotifierId && (
-          <NotifierComponent
-            notifierId={selectedNotifierId}
-            onNotifierChanged={() => {
-              loadNotifiers();
-            }}
-            onNotifierDeleted={() => {
-              loadNotifiers();
-              setSelectedNotifierId(
-                notifiers.filter((notifier) => notifier.id !== selectedNotifierId)[0]?.id,
-              );
-            }}
-            isCanManageNotifiers={isCanManageNotifiers}
-          />
+        {showNotifierDetails && (
+          <div className="flex w-full flex-col md:flex-1">
+            {isMobile && (
+              <div className="mb-2">
+                <Button
+                  type="default"
+                  onClick={() => updateSelectedNotifierId(undefined)}
+                  className="w-full"
+                >
+                  ← Back to notifiers
+                </Button>
+              </div>
+            )}
+
+            <NotifierComponent
+              notifierId={selectedNotifierId}
+              onNotifierChanged={() => {
+                loadNotifiers();
+              }}
+              onNotifierDeleted={() => {
+                const remainingNotifiers = notifiers.filter(
+                  (notifier) => notifier.id !== selectedNotifierId,
+                );
+                updateSelectedNotifierId(remainingNotifiers[0]?.id);
+                loadNotifiers();
+              }}
+              isCanManageNotifiers={isCanManageNotifiers}
+            />
+          </div>
         )}
       </div>
 
@@ -111,8 +188,8 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
             isShowName
             isShowClose={false}
             onClose={() => setIsShowAddNotifier(false)}
-            onChanged={() => {
-              loadNotifiers();
+            onChanged={(notifier) => {
+              loadNotifiers(false, notifier.id);
               setIsShowAddNotifier(false);
             }}
           />

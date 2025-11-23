@@ -27,7 +27,7 @@ export function EditTeamsNotifierComponent({ notifier, setNotifier, setUnsaved }
 
   return (
     <>
-      <div className="mb-1 ml-[130px] max-w-[200px]" style={{ lineHeight: 1 }}>
+      <div className="mb-1 max-w-[250px] sm:ml-[150px]" style={{ lineHeight: 1 }}>
         <a
           className="text-xs !text-blue-600"
           href="https://postgresus.com/notifiers/teams"
@@ -38,25 +38,24 @@ export function EditTeamsNotifierComponent({ notifier, setNotifier, setUnsaved }
         </a>
       </div>
 
-      <div className="flex items-center">
-        <div className="w-[130px] min-w-[130px]">Power Automate URL</div>
-
-        <div className="w-[250px]">
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Power Automate URL</div>
+        <div className="flex items-center">
           <Input
             value={value}
             onChange={onChange}
             size="small"
-            className="w-full"
+            className="w-full max-w-[250px]"
             placeholder="https://prod-00.westeurope.logic.azure.com:443/workflows/....."
           />
-        </div>
 
-        <Tooltip
-          className="cursor-pointer"
-          title="HTTP endpoint from your Power Automate flow (When an HTTP request is received)"
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="HTTP endpoint from your Power Automate flow (When an HTTP request is received)"
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
     </>
   );
