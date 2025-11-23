@@ -70,12 +70,17 @@ func (s *SlackNotifier) Send(
 		maxAttempts       = 5
 		defaultBackoff    = 2 * time.Second // when Retry-After header missing
 		backoffMultiplier = 1.5             // use exponential growth
+		requestTimeout    = 30 * time.Second
 	)
 
 	var (
 		backoff  = defaultBackoff
 		attempts = 0
 	)
+
+	client := &http.Client{
+		Timeout: requestTimeout,
+	}
 
 	for {
 		attempts++
@@ -92,7 +97,7 @@ func (s *SlackNotifier) Send(
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 		req.Header.Set("Authorization", "Bearer "+botToken)
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return fmt.Errorf("send slack message: %w", err)
 		}
