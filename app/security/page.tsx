@@ -93,8 +93,7 @@ export default function SecurityPage() {
                   basis;
                 </li>
                 <li>
-                  it saves backups in cloud storages (if you enable it) - so
-                  other people can see them;
+                  it saves backups in your S3 or other cloud storages (if you enable it);
                 </li>
               </ul>
 
