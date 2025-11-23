@@ -281,6 +281,163 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
     return () => container.removeEventListener('scroll', handleScroll);
   }, [hasMore, isLoadingMore, currentLimit, scrollContainerRef]);
 
+  const renderStatus = (status: BackupStatus, record: Backup) => {
+    if (status === BackupStatus.FAILED) {
+      return (
+        <Tooltip title="Click to see error details">
+          <div
+            className="flex cursor-pointer items-center text-red-600 underline"
+            onClick={() => setShowingBackupError(record)}
+          >
+            <ExclamationCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
+            <div>Failed</div>
+          </div>
+        </Tooltip>
+      );
+    }
+
+    if (status === BackupStatus.COMPLETED) {
+      return (
+        <div className="flex items-center text-green-600">
+          <CheckCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
+          <div>Successful</div>
+          {record.encryption === BackupEncryption.ENCRYPTED && (
+            <Tooltip title="Encrypted">
+              <LockOutlined className="ml-1" style={{ fontSize: 14 }} />
+            </Tooltip>
+          )}
+        </div>
+      );
+    }
+
+    if (status === BackupStatus.DELETED) {
+      return (
+        <div className="flex items-center text-gray-600">
+          <DeleteOutlined className="mr-2" style={{ fontSize: 16 }} />
+          <div>Deleted</div>
+        </div>
+      );
+    }
+
+    if (status === BackupStatus.IN_PROGRESS) {
+      return (
+        <div className="flex items-center font-bold text-blue-600">
+          <SyncOutlined spin />
+          <span className="ml-2">In progress</span>
+        </div>
+      );
+    }
+
+    if (status === BackupStatus.CANCELED) {
+      return (
+        <div className="flex items-center text-gray-600">
+          <CloseCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
+          <div>Canceled</div>
+        </div>
+      );
+    }
+
+    return <span className="font-bold">{status}</span>;
+  };
+
+  const renderActions = (record: Backup) => {
+    return (
+      <div className="flex gap-2 text-lg">
+        {record.status === BackupStatus.IN_PROGRESS && isCanManageDBs && (
+          <div className="flex gap-2">
+            {cancellingBackupId === record.id ? (
+              <SyncOutlined spin />
+            ) : (
+              <Tooltip title="Cancel backup">
+                <CloseCircleOutlined
+                  className="cursor-pointer"
+                  onClick={() => {
+                    if (cancellingBackupId) return;
+                    cancelBackup(record.id);
+                  }}
+                  style={{ color: '#ff0000', opacity: cancellingBackupId ? 0.2 : 1 }}
+                />
+              </Tooltip>
+            )}
+          </div>
+        )}
+
+        {record.status === BackupStatus.COMPLETED && (
+          <div className="flex gap-2">
+            {deletingBackupId === record.id ? (
+              <SyncOutlined spin />
+            ) : (
+              <>
+                {isCanManageDBs && (
+                  <Tooltip title="Delete backup">
+                    <DeleteOutlined
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (deletingBackupId) return;
+                        setDeleteConfimationId(record.id);
+                      }}
+                      style={{ color: '#ff0000', opacity: deletingBackupId ? 0.2 : 1 }}
+                    />
+                  </Tooltip>
+                )}
+
+                <Tooltip title="Restore from backup">
+                  <CloudUploadOutlined
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setShowingRestoresBackupId(record.id);
+                    }}
+                    style={{
+                      color: '#155dfc',
+                    }}
+                  />
+                </Tooltip>
+
+                <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
+                  {downloadingBackupId === record.id ? (
+                    <SyncOutlined spin style={{ color: '#155dfc' }} />
+                  ) : (
+                    <DownloadOutlined
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (downloadingBackupId) return;
+                        setDownloadingBackupId(record.id);
+                      }}
+                      style={{
+                        opacity: downloadingBackupId ? 0.2 : 1,
+                        color: '#155dfc',
+                      }}
+                    />
+                  )}
+                </Tooltip>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const formatSize = (sizeMb: number) => {
+    if (sizeMb >= 1024) {
+      const sizeGb = sizeMb / 1024;
+      return `${Number(sizeGb.toFixed(2)).toLocaleString()} GB`;
+    }
+    return `${Number(sizeMb?.toFixed(2)).toLocaleString()} MB`;
+  };
+
+  const formatDuration = (durationMs: number) => {
+    const hours = Math.floor(durationMs / 3600000);
+    const minutes = Math.floor((durationMs % 3600000) / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    return `${minutes}m ${seconds}s`;
+  };
+
   const columns: ColumnsType<Backup> = [
     {
       title: 'Created at',
@@ -299,66 +456,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status: BackupStatus, record: Backup) => {
-        if (status === BackupStatus.FAILED) {
-          return (
-            <Tooltip title="Click to see error details">
-              <div
-                className="flex cursor-pointer items-center text-red-600 underline"
-                onClick={() => setShowingBackupError(record)}
-              >
-                <ExclamationCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
-
-                <div>Failed</div>
-              </div>
-            </Tooltip>
-          );
-        }
-
-        if (status === BackupStatus.COMPLETED) {
-          return (
-            <div className="flex items-center text-green-600">
-              <CheckCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
-              <div>Successful</div>
-
-              {record.encryption === BackupEncryption.ENCRYPTED && (
-                <Tooltip title="Encrypted">
-                  <LockOutlined className="ml-1" style={{ fontSize: 14 }} />
-                </Tooltip>
-              )}
-            </div>
-          );
-        }
-
-        if (status === BackupStatus.DELETED) {
-          return (
-            <div className="flex items-center text-gray-600">
-              <DeleteOutlined className="mr-2" style={{ fontSize: 16 }} />
-              <div>Deleted</div>
-            </div>
-          );
-        }
-
-        if (status === BackupStatus.IN_PROGRESS) {
-          return (
-            <div className="flex items-center font-bold text-blue-600">
-              <SyncOutlined spin />
-              <span className="ml-2">In progress</span>
-            </div>
-          );
-        }
-
-        if (status === BackupStatus.CANCELED) {
-          return (
-            <div className="flex items-center text-gray-600">
-              <CloseCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
-              <div>Canceled</div>
-            </div>
-          );
-        }
-
-        return <span className="font-bold">{status}</span>;
-      },
+      render: (status: BackupStatus, record: Backup) => renderStatus(status, record),
       filters: [
         {
           value: BackupStatus.IN_PROGRESS,
@@ -398,112 +496,20 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       dataIndex: 'backupSizeMb',
       key: 'backupSizeMb',
       width: 150,
-      render: (sizeMb: number) => {
-        if (sizeMb >= 1024) {
-          const sizeGb = sizeMb / 1024;
-          return `${Number(sizeGb.toFixed(2)).toLocaleString()} GB`;
-        }
-        return `${Number(sizeMb?.toFixed(2)).toLocaleString()} MB`;
-      },
+      render: (sizeMb: number) => formatSize(sizeMb),
     },
     {
       title: 'Duration',
       dataIndex: 'backupDurationMs',
       key: 'backupDurationMs',
       width: 150,
-      render: (durationMs: number) => {
-        const hours = Math.floor(durationMs / 3600000);
-        const minutes = Math.floor((durationMs % 3600000) / 60000);
-        const seconds = Math.floor((durationMs % 60000) / 1000);
-
-        if (hours > 0) {
-          return `${hours}h ${minutes}m ${seconds}s`;
-        }
-
-        return `${minutes}m ${seconds}s`;
-      },
+      render: (durationMs: number) => formatDuration(durationMs),
     },
     {
       title: 'Actions',
       dataIndex: '',
       key: '',
-      render: (_, record: Backup) => {
-        return (
-          <div className="flex gap-2 text-lg">
-            {record.status === BackupStatus.IN_PROGRESS && isCanManageDBs && (
-              <div className="flex gap-2">
-                {cancellingBackupId === record.id ? (
-                  <SyncOutlined spin />
-                ) : (
-                  <Tooltip title="Cancel backup">
-                    <CloseCircleOutlined
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (cancellingBackupId) return;
-                        cancelBackup(record.id);
-                      }}
-                      style={{ color: '#ff0000', opacity: cancellingBackupId ? 0.2 : 1 }}
-                    />
-                  </Tooltip>
-                )}
-              </div>
-            )}
-
-            {record.status === BackupStatus.COMPLETED && (
-              <div className="flex gap-2">
-                {deletingBackupId === record.id ? (
-                  <SyncOutlined spin />
-                ) : (
-                  <>
-                    {isCanManageDBs && (
-                      <Tooltip title="Delete backup">
-                        <DeleteOutlined
-                          className="cursor-pointer"
-                          onClick={() => {
-                            if (deletingBackupId) return;
-                            setDeleteConfimationId(record.id);
-                          }}
-                          style={{ color: '#ff0000', opacity: deletingBackupId ? 0.2 : 1 }}
-                        />
-                      </Tooltip>
-                    )}
-
-                    <Tooltip title="Restore from backup">
-                      <CloudUploadOutlined
-                        className="cursor-pointer"
-                        onClick={() => {
-                          setShowingRestoresBackupId(record.id);
-                        }}
-                        style={{
-                          color: '#155dfc',
-                        }}
-                      />
-                    </Tooltip>
-
-                    <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
-                      {downloadingBackupId === record.id ? (
-                        <SyncOutlined spin style={{ color: '#155dfc' }} />
-                      ) : (
-                        <DownloadOutlined
-                          className="cursor-pointer"
-                          onClick={() => {
-                            if (downloadingBackupId) return;
-                            setDownloadingBackupId(record.id);
-                          }}
-                          style={{
-                            opacity: downloadingBackupId ? 0.2 : 1,
-                            color: '#155dfc',
-                          }}
-                        />
-                      )}
-                    </Tooltip>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      },
+      render: (_, record: Backup) => renderActions(record),
     },
   ];
 
@@ -516,11 +522,11 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
   }
 
   return (
-    <div className="mt-5 w-full rounded-md bg-white p-5 shadow">
-      <h2 className="text-xl font-bold">Backups</h2>
+    <div className="mt-5 w-full rounded-md bg-white p-3 shadow md:p-5">
+      <h2 className="text-lg font-bold md:text-xl">Backups</h2>
 
       {!isBackupConfigLoading && !backupConfig?.isBackupsEnabled && (
-        <div className="text-red-600">
+        <div className="text-sm text-red-600 md:text-base">
           Scheduled backups are disabled (you can enable it back in the backup configuration)
         </div>
       )}
@@ -535,30 +541,98 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           disabled={isMakeBackupRequestLoading}
           loading={isMakeBackupRequestLoading}
         >
-          Make backup right now
+          <span className="md:hidden">Backup now</span>
+          <span className="hidden md:inline">Make backup right now</span>
         </Button>
       </div>
 
-      <div className="mt-5 max-w-[850px]">
-        <Table
-          bordered
-          columns={columns}
-          dataSource={backups}
-          rowKey="id"
-          loading={isBackupsLoading}
-          size="small"
-          pagination={false}
-        />
-        {isLoadingMore && (
-          <div className="mt-2 flex justify-center">
-            <Spin />
-          </div>
-        )}
-        {!hasMore && backups.length > 0 && (
-          <div className="mt-2 text-center text-gray-500">
-            All backups loaded ({totalBackups} total)
-          </div>
-        )}
+      <div className="mt-5 w-full md:max-w-[850px]">
+        {/* Mobile card view */}
+        <div className="md:hidden">
+          {isBackupsLoading ? (
+            <div className="flex justify-center py-8">
+              <Spin />
+            </div>
+          ) : (
+            <div>
+              {backups.map((backup) => (
+                <div
+                  key={backup.id}
+                  className="mb-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-xs text-gray-500">Created at</div>
+                        <div className="text-sm font-medium">
+                          {dayjs.utc(backup.createdAt).local().format(getUserTimeFormat().format)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          ({dayjs.utc(backup.createdAt).local().fromNow()})
+                        </div>
+                      </div>
+                      <div>{renderStatus(backup.status, backup)}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs text-gray-500">Size</div>
+                        <div className="text-sm font-medium">{formatSize(backup.backupSizeMb)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Duration</div>
+                        <div className="text-sm font-medium">
+                          {formatDuration(backup.backupDurationMs)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end border-t border-gray-200 pt-3">
+                      {renderActions(backup)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isLoadingMore && (
+            <div className="mt-3 flex justify-center">
+              <Spin />
+            </div>
+          )}
+          {!hasMore && backups.length > 0 && (
+            <div className="mt-3 text-center text-sm text-gray-500">
+              All backups loaded ({totalBackups} total)
+            </div>
+          )}
+          {!isBackupsLoading && backups.length === 0 && (
+            <div className="py-8 text-center text-gray-500">No backups yet</div>
+          )}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden md:block">
+          <Table
+            bordered
+            columns={columns}
+            dataSource={backups}
+            rowKey="id"
+            loading={isBackupsLoading}
+            size="small"
+            pagination={false}
+          />
+          {isLoadingMore && (
+            <div className="mt-2 flex justify-center">
+              <Spin />
+            </div>
+          )}
+          {!hasMore && backups.length > 0 && (
+            <div className="mt-2 text-center text-gray-500">
+              All backups loaded ({totalBackups} total)
+            </div>
+          )}
+        </div>
       </div>
 
       {deleteConfimationId && (

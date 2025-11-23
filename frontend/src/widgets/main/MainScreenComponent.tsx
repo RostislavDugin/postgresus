@@ -1,4 +1,4 @@
-import { LoadingOutlined } from '@ant-design/icons';
+import { LoadingOutlined, MenuOutlined } from '@ant-design/icons';
 import { App, Button, Spin, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 import GitHubButton from 'react-github-btn';
@@ -7,7 +7,6 @@ import { APP_VERSION } from '../../constants';
 import { type DiskUsage, diskApi } from '../../entity/disk';
 import {
   type UserProfile,
-  UserRole,
   type UsersSettings,
   WorkspaceRole,
   settingsApi,
@@ -24,13 +23,15 @@ import {
   CreateWorkspaceDialogComponent,
   WorkspaceSettingsComponent,
 } from '../../features/workspaces';
-import { useScreenHeight } from '../../shared/hooks';
+import { useIsMobile, useScreenHeight } from '../../shared/hooks';
+import { SidebarComponent } from './SidebarComponent';
 import { WorkspaceSelectionComponent } from './WorkspaceSelectionComponent';
 
 export const MainScreenComponent = () => {
   const { message } = App.useApp();
   const screenHeight = useScreenHeight();
-  const contentHeight = screenHeight - 95;
+  const isMobile = useIsMobile();
+  const contentHeight = screenHeight - (isMobile ? 65 : 95);
 
   const [selectedTab, setSelectedTab] = useState<
     | 'notifiers'
@@ -52,6 +53,7 @@ export const MainScreenComponent = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateWorkspaceDialog, setShowCreateWorkspaceDialog] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -118,17 +120,89 @@ export const MainScreenComponent = () => {
 
   const isCanManageDBs = selectedWorkspace?.userRole !== WorkspaceRole.VIEWER;
 
+  const tabs = [
+    {
+      text: 'Databases',
+      name: 'databases',
+      icon: '/icons/menu/database-gray.svg',
+      selectedIcon: '/icons/menu/database-white.svg',
+      onClick: () => setSelectedTab('databases'),
+      isAdminOnly: false,
+      marginTop: '0px',
+      isVisible: true,
+    },
+    {
+      text: 'Storages',
+      name: 'storages',
+      icon: '/icons/menu/storage-gray.svg',
+      selectedIcon: '/icons/menu/storage-white.svg',
+      onClick: () => setSelectedTab('storages'),
+      isAdminOnly: false,
+      marginTop: '0px',
+      isVisible: !!selectedWorkspace,
+    },
+    {
+      text: 'Notifiers',
+      name: 'notifiers',
+      icon: '/icons/menu/notifier-gray.svg',
+      selectedIcon: '/icons/menu/notifier-white.svg',
+      onClick: () => setSelectedTab('notifiers'),
+      isAdminOnly: false,
+      marginTop: '0px',
+      isVisible: !!selectedWorkspace,
+    },
+    {
+      text: 'Settings',
+      name: 'settings',
+      icon: '/icons/menu/workspace-settings-gray.svg',
+      selectedIcon: '/icons/menu/workspace-settings-white.svg',
+      onClick: () => setSelectedTab('settings'),
+      isAdminOnly: false,
+      marginTop: '0px',
+      isVisible: !!selectedWorkspace,
+    },
+    {
+      text: 'Profile',
+      name: 'profile',
+      icon: '/icons/menu/profile-gray.svg',
+      selectedIcon: '/icons/menu/profile-white.svg',
+      onClick: () => setSelectedTab('profile'),
+      isAdminOnly: false,
+      marginTop: '25px',
+      isVisible: true,
+    },
+    {
+      text: 'Postgresus settings',
+      name: 'postgresus-settings',
+      icon: '/icons/menu/global-settings-gray.svg',
+      selectedIcon: '/icons/menu/global-settings-white.svg',
+      onClick: () => setSelectedTab('postgresus-settings'),
+      isAdminOnly: true,
+      marginTop: '0px',
+      isVisible: true,
+    },
+    {
+      text: 'Users',
+      name: 'users',
+      icon: '/icons/menu/user-card-gray.svg',
+      selectedIcon: '/icons/menu/user-card-white.svg',
+      onClick: () => setSelectedTab('users'),
+      isAdminOnly: true,
+      marginTop: '0px',
+      isVisible: true,
+    },
+  ];
+
   return (
-    <div style={{ height: screenHeight }} className="bg-[#f5f5f5] p-3">
-      {/* ===================== NAVBAR ===================== */}
-      <div className="mb-3 flex h-[60px] items-center rounded bg-white p-3 shadow">
-        <div className="flex items-center gap-3 hover:opacity-80">
+    <div style={{ height: screenHeight }} className="bg-[#f5f5f5] p-2 md:p-3">
+      <div className="mb-2 flex h-[50px] items-center rounded bg-white px-2 py-2 shadow md:mb-3 md:h-[60px] md:p-3">
+        <div className="flex items-center gap-2 hover:opacity-80 md:gap-3">
           <a href="https://postgresus.com" target="_blank" rel="noreferrer">
-            <img className="h-[40px] w-[40px]" src="/logo.svg" />
+            <img className="h-[30px] w-[30px] md:h-[40px] md:w-[40px]" src="/logo.svg" />
           </a>
         </div>
 
-        <div className="ml-5">
+        <div className="ml-2 flex-1 pr-2 md:ml-5 md:flex-initial md:pr-0">
           {!isLoading && (
             <WorkspaceSelectionComponent
               workspaces={workspaces}
@@ -139,7 +213,7 @@ export const MainScreenComponent = () => {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-5">
+        <div className="ml-auto hidden items-center gap-5 md:flex">
           <a
             className="!text-black hover:opacity-80"
             href="https://postgresus.com/installation"
@@ -192,114 +266,29 @@ export const MainScreenComponent = () => {
             </Tooltip>
           )}
         </div>
-      </div>
-      {/* ===================== END NAVBAR ===================== */}
 
+        <Button
+          type="text"
+          icon={<MenuOutlined style={{ fontSize: '20px' }} />}
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="mt-1 ml-auto md:hidden"
+        />
+      </div>
       {isLoading ? (
         <div className="flex items-center justify-center py-2" style={{ height: contentHeight }}>
           <Spin indicator={<LoadingOutlined spin />} size="large" />
         </div>
       ) : (
         <div className="relative flex">
-          <div
-            className="max-w-[60px] min-w-[60px] rounded bg-white py-2 shadow"
-            style={{ height: contentHeight }}
-          >
-            {[
-              {
-                text: 'Databases',
-                name: 'databases',
-                icon: '/icons/menu/database-gray.svg',
-                selectedIcon: '/icons/menu/database-white.svg',
-                onClick: () => setSelectedTab('databases'),
-                isAdminOnly: false,
-                marginTop: '0px',
-                isVisible: true,
-              },
-              {
-                text: 'Storages',
-                name: 'storages',
-                icon: '/icons/menu/storage-gray.svg',
-                selectedIcon: '/icons/menu/storage-white.svg',
-                onClick: () => setSelectedTab('storages'),
-                isAdminOnly: false,
-                marginTop: '0px',
-                isVisible: !!selectedWorkspace,
-              },
-              {
-                text: 'Notifiers',
-                name: 'notifiers',
-                icon: '/icons/menu/notifier-gray.svg',
-                selectedIcon: '/icons/menu/notifier-white.svg',
-                onClick: () => setSelectedTab('notifiers'),
-                isAdminOnly: false,
-                marginTop: '0px',
-                isVisible: !!selectedWorkspace,
-              },
-              {
-                text: 'Settings',
-                name: 'settings',
-                icon: '/icons/menu/workspace-settings-gray.svg',
-                selectedIcon: '/icons/menu/workspace-settings-white.svg',
-                onClick: () => setSelectedTab('settings'),
-                isAdminOnly: false,
-                marginTop: '0px',
-                isVisible: !!selectedWorkspace,
-              },
-              {
-                text: 'Profile',
-                name: 'profile',
-                icon: '/icons/menu/profile-gray.svg',
-                selectedIcon: '/icons/menu/profile-white.svg',
-                onClick: () => setSelectedTab('profile'),
-                isAdminOnly: false,
-                marginTop: '25px',
-                isVisible: true,
-              },
-              {
-                text: 'Postgresus settings',
-                name: 'postgresus-settings',
-                icon: '/icons/menu/global-settings-gray.svg',
-                selectedIcon: '/icons/menu/global-settings-white.svg',
-                onClick: () => setSelectedTab('postgresus-settings'),
-                isAdminOnly: true,
-                marginTop: '0px',
-                isVisible: true,
-              },
-              {
-                text: 'Users',
-                name: 'users',
-                icon: '/icons/menu/user-card-gray.svg',
-                selectedIcon: '/icons/menu/user-card-white.svg',
-                onClick: () => setSelectedTab('users'),
-                isAdminOnly: true,
-                marginTop: '0px',
-                isVisible: true,
-              },
-            ]
-              .filter((tab) => !tab.isAdminOnly || user?.role === UserRole.ADMIN)
-              .filter((tab) => tab.isVisible)
-              .map((tab) => (
-                <div key={tab.text} className="flex justify-center">
-                  <div
-                    className={`flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded select-none ${selectedTab === tab.name ? 'bg-blue-600' : 'hover:bg-blue-50'}`}
-                    onClick={tab.onClick}
-                    style={{ marginTop: tab.marginTop }}
-                  >
-                    <div className="mb-1">
-                      <div className="flex justify-center">
-                        <img
-                          src={selectedTab === tab.name ? tab.selectedIcon : tab.icon}
-                          width={20}
-                          alt={tab.text}
-                          loading="lazy"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
+          <SidebarComponent
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            selectedTab={selectedTab}
+            tabs={tabs}
+            user={user}
+            diskUsage={diskUsage}
+            contentHeight={contentHeight}
+          />
 
           {selectedTab === 'profile' && <ProfileComponent contentHeight={contentHeight} />}
 
@@ -309,62 +298,64 @@ export const MainScreenComponent = () => {
 
           {selectedTab === 'users' && <UsersComponent contentHeight={contentHeight} />}
 
-          {workspaces.length === 0 &&
-          (selectedTab === 'databases' ||
-            selectedTab === 'storages' ||
-            selectedTab === 'notifiers' ||
-            selectedTab === 'settings') ? (
-            <div
-              className="flex grow items-center justify-center rounded pl-5"
-              style={{ height: contentHeight }}
-            >
-              <Button
-                type="primary"
-                size="large"
-                onClick={handleCreateWorkspace}
-                className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
+          <div className="flex-1 md:pl-3">
+            {workspaces.length === 0 &&
+            (selectedTab === 'databases' ||
+              selectedTab === 'storages' ||
+              selectedTab === 'notifiers' ||
+              selectedTab === 'settings') ? (
+              <div
+                className="flex grow items-center justify-center rounded"
+                style={{ height: contentHeight }}
               >
-                Create workspace
-              </Button>
-            </div>
-          ) : (
-            <>
-              {selectedTab === 'notifiers' && selectedWorkspace && (
-                <NotifiersComponent
-                  contentHeight={contentHeight}
-                  workspace={selectedWorkspace}
-                  isCanManageNotifiers={isCanManageDBs}
-                  key={`notifiers-${selectedWorkspace.id}`}
-                />
-              )}
-              {selectedTab === 'storages' && selectedWorkspace && (
-                <StoragesComponent
-                  contentHeight={contentHeight}
-                  workspace={selectedWorkspace}
-                  isCanManageStorages={isCanManageDBs}
-                  key={`storages-${selectedWorkspace.id}`}
-                />
-              )}
-              {selectedTab === 'databases' && selectedWorkspace && (
-                <DatabasesComponent
-                  contentHeight={contentHeight}
-                  workspace={selectedWorkspace}
-                  isCanManageDBs={isCanManageDBs}
-                  key={`databases-${selectedWorkspace.id}`}
-                />
-              )}
-              {selectedTab === 'settings' && selectedWorkspace && user && (
-                <WorkspaceSettingsComponent
-                  workspaceResponse={selectedWorkspace}
-                  contentHeight={contentHeight}
-                  user={user}
-                  key={`settings-${selectedWorkspace.id}`}
-                />
-              )}
-            </>
-          )}
+                <Button
+                  type="primary"
+                  size="large"
+                  onClick={handleCreateWorkspace}
+                  className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
+                >
+                  Create workspace
+                </Button>
+              </div>
+            ) : (
+              <>
+                {selectedTab === 'notifiers' && selectedWorkspace && (
+                  <NotifiersComponent
+                    contentHeight={contentHeight}
+                    workspace={selectedWorkspace}
+                    isCanManageNotifiers={isCanManageDBs}
+                    key={`notifiers-${selectedWorkspace.id}`}
+                  />
+                )}
+                {selectedTab === 'storages' && selectedWorkspace && (
+                  <StoragesComponent
+                    contentHeight={contentHeight}
+                    workspace={selectedWorkspace}
+                    isCanManageStorages={isCanManageDBs}
+                    key={`storages-${selectedWorkspace.id}`}
+                  />
+                )}
+                {selectedTab === 'databases' && selectedWorkspace && (
+                  <DatabasesComponent
+                    contentHeight={contentHeight}
+                    workspace={selectedWorkspace}
+                    isCanManageDBs={isCanManageDBs}
+                    key={`databases-${selectedWorkspace.id}`}
+                  />
+                )}
+                {selectedTab === 'settings' && selectedWorkspace && user && (
+                  <WorkspaceSettingsComponent
+                    workspaceResponse={selectedWorkspace}
+                    contentHeight={contentHeight}
+                    user={user}
+                    key={`settings-${selectedWorkspace.id}`}
+                  />
+                )}
+              </>
+            )}
+          </div>
 
-          <div className="absolute bottom-1 left-2 mb-[0px] text-sm text-gray-400">
+          <div className="absolute bottom-1 left-2 mb-[0px] hidden text-sm text-gray-400 md:block">
             v{APP_VERSION}
           </div>
         </div>

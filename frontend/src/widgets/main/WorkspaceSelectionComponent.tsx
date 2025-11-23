@@ -2,6 +2,7 @@ import { Button, Input } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { type WorkspaceResponse } from '../../entity/workspaces';
+import { useIsMobile } from '../../shared/hooks';
 
 interface Props {
   workspaces: WorkspaceResponse[];
@@ -16,6 +17,7 @@ export const WorkspaceSelectionComponent = ({
   onCreateWorkspace,
   onWorkspaceSelect,
 }: Props) => {
+  const isMobile = useIsMobile();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,59 +52,60 @@ export const WorkspaceSelectionComponent = ({
       <Button
         type="primary"
         onClick={onCreateWorkspace}
+        size={isMobile ? 'small' : 'middle'}
         className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
       >
-        Create workspace
+        {isMobile ? 'Create' : 'Create workspace'}
       </Button>
     );
   }
 
   return (
-    <div className="my-1 w-[250px] select-none" ref={dropdownRef}>
-      <div className="mb-1 text-xs text-gray-400" style={{ lineHeight: 0.7 }}>
+    <div
+      className="my-1 flex-1 select-none md:ml-2 md:w-[250px] md:max-w-[250px]"
+      ref={dropdownRef}
+    >
+      <div className="mb-1 hidden text-xs text-gray-400 md:block" style={{ lineHeight: 0.7 }}>
         Selected workspace
       </div>
 
       <div className="relative">
-        {/* Dropdown Trigger */}
         <div
           className="cursor-pointer rounded bg-gray-100 p-1 px-2 hover:bg-gray-200"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
           <div className="flex items-center justify-between text-sm">
-            <div className="max-w-[250px] truncate">
+            <div className="flex-1 truncate pr-1">
               {selectedWorkspace?.name || 'Select a workspace'}
             </div>
             <img
               src="/icons/menu/arrow-down-gray.svg"
               alt="arrow-down"
-              className={`ml-1 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
-              width={15}
-              height={15}
+              className={`ml-1 flex-shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+              width={isMobile ? 14 : 15}
+              height={isMobile ? 14 : 15}
             />
           </div>
         </div>
 
-        {/* Dropdown Menu */}
         {isDropdownOpen && (
-          <div className="absolute top-full left-0 z-50 mt-1 min-w-full rounded-md border border-gray-200 bg-white shadow-lg">
-            {/* Search Input */}
+          <div className="absolute top-full right-0 left-0 z-50 mt-1 min-w-[250px] rounded-md border border-gray-200 bg-white shadow-lg md:right-auto md:left-0 md:min-w-full">
             <div className="border-b border-gray-100 p-2">
               <Input
                 placeholder="Search workspaces..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 className="border-0 shadow-none"
+                size={isMobile ? 'small' : 'middle'}
                 autoFocus
               />
             </div>
 
-            {/* Workspace List */}
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="max-h-[250px] overflow-y-auto md:max-h-[400px]">
               {filteredWorkspaces.map((workspace) => (
                 <div
                   key={workspace.id}
-                  className="max-w-[250px] cursor-pointer truncate px-3 py-2 text-sm hover:bg-gray-50"
+                  className="cursor-pointer truncate px-3 py-2 text-sm hover:bg-gray-50"
                   onClick={() => openWorkspace(workspace)}
                 >
                   {workspace.name}
@@ -114,7 +117,6 @@ export const WorkspaceSelectionComponent = ({
               )}
             </div>
 
-            {/* Create New Workspace Button - Fixed at bottom */}
             <div className="border-t border-gray-100">
               <div
                 className="cursor-pointer px-3 py-2 text-sm text-blue-600 hover:bg-gray-50 hover:text-blue-700"

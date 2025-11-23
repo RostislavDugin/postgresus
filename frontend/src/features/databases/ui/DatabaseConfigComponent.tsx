@@ -147,9 +147,9 @@ export const DatabaseConfigComponent = ({
   };
 
   return (
-    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-5 shadow">
+    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-3 shadow sm:p-5">
       {!isEditName ? (
-        <div className="mb-5 flex items-center text-2xl font-bold">
+        <div className="mb-5 flex items-center text-xl font-bold sm:text-2xl">
           {database.name}
 
           {isCanManageDBs && (
@@ -162,7 +162,7 @@ export const DatabaseConfigComponent = ({
         <div>
           <div className="flex items-center">
             <Input
-              className="max-w-[250px]"
+              className="max-w-full sm:max-w-[250px]"
               value={editDatabase?.name}
               onChange={(e) => {
                 if (!editDatabase) return;
@@ -174,7 +174,7 @@ export const DatabaseConfigComponent = ({
               size="large"
             />
 
-            <div className="ml-1 flex items-center">
+            <div className="ml-1 flex flex-shrink-0 items-center">
               <Button
                 type="text"
                 className="flex h-6 w-6 items-center justify-center p-0"
@@ -204,7 +204,7 @@ export const DatabaseConfigComponent = ({
       )}
 
       {database.lastBackupErrorMessage && (
-        <div className="max-w-[400px] rounded border border-red-600 px-3 py-3">
+        <div className="mb-4 max-w-full rounded border border-red-600 px-3 py-3 sm:max-w-[400px]">
           <div className="mt-1 flex items-center text-sm font-bold text-red-600">
             <InfoCircleOutlined className="mr-2" style={{ color: 'red' }} />
             Last backup error
@@ -226,8 +226,8 @@ export const DatabaseConfigComponent = ({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-10">
-        <div className="w-[400px]">
+      <div className="flex flex-col gap-6 lg:flex-row lg:flex-wrap lg:gap-10">
+        <div className="w-full lg:w-[400px]">
           <div className="mt-5 flex items-center font-bold">
             <div>Database settings</div>
 
@@ -260,7 +260,7 @@ export const DatabaseConfigComponent = ({
           </div>
         </div>
 
-        <div className="w-[400px]">
+        <div className="w-full lg:w-[400px]">
           <div className="mt-5 flex items-center font-bold">
             <div>Backup config</div>
 
@@ -299,8 +299,8 @@ export const DatabaseConfigComponent = ({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-10">
-        <div className="w-[400px]">
+      <div className="flex flex-col gap-6 lg:flex-row lg:flex-wrap lg:gap-10">
+        <div className="w-full lg:w-[400px]">
           <div className="mt-5 flex items-center font-bold">
             <div>Healthcheck settings</div>
 
@@ -328,7 +328,7 @@ export const DatabaseConfigComponent = ({
           </div>
         </div>
 
-        <div className="w-[400px]">
+        <div className="w-full lg:w-[400px]">
           <div className="mt-5 flex items-center font-bold">
             <div>Notifiers settings</div>
 
@@ -366,10 +366,10 @@ export const DatabaseConfigComponent = ({
       </div>
 
       {!isEditDatabaseSpecificDataSettings && (
-        <div className="mt-10">
+        <div className="mt-10 flex flex-col gap-2 sm:flex-row sm:gap-0">
           <Button
             type="primary"
-            className="mr-1"
+            className="w-full sm:mr-1 sm:w-auto"
             ghost
             onClick={testConnection}
             loading={isTestingConnection}
@@ -380,7 +380,7 @@ export const DatabaseConfigComponent = ({
 
           <Button
             type="primary"
-            className="mr-1"
+            className="w-full sm:mr-1 sm:w-auto"
             ghost
             onClick={copyDatabase}
             loading={isCopying}
@@ -391,6 +391,7 @@ export const DatabaseConfigComponent = ({
 
           <Button
             type="primary"
+            className="w-full sm:w-auto"
             danger
             onClick={() => setIsShowRemoveConfirm(true)}
             ghost

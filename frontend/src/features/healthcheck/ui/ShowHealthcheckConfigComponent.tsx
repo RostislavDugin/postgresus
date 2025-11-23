@@ -41,31 +41,31 @@ export const ShowHealthcheckConfigComponent = ({ databaseId }: Props) => {
     <div className="space-y-4">
       <div className="mb-1 flex items-center">
         <div className="min-w-[180px]">Is health check enabled</div>
-        <div className="w-[250px]">{healthcheckConfig.isHealthcheckEnabled ? 'Yes' : 'No'}</div>
+        <div>{healthcheckConfig.isHealthcheckEnabled ? 'Yes' : 'No'}</div>
       </div>
 
       {healthcheckConfig.isHealthcheckEnabled && (
         <>
           <div className="mb-1 flex items-center">
             <div className="min-w-[180px]">Notify when unavailable</div>
-            <div className="w-[250px]">
+            <div className="lg:w-[200px]">
               {healthcheckConfig.isSentNotificationWhenUnavailable ? 'Yes' : 'No'}
             </div>
           </div>
 
           <div className="mb-1 flex items-center">
             <div className="min-w-[180px]">Check interval (minutes)</div>
-            <div className="w-[250px]">{healthcheckConfig.intervalMinutes}</div>
+            <div className="lg:w-[200px]">{healthcheckConfig.intervalMinutes}</div>
           </div>
 
           <div className="mb-1 flex items-center">
             <div className="min-w-[180px]">Attempts before down</div>
-            <div className="w-[250px]">{healthcheckConfig.attemptsBeforeConcideredAsDown}</div>
+            <div className="lg:w-[200px]">{healthcheckConfig.attemptsBeforeConcideredAsDown}</div>
           </div>
 
           <div className="mb-1 flex items-center">
             <div className="min-w-[180px]">Store attempts (days)</div>
-            <div className="w-[250px]">{healthcheckConfig.storeAttemptsDays}</div>
+            <div className="lg:w-[200px]">{healthcheckConfig.storeAttemptsDays}</div>
           </div>
         </>
       )}

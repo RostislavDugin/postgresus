@@ -118,16 +118,16 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
   }
 
   return (
-    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-5 shadow">
-      <h2 className="text-xl font-bold">Healthcheck attempts</h2>
+    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-3 shadow sm:p-5">
+      <h2 className="text-lg font-bold sm:text-xl">Healthcheck attempts</h2>
 
-      <div className="mt-4 flex items-center gap-2">
-        <span className="mr-2 text-sm font-medium">Period</span>
+      <div className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row sm:items-center">
+        <span className="text-sm font-medium sm:mr-2">Period</span>
         <Select
           size="small"
           value={period}
           onChange={(value) => setPeriod(value)}
-          style={{ width: 120 }}
+          className="w-full sm:w-[120px]"
           options={[
             { value: 'today', label: 'Today' },
             { value: '7d', label: '7 days' },
@@ -137,7 +137,7 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
         />
       </div>
 
-      <div className="mt-5" />
+      <div className="mt-4 sm:mt-5" />
 
       {isLoading ? (
         <div className="flex justify-center">

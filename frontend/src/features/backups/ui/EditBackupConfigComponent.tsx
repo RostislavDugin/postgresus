@@ -204,8 +204,8 @@ export const EditBackupConfigComponent = ({
 
   return (
     <div>
-      <div className="mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Backups enabled</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Backups enabled</div>
         <Switch
           checked={backupConfig.isBackupsEnabled}
           onChange={(checked) => {
@@ -217,13 +217,13 @@ export const EditBackupConfigComponent = ({
 
       {backupConfig.isBackupsEnabled && (
         <>
-          <div className="mt-4 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Backup interval</div>
+          <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[150px] sm:mb-0">Backup interval</div>
             <Select
               value={backupInterval?.interval}
               onChange={(v) => saveInterval({ interval: v })}
               size="small"
-              className="max-w-[200px] grow"
+              className="w-full max-w-[200px] grow"
               options={[
                 { label: 'Hourly', value: IntervalType.HOURLY },
                 { label: 'Daily', value: IntervalType.DAILY },
@@ -234,8 +234,8 @@ export const EditBackupConfigComponent = ({
           </div>
 
           {backupInterval?.interval === IntervalType.WEEKLY && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup weekday</div>
+            <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+              <div className="mb-1 min-w-[150px] sm:mb-0">Backup weekday</div>
               <Select
                 value={displayedWeekday}
                 onChange={(localWeekday) => {
@@ -244,15 +244,15 @@ export const EditBackupConfigComponent = ({
                   saveInterval({ weekday: getUtcWeekday(localWeekday, ref) });
                 }}
                 size="small"
-                className="max-w-[200px] grow"
+                className="w-full max-w-[200px] grow"
                 options={weekdayOptions}
               />
             </div>
           )}
 
           {backupInterval?.interval === IntervalType.MONTHLY && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup day of month</div>
+            <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+              <div className="mb-1 min-w-[150px] sm:mb-0">Backup day of month</div>
               <InputNumber
                 min={1}
                 max={31}
@@ -263,21 +263,21 @@ export const EditBackupConfigComponent = ({
                   saveInterval({ dayOfMonth: getUtcDayOfMonth(localDom, ref) });
                 }}
                 size="small"
-                className="max-w-[200px] grow"
+                className="w-full max-w-[200px] grow"
               />
             </div>
           )}
 
           {backupInterval?.interval !== IntervalType.HOURLY && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup time of day</div>
+            <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+              <div className="mb-1 min-w-[150px] sm:mb-0">Backup time of day</div>
               <TimePicker
                 value={localTime}
                 format={timeFormat.format}
                 use12Hours={timeFormat.use12Hours}
                 allowClear={false}
                 size="small"
-                className="max-w-[200px] grow"
+                className="w-full max-w-[200px] grow"
                 onChange={(t) => {
                   if (!t) return;
                   const patch: Partial<Interval> = { timeOfDay: t.utc().format('HH:mm') };
@@ -295,156 +295,168 @@ export const EditBackupConfigComponent = ({
             </div>
           )}
 
-          <div className="mt-4 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Retry backup if failed</div>
-            <Switch
-              size="small"
-              checked={backupConfig.isRetryIfFailed}
-              onChange={(checked) => updateBackupConfig({ isRetryIfFailed: checked })}
-            />
-
-            <Tooltip
-              className="cursor-pointer"
-              title="Automatically retry failed backups. Backups can fail due to network failures, storage issues or temporary database unavailability."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
-          </div>
-
-          {backupConfig.isRetryIfFailed && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Max failed tries count</div>
-              <InputNumber
-                min={1}
-                max={10}
-                value={backupConfig.maxFailedTriesCount}
-                onChange={(value) => updateBackupConfig({ maxFailedTriesCount: value || 1 })}
+          <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[150px] sm:mb-0">Retry backup if failed</div>
+            <div className="flex items-center">
+              <Switch
                 size="small"
-                className="max-w-[200px] grow"
+                checked={backupConfig.isRetryIfFailed}
+                onChange={(checked) => updateBackupConfig({ isRetryIfFailed: checked })}
               />
 
               <Tooltip
                 className="cursor-pointer"
-                title="Maximum number of retry attempts for failed backups. You will receive a notification when all tries have failed."
+                title="Automatically retry failed backups. Backups can fail due to network failures, storage issues or temporary database unavailability."
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>
             </div>
-          )}
-
-          <div className="mt-5 mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">CPU count</div>
-            <InputNumber
-              min={1}
-              max={16}
-              value={backupConfig.cpuCount}
-              onChange={(value) => updateBackupConfig({ cpuCount: value || 1 })}
-              size="small"
-              className="max-w-[200px] grow"
-            />
-
-            <Tooltip
-              className="cursor-pointer"
-              title="Number of CPU cores to use for restore processing. Higher values may speed up restores, but use more resources."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
           </div>
 
-          <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Store period</div>
-            <Select
-              value={backupConfig.storePeriod}
-              onChange={(v) => updateBackupConfig({ storePeriod: v })}
-              size="small"
-              className="max-w-[200px] grow"
-              options={[
-                { label: '1 day', value: Period.DAY },
-                { label: '1 week', value: Period.WEEK },
-                { label: '1 month', value: Period.MONTH },
-                { label: '3 months', value: Period.THREE_MONTH },
-                { label: '6 months', value: Period.SIX_MONTH },
-                { label: '1 year', value: Period.YEAR },
-                { label: '2 years', value: Period.TWO_YEARS },
-                { label: '3 years', value: Period.THREE_YEARS },
-                { label: '4 years', value: Period.FOUR_YEARS },
-                { label: '5 years', value: Period.FIVE_YEARS },
-                { label: 'Forever', value: Period.FOREVER },
-              ]}
-            />
+          {backupConfig.isRetryIfFailed && (
+            <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+              <div className="mb-1 min-w-[150px] sm:mb-0">Max failed tries count</div>
+              <div className="flex items-center">
+                <InputNumber
+                  min={1}
+                  max={10}
+                  value={backupConfig.maxFailedTriesCount}
+                  onChange={(value) => updateBackupConfig({ maxFailedTriesCount: value || 1 })}
+                  size="small"
+                  className="w-full max-w-[200px] grow"
+                />
 
-            <Tooltip
-              className="cursor-pointer"
-              title="How long to keep the backups? Make sure you have enough storage space."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
+                <Tooltip
+                  className="cursor-pointer"
+                  title="Maximum number of retry attempts for failed backups. You will receive a notification when all tries have failed."
+                >
+                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                </Tooltip>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[150px] sm:mb-0">CPU count</div>
+            <div className="flex items-center">
+              <InputNumber
+                min={1}
+                max={16}
+                value={backupConfig.cpuCount}
+                onChange={(value) => updateBackupConfig({ cpuCount: value || 1 })}
+                size="small"
+                className="w-full max-w-[200px] grow"
+              />
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Number of CPU cores to use for restore processing. Higher values may speed up restores, but use more resources."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[150px] sm:mb-0">Store period</div>
+            <div className="flex items-center">
+              <Select
+                value={backupConfig.storePeriod}
+                onChange={(v) => updateBackupConfig({ storePeriod: v })}
+                size="small"
+                className="w-full max-w-[200px] grow"
+                options={[
+                  { label: '1 day', value: Period.DAY },
+                  { label: '1 week', value: Period.WEEK },
+                  { label: '1 month', value: Period.MONTH },
+                  { label: '3 months', value: Period.THREE_MONTH },
+                  { label: '6 months', value: Period.SIX_MONTH },
+                  { label: '1 year', value: Period.YEAR },
+                  { label: '2 years', value: Period.TWO_YEARS },
+                  { label: '3 years', value: Period.THREE_YEARS },
+                  { label: '4 years', value: Period.FOUR_YEARS },
+                  { label: '5 years', value: Period.FIVE_YEARS },
+                  { label: 'Forever', value: Period.FOREVER },
+                ]}
+              />
+
+              <Tooltip
+                className="cursor-pointer"
+                title="How long to keep the backups? Make sure you have enough storage space."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
           </div>
 
           <div className="mb-3" />
         </>
       )}
 
-      <div className="mt-2 mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Storage</div>
-        <Select
-          value={backupConfig.storage?.id}
-          onChange={(storageId) => {
-            if (storageId.includes('create-new-storage')) {
-              setShowCreateStorage(true);
-              return;
-            }
+      <div className="mt-2 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Storage</div>
+        <div className="flex w-full items-center">
+          <Select
+            value={backupConfig.storage?.id}
+            onChange={(storageId) => {
+              if (storageId.includes('create-new-storage')) {
+                setShowCreateStorage(true);
+                return;
+              }
 
-            const selectedStorage = storages.find((s) => s.id === storageId);
-            updateBackupConfig({ storage: selectedStorage });
+              const selectedStorage = storages.find((s) => s.id === storageId);
+              updateBackupConfig({ storage: selectedStorage });
 
-            if (backupConfig.storage?.id) {
-              setIsShowWarn(true);
-            }
-          }}
-          size="small"
-          className="mr-2 max-w-[200px] grow"
-          options={[
-            ...storages.map((s) => ({ label: s.name, value: s.id })),
-            { label: 'Create new storage', value: 'create-new-storage' },
-          ]}
-          placeholder="Select storage"
-        />
-
-        {backupConfig.storage?.type && (
-          <img
-            src={getStorageLogoFromType(backupConfig.storage.type)}
-            alt="storageIcon"
-            className="ml-1 h-4 w-4"
+              if (backupConfig.storage?.id) {
+                setIsShowWarn(true);
+              }
+            }}
+            size="small"
+            className="mr-2 max-w-[200px] grow"
+            options={[
+              ...storages.map((s) => ({ label: s.name, value: s.id })),
+              { label: 'Create new storage', value: 'create-new-storage' },
+            ]}
+            placeholder="Select storage"
           />
-        )}
+
+          {backupConfig.storage?.type && (
+            <img
+              src={getStorageLogoFromType(backupConfig.storage.type)}
+              alt="storageIcon"
+              className="ml-1 h-4 w-4"
+            />
+          )}
+        </div>
       </div>
 
-      <div className="mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Encryption</div>
-        <Select
-          value={backupConfig.encryption}
-          onChange={(v) => updateBackupConfig({ encryption: v })}
-          size="small"
-          className="max-w-[200px] grow"
-          options={[
-            { label: 'None', value: BackupEncryption.NONE },
-            { label: 'Encrypt backup files', value: BackupEncryption.ENCRYPTED },
-          ]}
-        />
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Encryption</div>
+        <div className="flex items-center">
+          <Select
+            value={backupConfig.encryption}
+            onChange={(v) => updateBackupConfig({ encryption: v })}
+            size="small"
+            className="w-full max-w-[200px] grow"
+            options={[
+              { label: 'None', value: BackupEncryption.NONE },
+              { label: 'Encrypt backup files', value: BackupEncryption.ENCRYPTED },
+            ]}
+          />
 
-        <Tooltip
-          className="cursor-pointer"
-          title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Postgresus or download them unencrypted via the 'Download' button."
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Postgresus or download them unencrypted via the 'Download' button."
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
 
       {backupConfig.isBackupsEnabled && (
         <>
-          <div className="mt-4 mb-1 flex w-full items-start">
-            <div className="mt-1 min-w-[150px]">Notifications</div>
+          <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-start">
+            <div className="mt-0 mb-1 min-w-[150px] sm:mt-1 sm:mb-0">Notifications</div>
             <div className="flex flex-col space-y-2">
               <Checkbox
                 checked={backupConfig.sendNotificationsOn.includes(
