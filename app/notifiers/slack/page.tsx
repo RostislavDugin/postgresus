@@ -2,24 +2,24 @@ import type { Metadata } from "next";
 import DocsNavbarComponent from "../../components/DocsNavbarComponent";
 import DocsSidebarComponent from "../../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../../components/DocTableOfContentComponent";
-import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "How to configure Slack notifications for Postgresus | Postgresus",
   description:
-    "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Slack webhook and configure notifications.",
+    "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
   keywords: [
     "Postgresus",
     "Slack notifications",
     "PostgreSQL backup",
-    "Slack webhook",
+    "Slack bot token",
+    "Slack API",
     "backup alerts",
     "database notifications",
   ],
   openGraph: {
     title: "How to configure Slack notifications for Postgresus | Postgresus",
     description:
-      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Slack webhook and configure notifications.",
+      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
     type: "article",
     url: "https://postgresus.com/notifiers/slack",
   },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "How to configure Slack notifications for Postgresus | Postgresus",
     description:
-      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Slack webhook and configure notifications.",
+      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
   },
   alternates: {
     canonical: "https://postgresus.com/notifiers/slack",
@@ -51,33 +51,43 @@ export default function SlackPage() {
             step: [
               {
                 "@type": "HowToStep",
-                name: "Open Slack workspace",
-                text: "Navigate to your Slack workspace where you want to receive notifications.",
+                name: "Go to Slack API",
+                text: "Navigate to https://api.slack.com/apps and sign in to your Slack workspace.",
               },
               {
                 "@type": "HowToStep",
-                name: "Access Slack apps",
-                text: "Go to your Slack workspace and access the Apps section.",
+                name: "Create New App",
+                text: "Click on 'Create New App' button and choose 'From scratch'.",
               },
               {
                 "@type": "HowToStep",
-                name: "Create incoming webhook",
-                text: "Search for and add the Incoming Webhooks app to your workspace.",
+                name: "Configure Bot Permissions",
+                text: "Navigate to OAuth & Permissions and add the required scopes: chat:write, channels:join, im:write, and groups:write under Bot Token Scopes.",
               },
               {
                 "@type": "HowToStep",
-                name: "Select channel",
-                text: "Choose the channel where you want to receive backup notifications.",
+                name: "Install to Workspace",
+                text: "Install the app to your workspace and authorize it.",
               },
               {
                 "@type": "HowToStep",
-                name: "Copy webhook URL",
-                text: "Copy the generated webhook URL from Slack.",
+                name: "Copy Bot Token",
+                text: "Copy the Bot User OAuth Token that starts with 'xoxb-'.",
+              },
+              {
+                "@type": "HowToStep",
+                name: "Get Channel ID",
+                text: "Open your target channel and get the Channel ID from the channel details.",
+              },
+              {
+                "@type": "HowToStep",
+                name: "Add bot to private channel",
+                text: "If using a private channel, invite the bot to the channel by mentioning it.",
               },
               {
                 "@type": "HowToStep",
                 name: "Configure in Postgresus",
-                text: "Paste the webhook URL into Postgresus notifier configuration.",
+                text: "In Postgresus, add the Bot Token and Channel ID to the Slack notifier configuration.",
               },
               {
                 "@type": "HowToStep",
@@ -107,133 +117,226 @@ export default function SlackPage() {
                 failures and warnings directly in your Slack channels.
               </p>
 
-              <h2 id="setup-slack-webhook">Setup Slack webhook</h2>
+              <h2 id="create-slack-app">Create a Slack App</h2>
 
-              <h3 id="open-slack-workspace">1. Open your Slack workspace</h3>
-
-              <p>
-                Navigate to your Slack workspace where you want to receive
-                backup notifications.
-              </p>
-
-              <Image
-                src="/images/notifier-slack/image-1.png"
-                alt="Open Slack workspace"
-                width={800}
-                height={500}
-                className="my-6 rounded-lg border border-gray-200"
-                loading="lazy"
-              />
-
-              <h3 id="access-slack-apps">2. Access Slack apps</h3>
+              <h3 id="go-to-slack-api">1. Go to Slack API</h3>
 
               <p>
-                Click on your workspace name in the top left, then select{" "}
-                <strong>&quot;Settings &amp; administration&quot;</strong> →{" "}
-                <strong>&quot;Manage apps&quot;</strong>.
+                Navigate to{" "}
+                <a
+                  href="https://api.slack.com/apps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  https://api.slack.com/apps
+                </a>{" "}
+                and sign in to your Slack workspace.
               </p>
 
-              <Image
-                src="/images/notifier-slack/image-2.png"
-                alt="Access Slack Apps"
-                width={600}
-                height={400}
-                className="my-6 rounded-lg border border-gray-200"
-                loading="lazy"
-              />
+              <h3 id="create-new-app">2. Create New App</h3>
 
-              <h3 id="search-incoming-webhooks">
-                3. Search for incoming webhooks
+              <p>
+                Click on <strong>&quot;Create New App&quot;</strong> button.
+              </p>
+
+              <h3 id="choose-from-scratch">
+                3. Choose &quot;From scratch&quot;
               </h3>
 
               <p>
-                In the App Directory, search for{" "}
-                <strong>&quot;Incoming Webhooks&quot;</strong> and click on it.
+                Select <strong>&quot;From scratch&quot;</strong> option when
+                prompted.
               </p>
 
-              <Image
+              <h3 id="name-your-app">4. Name your app</h3>
+
+              <p>
+                Enter a name for your app (e.g., &quot;Postgresus
+                Notifications&quot;) and select the workspace where you want to
+                install it. Click <strong>&quot;Create App&quot;</strong>.
+              </p>
+
+              <h2 id="configure-bot-permissions">Configure Bot Permissions</h2>
+
+              <h3 id="navigate-to-oauth">
+                5. Navigate to OAuth &amp; Permissions
+              </h3>
+
+              <p>
+                In the left sidebar, click on{" "}
+                <strong>&quot;OAuth &amp; Permissions&quot;</strong>.
+              </p>
+
+              <img
+                src="/images/notifier-slack/image-1.png"
+                alt="Navigate to OAuth &amp; Permissions"
+                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                loading="lazy"
+              />
+
+              <h3 id="add-bot-scopes">6. Add Bot Token Scopes (Required)</h3>
+
+              <p>
+                Scroll down to the <strong>&quot;Scopes&quot;</strong> section
+                and under <strong>&quot;Bot Token Scopes&quot;</strong>, click{" "}
+                <strong>&quot;Add an OAuth Scope&quot;</strong>.
+              </p>
+
+              <p>Add all of the following required scopes:</p>
+
+              <ul>
+                <li>
+                  <code>chat:write</code> - to send messages to channels
+                </li>
+                <li>
+                  <code>channels:join</code> - to allow the bot to join public
+                  channels automatically
+                </li>
+                <li>
+                  <code>im:write</code> - to send direct messages to users
+                </li>
+                <li>
+                  <code>groups:write</code> - to send messages to private
+                  channels
+                </li>
+                <li>
+                  <code>channels:history</code> - to read channel history
+                </li>
+              </ul>
+
+              <img
+                src="/images/notifier-slack/image-2.png"
+                alt="Add Bot Token Scopes"
+                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                loading="lazy"
+              />
+
+              <h2 id="install-app">Install App to Workspace</h2>
+
+              <h3 id="install-to-workspace">7. Install to Workspace</h3>
+
+              <p>
+                Scroll to the top of the{" "}
+                <strong>&quot;OAuth &amp; Permissions&quot;</strong> page and
+                click <strong>&quot;Install to Workspace&quot;</strong>.
+              </p>
+
+              <img
                 src="/images/notifier-slack/image-3.png"
-                alt="Search for Incoming Webhooks"
-                width={700}
-                height={400}
-                className="my-6 rounded-lg border border-gray-200"
+                alt="Install to Workspace"
+                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
                 loading="lazy"
               />
 
-              <h3 id="add-to-slack">4. Add to Slack</h3>
+              <h3 id="authorize-app">8. Authorize the app</h3>
 
               <p>
-                Click the <strong>&quot;Add to Slack&quot;</strong> button to
-                install the Incoming Webhooks app to your workspace.
+                Review the permissions and click{" "}
+                <strong>&quot;Allow&quot;</strong> to authorize the app.
               </p>
 
-              <Image
+              <h3 id="copy-bot-token">9. Copy Bot User OAuth Token</h3>
+
+              <p>
+                After installation, you&apos;ll see the{" "}
+                <strong>&quot;Bot User OAuth Token&quot;</strong>. It starts
+                with <code>xoxb-</code>. Copy this token - you&apos;ll need it
+                for Postgresus configuration.
+              </p>
+
+              <h2 id="get-channel-id">Get Channel ID</h2>
+
+              <h3 id="open-channel">10. Open your target channel</h3>
+
+              <p>
+                In your Slack workspace, open the channel where you want to
+                receive backup notifications.
+              </p>
+
+              <h3 id="get-channel-info">11. Get the channel ID</h3>
+
+              <p>
+                Click on the channel name at the top, then scroll down in the
+                channel details. You&apos;ll find the{" "}
+                <strong>Channel ID</strong> at the bottom of the
+                &quot;About&quot; section. It starts with <code>C</code> (for
+                public channels) or <code>G</code> (for private channels).
+              </p>
+
+              <p>Copy this Channel ID.</p>
+
+              <img
                 src="/images/notifier-slack/image-4.png"
-                alt="Add to Slack"
-                width={700}
-                height={400}
-                className="my-6 rounded-lg border border-gray-200"
+                alt="Get Channel ID"
+                className="my-6 rounded-lg border border-gray-200 max-w-[500px]"
                 loading="lazy"
               />
 
-              <h3 id="select-channel">5. Select channel</h3>
+              <h3 id="add-bot-to-channel">
+                12. Add bot to channel (required for private channels)
+              </h3>
 
               <p>
-                Choose the channel where you want to receive backup
-                notifications, then click{" "}
-                <strong>&quot;Add Incoming Webhooks integration&quot;</strong>.
+                <strong>
+                  If you&apos;re using a private channel, you must manually
+                  invite the bot to the channel:
+                </strong>
               </p>
 
-              <Image
-                src="/images/notifier-slack/image-5.png"
-                alt="Select channel for notifications"
-                width={600}
-                height={400}
-                className="my-6 rounded-lg border border-gray-200"
-                loading="lazy"
-              />
-
-              <h3 id="copy-webhook-url">6. Copy webhook URL</h3>
+              <ol>
+                <li>
+                  In the private channel, type{" "}
+                  <code>@Postgresus Notifications</code> (or whatever name you
+                  gave your app)
+                </li>
+                <li>
+                  Click on the bot name when it appears and select{" "}
+                  <strong>&quot;Add to Channel&quot;</strong> or{" "}
+                  <strong>&quot;Invite to Channel&quot;</strong>
+                </li>
+              </ol>
 
               <p>
-                After creating the webhook, you&apos;ll see the{" "}
-                <strong>Webhook URL</strong>. Copy this URL - you&apos;ll need
-                it for Postgresus configuration.
+                For <strong>public channels</strong>, the bot will automatically
+                join when sending the first message (thanks to the{" "}
+                <code>channels:join</code> permission), so this step is not
+                necessary.
               </p>
-
-              <Image
-                src="/images/notifier-slack/image-6.png"
-                alt="Copy webhook URL"
-                width={700}
-                height={500}
-                className="my-6 rounded-lg border border-gray-200"
-                loading="lazy"
-              />
 
               <h2 id="configure-postgresus">Configure in Postgresus</h2>
 
-              <h3 id="add-slack-notifier">1. Add Slack notifier</h3>
+              <h3 id="add-slack-notifier">13. Add Slack notifier</h3>
 
               <p>
                 In Postgresus, navigate to the notifiers settings and add a new
-                Slack notifier. Paste the webhook URL you copied from Slack.
+                Slack notifier:
               </p>
 
-              <Image
-                src="/images/notifier-slack/image-7.png"
-                alt="Configure Slack in Postgresus"
-                width={600}
-                height={400}
-                className="my-6 rounded-lg border border-gray-200"
+              <ul>
+                <li>
+                  <strong>Bot Token:</strong> Paste the Bot User OAuth Token you
+                  copied (starts with <code>xoxb-</code>)
+                </li>
+                <li>
+                  <strong>Target Channel ID:</strong> Paste the Channel ID you
+                  copied (starts with <code>C</code>, <code>G</code>,{" "}
+                  <code>D</code>, or <code>U</code>)
+                </li>
+              </ul>
+
+              <img
+                src="/images/notifier-slack/image-5.png"
+                alt="Add Slack notifier"
+                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
                 loading="lazy"
               />
 
-              <h3 id="test-notification">2. Test the notification</h3>
+              <h3 id="test-notification">14. Test the notification</h3>
 
               <p>
-                After configuring the webhook, test the notification to ensure
-                it&apos;s working correctly. You should receive a test message
-                in your selected Slack channel.
+                After configuring the notifier, test it to ensure it&apos;s
+                working correctly. You should receive a test message in your
+                selected Slack channel.
               </p>
 
               <p>
