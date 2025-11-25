@@ -9,6 +9,7 @@ import { WorkspaceRole } from '../../../entity/users/model/WorkspaceRole';
 import { workspaceApi } from '../../../entity/workspaces/api/workspaceApi';
 import type { Workspace } from '../../../entity/workspaces/model/Workspace';
 import type { WorkspaceResponse } from '../../../entity/workspaces/model/WorkspaceResponse';
+import { useIsMobile } from '../../../shared/hooks';
 import { WorkspaceAuditLogsComponent } from './WorkspaceAuditLogsComponent';
 import { WorkspaceMembershipComponent } from './WorkspaceMembershipComponent';
 
@@ -20,6 +21,7 @@ interface Props {
 
 export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHeight }: Props) {
   const { message, modal } = App.useApp();
+  const isMobile = useIsMobile();
   const [workspace, setWorkspace] = useState<Workspace | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -163,14 +165,14 @@ export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHei
   };
 
   return (
-    <div className="flex grow pl-3">
+    <div className="flex grow sm:pl-2">
       <div className="w-full">
         <div
           ref={scrollContainerRef}
-          className="grow overflow-y-auto rounded bg-white p-5 shadow"
+          className={`grow overflow-y-auto rounded bg-white shadow ${isMobile ? 'p-3' : 'p-5'}`}
           style={{ height: contentHeight }}
         >
-          <h1 className="mb-6 text-2xl font-bold">Workspace Settings</h1>
+          <h1 className="mb-6 text-2xl font-bold">Workspace settings</h1>
 
           {isLoading || !workspace ? (
             <Spin indicator={<LoadingOutlined spin />} size="large" />
@@ -240,7 +242,9 @@ export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHei
                     <h2 className="mb-4 text-xl font-bold text-gray-900">Danger Zone</h2>
 
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                      <div className="flex items-start justify-between">
+                      <div
+                        className={`flex ${isMobile ? 'flex-col gap-3' : 'items-start justify-between'}`}
+                      >
                         <div className="flex-1">
                           <div className="font-medium text-red-900">Delete this workspace</div>
                           <div className="mt-1 text-sm text-red-700">
@@ -249,14 +253,14 @@ export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHei
                           </div>
                         </div>
 
-                        <div className="ml-4">
+                        <div className={isMobile ? '' : 'ml-4'}>
                           <Button
                             type="primary"
                             danger
                             onClick={handleDeleteWorkspace}
                             disabled={!canEdit || isDeleting || isSaving}
                             loading={isDeleting}
-                            className="bg-red-600 hover:bg-red-700"
+                            className={`bg-red-600 hover:bg-red-700 ${isMobile ? 'w-full' : ''}`}
                           >
                             {isDeleting ? 'Deleting...' : 'Delete workspace'}
                           </Button>

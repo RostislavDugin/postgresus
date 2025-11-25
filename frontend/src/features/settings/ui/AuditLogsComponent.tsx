@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { auditLogApi } from '../../../entity/audit-logs/api/auditLogApi';
 import type { AuditLog } from '../../../entity/audit-logs/model/AuditLog';
 import type { GetAuditLogsRequest } from '../../../entity/audit-logs/model/GetAuditLogsRequest';
+import { useIsMobile } from '../../../shared/hooks';
 import { getUserTimeFormat } from '../../../shared/time';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 
 export function AuditLogsComponent({ scrollContainerRef: externalScrollRef }: Props) {
   const { message } = App.useApp();
+  const isMobile = useIsMobile();
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -158,6 +160,49 @@ export function AuditLogsComponent({ scrollContainerRef: externalScrollRef }: Pr
     },
   ];
 
+  const renderAuditLogCard = (log: AuditLog) => {
+    const date = dayjs(log.createdAt);
+    const timeFormat = getUserTimeFormat();
+
+    const getUserDisplay = () => {
+      if (!log.userEmail && !log.userName) {
+        return (
+          <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+            System
+          </span>
+        );
+      }
+
+      const displayText = log.userName ? `${log.userName} (${log.userEmail})` : log.userEmail;
+
+      return (
+        <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+          {displayText}
+        </span>
+      );
+    };
+
+    return (
+      <div key={log.id} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">{getUserDisplay()}</div>
+          <div className="text-right text-xs text-gray-500">
+            <div>{date.format(timeFormat.format)}</div>
+            <div className="text-gray-400">{date.fromNow()}</div>
+          </div>
+        </div>
+        <div className="mt-2 text-sm text-gray-900">{log.message}</div>
+        {log.workspaceName && (
+          <div className="mt-2">
+            <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+              {log.workspaceName}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-[1200px]">
       <div className="mb-4 flex items-center justify-between">
@@ -175,16 +220,24 @@ export function AuditLogsComponent({ scrollContainerRef: externalScrollRef }: Pr
         <div className="flex h-64 items-center justify-center">
           <Spin indicator={<LoadingOutlined spin />} size="large" />
         </div>
+      ) : auditLogs.length === 0 ? (
+        <div className="flex h-32 items-center justify-center text-gray-500">
+          No audit logs found.
+        </div>
       ) : (
         <>
-          <Table
-            columns={columns}
-            dataSource={auditLogs}
-            pagination={false}
-            rowKey="id"
-            size="small"
-            className="mb-4"
-          />
+          {isMobile ? (
+            <div>{auditLogs.map(renderAuditLogCard)}</div>
+          ) : (
+            <Table
+              columns={columns}
+              dataSource={auditLogs}
+              pagination={false}
+              rowKey="id"
+              size="small"
+              className="mb-4"
+            />
+          )}
 
           {isLoadingMore && (
             <div className="flex justify-center py-4">
@@ -195,7 +248,7 @@ export function AuditLogsComponent({ scrollContainerRef: externalScrollRef }: Pr
 
           {!hasMore && auditLogs.length > 0 && (
             <div className="py-4 text-center text-sm text-gray-500">
-              All logs loaded ({total} total)
+              All logs loaded ({auditLogs.length} total)
             </div>
           )}
         </>

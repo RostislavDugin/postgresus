@@ -9,6 +9,7 @@ import type { ChangeUserRoleRequest } from '../../../entity/users/model/ChangeUs
 import type { ListUsersRequest } from '../../../entity/users/model/ListUsersRequest';
 import type { UserProfile } from '../../../entity/users/model/UserProfile';
 import { UserRole } from '../../../entity/users/model/UserRole';
+import { useIsMobile } from '../../../shared/hooks';
 import { getUserTimeFormat } from '../../../shared/time';
 import { UserAuditLogsSidebarComponent } from './UserAuditLogsSidebarComponent';
 
@@ -29,6 +30,7 @@ const getRoleColor = (role: UserRole): string => {
 
 export function UsersComponent({ contentHeight }: Props) {
   const { message } = App.useApp();
+  const isMobile = useIsMobile();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -290,8 +292,78 @@ export function UsersComponent({ contentHeight }: Props) {
     },
   ];
 
+  const renderUserCard = (user: UserProfile) => {
+    const date = dayjs(user.createdAt);
+    const timeFormat = getUserTimeFormat();
+
+    return (
+      <div key={user.id} className="mb-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-start justify-between">
+          <div className="flex-1">
+            <div className="font-medium text-gray-900">{user.name}</div>
+            <div className="text-sm text-gray-500">{user.email}</div>
+          </div>
+          <div className="text-right text-xs text-gray-500">
+            <div>{date.format(timeFormat.format)}</div>
+            <div className="text-gray-400">{date.fromNow()}</div>
+          </div>
+        </div>
+
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Role:</span>
+            <Select
+              value={user.role}
+              onChange={(value) => handleRoleChange(user.id, value)}
+              loading={changingRoleUsers.has(user.id)}
+              disabled={changingRoleUsers.has(user.id)}
+              size="small"
+              className="w-24"
+              style={{
+                color: getRoleColor(user.role),
+              }}
+              options={[
+                {
+                  label: <span style={{ color: getRoleColor(UserRole.ADMIN) }}>Admin</span>,
+                  value: UserRole.ADMIN,
+                },
+                {
+                  label: <span style={{ color: getRoleColor(UserRole.MEMBER) }}>Member</span>,
+                  value: UserRole.MEMBER,
+                },
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Active:</span>
+            <Switch
+              checked={user.isActive}
+              onChange={() => handleActivationToggle(user.id, user.isActive)}
+              loading={processingUsers.has(user.id)}
+              disabled={processingUsers.has(user.id)}
+              size="small"
+              style={{
+                backgroundColor: user.isActive ? '#155dfc' : undefined,
+              }}
+            />
+          </div>
+        </div>
+
+        <Button
+          type="primary"
+          ghost
+          size="small"
+          onClick={() => handleRowClick(user)}
+          className="w-full"
+        >
+          View audit logs
+        </Button>
+      </div>
+    );
+  };
+
   return (
-    <div className="flex grow pl-3">
+    <div className="flex grow sm:pl-5">
       <div className="w-full">
         <div
           ref={scrollContainerRef}
@@ -311,7 +383,7 @@ export function UsersComponent({ contentHeight }: Props) {
               allowClear
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              style={{ width: 400 }}
+              style={{ width: isMobile ? '100%' : 400 }}
             />
           </div>
 
@@ -319,16 +391,24 @@ export function UsersComponent({ contentHeight }: Props) {
             <div className="flex h-64 items-center justify-center">
               <Spin indicator={<LoadingOutlined spin />} size="large" />
             </div>
+          ) : users.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-gray-500">
+              No users found.
+            </div>
           ) : (
             <>
-              <Table
-                columns={columns}
-                dataSource={users}
-                pagination={false}
-                rowKey="id"
-                size="small"
-                className="mb-4"
-              />
+              {isMobile ? (
+                <div>{users.map(renderUserCard)}</div>
+              ) : (
+                <Table
+                  columns={columns}
+                  dataSource={users}
+                  pagination={false}
+                  rowKey="id"
+                  size="small"
+                  className="mb-4"
+                />
+              )}
 
               {isLoadingMore && (
                 <div className="flex justify-center py-4">
@@ -355,7 +435,7 @@ export function UsersComponent({ contentHeight }: Props) {
           </div>
         }
         placement="right"
-        width={900}
+        width={isMobile ? '100%' : 900}
         onClose={handleDrawerClose}
         open={isDrawerOpen}
       >

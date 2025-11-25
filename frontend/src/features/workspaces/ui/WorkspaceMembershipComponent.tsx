@@ -37,6 +37,7 @@ import type {
   WorkspaceResponse,
 } from '../../../entity/workspaces';
 import { AddMemberStatusEnum, workspaceMembershipApi } from '../../../entity/workspaces';
+import { useIsMobile } from '../../../shared/hooks';
 import { StringUtils } from '../../../shared/lib';
 import { getUserShortTimeFormat } from '../../../shared/time';
 
@@ -47,6 +48,7 @@ interface Props {
 
 export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props) {
   const { message } = App.useApp();
+  const isMobile = useIsMobile();
 
   const [members, setMembers] = useState<WorkspaceMemberResponse[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
@@ -401,17 +403,88 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
     },
   ];
 
+  const renderMemberCard = (member: WorkspaceMemberResponse) => {
+    const isCurrentUser = member.userId === user.id || member.email === user.email;
+    const date = dayjs(member.createdAt);
+    const timeFormat = getUserShortTimeFormat();
+
+    return (
+      <div
+        key={member.id}
+        className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-center">
+            <UserOutlined className="mr-2 text-gray-400" />
+            <div>
+              <div className="font-medium">{member.name}</div>
+              <div className="text-xs text-gray-500">{member.email}</div>
+            </div>
+          </div>
+          {canManageMembers && member.role !== WorkspaceRole.OWNER && !isCurrentUser && (
+            <Popconfirm
+              title="Remove member"
+              description={`Are you sure you want to remove "${member.email}" from this workspace?`}
+              onConfirm={() => handleRemoveMember(member.userId, member.email)}
+              okText="Remove"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<DeleteOutlined />}
+                danger
+                loading={removingMembers.has(member.userId)}
+                disabled={removingMembers.has(member.userId)}
+              />
+            </Popconfirm>
+          )}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-gray-500">Role</div>
+            {canManageMembers && member.role !== WorkspaceRole.OWNER && !isCurrentUser ? (
+              <Select
+                value={member.role}
+                onChange={(newRole) => handleChangeRole(member.userId, newRole)}
+                loading={changingRoleFor === member.userId && isChangingRole}
+                disabled={changingRoleFor === member.userId && isChangingRole}
+                size="small"
+                style={{ width: 110 }}
+                options={[
+                  { label: 'Admin', value: WorkspaceRole.ADMIN },
+                  { label: 'Member', value: WorkspaceRole.MEMBER },
+                  { label: 'Viewer', value: WorkspaceRole.VIEWER },
+                ]}
+              />
+            ) : (
+              <Tag color={getRoleColor(member.role)}>{getRoleDisplayText(member.role)}</Tag>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Joined</div>
+            <div className="text-sm text-gray-600">{date.format(timeFormat.format)}</div>
+            <div className="text-xs text-gray-400">{date.fromNow()}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-[850px]">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">Users</h2>
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h2 className="text-xl font-bold text-gray-900">Users</h2>
 
-        <div className="flex space-x-2">
+        <div className="flex flex-col gap-2 md:flex-row md:space-x-2">
           {canTransferOwnership && (
             <Button
               icon={<SwapOutlined />}
               onClick={() => setIsTransferOwnershipModalOpen(true)}
               disabled={isLoadingMembers || eligibleMembers.length === 0}
+              className="w-full md:w-auto"
             >
               Transfer ownership
             </Button>
@@ -422,7 +495,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
               icon={<PlusOutlined />}
               onClick={() => setIsAddMemberModalOpen(true)}
               disabled={isLoadingMembers}
-              className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
+              className="w-full border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700 md:w-auto"
             >
               Add member
             </Button>
@@ -442,23 +515,36 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
               : `${members.length} member${members.length !== 1 ? 's' : ''}`}
           </div>
 
-          <Table
-            columns={columns}
-            dataSource={members}
-            pagination={false}
-            rowKey="id"
-            size="small"
-            locale={{
-              emptyText: (
-                <div className="py-8 text-center text-gray-500">
-                  <div className="mb-2">No members found</div>
-                  {canManageMembers && (
-                    <div className="text-sm">Click &quot;Add member&quot; to get started</div>
-                  )}
-                </div>
-              ),
-            }}
-          />
+          {isMobile ? (
+            members.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">
+                <div className="mb-2">No members found</div>
+                {canManageMembers && (
+                  <div className="text-sm">Click &quot;Add member&quot; to get started</div>
+                )}
+              </div>
+            ) : (
+              <div>{members.map(renderMemberCard)}</div>
+            )
+          ) : (
+            <Table
+              columns={columns}
+              dataSource={members}
+              pagination={false}
+              rowKey="id"
+              size="small"
+              locale={{
+                emptyText: (
+                  <div className="py-8 text-center text-gray-500">
+                    <div className="mb-2">No members found</div>
+                    {canManageMembers && (
+                      <div className="text-sm">Click &quot;Add member&quot; to get started</div>
+                    )}
+                  </div>
+                ),
+              }}
+            />
+          )}
         </div>
       )}
 

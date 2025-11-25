@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AuditLog } from '../../../entity/audit-logs/model/AuditLog';
 import { workspaceApi } from '../../../entity/workspaces/api/workspaceApi';
+import { useIsMobile } from '../../../shared/hooks';
 import { getUserShortTimeFormat } from '../../../shared/time';
 
 interface Props {
@@ -18,13 +19,14 @@ export function WorkspaceAuditLogsComponent({
   scrollContainerRef: externalScrollRef,
 }: Props) {
   const { message } = App.useApp();
+  const isMobile = useIsMobile();
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
 
-  const pageSize = 50;
+  const pageSize = 10;
 
   const internalScrollRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = externalScrollRef || internalScrollRef;
@@ -149,6 +151,42 @@ export function WorkspaceAuditLogsComponent({
     },
   ];
 
+  const renderAuditLogCard = (log: AuditLog) => {
+    const date = dayjs(log.createdAt);
+    const timeFormat = getUserShortTimeFormat();
+
+    const getUserDisplay = () => {
+      if (!log.userEmail && !log.userName) {
+        return (
+          <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+            System
+          </span>
+        );
+      }
+
+      const displayText = log.userName ? `${log.userName} (${log.userEmail})` : log.userEmail;
+
+      return (
+        <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+          {displayText}
+        </span>
+      );
+    };
+
+    return (
+      <div key={log.id} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">{getUserDisplay()}</div>
+          <div className="text-right text-xs text-gray-500">
+            <div>{date.format(timeFormat.format)}</div>
+            <div className="text-gray-400">{date.fromNow()}</div>
+          </div>
+        </div>
+        <div className="mt-2 text-sm text-gray-900">{log.message}</div>
+      </div>
+    );
+  };
+
   if (!workspaceId) {
     return null;
   }
@@ -176,14 +214,18 @@ export function WorkspaceAuditLogsComponent({
         </div>
       ) : (
         <>
-          <Table
-            columns={columns}
-            dataSource={auditLogs}
-            pagination={false}
-            rowKey="id"
-            size="small"
-            className="mb-4"
-          />
+          {isMobile ? (
+            <div>{auditLogs.map(renderAuditLogCard)}</div>
+          ) : (
+            <Table
+              columns={columns}
+              dataSource={auditLogs}
+              pagination={false}
+              rowKey="id"
+              size="small"
+              className="mb-4"
+            />
+          )}
 
           {isLoadingMore && (
             <div className="flex justify-center py-4">
@@ -194,7 +236,7 @@ export function WorkspaceAuditLogsComponent({
 
           {!hasMore && auditLogs.length > 0 && (
             <div className="py-4 text-center text-sm text-gray-500">
-              All logs loaded ({total} total)
+              All logs loaded ({auditLogs.length} total)
             </div>
           )}
         </>

@@ -197,7 +197,7 @@ export function ProfileComponent({ contentHeight }: Props) {
   };
 
   return (
-    <div className="flex grow pl-3">
+    <div className="flex grow sm:pl-5">
       <div className="w-full">
         <div
           className="grow overflow-y-auto rounded bg-white p-5 shadow"

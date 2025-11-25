@@ -18,7 +18,7 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
   return (
     <>
       <div className="mb-2 flex items-center">
-        <div className="min-w-[110px]" />
+        <div className="hidden min-w-[110px] sm:block" />
 
         <div className="text-xs text-blue-600">
           <a href="https://postgresus.com/storages/cloudflare-r2" target="_blank" rel="noreferrer">
@@ -27,8 +27,8 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
         </div>
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">S3 Bucket</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">S3 Bucket</div>
         <Input
           value={storage?.s3Storage?.s3Bucket || ''}
           onChange={(e) => {
@@ -49,8 +49,8 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
         />
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Region</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Region</div>
         <Input
           value={storage?.s3Storage?.s3Region || ''}
           onChange={(e) => {
@@ -71,8 +71,8 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
         />
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Access key</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Access key</div>
         <Input.Password
           value={storage?.s3Storage?.s3AccessKey || ''}
           onChange={(e) => {
@@ -93,8 +93,8 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
         />
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Secret key</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Secret key</div>
         <Input.Password
           value={storage?.s3Storage?.s3SecretKey || ''}
           onChange={(e) => {
@@ -115,33 +115,35 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
         />
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Endpoint</div>
-        <Input
-          value={storage?.s3Storage?.s3Endpoint || ''}
-          onChange={(e) => {
-            if (!storage?.s3Storage) return;
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Endpoint</div>
+        <div className="flex items-center">
+          <Input
+            value={storage?.s3Storage?.s3Endpoint || ''}
+            onChange={(e) => {
+              if (!storage?.s3Storage) return;
 
-            setStorage({
-              ...storage,
-              s3Storage: {
-                ...storage.s3Storage,
-                s3Endpoint: e.target.value.trim(),
-              },
-            });
-            setUnsaved();
-          }}
-          size="small"
-          className="w-full max-w-[250px]"
-          placeholder="https://s3.example.com (optional)"
-        />
+              setStorage({
+                ...storage,
+                s3Storage: {
+                  ...storage.s3Storage,
+                  s3Endpoint: e.target.value.trim(),
+                },
+              });
+              setUnsaved();
+            }}
+            size="small"
+            className="w-full max-w-[250px]"
+            placeholder="https://s3.example.com (optional)"
+          />
 
-        <Tooltip
-          className="cursor-pointer"
-          title="Custom S3-compatible endpoint URL (optional, leave empty for AWS S3)"
-        >
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
+          <Tooltip
+            className="cursor-pointer"
+            title="Custom S3-compatible endpoint URL (optional, leave empty for AWS S3)"
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
       </div>
 
       <div className="mt-4 mb-3 flex items-center">
@@ -161,62 +163,65 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
 
       {showAdvanced && (
         <>
-          <div className="mb-1 flex items-center">
-            <div className="min-w-[110px]">Folder prefix</div>
-            <Input
-              value={storage?.s3Storage?.s3Prefix || ''}
-              onChange={(e) => {
-                if (!storage?.s3Storage) return;
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[110px] sm:mb-0">Folder prefix</div>
+            <div className="flex items-center">
+              <Input
+                value={storage?.s3Storage?.s3Prefix || ''}
+                onChange={(e) => {
+                  if (!storage?.s3Storage) return;
 
-                setStorage({
-                  ...storage,
-                  s3Storage: {
-                    ...storage.s3Storage,
-                    s3Prefix: e.target.value.trim(),
-                  },
-                });
-                setUnsaved();
-              }}
-              size="small"
-              className="w-full max-w-[250px]"
-              placeholder="my-prefix/ (optional)"
-            />
+                  setStorage({
+                    ...storage,
+                    s3Storage: {
+                      ...storage.s3Storage,
+                      s3Prefix: e.target.value.trim(),
+                    },
+                  });
+                  setUnsaved();
+                }}
+                size="small"
+                className="w-full max-w-[250px]"
+                placeholder="my-prefix/ (optional)"
+              />
 
-            <Tooltip
-              className="cursor-pointer"
-              title="Optional prefix for all object keys (e.g., 'backups/' or 'my_team/'). May not work with some S3-compatible storages."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
+              <Tooltip
+                className="cursor-pointer"
+                title="Optional prefix for all object keys (e.g., 'backups/' or 'my_team/'). May not work with some S3-compatible storages."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
           </div>
 
-          <div className="mb-1 flex items-center">
-            <div className="min-w-[110px]">Virtual host</div>
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[110px] sm:mb-0">Virtual host</div>
+            <div className="flex items-center">
+              <Checkbox
+                checked={storage?.s3Storage?.s3UseVirtualHostedStyle || false}
+                onChange={(e) => {
+                  if (!storage?.s3Storage) return;
 
-            <Checkbox
-              checked={storage?.s3Storage?.s3UseVirtualHostedStyle || false}
-              onChange={(e) => {
-                if (!storage?.s3Storage) return;
+                  setStorage({
+                    ...storage,
+                    s3Storage: {
+                      ...storage.s3Storage,
+                      s3UseVirtualHostedStyle: e.target.checked,
+                    },
+                  });
+                  setUnsaved();
+                }}
+              >
+                Use virtual-styled domains
+              </Checkbox>
 
-                setStorage({
-                  ...storage,
-                  s3Storage: {
-                    ...storage.s3Storage,
-                    s3UseVirtualHostedStyle: e.target.checked,
-                  },
-                });
-                setUnsaved();
-              }}
-            >
-              Use virtual-styled domains
-            </Checkbox>
-
-            <Tooltip
-              className="cursor-pointer"
-              title="Use virtual-hosted-style URLs (bucket.s3.region.amazonaws.com) instead of path-style (s3.region.amazonaws.com/bucket). May be required if you see COS errors."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
+              <Tooltip
+                className="cursor-pointer"
+                title="Use virtual-hosted-style URLs (bucket.s3.region.amazonaws.com) instead of path-style (s3.region.amazonaws.com/bucket). May be required if you see COS errors."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
           </div>
         </>
       )}

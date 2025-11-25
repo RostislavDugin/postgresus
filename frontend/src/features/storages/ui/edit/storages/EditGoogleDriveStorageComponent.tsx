@@ -37,7 +37,7 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setUnsave
   return (
     <>
       <div className="mb-2 flex items-center">
-        <div className="min-w-[110px]" />
+        <div className="hidden min-w-[110px] sm:block" />
 
         <div className="text-xs text-blue-600">
           <a href="https://postgresus.com/storages/google-drive" target="_blank" rel="noreferrer">
@@ -46,8 +46,8 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setUnsave
         </div>
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Client ID</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Client ID</div>
         <Input
           value={storage?.googleDriveStorage?.clientId || ''}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,8 +69,8 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setUnsave
         />
       </div>
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Client Secret</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Client Secret</div>
         <Input
           value={storage?.googleDriveStorage?.clientSecret || ''}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,8 +94,8 @@ export function EditGoogleDriveStorageComponent({ storage, setStorage, setUnsave
 
       {storage?.googleDriveStorage?.tokenJson && (
         <>
-          <div className="mb-1 flex items-center">
-            <div className="min-w-[110px]">User Token</div>
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[110px] sm:mb-0">User Token</div>
             <Input
               value={storage?.googleDriveStorage?.tokenJson || ''}
               disabled

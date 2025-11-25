@@ -91,14 +91,14 @@ export function SettingsComponent({ contentHeight }: Props) {
   console.log(`isCloud = ${IS_CLOUD}`);
 
   return (
-    <div className="flex grow pl-3">
+    <div className="flex grow sm:pl-5">
       <div className="w-full">
         <div
           ref={scrollContainerRef}
           className="grow overflow-y-auto rounded bg-white p-5 shadow"
           style={{ height: contentHeight }}
         >
-          <h1 className="text-2xl font-bold">Postgresus Settings</h1>
+          <h1 className="text-2xl font-bold">Postgresus settings</h1>
 
           <div className="mt-6">
             {isLoading ? (
@@ -228,7 +228,7 @@ export function SettingsComponent({ contentHeight }: Props) {
             <div className="group relative">
               <div className="flex items-center rounded-md border border-gray-300 bg-gray-50 px-3 py-2 !font-mono text-sm text-gray-700">
                 <code
-                  className="flex-1 cursor-pointer transition-colors select-all hover:text-blue-600"
+                  className="flex-1 cursor-pointer break-all transition-colors select-all hover:text-blue-600"
                   onClick={() => {
                     window.open(`${getApplicationServer()}/api/v1/system/health`, '_blank');
                   }}

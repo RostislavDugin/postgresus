@@ -239,8 +239,8 @@ export function EditStorageComponent({
   return (
     <div>
       {isShowName && (
-        <div className="mb-1 flex items-center">
-          <div className="min-w-[110px]">Name</div>
+        <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+          <div className="mb-1 min-w-[110px] sm:mb-0">Name</div>
 
           <Input
             value={storage?.name || ''}
@@ -255,27 +255,29 @@ export function EditStorageComponent({
         </div>
       )}
 
-      <div className="mb-1 flex items-center">
-        <div className="min-w-[110px]">Type</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[110px] sm:mb-0">Type</div>
 
-        <Select
-          value={storage?.type}
-          options={[
-            { label: 'Local storage', value: StorageType.LOCAL },
-            { label: 'S3', value: StorageType.S3 },
-            { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
-            { label: 'NAS', value: StorageType.NAS },
-            { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
-          ]}
-          onChange={(value) => {
-            setStorageType(value);
-            setIsUnsaved(true);
-          }}
-          size="small"
-          className="w-full max-w-[250px]"
-        />
+        <div className="flex items-center">
+          <Select
+            value={storage?.type}
+            options={[
+              { label: 'Local storage', value: StorageType.LOCAL },
+              { label: 'S3', value: StorageType.S3 },
+              { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
+              { label: 'NAS', value: StorageType.NAS },
+              { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
+            ]}
+            onChange={(value) => {
+              setStorageType(value);
+              setIsUnsaved(true);
+            }}
+            size="small"
+            className="w-[250px] max-w-[250px]"
+          />
 
-        <img src={getStorageLogoFromType(storage?.type)} className="ml-2 h-4 w-4" />
+          <img src={getStorageLogoFromType(storage?.type)} className="ml-2 h-4 w-4" />
+        </div>
       </div>
 
       <div className="mt-5" />

@@ -299,62 +299,67 @@ export const MainScreenComponent = () => {
 
           {selectedTab === 'users' && <UsersComponent contentHeight={contentHeight} />}
 
-          <div className="flex-1 md:pl-3">
-            {workspaces.length === 0 &&
-            (selectedTab === 'databases' ||
-              selectedTab === 'storages' ||
-              selectedTab === 'notifiers' ||
-              selectedTab === 'settings') ? (
-              <div
-                className="flex grow items-center justify-center rounded"
-                style={{ height: contentHeight }}
-              >
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={handleCreateWorkspace}
-                  className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
-                >
-                  Create workspace
-                </Button>
-              </div>
-            ) : (
-              <>
-                {selectedTab === 'notifiers' && selectedWorkspace && (
-                  <NotifiersComponent
-                    contentHeight={contentHeight}
-                    workspace={selectedWorkspace}
-                    isCanManageNotifiers={isCanManageDBs}
-                    key={`notifiers-${selectedWorkspace.id}`}
-                  />
-                )}
-                {selectedTab === 'storages' && selectedWorkspace && (
-                  <StoragesComponent
-                    contentHeight={contentHeight}
-                    workspace={selectedWorkspace}
-                    isCanManageStorages={isCanManageDBs}
-                    key={`storages-${selectedWorkspace.id}`}
-                  />
-                )}
-                {selectedTab === 'databases' && selectedWorkspace && (
-                  <DatabasesComponent
-                    contentHeight={contentHeight}
-                    workspace={selectedWorkspace}
-                    isCanManageDBs={isCanManageDBs}
-                    key={`databases-${selectedWorkspace.id}`}
-                  />
-                )}
-                {selectedTab === 'settings' && selectedWorkspace && user && (
-                  <WorkspaceSettingsComponent
-                    workspaceResponse={selectedWorkspace}
-                    contentHeight={contentHeight}
-                    user={user}
-                    key={`settings-${selectedWorkspace.id}`}
-                  />
-                )}
-              </>
-            )}
-          </div>
+          {(selectedTab === 'databases' ||
+            selectedTab === 'storages' ||
+            selectedTab === 'notifiers' ||
+            selectedTab === 'settings') && (
+            <>
+              {workspaces.length === 0 ? (
+                <div className="flex-1 md:pl-3">
+                  <div
+                    className="flex grow items-center justify-center rounded"
+                    style={{ height: contentHeight }}
+                  >
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={handleCreateWorkspace}
+                      className="border-blue-600 bg-blue-600 hover:border-blue-700 hover:bg-blue-700"
+                    >
+                      Create workspace
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 md:pl-3">
+                    {selectedTab === 'notifiers' && selectedWorkspace && (
+                      <NotifiersComponent
+                        contentHeight={contentHeight}
+                        workspace={selectedWorkspace}
+                        isCanManageNotifiers={isCanManageDBs}
+                        key={`notifiers-${selectedWorkspace.id}`}
+                      />
+                    )}
+                    {selectedTab === 'storages' && selectedWorkspace && (
+                      <StoragesComponent
+                        contentHeight={contentHeight}
+                        workspace={selectedWorkspace}
+                        isCanManageStorages={isCanManageDBs}
+                        key={`storages-${selectedWorkspace.id}`}
+                      />
+                    )}
+                    {selectedTab === 'databases' && selectedWorkspace && (
+                      <DatabasesComponent
+                        contentHeight={contentHeight}
+                        workspace={selectedWorkspace}
+                        isCanManageDBs={isCanManageDBs}
+                        key={`databases-${selectedWorkspace.id}`}
+                      />
+                    )}
+                    {selectedTab === 'settings' && selectedWorkspace && user && (
+                      <WorkspaceSettingsComponent
+                        workspaceResponse={selectedWorkspace}
+                        contentHeight={contentHeight}
+                        user={user}
+                        key={`settings-${selectedWorkspace.id}`}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
           <div className="absolute bottom-1 left-2 mb-[0px] hidden text-sm text-gray-400 md:block">
             v{APP_VERSION}

@@ -208,8 +208,8 @@ export function EditNotifierComponent({
   return (
     <div>
       {isShowName && (
-        <div className="mb-1 flex items-center">
-          <div className="min-w-[130px]">Name</div>
+        <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+          <div className="mb-1 min-w-[150px] sm:mb-0">Name</div>
 
           <Input
             value={notifier?.name || ''}
@@ -224,28 +224,30 @@ export function EditNotifierComponent({
         </div>
       )}
 
-      <div className="mb-1 flex items-center">
-        <div className="w-[150px] min-w-[150px]">Type</div>
+      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Type</div>
 
-        <Select
-          value={notifier?.notifierType}
-          options={[
-            { label: 'Telegram', value: NotifierType.TELEGRAM },
-            { label: 'Email', value: NotifierType.EMAIL },
-            { label: 'Webhook', value: NotifierType.WEBHOOK },
-            { label: 'Slack', value: NotifierType.SLACK },
-            { label: 'Discord', value: NotifierType.DISCORD },
-            { label: 'Teams', value: NotifierType.TEAMS },
-          ]}
-          onChange={(value) => {
-            setNotifierType(value);
-            setIsUnsaved(true);
-          }}
-          size="small"
-          className="w-full max-w-[250px]"
-        />
+        <div className="flex items-center">
+          <Select
+            value={notifier?.notifierType}
+            options={[
+              { label: 'Telegram', value: NotifierType.TELEGRAM },
+              { label: 'Email', value: NotifierType.EMAIL },
+              { label: 'Webhook', value: NotifierType.WEBHOOK },
+              { label: 'Slack', value: NotifierType.SLACK },
+              { label: 'Discord', value: NotifierType.DISCORD },
+              { label: 'Teams', value: NotifierType.TEAMS },
+            ]}
+            onChange={(value) => {
+              setNotifierType(value);
+              setIsUnsaved(true);
+            }}
+            size="small"
+            className="w-[250px] max-w-[250px]"
+          />
 
-        <img src={getNotifierLogoFromType(notifier?.notifierType)} className="ml-2 h-4 w-4" />
+          <img src={getNotifierLogoFromType(notifier?.notifierType)} className="ml-2 h-4 w-4" />
+        </div>
       </div>
 
       <div className="mt-5" />
