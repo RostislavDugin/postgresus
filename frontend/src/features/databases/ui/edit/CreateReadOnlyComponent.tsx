@@ -98,7 +98,12 @@ export const CreateReadOnlyComponent = ({
 
         <p className="mb-2">
           Postgresus enforce enterprise-grade security (
-          <a href="https://postgresus.com/security" target="_blank" rel="noreferrer">
+          <a
+            href="https://postgresus.com/security"
+            target="_blank"
+            rel="noreferrer"
+            className="!text-blue-600 dark:!text-blue-400"
+          >
             read in details here
           </a>
           ). However, it is not possible to be covered from all possible risks.

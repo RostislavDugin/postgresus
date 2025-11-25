@@ -93,7 +93,7 @@ export const EditDatabaseNotifiersComponent = ({
 
   return (
     <div>
-      <div className="mb-5 max-w-[275px] text-gray-500">
+      <div className="mb-5 max-w-[275px] text-gray-500 dark:text-gray-400">
         Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
         <br />
         <br />
@@ -162,7 +162,7 @@ export const EditDatabaseNotifiersComponent = ({
           open={isShowCreateNotifier}
           onCancel={() => setShowCreateNotifier(false)}
         >
-          <div className="my-3 max-w-[275px] text-gray-500">
+          <div className="my-3 max-w-[275px] text-gray-500 dark:text-gray-400">
             Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
           </div>
 

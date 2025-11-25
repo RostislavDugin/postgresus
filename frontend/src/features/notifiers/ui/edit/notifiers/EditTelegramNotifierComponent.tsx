@@ -99,7 +99,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
             How to get Telegram chat ID?
           </div>
         ) : (
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             To get your chat ID, message{' '}
             <a href="https://t.me/getmyid_bot" target="_blank" rel="noreferrer">
               @getmyid_bot
@@ -186,7 +186,7 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
           </div>
 
           <div className="max-w-[250px] sm:ml-[150px]">
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               To get the thread ID, go to the thread in your Telegram group, tap on the thread name
               at the top, then tap &ldquo;Thread Info&rdquo;. Copy the thread link and take the last
               number from the URL.

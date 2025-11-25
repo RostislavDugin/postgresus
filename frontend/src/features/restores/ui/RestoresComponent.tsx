@@ -211,7 +211,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
                       <div className="w-[75px] min-w-[75px]">Duration</div>
                       <div>
                         <div>{duration}</div>
-                        <div className="mt-2 text-xs text-gray-500">
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                           Expected restoration time usually 3x-5x longer than the backup duration
                           (sometimes less, sometimes more depending on data type)
                           <br />

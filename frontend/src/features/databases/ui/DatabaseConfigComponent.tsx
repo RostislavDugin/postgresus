@@ -147,7 +147,7 @@ export const DatabaseConfigComponent = ({
   };
 
   return (
-    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-3 shadow sm:p-5">
+    <div className="w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-3 shadow sm:p-5 dark:bg-gray-800">
       {!isEditName ? (
         <div className="mb-5 flex items-center text-xl font-bold sm:text-2xl">
           {database.name}
@@ -184,7 +184,7 @@ export const DatabaseConfigComponent = ({
                   setEditDatabase(undefined);
                 }}
               >
-                <CloseOutlined className="text-gray-500" />
+                <CloseOutlined className="text-gray-500 dark:text-gray-400" />
               </Button>
             </div>
           </div>
@@ -216,7 +216,7 @@ export const DatabaseConfigComponent = ({
             {database.lastBackupErrorMessage}
           </div>
 
-          <div className="mt-3 text-sm text-gray-500">
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             To clean this error (choose any):
             <ul>
               <li>- test connection via button below (even if you updated settings);</li>
@@ -370,7 +370,6 @@ export const DatabaseConfigComponent = ({
           <Button
             type="primary"
             className="w-full sm:mr-1 sm:w-auto"
-            ghost
             onClick={testConnection}
             loading={isTestingConnection}
             disabled={isTestingConnection}
@@ -381,7 +380,6 @@ export const DatabaseConfigComponent = ({
           <Button
             type="primary"
             className="w-full sm:mr-1 sm:w-auto"
-            ghost
             onClick={copyDatabase}
             loading={isCopying}
             disabled={isCopying}

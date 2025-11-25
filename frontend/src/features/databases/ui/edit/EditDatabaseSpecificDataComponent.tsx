@@ -177,12 +177,13 @@ export const EditDatabaseSpecificDataComponent = ({
           {isLocalhostDb && (
             <div className="mb-1 flex">
               <div className="min-w-[150px]" />
-              <div className="max-w-[200px] text-xs text-gray-500">
+              <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
                 Please{' '}
                 <a
                   href="https://postgresus.com/faq#how-to-backup-localhost"
                   target="_blank"
                   rel="noreferrer"
+                  className="!text-blue-600 dark:!text-blue-400"
                 >
                   read this document
                 </a>{' '}

@@ -71,10 +71,10 @@ export const WorkspaceSelectionComponent = ({
 
       <div className="relative">
         <div
-          className="cursor-pointer rounded bg-gray-100 p-1 px-2 hover:bg-gray-200"
+          className="cursor-pointer rounded bg-gray-100 p-1 px-2 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-sm dark:text-gray-200">
             <div className="flex-1 truncate pr-1">
               {selectedWorkspace?.name || 'Select a workspace'}
             </div>
@@ -89,8 +89,8 @@ export const WorkspaceSelectionComponent = ({
         </div>
 
         {isDropdownOpen && (
-          <div className="absolute top-full right-0 left-0 z-50 mt-1 min-w-[250px] rounded-md border border-gray-200 bg-white shadow-lg md:right-auto md:left-0 md:min-w-full">
-            <div className="border-b border-gray-100 p-2">
+          <div className="absolute top-full right-0 left-0 z-50 mt-1 min-w-[250px] rounded-md border border-gray-200 bg-white shadow-lg md:right-auto md:left-0 md:min-w-full dark:border-gray-600 dark:bg-gray-800">
+            <div className="border-b border-gray-100 p-2 dark:border-gray-700">
               <Input
                 placeholder="Search workspaces..."
                 value={searchValue}
@@ -105,7 +105,7 @@ export const WorkspaceSelectionComponent = ({
               {filteredWorkspaces.map((workspace) => (
                 <div
                   key={workspace.id}
-                  className="cursor-pointer truncate px-3 py-2 text-sm hover:bg-gray-50"
+                  className="cursor-pointer truncate px-3 py-2 text-sm hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
                   onClick={() => openWorkspace(workspace)}
                 >
                   {workspace.name}
@@ -113,13 +113,15 @@ export const WorkspaceSelectionComponent = ({
               ))}
 
               {filteredWorkspaces.length === 0 && searchValue && (
-                <div className="px-3 py-2 text-sm text-gray-500">No workspaces found</div>
+                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  No workspaces found
+                </div>
               )}
             </div>
 
-            <div className="border-t border-gray-100">
+            <div className="border-t border-gray-100 dark:border-gray-700">
               <div
-                className="cursor-pointer px-3 py-2 text-sm text-blue-600 hover:bg-gray-50 hover:text-blue-700"
+                className="cursor-pointer px-3 py-2 text-sm text-blue-600 hover:bg-gray-50 hover:text-blue-700 dark:hover:bg-gray-700"
                 onClick={() => {
                   onCreateWorkspace();
                   setIsDropdownOpen(false);

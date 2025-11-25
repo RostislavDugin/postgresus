@@ -85,7 +85,7 @@ export function OauthStorageComponent() {
           window.location.href = '/';
         }}
       >
-        <div className="my-3 max-w-[250px] text-gray-500">
+        <div className="my-3 max-w-[250px] text-gray-500 dark:text-gray-400">
           Storage - is a place where backups will be stored (local disk, S3, etc.)
         </div>
 

@@ -33,7 +33,7 @@ export function EditDiscordNotifierComponent({ notifier, setNotifier, setUnsaved
       </div>
 
       <div className="max-w-[250px] sm:ml-[150px]">
-        <div className="mt-1 text-xs text-gray-500">
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           <strong>How to get Discord webhook URL:</strong>
           <br />
           <br />

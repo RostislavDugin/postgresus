@@ -51,14 +51,14 @@ export const DatabaseComponent = ({
     >
       <div className="flex">
         <div
-          className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'config' ? 'bg-white' : 'bg-gray-200'}`}
+          className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'config' ? 'bg-white dark:bg-gray-800' : 'bg-gray-200 dark:bg-gray-700'}`}
           onClick={() => setCurrentTab('config')}
         >
           Config
         </div>
 
         <div
-          className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'backups' ? 'bg-white' : 'bg-gray-200'}`}
+          className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'backups' ? 'bg-white dark:bg-gray-800' : 'bg-gray-200 dark:bg-gray-700'}`}
           onClick={() => setCurrentTab('backups')}
         >
           Backups

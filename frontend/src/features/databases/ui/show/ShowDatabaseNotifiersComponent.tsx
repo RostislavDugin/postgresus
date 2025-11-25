@@ -23,7 +23,7 @@ export const ShowDatabaseNotifiersComponent = ({ database }: Props) => {
               </div>
             ))
           ) : (
-            <div className="text-gray-500">No notifiers configured</div>
+            <div className="text-gray-500 dark:text-gray-400">No notifiers configured</div>
           )}
         </div>
       </div>

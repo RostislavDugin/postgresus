@@ -200,21 +200,23 @@ export function ProfileComponent({ contentHeight }: Props) {
     <div className="flex grow sm:pl-5">
       <div className="w-full">
         <div
-          className="grow overflow-y-auto rounded bg-white p-5 shadow"
+          className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800"
           style={{ height: contentHeight }}
         >
-          <h1 className="text-2xl font-bold">Profile</h1>
+          <h1 className="text-2xl font-bold dark:text-white">Profile</h1>
 
           <div className="mt-5">
             {user ? (
               <>
                 <div className="mb-6">
-                  <h3 className="mb-4 text-lg font-semibold">Profile Information</h3>
+                  <h3 className="mb-4 text-lg font-semibold dark:text-white">
+                    Profile Information
+                  </h3>
                   <div className="max-w-md">
-                    <div className="text-xs font-semibold">User ID</div>
-                    <div className="mb-4 text-sm text-gray-600">{user.id}</div>
+                    <div className="text-xs font-semibold dark:text-gray-200">User ID</div>
+                    <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">{user.id}</div>
 
-                    <div className="mb-1 text-xs font-semibold">Name</div>
+                    <div className="mb-1 text-xs font-semibold dark:text-gray-200">Name</div>
                     <Input
                       value={editName}
                       onChange={(e) => {
@@ -226,7 +228,7 @@ export function ProfileComponent({ contentHeight }: Props) {
                       className="mb-4"
                     />
 
-                    <div className="mt-2 mb-1 text-xs font-semibold">Email</div>
+                    <div className="mt-2 mb-1 text-xs font-semibold dark:text-gray-200">Email</div>
                     <Input
                       value={editEmail}
                       onChange={(e) => {
@@ -240,14 +242,14 @@ export function ProfileComponent({ contentHeight }: Props) {
                       disabled={user.email === 'admin'}
                     />
                     {user.email === 'admin' && (
-                      <div className="mb-4 text-xs text-gray-500">
+                      <div className="mb-4 text-xs text-gray-500 dark:text-gray-400">
                         Admin email cannot be changed
                       </div>
                     )}
 
-                    <div className="mt-2 mb-1 text-xs font-semibold">Role</div>
+                    <div className="mt-2 mb-1 text-xs font-semibold dark:text-gray-200">Role</div>
                     <div className="mb-4">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                         {getRoleDisplayText(user.role)}
                       </span>
                     </div>
@@ -267,16 +269,18 @@ export function ProfileComponent({ contentHeight }: Props) {
                 </div>
 
                 <div className="mb-8">
-                  <Button type="default" onClick={handleLogout} danger>
+                  <Button type="primary" ghost onClick={handleLogout} danger>
                     Logout
                   </Button>
                 </div>
 
                 <div className="max-w-xs">
-                  <h3 className="mb-4 text-lg font-semibold">Change Password</h3>
+                  <h3 className="mb-4 text-lg font-semibold dark:text-white">Change Password</h3>
 
                   <div className="max-w-sm">
-                    <div className="my-1 text-xs font-semibold">New Password</div>
+                    <div className="my-1 text-xs font-semibold dark:text-gray-200">
+                      New Password
+                    </div>
                     <Input.Password
                       placeholder="Enter new password"
                       value={newPassword}
@@ -294,7 +298,9 @@ export function ProfileComponent({ contentHeight }: Props) {
                       }}
                     />
 
-                    <div className="mt-2 mb-1 text-xs font-semibold">Confirm New Password</div>
+                    <div className="mt-2 mb-1 text-xs font-semibold dark:text-gray-200">
+                      Confirm New Password
+                    </div>
                     <Input.Password
                       placeholder="Confirm new password"
                       value={confirmPassword}

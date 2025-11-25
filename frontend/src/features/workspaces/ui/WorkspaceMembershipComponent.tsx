@@ -315,10 +315,10 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
       width: 300,
       render: (_, record: WorkspaceMemberResponse) => (
         <div className="flex items-center">
-          <UserOutlined className="mr-2 text-gray-400" />
+          <UserOutlined className="mr-2 text-gray-400 dark:text-gray-500" />
           <div>
-            <div className="font-medium">{record.name}</div>
-            <div className="text-xs text-gray-500">{record.email}</div>
+            <div className="font-medium dark:text-white">{record.name}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{record.email}</div>
           </div>
         </div>
       ),
@@ -360,9 +360,9 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
         const date = dayjs(createdAt);
         const timeFormat = getUserShortTimeFormat();
         return (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-300">
             <div>{date.format(timeFormat.format)}</div>
-            <div className="text-xs text-gray-400">{date.fromNow()}</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500">{date.fromNow()}</div>
           </div>
         );
       },
@@ -411,14 +411,14 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
     return (
       <div
         key={member.id}
-        className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+        className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
       >
         <div className="flex items-start justify-between">
           <div className="flex items-center">
-            <UserOutlined className="mr-2 text-gray-400" />
+            <UserOutlined className="mr-2 text-gray-400 dark:text-gray-500" />
             <div>
-              <div className="font-medium">{member.name}</div>
-              <div className="text-xs text-gray-500">{member.email}</div>
+              <div className="font-medium dark:text-white">{member.name}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{member.email}</div>
             </div>
           </div>
           {canManageMembers && member.role !== WorkspaceRole.OWNER && !isCurrentUser && (
@@ -444,7 +444,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
 
         <div className="mt-3 flex items-center justify-between">
           <div>
-            <div className="text-xs text-gray-500">Role</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Role</div>
             {canManageMembers && member.role !== WorkspaceRole.OWNER && !isCurrentUser ? (
               <Select
                 value={member.role}
@@ -464,9 +464,11 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
             )}
           </div>
           <div className="text-right">
-            <div className="text-xs text-gray-500">Joined</div>
-            <div className="text-sm text-gray-600">{date.format(timeFormat.format)}</div>
-            <div className="text-xs text-gray-400">{date.fromNow()}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Joined</div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {date.format(timeFormat.format)}
+            </div>
+            <div className="text-xs text-gray-400 dark:text-gray-500">{date.fromNow()}</div>
           </div>
         </div>
       </div>
@@ -476,7 +478,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
   return (
     <div className="max-w-[850px]">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Users</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Users</h2>
 
         <div className="flex flex-col gap-2 md:flex-row md:space-x-2">
           {canTransferOwnership && (
@@ -509,7 +511,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
         </div>
       ) : (
         <div>
-          <div className="mb-4 text-sm text-gray-500">
+          <div className="mb-4 text-sm text-gray-500 dark:text-gray-400">
             {members.length === 0
               ? 'No members found'
               : `${members.length} member${members.length !== 1 ? 's' : ''}`}
@@ -517,7 +519,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
 
           {isMobile ? (
             members.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400">
                 <div className="mb-2">No members found</div>
                 {canManageMembers && (
                   <div className="text-sm">Click &quot;Add member&quot; to get started</div>
@@ -535,7 +537,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
               size="small"
               locale={{
                 emptyText: (
-                  <div className="py-8 text-center text-gray-500">
+                  <div className="py-8 text-center text-gray-500 dark:text-gray-400">
                     <div className="mb-2">No members found</div>
                     {canManageMembers && (
                       <div className="text-sm">Click &quot;Add member&quot; to get started</div>
@@ -569,7 +571,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
       >
         <div className="py-4">
           <div className="mb-4">
-            <div className="mb-2 font-medium text-gray-900">Email address</div>
+            <div className="mb-2 font-medium text-gray-900 dark:text-white">Email address</div>
             {user.role === UserRole.ADMIN ? (
               <AutoComplete
                 value={addMemberForm.email}
@@ -619,14 +621,14 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
                 status={addMemberEmailError ? 'error' : undefined}
               />
             )}
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               If the user exists, they will be added directly. Otherwise, an invitation will be
               sent.
             </div>
           </div>
 
           <div className="mb-4">
-            <div className="mb-2 font-medium text-gray-900">Role</div>
+            <div className="mb-2 font-medium text-gray-900 dark:text-white">Role</div>
             <Select
               value={addMemberForm.role}
               onChange={(role) => setAddMemberForm({ ...addMemberForm, role })}
@@ -655,10 +657,12 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
       >
         <div className="py-4">
           <div className="flex items-center">
-            <UserAddOutlined className="mr-3 text-2xl text-blue-600" />
+            <UserAddOutlined className="mr-3 text-2xl text-blue-600 dark:text-blue-400" />
             <div>
-              <div className="font-medium text-gray-900">Invitation sent to {invitedEmail}</div>
-              <div className="mt-1 text-sm text-gray-600">
+              <div className="font-medium text-gray-900 dark:text-white">
+                Invitation sent to {invitedEmail}
+              </div>
+              <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                 The user is not present in the system yet, but has been invited to the workspace.
                 After the user signs up via specified email, they will automatically become a member
                 of the workspace.
@@ -687,23 +691,23 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
         }}
       >
         <div className="py-4">
-          <div className="mb-4 rounded-md bg-yellow-50 p-3">
-            <div className="text-sm text-yellow-800">
+          <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/30">
+            <div className="text-sm text-yellow-800 dark:text-yellow-200">
               <strong>Warning:</strong> This action cannot be undone. You will lose ownership of
               this workspace and the new owner will have full control.
             </div>
           </div>
 
           {eligibleMembers.length === 0 ? (
-            <div className="rounded-md bg-gray-50 p-4 text-center">
-              <div className="text-sm text-gray-600">
+            <div className="rounded-md bg-gray-50 p-4 text-center dark:bg-gray-700">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
                 No members available to transfer ownership to. You need to have at least one other
                 member in the workspace to transfer ownership.
               </div>
             </div>
           ) : (
             <div className="mb-4">
-              <div className="mb-2 font-medium text-gray-900">Select new owner</div>
+              <div className="mb-2 font-medium text-gray-900 dark:text-white">Select new owner</div>
               <Select
                 value={transferForm.selectedMemberId || undefined}
                 onChange={(memberId) => {
@@ -716,7 +720,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
                 options={eligibleMembers.map((member) => ({
                   label: (
                     <div className="flex items-center">
-                      <UserOutlined className="mr-2 text-gray-400" />
+                      <UserOutlined className="mr-2 text-gray-400 dark:text-gray-500" />
                       <div>
                         {member.name} ({member.email})
                       </div>
@@ -725,7 +729,7 @@ export function WorkspaceMembershipComponent({ workspaceResponse, user }: Props)
                   value: member.userId,
                 }))}
               />
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 The selected member will become the workspace owner
               </div>
             </div>

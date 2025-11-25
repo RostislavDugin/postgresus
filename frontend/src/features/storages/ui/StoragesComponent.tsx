@@ -100,7 +100,7 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
 
             {storages.length < 5 && isCanManageStorages && addStorageButton}
 
-            <div className="mx-3 text-center text-xs text-gray-500">
+            <div className="mx-3 text-center text-xs text-gray-500 dark:text-gray-400">
               Storage - is a place where backups will be stored (local disk, S3, etc.)
             </div>
           </div>
@@ -145,7 +145,7 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
           open={isShowAddStorage}
           onCancel={() => setIsShowAddStorage(false)}
         >
-          <div className="my-3 max-w-[250px] text-gray-500">
+          <div className="my-3 max-w-[250px] text-gray-500 dark:text-gray-400">
             Storage - is a place where backups will be stored (local disk, S3, etc.)
           </div>
 

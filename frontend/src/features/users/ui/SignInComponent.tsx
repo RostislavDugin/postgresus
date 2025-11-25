@@ -75,7 +75,7 @@ export function SignInComponent({ onSwitchToSignUp }: SignInComponentProps): JSX
             <div className="w-full border-t border-gray-300"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-2 text-gray-500">or continue</span>
+            <span className="bg-white px-2 text-gray-500 dark:text-gray-400">or continue</span>
           </div>
         </div>
       )}
@@ -126,12 +126,12 @@ export function SignInComponent({ onSwitchToSignUp }: SignInComponentProps): JSX
       )}
 
       {onSwitchToSignUp && (
-        <div className="mt-4 text-center text-sm text-gray-600">
+        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
           Don&apos;t have an account?{' '}
           <button
             type="button"
             onClick={onSwitchToSignUp}
-            className="cursor-pointer font-medium text-blue-600 hover:text-blue-700"
+            className="cursor-pointer font-medium text-blue-600 hover:text-blue-700 dark:!text-blue-500"
           >
             Sign up
           </button>

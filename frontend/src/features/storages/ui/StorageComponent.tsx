@@ -122,7 +122,7 @@ export const StorageComponent = ({
 
   return (
     <div className="w-full">
-      <div className="grow overflow-y-auto rounded bg-white p-5 shadow">
+      <div className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800">
         {!storage ? (
           <div className="mt-10 flex justify-center">
             <Spin />
@@ -164,7 +164,7 @@ export const StorageComponent = ({
                         setEditStorage(undefined);
                       }}
                     >
-                      <CloseOutlined className="text-gray-500" />
+                      <CloseOutlined className="text-gray-500 dark:text-gray-400" />
                     </Button>
                   </div>
                 </div>
@@ -196,7 +196,7 @@ export const StorageComponent = ({
                   {storage.lastSaveError}
                 </div>
 
-                <div className="mt-3 text-sm break-words whitespace-pre-wrap text-gray-500">
+                <div className="mt-3 text-sm break-words whitespace-pre-wrap text-gray-500 dark:text-gray-400">
                   To clean this error (choose any):
                   <ul>
                     <li>- test connection via button below (even if you updated settings);</li>
@@ -242,7 +242,6 @@ export const StorageComponent = ({
                 <Button
                   type="primary"
                   className="mr-1"
-                  ghost
                   onClick={testConnection}
                   loading={isTestingConnection}
                   disabled={isTestingConnection}

@@ -6,6 +6,8 @@ import GitHubButton from 'react-github-btn';
 import { type DiskUsage } from '../../entity/disk';
 import { type UserProfile, UserRole } from '../../entity/users';
 import { useIsMobile } from '../../shared/hooks';
+import { useTheme } from '../../shared/theme';
+import { ThemeToggleComponent } from './ThemeToggleComponent';
 
 interface TabItem {
   text: string;
@@ -38,6 +40,7 @@ export const SidebarComponent = ({
   contentHeight,
 }: Props) => {
   const isMobile = useIsMobile();
+  const { resolvedTheme } = useTheme();
 
   // Close sidebar on desktop when it becomes desktop size
   useEffect(() => {
@@ -73,7 +76,7 @@ export const SidebarComponent = ({
   if (!isMobile) {
     return (
       <div
-        className="max-w-[60px] min-w-[60px] rounded bg-white py-2 shadow"
+        className="max-w-[60px] min-w-[60px] rounded bg-white py-2 shadow dark:bg-gray-800"
         style={{ height: contentHeight }}
       >
         <div className="flex h-full flex-col">
@@ -81,7 +84,7 @@ export const SidebarComponent = ({
             {filteredTabs.map((tab) => (
               <div key={tab.text} className="flex justify-center">
                 <div
-                  className={`flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded select-none ${selectedTab === tab.name ? 'bg-blue-600' : 'hover:bg-blue-50'}`}
+                  className={`flex h-[50px] w-[50px] cursor-pointer items-center justify-center rounded select-none ${selectedTab === tab.name ? 'bg-blue-600' : 'hover:bg-blue-50 dark:hover:bg-gray-700'}`}
                   onClick={() => handleTabClick(tab)}
                   style={{ marginTop: tab.marginTop }}
                 >
@@ -111,17 +114,24 @@ export const SidebarComponent = ({
       placement="right"
       width={280}
       styles={{
-        body: { padding: 0 },
+        body: {
+          padding: 0,
+          backgroundColor: resolvedTheme === 'dark' ? '#1f2937' : undefined,
+        },
+        header: {
+          backgroundColor: resolvedTheme === 'dark' ? '#1f2937' : undefined,
+        },
       }}
       closable={false}
       mask={false}
     >
       <div className="flex h-full flex-col">
         {/* Custom Close Button */}
-        <div className="flex justify-end border-b border-gray-200 px-3 py-3">
+        <div className="flex items-center justify-between border-b border-gray-200 px-3 py-3 dark:border-gray-700">
+          <ThemeToggleComponent />
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <CloseOutlined />
           </button>
@@ -136,7 +146,7 @@ export const SidebarComponent = ({
             return (
               <div key={tab.text}>
                 <div
-                  className={`flex cursor-pointer items-center gap-3 rounded px-3 py-3 select-none ${selectedTab === tab.name ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  className={`flex cursor-pointer items-center gap-3 rounded px-3 py-3 select-none ${selectedTab === tab.name ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'}`}
                   onClick={() => handleTabClick(tab)}
                 >
                   <img
@@ -147,19 +157,21 @@ export const SidebarComponent = ({
                   />
                   <span className="text-sm font-medium">{tab.text}</span>
                 </div>
-                {showDivider && <div className="my-2 border-t border-gray-200" />}
+                {showDivider && (
+                  <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+                )}
               </div>
             );
           })}
         </div>
 
         {/* Footer Section */}
-        <div className="border-t border-gray-200 bg-gray-50 px-3 py-4">
+        <div className="border-t border-gray-200 bg-gray-50 px-3 py-4 dark:border-gray-700 dark:bg-gray-800">
           {diskUsage && (
             <div className="mb-4">
               <Tooltip title="To make backups locally and restore them, you need to have enough space on your disk. For restore, you need to have same amount of space that the backup size.">
                 <div
-                  className={`cursor-pointer text-xs ${isUsedMoreThan95Percent ? 'text-red-500' : 'text-gray-600'}`}
+                  className={`cursor-pointer text-xs ${isUsedMoreThan95Percent ? 'text-red-500' : 'text-gray-600 dark:text-gray-400'}`}
                 >
                   <div className="font-medium">Disk Usage</div>
                   <div className="mt-1">
@@ -174,7 +186,7 @@ export const SidebarComponent = ({
 
           <div className="space-y-2">
             <a
-              className="!hover:text-blue-600 block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100"
+              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
               href="https://postgresus.com/installation"
               target="_blank"
               rel="noreferrer"
@@ -183,7 +195,7 @@ export const SidebarComponent = ({
             </a>
 
             <a
-              className="!hover:text-blue-600 block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100"
+              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
               href="https://postgresus.com/contribute"
               target="_blank"
               rel="noreferrer"
@@ -192,7 +204,7 @@ export const SidebarComponent = ({
             </a>
 
             <a
-              className="!hover:text-blue-600 block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100"
+              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
               href="https://t.me/postgresus_community"
               target="_blank"
               rel="noreferrer"

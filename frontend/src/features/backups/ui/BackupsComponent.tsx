@@ -446,7 +446,9 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       render: (createdAt: string) => (
         <div>
           {dayjs.utc(createdAt).local().format(getUserTimeFormat().format)} <br />
-          <span className="text-gray-500">({dayjs.utc(createdAt).local().fromNow()})</span>
+          <span className="text-gray-500 dark:text-gray-400">
+            ({dayjs.utc(createdAt).local().fromNow()})
+          </span>
         </div>
       ),
       sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
@@ -522,8 +524,8 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
   }
 
   return (
-    <div className="mt-5 w-full rounded-md bg-white p-3 shadow md:p-5">
-      <h2 className="text-lg font-bold md:text-xl">Backups</h2>
+    <div className="mt-5 w-full rounded-md bg-white p-3 shadow md:p-5 dark:bg-gray-800">
+      <h2 className="text-lg font-bold md:text-xl dark:text-white">Backups</h2>
 
       {!isBackupConfigLoading && !backupConfig?.isBackupsEnabled && (
         <div className="text-sm text-red-600 md:text-base">
@@ -558,16 +560,16 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
               {backups.map((backup) => (
                 <div
                   key={backup.id}
-                  className="mb-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                  className="mb-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="text-xs text-gray-500">Created at</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Created at</div>
                         <div className="text-sm font-medium">
                           {dayjs.utc(backup.createdAt).local().format(getUserTimeFormat().format)}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
                           ({dayjs.utc(backup.createdAt).local().fromNow()})
                         </div>
                       </div>
@@ -576,11 +578,11 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-xs text-gray-500">Size</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Size</div>
                         <div className="text-sm font-medium">{formatSize(backup.backupSizeMb)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">Duration</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Duration</div>
                         <div className="text-sm font-medium">
                           {formatDuration(backup.backupDurationMs)}
                         </div>
@@ -602,12 +604,12 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
             </div>
           )}
           {!hasMore && backups.length > 0 && (
-            <div className="mt-3 text-center text-sm text-gray-500">
+            <div className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
               All backups loaded ({totalBackups} total)
             </div>
           )}
           {!isBackupsLoading && backups.length === 0 && (
-            <div className="py-8 text-center text-gray-500">No backups yet</div>
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">No backups yet</div>
           )}
         </div>
 
@@ -628,7 +630,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
             </div>
           )}
           {!hasMore && backups.length > 0 && (
-            <div className="mt-2 text-center text-gray-500">
+            <div className="mt-2 text-center text-gray-500 dark:text-gray-400">
               All backups loaded ({totalBackups} total)
             </div>
           )}

@@ -95,10 +95,10 @@ export function SettingsComponent({ contentHeight }: Props) {
       <div className="w-full">
         <div
           ref={scrollContainerRef}
-          className="grow overflow-y-auto rounded bg-white p-5 shadow"
+          className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800"
           style={{ height: contentHeight }}
         >
-          <h1 className="text-2xl font-bold">Postgresus settings</h1>
+          <h1 className="text-2xl font-bold dark:text-white">Postgresus settings</h1>
 
           <div className="mt-6">
             {isLoading ? (
@@ -109,10 +109,12 @@ export function SettingsComponent({ contentHeight }: Props) {
               <div className="max-w-lg text-sm">
                 <div className="space-y-6">
                   {/* External Registrations Setting */}
-                  <div className="flex items-start justify-between border-b border-gray-200 pb-4">
+                  <div className="flex items-start justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
                     <div className="flex-1 pr-20">
-                      <div className="font-medium text-gray-900">Allow external registrations</div>
-                      <div className="mt-1 text-gray-500">
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        Allow external registrations
+                      </div>
+                      <div className="mt-1 text-gray-500 dark:text-gray-400">
                         When enabled, new users can register accounts in Postgresus. If disabled,
                         new users can only register via invitation
                       </div>
@@ -135,11 +137,13 @@ export function SettingsComponent({ contentHeight }: Props) {
 
                   {/* Member Invitations Setting */}
                   {!formSettings.isAllowExternalRegistrations && (
-                    <div className="flex items-start justify-between border-b border-gray-200 pb-4">
+                    <div className="flex items-start justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
                       <div className="flex-1 pr-20">
-                        <div className="font-medium text-gray-900">Allow member invitations</div>
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          Allow member invitations
+                        </div>
 
-                        <div className="mt-1 text-gray-500">
+                        <div className="mt-1 text-gray-500 dark:text-gray-400">
                           When enabled, existing members can invite new users to join Postgresus. If
                           not - only admins can invite users.
                         </div>
@@ -162,11 +166,13 @@ export function SettingsComponent({ contentHeight }: Props) {
                   )}
 
                   {/* Member Workspace Creation Setting */}
-                  <div className="flex items-start justify-between border-b border-gray-200 pb-4">
+                  <div className="flex items-start justify-between border-b border-gray-200 pb-4 dark:border-gray-700">
                     <div className="flex-1 pr-20">
-                      <div className="font-medium text-gray-900">Members can create workspaces</div>
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        Members can create workspaces
+                      </div>
 
-                      <div className="mt-1 text-gray-500">
+                      <div className="mt-1 text-gray-500 dark:text-gray-400">
                         When enabled, members (non-admin users) can create new workspaces. If not -
                         only admins can create workspaces.
                       </div>
@@ -209,7 +215,7 @@ export function SettingsComponent({ contentHeight }: Props) {
             )}
           </div>
 
-          <div className="mt-3 text-sm text-gray-500">
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             Read more about settings you can{' '}
             <a
               href="https://postgresus.com/access-management/#global-settings"
@@ -223,10 +229,10 @@ export function SettingsComponent({ contentHeight }: Props) {
 
           {/* Health-check Information */}
           <div className="my-8 max-w-2xl">
-            <h2 className="mb-3 text-xl font-bold">Health-check</h2>
+            <h2 className="mb-3 text-xl font-bold dark:text-white">Health-check</h2>
 
             <div className="group relative">
-              <div className="flex items-center rounded-md border border-gray-300 bg-gray-50 px-3 py-2 !font-mono text-sm text-gray-700">
+              <div className="flex items-center rounded-md border border-gray-300 bg-gray-50 px-3 py-2 !font-mono text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 <code
                   className="flex-1 cursor-pointer break-all transition-colors select-all hover:text-blue-600"
                   onClick={() => {
@@ -248,7 +254,7 @@ export function SettingsComponent({ contentHeight }: Props) {
                   📋
                 </Button>
               </div>
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Use this endpoint to monitor your Postgresus system&apos;s availability
               </div>
             </div>

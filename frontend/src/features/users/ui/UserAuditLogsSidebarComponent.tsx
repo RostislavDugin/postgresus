@@ -139,7 +139,7 @@ export function UserAuditLogsSidebarComponent({ user }: Props) {
     <div className="h-full">
       <div ref={scrollContainerRef} className="h-full overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
             {isLoading ? (
               <Spin indicator={<LoadingOutlined spin />} />
             ) : (
@@ -166,18 +166,20 @@ export function UserAuditLogsSidebarComponent({ user }: Props) {
             {isLoadingMore && (
               <div className="flex justify-center py-4">
                 <Spin indicator={<LoadingOutlined spin />} />
-                <span className="ml-2 text-sm text-gray-500">Loading more logs...</span>
+                <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                  Loading more logs...
+                </span>
               </div>
             )}
 
             {!hasMore && auditLogs.length > 0 && (
-              <div className="py-4 text-center text-sm text-gray-500">
+              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                 All logs loaded ({total} total)
               </div>
             )}
 
             {!isLoading && auditLogs.length === 0 && (
-              <div className="py-8 text-center text-sm text-gray-500">
+              <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                 No audit logs found for this user.
               </div>
             )}

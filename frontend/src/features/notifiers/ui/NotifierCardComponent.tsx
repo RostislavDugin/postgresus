@@ -17,13 +17,13 @@ export const NotifierCardComponent = ({
 }: Props) => {
   return (
     <div
-      className={`mb-3 cursor-pointer rounded p-3 shadow ${selectedNotifierId === notifier.id ? 'bg-blue-100' : 'bg-white'}`}
+      className={`mb-3 cursor-pointer rounded p-3 shadow ${selectedNotifierId === notifier.id ? 'bg-blue-100 dark:bg-blue-800' : 'bg-white dark:bg-gray-800'}`}
       onClick={() => setSelectedNotifierId(notifier.id)}
     >
       <div className="mb-1 font-bold">{notifier.name}</div>
 
       <div className="flex items-center">
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           Notify to {getNotifierNameFromType(notifier.notifierType)}
         </div>
 
@@ -35,7 +35,7 @@ export const NotifierCardComponent = ({
       </div>
 
       {notifier.lastSendError && (
-        <div className="mt-1 flex items-center text-sm text-red-600 underline">
+        <div className="mt-1 flex items-center text-sm text-red-600 underline dark:text-red-400">
           <InfoCircleOutlined className="mr-1" style={{ color: 'red' }} />
           Has send error
         </div>

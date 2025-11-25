@@ -111,7 +111,7 @@ export function WorkspaceAuditLogsComponent({
       render: (_, record: AuditLog) => {
         if (!record.userEmail && !record.userName) {
           return (
-            <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+            <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
               System
             </span>
           );
@@ -122,7 +122,7 @@ export function WorkspaceAuditLogsComponent({
           : record.userEmail;
 
         return (
-          <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+          <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
             {displayText}
           </span>
         );
@@ -132,7 +132,9 @@ export function WorkspaceAuditLogsComponent({
       title: 'Message',
       dataIndex: 'message',
       key: 'message',
-      render: (message: string) => <span className="text-xs text-gray-900">{message}</span>,
+      render: (message: string) => (
+        <span className="text-xs text-gray-900 dark:text-gray-100">{message}</span>
+      ),
     },
     {
       title: 'Created',
@@ -143,7 +145,7 @@ export function WorkspaceAuditLogsComponent({
         const date = dayjs(createdAt);
         const timeFormat = getUserShortTimeFormat();
         return (
-          <span className="text-xs text-gray-700">
+          <span className="text-xs text-gray-700 dark:text-gray-300">
             {`${date.format(timeFormat.format)} (${date.fromNow()})`}
           </span>
         );
@@ -158,7 +160,7 @@ export function WorkspaceAuditLogsComponent({
     const getUserDisplay = () => {
       if (!log.userEmail && !log.userName) {
         return (
-          <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">
+          <span className="inline-block rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
             System
           </span>
         );
@@ -167,22 +169,25 @@ export function WorkspaceAuditLogsComponent({
       const displayText = log.userName ? `${log.userName} (${log.userEmail})` : log.userEmail;
 
       return (
-        <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+        <span className="inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
           {displayText}
         </span>
       );
     };
 
     return (
-      <div key={log.id} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div
+        key={log.id}
+        className="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
         <div className="flex items-start justify-between">
           <div className="flex-1">{getUserDisplay()}</div>
-          <div className="text-right text-xs text-gray-500">
+          <div className="text-right text-xs text-gray-500 dark:text-gray-400">
             <div>{date.format(timeFormat.format)}</div>
-            <div className="text-gray-400">{date.fromNow()}</div>
+            <div className="text-gray-400 dark:text-gray-500">{date.fromNow()}</div>
           </div>
         </div>
-        <div className="mt-2 text-sm text-gray-900">{log.message}</div>
+        <div className="mt-2 text-sm text-gray-900 dark:text-gray-100">{log.message}</div>
       </div>
     );
   };
@@ -194,8 +199,8 @@ export function WorkspaceAuditLogsComponent({
   return (
     <div className="max-w-[1200px]">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Audit logs</h2>
-        <div className="text-sm text-gray-500">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Audit logs</h2>
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           {isLoading ? (
             <Spin indicator={<LoadingOutlined spin />} />
           ) : (
@@ -209,7 +214,7 @@ export function WorkspaceAuditLogsComponent({
           <Spin indicator={<LoadingOutlined spin />} size="large" />
         </div>
       ) : auditLogs.length === 0 ? (
-        <div className="flex h-32 items-center justify-center text-gray-500">
+        <div className="flex h-32 items-center justify-center text-gray-500 dark:text-gray-400">
           No audit logs found for this workspace.
         </div>
       ) : (
@@ -230,12 +235,14 @@ export function WorkspaceAuditLogsComponent({
           {isLoadingMore && (
             <div className="flex justify-center py-4">
               <Spin indicator={<LoadingOutlined spin />} />
-              <span className="ml-2 text-sm text-gray-500">Loading more logs...</span>
+              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                Loading more logs...
+              </span>
             </div>
           )}
 
           {!hasMore && auditLogs.length > 0 && (
-            <div className="py-4 text-center text-sm text-gray-500">
+            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
               All logs loaded ({auditLogs.length} total)
             </div>
           )}

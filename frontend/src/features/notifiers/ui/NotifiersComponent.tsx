@@ -111,7 +111,7 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
                     placeholder="Search notifier"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none"
+                    className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none dark:text-gray-400"
                   />
                 </div>
               </>
@@ -127,14 +127,14 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
                   />
                 ))
               : searchQuery && (
-                  <div className="mb-4 text-center text-sm text-gray-500">
+                  <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     No notifiers found matching &quot;{searchQuery}&quot;
                   </div>
                 )}
 
             {notifiers.length < 5 && isCanManageNotifiers && addNotifierButton}
 
-            <div className="mx-3 text-center text-xs text-gray-500">
+            <div className="mx-3 text-center text-xs text-gray-500 dark:text-gray-400">
               Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
             </div>
           </div>
@@ -179,7 +179,7 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
           open={isShowAddNotifier}
           onCancel={() => setIsShowAddNotifier(false)}
         >
-          <div className="my-3 max-w-[250px] text-gray-500">
+          <div className="my-3 max-w-[250px] text-gray-500 dark:text-gray-400">
             Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
           </div>
 

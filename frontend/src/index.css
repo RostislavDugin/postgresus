@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Enable Tailwind dark mode with class strategy */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   font-family:
     'Jost',
@@ -59,18 +62,18 @@ body {
 
 /* Track */
 *::-webkit-scrollbar-track {
-  background: gainsboro;
+  background: var(--color-scrollbar-track);
 }
 
 /* Handle */
 *::-webkit-scrollbar-thumb {
-  background: #adadad;
+  background: var(--color-scrollbar-thumb);
   border-radius: 360px;
 }
 
 /* Handle on hover */
 *::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--color-scrollbar-thumb-hover);
   cursor: pointer;
 }
 /* END OF SCROLLBAR STYLING */

@@ -272,9 +272,9 @@ export function UsersComponent({ contentHeight }: Props) {
         const date = dayjs(createdAt);
         const timeFormat = getUserTimeFormat();
         return (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             <div>{date.format(timeFormat.format)}</div>
-            <div className="text-xs text-gray-400">{date.fromNow()}</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500">{date.fromNow()}</div>
           </div>
         );
       },
@@ -297,13 +297,16 @@ export function UsersComponent({ contentHeight }: Props) {
     const timeFormat = getUserTimeFormat();
 
     return (
-      <div key={user.id} className="mb-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div
+        key={user.id}
+        className="mb-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
         <div className="mb-3 flex items-start justify-between">
           <div className="flex-1">
-            <div className="font-medium text-gray-900">{user.name}</div>
-            <div className="text-sm text-gray-500">{user.email}</div>
+            <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
           </div>
-          <div className="text-right text-xs text-gray-500">
+          <div className="text-right text-xs text-gray-500 dark:text-gray-400">
             <div>{date.format(timeFormat.format)}</div>
             <div className="text-gray-400">{date.fromNow()}</div>
           </div>
@@ -311,7 +314,7 @@ export function UsersComponent({ contentHeight }: Props) {
 
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Role:</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Role:</span>
             <Select
               value={user.role}
               onChange={(value) => handleRoleChange(user.id, value)}
@@ -335,7 +338,7 @@ export function UsersComponent({ contentHeight }: Props) {
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Active:</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Active:</span>
             <Switch
               checked={user.isActive}
               onChange={() => handleActivationToggle(user.id, user.isActive)}
@@ -367,12 +370,12 @@ export function UsersComponent({ contentHeight }: Props) {
       <div className="w-full">
         <div
           ref={scrollContainerRef}
-          className="grow overflow-y-auto rounded bg-white p-5 shadow"
+          className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800"
           style={{ height: contentHeight }}
         >
           <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Postgresus Users</h1>
-            <div className="text-sm text-gray-500">
+            <h1 className="text-2xl font-bold dark:text-white">Postgresus users</h1>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               {isLoading ? 'Loading...' : `${users.length} of ${total} users`}
             </div>
           </div>
@@ -392,7 +395,7 @@ export function UsersComponent({ contentHeight }: Props) {
               <Spin indicator={<LoadingOutlined spin />} size="large" />
             </div>
           ) : users.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-gray-500">
+            <div className="flex h-32 items-center justify-center text-gray-500 dark:text-gray-400">
               No users found.
             </div>
           ) : (
@@ -417,7 +420,7 @@ export function UsersComponent({ contentHeight }: Props) {
               )}
 
               {!hasMore && users.length > 0 && (
-                <div className="py-4 text-center text-sm text-gray-500">
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   All users loaded ({total} total)
                 </div>
               )}
@@ -430,8 +433,10 @@ export function UsersComponent({ contentHeight }: Props) {
       <Drawer
         title={
           <div>
-            <div className="text-lg font-semibold text-gray-900">User Audit Logs</div>
-            <div className="text-sm text-gray-600">{selectedUser?.email}</div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">
+              User Audit Logs
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">{selectedUser?.email}</div>
           </div>
         }
         placement="right"

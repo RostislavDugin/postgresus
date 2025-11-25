@@ -9,11 +9,13 @@ import {
   SignInComponent,
   SignUpComponent,
 } from '../features/users';
+import { useScreenHeight } from '../shared/hooks';
 
 export function AuthPageComponent() {
   const [isAdminHasPassword, setIsAdminHasPassword] = useState(false);
   const [authMode, setAuthMode] = useState<'signIn' | 'signUp'>('signUp');
   const [isLoading, setLoading] = useState(true);
+  const screenHeight = useScreenHeight();
 
   const checkAdminPasswordStatus = () => {
     setLoading(true);
@@ -34,7 +36,7 @@ export function AuthPageComponent() {
   }, []);
 
   return (
-    <div>
+    <div className="h-full dark:bg-gray-900" style={{ height: screenHeight }}>
       {isLoading ? (
         <div className="flex h-screen w-screen items-center justify-center">
           <Spin indicator={<LoadingOutlined spin />} size="large" />

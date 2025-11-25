@@ -81,7 +81,7 @@ export function AdminPasswordComponent({
     <div className="w-full max-w-[300px]">
       <div className="mb-5 text-center text-2xl font-bold">Sign up admin</div>
 
-      <div className="mx-auto mb-4 max-w-[250px] text-center text-sm text-gray-600">
+      <div className="mx-auto mb-4 max-w-[250px] text-center text-sm text-gray-600 dark:text-gray-400">
         Then you will be able to sign in with login &quot;admin&quot; and password you set
       </div>
 

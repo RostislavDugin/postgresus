@@ -25,6 +25,7 @@ import {
 } from '../../features/workspaces';
 import { useIsMobile, useScreenHeight } from '../../shared/hooks';
 import { SidebarComponent } from './SidebarComponent';
+import { ThemeToggleComponent } from './ThemeToggleComponent';
 import { WorkspaceSelectionComponent } from './WorkspaceSelectionComponent';
 
 export const MainScreenComponent = () => {
@@ -194,8 +195,8 @@ export const MainScreenComponent = () => {
   ];
 
   return (
-    <div style={{ height: screenHeight }} className="bg-[#f5f5f5] p-2 md:p-3">
-      <div className="mb-2 flex h-[50px] items-center rounded bg-white px-2 py-2 shadow md:mb-3 md:h-[60px] md:p-3">
+    <div style={{ height: screenHeight }} className="bg-[#f5f5f5] p-2 md:p-3 dark:bg-gray-900">
+      <div className="mb-2 flex h-[50px] items-center rounded bg-white px-2 py-2 shadow md:mb-3 md:h-[60px] md:p-3 dark:bg-gray-800">
         <div className="flex items-center gap-2 hover:opacity-80 md:gap-3">
           <a href="https://postgresus.com" target="_blank" rel="noreferrer">
             <img className="h-[30px] w-[30px] md:h-[40px] md:w-[40px]" src="/logo.svg" />
@@ -215,7 +216,7 @@ export const MainScreenComponent = () => {
 
         <div className="ml-auto hidden items-center gap-5 md:flex">
           <a
-            className="!text-black hover:opacity-80"
+            className="!text-black hover:opacity-80 dark:!text-gray-200"
             href="https://postgresus.com/installation"
             target="_blank"
             rel="noreferrer"
@@ -224,7 +225,7 @@ export const MainScreenComponent = () => {
           </a>
 
           <a
-            className="!text-black hover:opacity-80"
+            className="!text-black hover:opacity-80 dark:!text-gray-200"
             href="https://postgresus.com/contribute"
             target="_blank"
             rel="noreferrer"
@@ -232,7 +233,7 @@ export const MainScreenComponent = () => {
             Contribute
           </a>
           <a
-            className="!text-black hover:opacity-80"
+            className="!text-black hover:opacity-80 dark:!text-gray-200"
             href="https://t.me/postgresus_community"
             target="_blank"
             rel="noreferrer"
@@ -255,7 +256,7 @@ export const MainScreenComponent = () => {
           {diskUsage && (
             <Tooltip title="To make backups locally and restore them, you need to have enough space on your disk. For restore, you need to have same amount of space that the backup size.">
               <div
-                className={`cursor-pointer text-center text-xs ${isUsedMoreThan95Percent ? 'text-red-500' : 'text-gray-500'}`}
+                className={`cursor-pointer text-center text-xs ${isUsedMoreThan95Percent ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 {(diskUsage.usedSpaceBytes / 1024 ** 3).toFixed(1)} of{' '}
                 {(diskUsage.totalSpaceBytes / 1024 ** 3).toFixed(1)} GB
@@ -265,13 +266,16 @@ export const MainScreenComponent = () => {
               </div>
             </Tooltip>
           )}
+
+          <ThemeToggleComponent />
         </div>
 
-        <div className="mt-1 ml-auto md:hidden">
+        <div className="ml-auto flex items-center gap-2 md:hidden">
           <Button
             type="text"
             icon={<MenuOutlined style={{ fontSize: '20px' }} />}
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="mt-1"
           />
         </div>
       </div>

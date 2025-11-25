@@ -169,27 +169,29 @@ export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHei
       <div className="w-full">
         <div
           ref={scrollContainerRef}
-          className={`grow overflow-y-auto rounded bg-white shadow ${isMobile ? 'p-3' : 'p-5'}`}
+          className={`grow overflow-y-auto rounded bg-white shadow dark:bg-gray-800 ${isMobile ? 'p-3' : 'p-5'}`}
           style={{ height: contentHeight }}
         >
-          <h1 className="mb-6 text-2xl font-bold">Workspace settings</h1>
+          <h1 className="mb-6 text-2xl font-bold dark:text-white">Workspace settings</h1>
 
           {isLoading || !workspace ? (
             <Spin indicator={<LoadingOutlined spin />} size="large" />
           ) : (
             <>
               {!canEdit && (
-                <div className="my-4 max-w-[500px] rounded-md bg-yellow-50 p-3">
-                  <div className="text-sm text-yellow-800">
+                <div className="my-4 max-w-[500px] rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/30">
+                  <div className="text-sm text-yellow-800 dark:text-yellow-200">
                     You don&apos;t have permission to modify these settings
                   </div>
                 </div>
               )}
 
               <div className="space-y-6 text-sm">
-                <div className="max-w-2xl border-b border-gray-200 pb-6">
+                <div className="max-w-2xl border-b border-gray-200 pb-6 dark:border-gray-700">
                   <div className="max-w-md">
-                    <div className="mb-1 font-medium text-gray-900">Workspace name</div>
+                    <div className="mb-1 font-medium text-gray-900 dark:text-white">
+                      Workspace name
+                    </div>
                     <Input
                       value={formWorkspace.name || ''}
                       onChange={(e) => {
@@ -233,21 +235,25 @@ export function WorkspaceSettingsComponent({ workspaceResponse, user, contentHei
                   )}
                 </div>
 
-                <div className="max-w-2xl border-b border-gray-200 pb-6">
+                <div className="max-w-2xl border-b border-gray-200 pb-6 dark:border-gray-700">
                   <WorkspaceMembershipComponent workspaceResponse={workspaceResponse} user={user} />
                 </div>
 
                 {canEdit && (
-                  <div className="max-w-2xl border-b border-gray-200 pb-6">
-                    <h2 className="mb-4 text-xl font-bold text-gray-900">Danger Zone</h2>
+                  <div className="max-w-2xl border-b border-gray-200 pb-6 dark:border-gray-700">
+                    <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
+                      Danger Zone
+                    </h2>
 
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
                       <div
                         className={`flex ${isMobile ? 'flex-col gap-3' : 'items-start justify-between'}`}
                       >
                         <div className="flex-1">
-                          <div className="font-medium text-red-900">Delete this workspace</div>
-                          <div className="mt-1 text-sm text-red-700">
+                          <div className="font-medium text-red-900 dark:text-red-200">
+                            Delete this workspace
+                          </div>
+                          <div className="mt-1 text-sm text-red-700 dark:text-red-300">
                             Once you delete a workspace, there is no going back. All data and
                             resources associated with this workspace will be permanently removed.
                           </div>

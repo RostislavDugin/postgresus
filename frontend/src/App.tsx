@@ -1,4 +1,4 @@
-import { App as AntdApp, ConfigProvider } from 'antd';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Route } from 'react-router';
 import { Routes } from 'react-router';
@@ -7,10 +7,12 @@ import { userApi } from './entity/users';
 import { AuthPageComponent } from './pages/AuthPageComponent';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { OauthStorageComponent } from './pages/OauthStorageComponent';
+import { ThemeProvider, useTheme } from './shared/theme';
 import { MainScreenComponent } from './widgets/main/MainScreenComponent';
 
-function App() {
+function AppContent() {
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     const isAuthorized = userApi.isAuthorized();
@@ -24,6 +26,7 @@ function App() {
   return (
     <ConfigProvider
       theme={{
+        algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorPrimary: '#155dfc', // Tailwind blue-600
         },
@@ -42,6 +45,14 @@ function App() {
         </BrowserRouter>
       </AntdApp>
     </ConfigProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

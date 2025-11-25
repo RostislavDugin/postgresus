@@ -124,7 +124,7 @@ export const NotifierComponent = ({
 
   return (
     <div className="w-full">
-      <div className="grow overflow-y-auto rounded bg-white p-5 shadow">
+      <div className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800">
         {!notifier ? (
           <div className="mt-10 flex justify-center">
             <Spin />
@@ -166,7 +166,7 @@ export const NotifierComponent = ({
                         setEditNotifier(undefined);
                       }}
                     >
-                      <CloseOutlined className="text-gray-500" />
+                      <CloseOutlined className="text-gray-500 dark:text-gray-400" />
                     </Button>
                   </div>
                 </div>
@@ -198,7 +198,7 @@ export const NotifierComponent = ({
                   {notifier.lastSendError}
                 </div>
 
-                <div className="mt-3 text-sm break-words whitespace-pre-wrap text-gray-500">
+                <div className="mt-3 text-sm break-words whitespace-pre-wrap text-gray-500 dark:text-gray-400">
                   To clean this error (choose any):
                   <ul>
                     <li>
@@ -246,7 +246,6 @@ export const NotifierComponent = ({
                 <Button
                   type="primary"
                   className="mr-1"
-                  ghost
                   onClick={sendTestNotification}
                   loading={isSendingTestNotification}
                   disabled={isSendingTestNotification}

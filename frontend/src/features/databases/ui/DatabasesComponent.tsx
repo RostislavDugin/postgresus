@@ -111,7 +111,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
                     placeholder="Search database"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none"
+                    className="w-full border-b border-gray-300 p-1 text-gray-500 outline-none dark:text-gray-400"
                   />
                 </div>
               </>
@@ -127,14 +127,14 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
                   />
                 ))
               : searchQuery && (
-                  <div className="mb-4 text-center text-sm text-gray-500">
+                  <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     No databases found matching &quot;{searchQuery}&quot;
                   </div>
                 )}
 
             {databases.length < 5 && isCanManageDBs && addDatabaseButton}
 
-            <div className="mx-3 text-center text-xs text-gray-500">
+            <div className="mx-3 text-center text-xs text-gray-500 dark:text-gray-400">
               Database - is a thing we are backing up
             </div>
           </div>

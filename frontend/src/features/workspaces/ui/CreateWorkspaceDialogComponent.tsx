@@ -100,7 +100,7 @@ export const CreateWorkspaceDialogComponent = ({
       ]}
     >
       <div className="mb-4">
-        <div>
+        <div className="dark:text-gray-300">
           Workspace is a place where you group:
           <br />
           - your databases;
@@ -111,7 +111,9 @@ export const CreateWorkspaceDialogComponent = ({
           <br />- access control (if you have team);
         </div>
 
-        <label className="mt-5 mb-2 block text-sm font-medium text-gray-700">Workspace name</label>
+        <label className="mt-5 mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Workspace name
+        </label>
         <Input
           value={workspaceName}
           onChange={(e) => setWorkspaceName(e.target.value)}
