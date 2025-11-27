@@ -25,6 +25,8 @@
     <a href="https://postgresus.com" target="_blank"><strong>🌐 Postgresus website</strong></a>
   </p>
   
+  <img src="assets/dashboard-dark.svg" alt="Postgresus Dark Dashboard" width="800" style="margin-bottom: 10px;"/>
+
   <img src="assets/dashboard.svg" alt="Postgresus Dashboard" width="800"/>
   
  
@@ -71,6 +73,12 @@
 - **Access management**: Control who can view or manage specific databases with role-based permissions
 - **Audit logs**: Track all system activities and changes made by users
 - **User roles**: Assign viewer, member, admin or owner roles within workspaces
+
+### 🎨 **UX-Friendly**
+
+- **Designer-polished UI**: Clean, intuitive interface crafted with attention to detail
+- **Dark & light themes**: Choose the look that suits your workflow
+- **Mobile adaptive**: Check your backups from anywhere on any device
 
 ### 🐳 **Self-Hosted & Secure**
 
