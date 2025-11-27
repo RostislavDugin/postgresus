@@ -16,10 +16,12 @@ function getSystemTheme(): ResolvedTheme {
 function getStoredTheme(): ThemeMode {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
+
     if (stored === 'light' || stored === 'dark' || stored === 'system') {
       return stored;
     }
   }
+
   return 'system';
 }
 

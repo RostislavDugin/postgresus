@@ -719,17 +719,14 @@ func (uc *CreatePostgresqlBackupUsecase) createTempPgpassFile(
 		return "", nil
 	}
 
-	// Escape special characters in password as per PostgreSQL .pgpass format
-	// Per official PostgreSQL documentation: only backslash and colon need escaping
-	escapedPassword := strings.NewReplacer(
-		"\\", "\\\\",
-		":", "\\:",
-	).Replace(password)
+	escapedHost := tools.EscapePgpassField(pgConfig.Host)
+	escapedUsername := tools.EscapePgpassField(pgConfig.Username)
+	escapedPassword := tools.EscapePgpassField(password)
 
 	pgpassContent := fmt.Sprintf("%s:%d:*:%s:%s",
-		pgConfig.Host,
+		escapedHost,
 		pgConfig.Port,
-		pgConfig.Username,
+		escapedUsername,
 		escapedPassword,
 	)
 
