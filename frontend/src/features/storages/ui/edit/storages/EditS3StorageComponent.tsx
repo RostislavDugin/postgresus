@@ -183,13 +183,16 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
                 size="small"
                 className="w-full max-w-[250px]"
                 placeholder="my-prefix/ (optional)"
+                // we do not allow to change the prefix after creation,
+                // otherwise we will have to migrate all the data to the new prefix
+                disabled={!!storage.id}
               />
 
               <Tooltip
                 className="cursor-pointer"
-                title="Optional prefix for all object keys (e.g., 'backups/' or 'my_team/'). May not work with some S3-compatible storages."
+                title="Optional prefix for all object keys (e.g., 'backups/' or 'my_team/'). May not work with some S3-compatible storages. Cannot be changed after creation (otherwise backups will be lost)."
               >
-                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                <InfoCircleOutlined className="ml-4" style={{ color: 'gray' }} />
               </Tooltip>
             </div>
           </div>
