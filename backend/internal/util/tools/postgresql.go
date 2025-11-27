@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	env_utils "postgresus-backend/internal/util/env"
 )
@@ -149,6 +150,24 @@ func VerifyPostgresesInstallation(
 	}
 
 	logger.Info("All PostgreSQL version-specific client tools verification completed successfully!")
+}
+
+// EscapePgpassField escapes special characters in a field value for .pgpass file format.
+// According to PostgreSQL documentation, the .pgpass file format requires:
+// - Backslash (\) must be escaped as \\
+// - Colon (:) must be escaped as \:
+// Additionally, newlines and carriage returns are removed to prevent format corruption.
+func EscapePgpassField(field string) string {
+	// Remove newlines and carriage returns that would break .pgpass format
+	field = strings.ReplaceAll(field, "\r", "")
+	field = strings.ReplaceAll(field, "\n", "")
+
+	// Escape backslashes first (order matters!)
+	// Then escape colons
+	field = strings.ReplaceAll(field, "\\", "\\\\")
+	field = strings.ReplaceAll(field, ":", "\\:")
+
+	return field
 }
 
 func getPostgresqlBasePath(

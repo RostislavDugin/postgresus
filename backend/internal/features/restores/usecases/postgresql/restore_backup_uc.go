@@ -564,11 +564,15 @@ func (uc *RestorePostgresqlBackupUsecase) createTempPgpassFile(
 		return "", nil
 	}
 
+	escapedHost := tools.EscapePgpassField(pgConfig.Host)
+	escapedUsername := tools.EscapePgpassField(pgConfig.Username)
+	escapedPassword := tools.EscapePgpassField(password)
+
 	pgpassContent := fmt.Sprintf("%s:%d:*:%s:%s",
-		pgConfig.Host,
+		escapedHost,
 		pgConfig.Port,
-		pgConfig.Username,
-		password,
+		escapedUsername,
+		escapedPassword,
 	)
 
 	tempDir, err := os.MkdirTemp("", "pgpass")
