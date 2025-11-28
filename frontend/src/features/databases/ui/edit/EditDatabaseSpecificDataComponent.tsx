@@ -48,10 +48,12 @@ export const EditDatabaseSpecificDataComponent = ({
 
   const [isConnectionTested, setIsConnectionTested] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
   const testConnection = async () => {
     if (!editingDatabase) return;
     setIsTestingConnection(true);
+    setIsConnectionFailed(false);
 
     try {
       await databaseApi.testDatabaseConnectionDirect(editingDatabase);
@@ -61,6 +63,7 @@ export const EditDatabaseSpecificDataComponent = ({
         description: 'You can continue with the next step',
       });
     } catch (e) {
+      setIsConnectionFailed(true);
       alert((e as Error).message);
     }
 
@@ -89,6 +92,7 @@ export const EditDatabaseSpecificDataComponent = ({
     setIsSaving(false);
     setIsConnectionTested(false);
     setIsTestingConnection(false);
+    setIsConnectionFailed(false);
 
     setEditingDatabase({ ...database });
   }, [database]);
@@ -327,6 +331,13 @@ export const EditDatabaseSpecificDataComponent = ({
           </Button>
         )}
       </div>
+
+      {isConnectionFailed && (
+        <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+          If your database uses IP whitelist, make sure Postgresus server IP is added to the allowed
+          list.
+        </div>
+      )}
     </div>
   );
 };

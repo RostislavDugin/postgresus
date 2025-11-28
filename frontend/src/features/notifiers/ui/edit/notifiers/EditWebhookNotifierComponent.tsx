@@ -217,7 +217,7 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved
           )}
 
           {notifier?.webhookNotifier?.webhookMethod === WebhookMethod.POST && (
-            <div className="rounded bg-gray-100 p-2 px-3 font-mono text-sm break-all whitespace-pre-line dark:bg-gray-800">
+            <div className="rounded bg-gray-100 p-2 px-3 font-mono text-sm break-words whitespace-pre-wrap dark:bg-gray-800">
               <div className="font-semibold text-blue-600 dark:text-blue-400">
                 POST {notifier?.webhookNotifier?.webhookUrl}
               </div>
@@ -230,7 +230,7 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved
                   .map((h) => `\n${h.key}: ${h.value}`)
                   .join('')}
               </div>
-              <div className="mt-2 whitespace-pre">
+              <div className="mt-2 break-words whitespace-pre-wrap">
                 {notifier?.webhookNotifier?.bodyTemplate
                   ? notifier.webhookNotifier.bodyTemplate
                       .replace(
@@ -242,8 +242,8 @@ export function EditWebhookNotifierComponent({ notifier, setNotifier, setUnsaved
                         'Backup completed successfully in 1m 23s.\\nCompressed backup size: 256.00 MB',
                       )
                   : `{
-  "heading": "✅ Backup completed for database \\"my-database\\" (workspace \\"My workspace\\")",
-  "message": "Backup completed successfully in 1m 23s.\\nCompressed backup size: 256.00 MB"
+  "heading": "✅ Backup completed for database "my-database" (workspace "My workspace")",
+  "message": "Backup completed successfully in 1m 23s. Compressed backup size: 256.00 MB"
 }`}
               </div>
             </div>
