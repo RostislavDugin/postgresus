@@ -310,9 +310,6 @@ export default function ContributePage() {
               <h3 id="storages">Storages</h3>
 
               <ul>
-                <li>Verify AWS S3 support</li>
-                <li>Verify Google Cloud S3 support</li>
-                <li>Verify Tencent Cloud S3 support</li>
                 <li>Verify Supabase support</li>
                 <li>Add FTP</li>
                 <li>Add Dropbox</li>
@@ -335,17 +332,9 @@ export default function ContributePage() {
                   &#123;db_name&#125;_&#123;date&#125;_&#123;uuid&#125;.dump
                   with back compatibility
                 </li>
-                <li>Add customization of webhook</li>
                 <li>Add SSH tunneling</li>
-                <li>Add encryption for backups and read-only access to DBs</li>
                 <li>Add HTTPS for Postgresus</li>
-                <li>Add dark theme to UI</li>
-                <li>Add mobile version of UI</li>
                 <li>Add support of other languages</li>
-                <li>
-                  Add hint about &quot;don&apos;t forget to whitelist Postgresus
-                  IP address in your DB config&quot;
-                </li>
               </ul>
             </article>
           </div>
