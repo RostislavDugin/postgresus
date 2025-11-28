@@ -9,6 +9,7 @@ export type { TelegramNotifier } from './models/telegram/TelegramNotifier';
 export { validateTelegramNotifier } from './models/telegram/validateTelegramNotifier';
 
 export type { WebhookNotifier } from './models/webhook/WebhookNotifier';
+export type { WebhookHeader } from './models/webhook/WebhookHeader';
 export { validateWebhookNotifier } from './models/webhook/validateWebhookNotifier';
 export { WebhookMethod } from './models/webhook/WebhookMethod';
 

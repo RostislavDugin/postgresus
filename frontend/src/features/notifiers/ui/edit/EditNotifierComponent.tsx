@@ -119,6 +119,7 @@ export function EditNotifierComponent({
       notifier.webhookNotifier = {
         webhookUrl: '',
         webhookMethod: WebhookMethod.POST,
+        headers: [],
       };
     }
 
