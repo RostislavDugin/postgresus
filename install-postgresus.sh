@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e  # Exit on any error
+
 # Check if script is run as root
 if [ "$(id -u)" -ne 0 ]; then
     echo "Error: This script must be run as root (sudo ./install-postgresus.sh)" >&2
@@ -27,39 +29,88 @@ else
     log "Directory already exists: $INSTALL_DIR"
 fi
 
+# Detect OS
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        VERSION_CODENAME=${VERSION_CODENAME:-}
+    else
+        log "ERROR: Cannot detect OS. /etc/os-release not found."
+        exit 1
+    fi
+}
+
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     log "Docker not found. Installing Docker..."
     
-    # Install Docker
+    detect_os
+    log "Detected OS: $OS, Codename: $VERSION_CODENAME"
+    
+    # Install prerequisites
     apt-get update
-    apt-get remove -y docker docker-engine docker.io containerd runc
-    apt-get install -y ca-certificates curl gnupg lsb-release
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get install -y ca-certificates curl gnupg
+
+    # Set up Docker repository
+    install -m 0755 -d /etc/apt/keyrings
+    
+    # Determine Docker repo URL based on OS
+    case "$OS" in
+        ubuntu)
+            DOCKER_URL="https://download.docker.com/linux/ubuntu"
+            # Fallback for unsupported versions
+            case "$VERSION_CODENAME" in
+                plucky|oracular) VERSION_CODENAME="noble" ;;  # Ubuntu 25.x -> 24.04
+            esac
+            ;;
+        debian)
+            DOCKER_URL="https://download.docker.com/linux/debian"
+            # Fallback for unsupported versions
+            case "$VERSION_CODENAME" in
+                trixie|forky) VERSION_CODENAME="bookworm" ;;  # Debian 13/14 -> 12
+            esac
+            ;;
+        *)
+            log "ERROR: Unsupported OS: $OS. Please install Docker manually."
+            exit 1
+            ;;
+    esac
+    
+    log "Using Docker repository: $DOCKER_URL with codename: $VERSION_CODENAME"
+    
+    # Download and add Docker GPG key (no sudo needed - already root)
+    curl -fsSL "$DOCKER_URL/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    
+    # Add Docker repository
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] $DOCKER_URL $VERSION_CODENAME stable" > /etc/apt/sources.list.d/docker.list
+    
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Verify Docker installation
+    if ! command -v docker &> /dev/null; then
+        log "ERROR: Docker installation failed!"
+        exit 1
+    fi
+    
     log "Docker installed successfully"
 else
     log "Docker already installed"
 fi
 
-# Check if docker-compose is installed
-if ! command -v docker-compose &> /dev/null && ! command -v docker compose &> /dev/null; then
-    log "Docker Compose not found. Installing Docker Compose..."
-    apt-get update
-    apt-get install -y docker-compose-plugin
-    log "Docker Compose installed successfully"
+# Check if docker compose is available
+if ! docker compose version &> /dev/null; then
+    log "ERROR: Docker Compose plugin not available!"
+    exit 1
 else
-    log "Docker Compose already installed"
+    log "Docker Compose available"
 fi
 
 # Write docker-compose.yml
 log "Writing docker-compose.yml to $INSTALL_DIR"
 cat > "$INSTALL_DIR/docker-compose.yml" << 'EOF'
-version: "3"
-
 services:
   postgresus:
     container_name: postgresus
@@ -75,8 +126,12 @@ log "docker-compose.yml created successfully"
 # Start PostgresUS
 log "Starting PostgresUS..."
 cd "$INSTALL_DIR"
-docker compose up -d
-log "PostgresUS started successfully"
+if docker compose up -d; then
+    log "PostgresUS started successfully"
+else
+    log "ERROR: Failed to start PostgresUS!"
+    exit 1
+fi
 
 log "Postgresus installation completed successfully!"
 log "-------------------------------------------"
