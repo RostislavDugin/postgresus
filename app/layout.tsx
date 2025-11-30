@@ -12,17 +12,6 @@ export default function RootLayout({
         {/* DNS Prefetch & Preconnect for Analytics */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
-        <link rel="dns-prefetch" href="https://mc.yandex.ru" />
-        <link
-          rel="preconnect"
-          href="https://www.googletagmanager.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preconnect"
-          href="https://mc.yandex.ru"
-          crossOrigin="anonymous"
-        />
       </head>
 
       <body style={{ fontFamily: "Jost, sans-serif" }}>
@@ -37,22 +26,6 @@ export default function RootLayout({
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
             gtag('config', 'G-GE01THYR9X');
-          `}
-        </Script>
-        <Script id="yandex-metrika" strategy="afterInteractive">
-          {`
-            (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-            m[i].l=1*new Date();
-            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-            (window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=103482608', 'ym');
-            ym(103482608, 'init', {
-              ssr: true,
-              clickmap: true,
-              ecommerce: 'dataLayer',
-              accurateTrackBounce: true,
-              trackLinks: true,
-            });
           `}
         </Script>
       </body>
