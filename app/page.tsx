@@ -6,7 +6,7 @@ import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 export const metadata: Metadata = {
   title: "Postgresus | PostgreSQL backup",
   description:
-    "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
+    "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
   keywords:
     "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, encryption, AES-256, backup encryption",
   robots: "index, follow",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     url: "https://postgresus.com",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
+      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
     images: [
       {
         url: "https://postgresus.com/images/index/dashboard.svg",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
+      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
     images: ["https://postgresus.com/images/index/dashboard.svg"],
   },
   applicationName: "Postgresus",
@@ -62,7 +62,7 @@ export default function Index() {
             "@type": "SoftwareApplication",
             name: "Postgresus",
             description:
-              "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
+              "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
             url: "https://postgresus.com",
             image: "https://postgresus.com/images/index/dashboard.svg",
             logo: "https://postgresus.com/logo.svg",
@@ -129,7 +129,7 @@ export default function Index() {
                 name: "What is Postgresus and why should I use it instead of hand-rolled scripts?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
+                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
                 },
               },
               {
@@ -298,7 +298,7 @@ export default function Index() {
                   height={20}
                 />
                 <p>
-                  <b>Scheduled backups</b> (daily, weekly, at 4 AM etc.)
+                  <b>Scheduled backups</b> (daily, weekly, at 4 AM, etc.)
                 </p>
               </div>
 
@@ -321,7 +321,7 @@ export default function Index() {
                   width={20}
                   height={20}
                 />
-                <p>Notifications to Slack, Telegram, Discord etc.</p>
+                <p>Notifications to Slack, Telegram, Discord, etc.</p>
               </div>
 
               <div className="mb-2 flex items-start gap-3">
@@ -954,7 +954,7 @@ export default function Index() {
                   backing up PostgreSQL, v13 to v18. It differs from shell
                   scripts in that it has a frontend for scheduling tasks,
                   compressing and storing archives on multiple targets (local
-                  disk, S3, Google Drive, NAS, Dropbox etc.) and notifying your
+                  disk, S3, Google Drive, NAS, Dropbox, etc.) and notifying your
                   team when tasks finish or fail — all without hand-rolled code
                 </p>
               </div>
