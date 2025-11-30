@@ -82,6 +82,14 @@ export default function FAQPage() {
               },
               {
                 "@type": "Question",
+                name: "How to update Postgresus?",
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: "To update Postgresus, navigate to your Postgresus directory (usually /opt/postgresus) and run: docker compose stop, docker system prune -a, docker compose up -d. For Docker run, stop and remove the container first, then prune and run a new container with the latest image.",
+                },
+              },
+              {
+                "@type": "Question",
                 name: "Where is Postgresus installed?",
                 acceptedAnswer: {
                   "@type": "Answer",
@@ -228,6 +236,76 @@ export default function FAQPage() {
                 As for Nov 2025 Postgresus is going to add incremental backups
                 support. So this is priority in addition to current dump format.
               </p>
+
+              <h2 id="how-to-update">How to update Postgresus?</h2>
+
+              <p>
+                To update Postgresus to the latest version, you need to stop the
+                current container, remove old images and start it again with
+                the latest image.
+              </p>
+
+              <h3 id="update-docker-compose">Update with Docker Compose:</h3>
+
+              <p>
+                Navigate to your Postgresus directory (usually{" "}
+                <code>/opt/postgresus</code>) and run:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{`docker compose stop
+docker system prune -a
+docker compose up -d`}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton
+                    text={`docker compose stop
+docker system prune -a
+docker compose up -d`}
+                  />
+                </div>
+              </div>
+
+              <h3 id="update-docker-run">Update with Docker run:</h3>
+
+              <p>Run the following commands:</p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{`docker stop postgresus
+docker rm postgresus
+docker system prune -a
+docker run -d \\
+  --name postgresus \\
+  -p 4005:4005 \\
+  -v ./postgresus-data:/postgresus-data \\
+  --restart unless-stopped \\
+  rostislavdugin/postgresus:latest`}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton
+                    text={`docker stop postgresus
+docker rm postgresus
+docker system prune -a
+docker run -d \\
+  --name postgresus \\
+  -p 4005:4005 \\
+  -v ./postgresus-data:/postgresus-data \\
+  --restart unless-stopped \\
+  rostislavdugin/postgresus:latest`}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6 pb-0">
+                <p className="text-sm text-blue-900 m-0">
+                  <strong>💡 Note:</strong> The{" "}
+                  <code>docker system prune -a</code> command removes all unused
+                  images, which ensures you pull the latest version. Be aware
+                  this will remove all unused Docker images on your system.
+                </p>
+              </div>
 
               <h2 id="installation-directory">
                 Where is Postgresus installed if installed via .sh script?
