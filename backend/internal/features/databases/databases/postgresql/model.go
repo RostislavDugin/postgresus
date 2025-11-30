@@ -593,7 +593,8 @@ func buildConnectionStringForDB(p *PostgresqlDatabase, dbName string, password s
 		sslMode = "require"
 	}
 
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s default_query_exec_mode=simple_protocol",
 		p.Host,
 		p.Port,
 		p.Username,
