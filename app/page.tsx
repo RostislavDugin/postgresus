@@ -6,7 +6,7 @@ import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 export const metadata: Metadata = {
   title: "Postgresus | PostgreSQL backup",
   description:
-    "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+    "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
   keywords:
     "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, encryption, AES-256, backup encryption",
   robots: "index, follow",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     url: "https://postgresus.com",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
     images: [
       {
         url: "https://postgresus.com/images/index/dashboard.svg",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
     images: ["https://postgresus.com/images/index/dashboard.svg"],
   },
   applicationName: "Postgresus",
@@ -62,7 +62,7 @@ export default function Index() {
             "@type": "SoftwareApplication",
             name: "Postgresus",
             description:
-              "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+              "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord etc.",
             url: "https://postgresus.com",
             image: "https://postgresus.com/images/index/dashboard.svg",
             logo: "https://postgresus.com/logo.svg",
@@ -129,7 +129,7 @@ export default function Index() {
                 name: "What is Postgresus and why should I use it instead of hand-rolled scripts?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
+                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
                 },
               },
               {
@@ -298,7 +298,7 @@ export default function Index() {
                   height={20}
                 />
                 <p>
-                  <b>Scheduled backups</b> (daily, weekly, at 4 AM, etc.)
+                  <b>Scheduled backups</b> (daily, weekly, at 4 AM etc.)
                 </p>
               </div>
 
@@ -321,7 +321,7 @@ export default function Index() {
                   width={20}
                   height={20}
                 />
-                <p>Notifications to Slack, Telegram, Discord, etc.</p>
+                <p>Notifications to Slack, Telegram, Discord etc.</p>
               </div>
 
               <div className="mb-2 flex items-start gap-3">
@@ -867,9 +867,8 @@ export default function Index() {
               </div>
 
               <div className="pt-5 text-sm text-gray-600 sm:pt-5 sm:text-base">
-                Enterprise-grade encryption protects your sensitive
-                data and backups. Read-only database access prevents data
-                corruption.{" "}
+                Enterprise-grade encryption protects your sensitive data and
+                backups. Read-only database access prevents data corruption.{" "}
                 <a
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-700"
@@ -955,7 +954,7 @@ export default function Index() {
                   backing up PostgreSQL, v13 to v18. It differs from shell
                   scripts in that it has a frontend for scheduling tasks,
                   compressing and storing archives on multiple targets (local
-                  disk, S3, Google Drive, NAS, Dropbox, etc.) and notifying your
+                  disk, S3, Google Drive, NAS, Dropbox etc.) and notifying your
                   team when tasks finish or fail — all without hand-rolled code
                 </p>
               </div>
@@ -1035,7 +1034,7 @@ export default function Index() {
                   Read-only database access — Postgresus only requires SELECT
                   permissions and performs comprehensive checks to ensure no
                   write privileges exist, preventing data corruption even if the
-                  tool is compromised. 
+                  tool is compromised.
                 </p>
               </div>
 
@@ -1125,6 +1124,70 @@ export default function Index() {
                   Additionally, audit logs track all system activities, showing
                   who accessed what and when, which is essential for security
                   compliance and team accountability.
+                </p>
+              </div>
+
+              <div className="mb-8 w-full pr-10 lg:w-1/2">
+                <h3 className="mb-3 max-w-[350px] font-bold md:text-xl">
+                  12. Where can I read comparisons with other PostgreSQL backup
+                  tools?
+                </h3>
+
+                <p className="max-w-[500px] md:text-lg">
+                  We have detailed comparison pages for popular backup tools:{" "}
+                  <a
+                    href="/pgdump-alternative"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    Postgresus vs pg_dump
+                  </a>
+                  ,{" "}
+                  <a
+                    href="/postgresus-vs-pgbackrest"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    Postgresus vs pgBackRest
+                  </a>
+                  ,{" "}
+                  <a
+                    href="/postgresus-vs-barman"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    Postgresus vs Barman
+                  </a>
+                  ,{" "}
+                  <a
+                    href="/postgresus-vs-wal-g"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    Postgresus vs WAL-G
+                  </a>
+                  , and{" "}
+                  <a
+                    href="/postgresus-vs-pgbackweb"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    Postgresus vs pgBackWeb
+                  </a>
+                  . Each comparison explains the key differences, pros and cons,
+                  and helps you choose the right tool for your needs.
+                </p>
+              </div>
+
+              <div className="mb-8 w-full pr-10 lg:w-1/2">
+                <h3 className="mb-3 max-w-[350px] font-bold md:text-xl">
+                  13. Is Postgresus an alternative to pg_dump?
+                </h3>
+
+                <p className="max-w-[500px] md:text-lg">
+                  Yes, Postgresus is a modern alternative to pg_dump. Under the
+                  hood, Postgresus uses pg_dump for creating backups, but
+                  extends it with a user-friendly web interface, automated
+                  scheduling, multiple storage destinations, real-time
+                  notifications, health monitoring and backup encryption. Think
+                  of Postgresus as pg_dump with superpowers — you get all the
+                  reliability of pg_dump plus enterprise features without
+                  writing shell scripts.
                 </p>
               </div>
             </div>

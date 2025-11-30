@@ -4,9 +4,14 @@ import { useState } from "react";
 
 type InstallMethod = "Automated Script" | "Docker Run" | "Docker Compose";
 
-type Installation = {
+type ScriptVariant = {
   label: string;
   code: string;
+};
+
+type Installation = {
+  label: string;
+  code: string | ScriptVariant[];
   language: string;
   description: string;
 };
@@ -16,15 +21,25 @@ const installationMethods: Record<InstallMethod, Installation> = {
     label: "Automated script (recommended)",
     language: "bash",
     description:
-      "The installation script will install Docker with Docker Compose (if not already installed), set up Postgresus, and configure automatic startup on system reboot.",
-    code: `sudo apt-get install -y curl && \\
+      "The installation script will install Docker with Docker Compose (if not already installed), set up Postgresus and configure automatic startup on system reboot.",
+    code: [
+      {
+        label: "with sudo",
+        code: `sudo apt-get install -y curl && \\
 sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh | sudo bash`,
+      },
+      {
+        label: "without sudo",
+        code: `apt-get install -y curl && \\
+curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh | bash`,
+      },
+    ],
   },
   "Docker Run": {
     label: "Docker",
     language: "bash",
     description:
-      "The easiest way to run Postgresus. This single command will start Postgresus, store all data in ./postgresus-data directory, and automatically restart on system reboot.",
+      "The easiest way to run Postgresus. This single command will start Postgresus, store all data in ./postgresus-data directory and automatically restart on system reboot.",
     code: `docker run -d \\
   --name postgresus \\
   -p 4005:4005 \\
@@ -58,18 +73,34 @@ const methods: InstallMethod[] = [
 export default function InstallationComponent() {
   const [selectedMethod, setSelectedMethod] =
     useState<InstallMethod>("Automated Script");
+  const [selectedVariant, setSelectedVariant] = useState(0);
   const [copied, setCopied] = useState(false);
 
   const currentInstallation = installationMethods[selectedMethod];
+  const hasVariants = Array.isArray(currentInstallation.code);
 
   const handleMethodChange = (method: InstallMethod) => {
     setSelectedMethod(method);
+    setSelectedVariant(0);
     setCopied(false);
+  };
+
+  const handleVariantChange = (index: number) => {
+    setSelectedVariant(index);
+    setCopied(false);
+  };
+
+  const getCurrentCode = () => {
+    if (hasVariants) {
+      return (currentInstallation.code as ScriptVariant[])[selectedVariant]
+        .code;
+    }
+    return currentInstallation.code as string;
   };
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(currentInstallation.code);
+      await navigator.clipboard.writeText(getCurrentCode());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -96,6 +127,27 @@ export default function InstallationComponent() {
         ))}
       </div>
 
+      {/* Script variants tabs (only for Automated Script) */}
+      {hasVariants && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(currentInstallation.code as ScriptVariant[]).map(
+            (variant, index) => (
+              <button
+                key={index}
+                onClick={() => handleVariantChange(index)}
+                className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedVariant === index
+                    ? "bg-blue-100 text-blue-700 ring-2 ring-blue-600"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {variant.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+
       {/* Description */}
       <div className="mb-4 text-base md:text-lg max-w-[600px]">
         {currentInstallation.description}
@@ -105,7 +157,7 @@ export default function InstallationComponent() {
       <div className="relative max-w-[600px]">
         <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
           <code className="block whitespace-pre-wrap wrap-break-word">
-            {currentInstallation.code}
+            {getCurrentCode()}
           </code>
         </pre>
 

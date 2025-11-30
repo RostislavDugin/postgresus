@@ -55,6 +55,17 @@ const navItems: NavItem[] = [
       { title: "How to add notifier", href: "/contribute/how-to-add-notifier" },
     ],
   },
+  {
+    title: "Comparisons",
+    href: "/pgdump-alternative",
+    children: [
+      { title: "pg_dump alternative", href: "/pgdump-alternative" },
+      { title: "Postgresus vs Barman", href: "/postgresus-vs-barman" },
+      { title: "Postgresus vs PgBackWeb", href: "/postgresus-vs-pgbackweb" },
+      { title: "Postgresus vs pgBackRest", href: "/postgresus-vs-pgbackrest" },
+      { title: "Postgresus vs WAL-G", href: "/postgresus-vs-wal-g" },
+    ],
+  },
 ];
 
 export default function DocsSidebarComponent() {

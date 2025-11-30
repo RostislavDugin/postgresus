@@ -33,7 +33,7 @@ Content: Three installation methods - automated script, Docker run, Docker Compo
 
 ### Access Management
 URL: /access-management
-Content: Workspaces, user roles, audit logs, and global settings for managing access control. Here you can read how to manage access to Postgresus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
+Content: Workspaces, user roles, audit logs and global settings for managing access control. Here you can read how to manage access to Postgresus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
 
 ### Password Reset
 URL: /password
@@ -41,11 +41,11 @@ Content: How to reset user passwords using command-line tool
 
 ### Security
 URL: /security
-Content: Information about how Postgresus ensures enterprise-level security through three layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup, and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption.
+Content: Information about how Postgresus ensures enterprise-level security through three layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption.
 
 ### FAQ - Frequently Asked Questions
 URL: /faq
-Content: Frequently asked questions about Postgresus, including how to backup localhost databases, why Postgresus uses directory format with zstd compression instead of raw SQL dumps, and other common questions about installation, configuration, and backup strategies.
+Content: Frequently asked questions about Postgresus, including how to backup localhost databases, why Postgresus uses directory format with zstd compression instead of raw SQL dumps and other common questions about installation, configuration and backup strategies.
 
 ### Storage Configuration
 URL: /storages
@@ -160,6 +160,18 @@ Apache 2.0 licensed, self-hosted service for backing up PostgreSQL v13-v18. Feat
 
 ### How is Postgresus different from PgBackRest, Barman or pg_dump?
 Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
+
+### Where can I read comparisons with other PostgreSQL backup tools?
+We have detailed comparison pages for popular backup tools:
+- Postgresus vs pg_dump: /pgdump-alternative
+- Postgresus vs pgBackRest: /postgresus-vs-pgbackrest
+- Postgresus vs Barman: /postgresus-vs-barman
+- Postgresus vs WAL-G: /postgresus-vs-wal-g
+- Postgresus vs pgBackWeb: /postgresus-vs-pgbackweb
+Each comparison explains the key differences, pros and cons and helps you choose the right tool for your needs.
+
+### Is Postgresus an alternative to pg_dump?
+Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts.
 
 ### Installation Time
 Typically less than 2 minutes on a standard VPS using the automated installer.
