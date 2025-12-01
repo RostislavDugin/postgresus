@@ -28,7 +28,7 @@ jobs:
             repository: tylerobara/postgresus
             tag: 1.0.1
             path: deploy/postgresus
-            registry: ghcr.io
+            registry: ghcr.io/tylerobara/postgresus
             registry_username: ${{ secrets.GITHUB_ACTOR }}
             registry_password: ${{ secrets.GITHUB_TOKEN }}
             update_dependencies: 'true' 
