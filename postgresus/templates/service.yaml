@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresus.fullname" . }}-service
+  namespace: {{ include "postgresus.namespace" . }}
+  labels:
+    {{- include "postgresus.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "postgresus.selectorLabels" . | nindent 4 }}
+---
+{{- if .Values.service.headless.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresus.fullname" . }}-headless
+  namespace: {{ include "postgresus.namespace" . }}
+  labels:
+    {{- include "postgresus.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "postgresus.selectorLabels" . | nindent 4 }}
+{{- end }}
