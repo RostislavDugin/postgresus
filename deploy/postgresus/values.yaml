@@ -8,8 +8,8 @@ namespace:
 # Image configuration
 image:
   repository: rostislavdugin/postgresus
-  tag: v1.45.3
-  pullPolicy: IfNotPresent
+  tag: latest
+  pullPolicy: Always
 
 # StatefulSet configuration
 replicaCount: 1
@@ -26,8 +26,8 @@ service:
 # Resource limits and requests
 resources:
   requests:
-    memory: "512Mi"
-    cpu: "250m"
+    memory: "1Gi"
+    cpu: "500m"
   limits:
     memory: "1Gi"
     cpu: "500m"
@@ -35,7 +35,9 @@ resources:
 # Persistent storage configuration
 persistence:
   enabled: true
-  storageClassName: longhorn-pg
+  # Storage class name. Leave empty to use cluster default.
+  # Examples: "longhorn", "standard", "gp2", etc.
+  storageClassName: ""
   accessMode: ReadWriteOnce
   size: 10Gi
   # Mount path in container
@@ -71,11 +73,12 @@ ingress:
       hosts:
         - postgresus.example.com
 
-# Health checks configuration (commented out by default)
+# Health checks configuration
+# Note: The application only has /api/v1/system/health endpoint
 livenessProbe:
-  enabled: false
+  enabled: true
   httpGet:
-    path: /health
+    path: /api/v1/system/health
     port: 4005
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -83,11 +86,11 @@ livenessProbe:
   failureThreshold: 3
 
 readinessProbe:
-  enabled: false
+  enabled: true
   httpGet:
-    path: /ready
+    path: /api/v1/system/health
     port: 4005
-  initialDelaySeconds: 5
+  initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 3
