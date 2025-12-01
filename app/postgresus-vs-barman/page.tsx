@@ -615,10 +615,6 @@ export default function PostgresusVsBarmanPage() {
                   permissions only, preventing data corruption even if
                   compromised.
                 </li>
-                <li>
-                  <strong>TLS/SSL support</strong>: Secure connections to
-                  PostgreSQL databases.
-                </li>
               </ul>
 
               <h3 id="security-barman">Barman security</h3>

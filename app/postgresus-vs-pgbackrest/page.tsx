@@ -606,10 +606,6 @@ export default function PostgresusVsPgBackRestPage() {
                   permissions only, preventing data corruption even if
                   compromised.
                 </li>
-                <li>
-                  <strong>TLS/SSL support</strong>: Secure connections to
-                  PostgreSQL databases.
-                </li>
               </ul>
 
               <h3 id="security-pgbackrest">pgBackRest security</h3>
