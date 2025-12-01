@@ -13,9 +13,15 @@ type ScriptVariant = {
   code: string;
 };
 
+type CodeBlock = {
+  label: string;
+  code: string;
+};
+
 type Installation = {
   label: string;
   code: string | ScriptVariant[];
+  codeBlocks?: CodeBlock[];
   language: string;
   description: string;
 };
@@ -70,8 +76,19 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     label: "Helm (Kubernetes)",
     language: "bash",
     description:
-      "For Kubernetes deployments, use the official Helm chart. This will create a StatefulSet with persistent storage and optional ingress.",
-    code: `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`,
+      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and optional ingress.",
+    code: "",
+    codeBlocks: [
+      {
+        label: "Clone the repository",
+        code: `git clone https://github.com/RostislavDugin/postgresus.git
+cd postgresus`,
+      },
+      {
+        label: "Install the Helm chart",
+        code: `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`,
+      },
+    ],
   },
 };
 
@@ -87,14 +104,20 @@ export default function InstallationComponent() {
     useState<InstallMethod>("Automated Script");
   const [selectedVariant, setSelectedVariant] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copiedBlockIndex, setCopiedBlockIndex] = useState<number | null>(null);
 
   const currentInstallation = installationMethods[selectedMethod];
-  const hasVariants = Array.isArray(currentInstallation.code);
+  const hasVariants =
+    Array.isArray(currentInstallation.code) &&
+    currentInstallation.code.length > 0;
+  const hasCodeBlocks =
+    currentInstallation.codeBlocks && currentInstallation.codeBlocks.length > 0;
 
   const handleMethodChange = (method: InstallMethod) => {
     setSelectedMethod(method);
     setSelectedVariant(0);
     setCopied(false);
+    setCopiedBlockIndex(null);
   };
 
   const handleVariantChange = (index: number) => {
@@ -115,6 +138,16 @@ export default function InstallationComponent() {
       await navigator.clipboard.writeText(getCurrentCode());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleCopyBlock = async (code: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedBlockIndex(index);
+      setTimeout(() => setCopiedBlockIndex(null), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
     }
@@ -165,23 +198,53 @@ export default function InstallationComponent() {
         {currentInstallation.description}
       </div>
 
-      {/* Code block with copy button */}
-      <div className="relative max-w-[600px]">
-        <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-          <code className="block whitespace-pre-wrap wrap-break-word">
-            {getCurrentCode()}
-          </code>
-        </pre>
+      {/* Multiple code blocks (for Helm) */}
+      {hasCodeBlocks ? (
+        <div className="space-y-4 max-w-[600px]">
+          {currentInstallation.codeBlocks!.map((block, index) => (
+            <div key={index}>
+              <p className="mb-2 text-sm font-medium text-gray-700">
+                {block.label}
+              </p>
+              <div className="relative">
+                <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
+                  <code className="block whitespace-pre-wrap wrap-break-word">
+                    {block.code}
+                  </code>
+                </pre>
+                <button
+                  onClick={() => handleCopyBlock(block.code, index)}
+                  className={`absolute right-2 top-2 rounded px-2 py-1 text-xs text-white transition-colors ${
+                    copiedBlockIndex === index
+                      ? "bg-green-500"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {copiedBlockIndex === index ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Single code block with copy button */
+        <div className="relative max-w-[600px]">
+          <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
+            <code className="block whitespace-pre-wrap wrap-break-word">
+              {getCurrentCode()}
+            </code>
+          </pre>
 
-        <button
-          onClick={handleCopy}
-          className={`absolute right-2 top-2 rounded px-2 py-1 text-xs text-white transition-colors ${
-            copied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
+          <button
+            onClick={handleCopy}
+            className={`absolute right-2 top-2 rounded px-2 py-1 text-xs text-white transition-colors ${
+              copied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+          >
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

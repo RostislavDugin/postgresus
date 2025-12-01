@@ -97,6 +97,7 @@ Content: How to configure Teams webhook notifications
    - Automatic restart on system reboot
 
 4. **Helm (Kubernetes)**
+   - Clone repository first: git clone https://github.com/RostislavDugin/postgresus.git
    - Official Helm chart for Kubernetes deployments
    - StatefulSet with persistent storage
    - Configurable ingress with TLS support

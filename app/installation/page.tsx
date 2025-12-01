@@ -60,6 +60,9 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
       - ./postgresus-data:/postgresus-data
     restart: unless-stopped`;
 
+  const helmClone = `git clone https://github.com/RostislavDugin/postgresus.git
+cd postgresus`;
+
   const helmInstall = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`;
 
   const helmValues = `ingress:
@@ -280,6 +283,19 @@ persistence:
                 will create a StatefulSet with persistent storage and optional
                 ingress.
               </p>
+
+              <p>First, clone the repository:</p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmClone}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmClone} />
+                </div>
+              </div>
+
+              <p>Then install the Helm chart:</p>
 
               <div className="relative my-6">
                 <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
