@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "postgresus.fullname" . }}
+  namespace: {{ include "postgresus.namespace" . }}
+  labels:
+    {{- include "postgresus.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "postgresus.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "postgresus.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "postgresus.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: postgresus-storage
+              mountPath: {{ .Values.persistence.mountPath }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe.httpGet | nindent 12 }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe.httpGet | nindent 12 }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: postgresus-storage
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode }}
+        storageClassName: {{ .Values.persistence.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- end }}
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
