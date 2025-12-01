@@ -132,9 +132,8 @@ func (e *EmailNotifier) Send(
 
 		// Set up authentication only if credentials are provided
 		if isAuthRequired {
-			auth := smtp.PlainAuth("", e.SMTPUser, smtpPassword, e.SMTPHost)
-			if err := client.Auth(auth); err != nil {
-				return fmt.Errorf("SMTP authentication failed: %w", err)
+			if err := e.authenticate(client, smtpPassword); err != nil {
+				return err
 			}
 		}
 
@@ -195,9 +194,8 @@ func (e *EmailNotifier) Send(
 
 		// Authenticate only if credentials are provided
 		if isAuthRequired {
-			auth := smtp.PlainAuth("", e.SMTPUser, smtpPassword, e.SMTPHost)
-			if err := client.Auth(auth); err != nil {
-				return fmt.Errorf("SMTP authentication failed: %w", err)
+			if err := e.authenticate(client, smtpPassword); err != nil {
+				return err
 			}
 		}
 
@@ -254,5 +252,21 @@ func (e *EmailNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor
 		}
 		e.SMTPPassword = encrypted
 	}
+	return nil
+}
+
+func (e *EmailNotifier) authenticate(client *smtp.Client, password string) error {
+	// Try PLAIN auth first (most common)
+	plainAuth := smtp.PlainAuth("", e.SMTPUser, password, e.SMTPHost)
+	if err := client.Auth(plainAuth); err == nil {
+		return nil
+	}
+
+	// If PLAIN fails, try LOGIN auth (required by Office 365 and some providers)
+	loginAuth := &loginAuth{e.SMTPUser, password}
+	if err := client.Auth(loginAuth); err != nil {
+		return fmt.Errorf("SMTP authentication failed: %w", err)
+	}
+
 	return nil
 }
