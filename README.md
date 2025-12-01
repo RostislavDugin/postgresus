@@ -159,7 +159,16 @@ docker compose up -d
 
 ### Option 4: Kubernetes with Helm
 
-For Kubernetes deployments, use the official Helm chart:
+For Kubernetes deployments, use the official Helm chart.
+
+**Step 1:** Clone the repository:
+
+```bash
+git clone https://github.com/RostislavDugin/postgresus.git
+cd postgresus
+```
+
+**Step 2:** Install with Helm:
 
 ```bash
 helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
