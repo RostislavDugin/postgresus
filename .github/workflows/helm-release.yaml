@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'deploy/postgresus/**' 
+  workflow_dispatch:
 
 jobs:
   release:
