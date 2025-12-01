@@ -7,7 +7,7 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 export const metadata: Metadata = {
   title: "Installation - Postgresus Documentation",
   description:
-    "Learn how to install Postgresus using automated script, Docker run or Docker Compose. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
+    "Learn how to install Postgresus using automated script, Docker run, Docker Compose or Helm for Kubernetes. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
   keywords: [
     "Postgresus installation",
     "Docker installation",
@@ -16,11 +16,14 @@ export const metadata: Metadata = {
     "Docker Compose",
     "database backup installation",
     "pg_dump setup",
+    "Kubernetes",
+    "Helm chart",
+    "K8s deployment",
   ],
   openGraph: {
     title: "Installation - Postgresus Documentation",
     description:
-      "Learn how to install Postgresus using automated script, Docker run or Docker Compose. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
+      "Learn how to install Postgresus using automated script, Docker run, Docker Compose or Helm for Kubernetes. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
     type: "article",
     url: "https://postgresus.com/installation",
   },
@@ -28,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Installation - Postgresus Documentation",
     description:
-      "Learn how to install Postgresus using automated script, Docker run or Docker Compose. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
+      "Learn how to install Postgresus using automated script, Docker run, Docker Compose or Helm for Kubernetes. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
   },
   alternates: {
     canonical: "https://postgresus.com/installation",
@@ -57,6 +60,26 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
       - ./postgresus-data:/postgresus-data
     restart: unless-stopped`;
 
+  const helmInstall = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`;
+
+  const helmValues = `ingress:
+  hosts:
+    - host: backup.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: backup-yourdomain-com-tls
+      hosts:
+        - backup.yourdomain.com
+
+persistence:
+  size: 20Gi`;
+
+  const helmInstallWithValues = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f values.yaml`;
+
+  const helmUpgrade = `helm upgrade postgresus ./deploy/postgresus -n postgresus`;
+
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -68,7 +91,7 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
             "@type": "TechArticle",
             headline: "Installation - Postgresus Documentation",
             description:
-              "Learn how to install Postgresus using automated script, Docker run or Docker Compose. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
+              "Learn how to install Postgresus using automated script, Docker run, Docker Compose or Helm for Kubernetes. Simple zero-config installation for your self-hosted PostgreSQL backup system.",
             author: {
               "@type": "Organization",
               name: "Postgresus",
@@ -115,6 +138,11 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
                 name: "Docker Compose",
                 text: "Create a docker-compose.yml file and use Docker Compose for managed deployment.",
               },
+              {
+                "@type": "HowToStep",
+                name: "Kubernetes with Helm",
+                text: "Use the official Helm chart to deploy Postgresus on Kubernetes with StatefulSet, persistent storage and optional ingress.",
+              },
             ],
           }),
         }}
@@ -133,8 +161,9 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
               <h1 id="installation">Installation</h1>
 
               <p className="text-lg text-gray-700">
-                You have three ways to install Postgresus: automated script
-                (recommended), simple Docker run or Docker Compose setup.
+                You have four ways to install Postgresus: automated script
+                (recommended), simple Docker run, Docker Compose setup or Helm
+                for Kubernetes.
               </p>
 
               <h2 id="system-requirements">System requirements</h2>
@@ -244,6 +273,62 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
 
               <p>Keep in mind that start up can take up to ~2 minutes.</p>
 
+              <h2 id="option-4-helm">Option 4: Kubernetes with Helm</h2>
+
+              <p>
+                For Kubernetes deployments, use the official Helm chart. This
+                will create a StatefulSet with persistent storage and optional
+                ingress.
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmInstall}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmInstall} />
+                </div>
+              </div>
+
+              <p>
+                To customize the installation, create a <code>values.yaml</code>{" "}
+                file:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmValues}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmValues} />
+                </div>
+              </div>
+
+              <p>Then install with your custom values:</p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmInstallWithValues}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmInstallWithValues} />
+                </div>
+              </div>
+
+              <p>
+                See the{" "}
+                <a
+                  href="https://github.com/RostislavDugin/postgresus/tree/main/deploy/postgresus"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  Helm chart documentation
+                </a>{" "}
+                for all configuration options including resources, ingress
+                annotations and health checks.
+              </p>
+
               <h2 id="getting-started">Getting started</h2>
 
               <p>After installation:</p>
@@ -278,9 +363,11 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
 
               <h2 id="how-to-update">How to update Postgresus?</h2>
 
+              <h3 id="update-docker">Update Docker installation</h3>
+
               <p>
-                To update Postgresus, you need to stop it, clean up Docker cache
-                and restart the container.
+                To update Postgresus running via Docker, you need to stop it,
+                clean up Docker cache and restart the container.
               </p>
 
               <ol>
@@ -303,6 +390,28 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
                 It will get the latest version of Postgresus from the Docker Hub
                 (if you have not fixed the version in the{" "}
                 <code>docker-compose.yml</code> file).
+              </p>
+
+              <h3 id="update-helm">Update Helm installation</h3>
+
+              <p>
+                To update Postgresus running on Kubernetes via Helm, use the
+                upgrade command:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmUpgrade}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmUpgrade} />
+                </div>
+              </div>
+
+              <p>
+                If you have custom values, add <code>-f values.yaml</code> to
+                the command. Helm will perform a rolling update to the new
+                version.
               </p>
 
               <h2 id="troubleshooting">Troubleshooting</h2>

@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 
-type InstallMethod = "Automated Script" | "Docker Run" | "Docker Compose";
+type InstallMethod =
+  | "Automated Script"
+  | "Docker Run"
+  | "Docker Compose"
+  | "Helm";
 
 type ScriptVariant = {
   label: string;
@@ -62,12 +66,20 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
       - ./postgresus-data:/postgresus-data
     restart: unless-stopped`,
   },
+  Helm: {
+    label: "Helm (Kubernetes)",
+    language: "bash",
+    description:
+      "For Kubernetes deployments, use the official Helm chart. This will create a StatefulSet with persistent storage and optional ingress.",
+    code: `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`,
+  },
 };
 
 const methods: InstallMethod[] = [
   "Automated Script",
   "Docker Run",
   "Docker Compose",
+  "Helm",
 ];
 
 export default function InstallationComponent() {

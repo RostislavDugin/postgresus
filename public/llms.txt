@@ -29,7 +29,7 @@
 
 ### Installation
 URL: /installation
-Content: Three installation methods - automated script, Docker run, Docker Compose. Here you can read how to install Postgresus
+Content: Four installation methods - automated script, Docker run, Docker Compose and Helm for Kubernetes. Here you can read how to install Postgresus
 
 ### Access Management
 URL: /access-management
@@ -95,6 +95,12 @@ Content: How to configure Teams webhook notifications
 3. **Docker Compose**
    - Managed deployment with configuration file
    - Automatic restart on system reboot
+
+4. **Helm (Kubernetes)**
+   - Official Helm chart for Kubernetes deployments
+   - StatefulSet with persistent storage
+   - Configurable ingress with TLS support
+   - Health checks with liveness/readiness probes
 
 ### Backup Process
 
@@ -207,5 +213,5 @@ All data executes within containers you control on servers you own. Credentials 
 
 ## Keywords
 
-PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation, encryption, AES-256-GCM, backup encryption, enterprise security, read-only database access, data protection, secure backups, sensitive data encryption, security audit, least privilege
+PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation, encryption, AES-256-GCM, backup encryption, enterprise security, read-only database access, data protection, secure backups, sensitive data encryption, security audit, least privilege, Kubernetes, Helm, K8s, StatefulSet, ingress
 
