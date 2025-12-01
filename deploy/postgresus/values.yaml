@@ -1,0 +1,111 @@
+# Default values for postgresus
+
+# Namespace configuration
+namespace:
+  create: true
+  name: postgresus
+
+# Image configuration
+image:
+  repository: rostislavdugin/postgresus
+  tag: latest
+  pullPolicy: Always
+
+# StatefulSet configuration
+replicaCount: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 4005
+  targetPort: 4005
+  # Headless service for StatefulSet
+  headless:
+    enabled: true
+
+# Resource limits and requests
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Persistent storage configuration
+persistence:
+  enabled: true
+  # Storage class name. Leave empty to use cluster default.
+  # Examples: "longhorn", "standard", "gp2", etc.
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  # Mount path in container
+  mountPath: /postgresus-data
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-http2: "true"
+    # Gzip settings
+    nginx.ingress.kubernetes.io/enable-gzip: "true"
+    nginx.ingress.kubernetes.io/gzip-types: "text/plain text/css application/json application/javascript text/javascript text/xml application/xml application/xml+rss image/svg+xml"
+    nginx.ingress.kubernetes.io/gzip-min-length: "1000"
+    nginx.ingress.kubernetes.io/gzip-level: "9"
+    nginx.ingress.kubernetes.io/gzip-buffers: "16 8k"
+    nginx.ingress.kubernetes.io/gzip-http-version: "1.1"
+    nginx.ingress.kubernetes.io/gzip-vary: "on"
+    # Cert-manager settings
+    cert-manager.io/cluster-issuer: "clusteriissuer-letsencrypt"
+    cert-manager.io/duration: "2160h"
+    cert-manager.io/renew-before: "360h"
+  hosts:
+    - host: postgresus.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: postgresus.example.com-tls
+      hosts:
+        - postgresus.example.com
+
+# Health checks configuration
+# Note: The application only has /api/v1/system/health endpoint
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /api/v1/system/health
+    port: 4005
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /api/v1/system/health
+    port: 4005
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# StatefulSet update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    partition: 0
+
+# Pod labels and annotations
+podLabels: {}
+podAnnotations: {}
+
+# Node selector, tolerations and affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}

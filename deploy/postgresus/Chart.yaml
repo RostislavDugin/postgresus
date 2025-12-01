@@ -1,0 +1,12 @@
+apiVersion: v2
+name: postgresus
+description: A Helm chart for Postgresus - PostgreSQL backup and management system
+type: application
+version: 1.0.0
+appVersion: "v1.45.3"
+keywords:
+  - postgresql
+  - backup
+  - database
+  - restore
+home: https://github.com/RostislavDugin/postgresus

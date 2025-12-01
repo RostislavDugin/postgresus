@@ -157,6 +157,40 @@ Then run:
 docker compose up -d
 ```
 
+### Option 4: Kubernetes with Helm
+
+For Kubernetes deployments, use the official Helm chart:
+
+```bash
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
+```
+
+To customize the installation, create a `values.yaml` file:
+
+```yaml
+ingress:
+  hosts:
+    - host: backup.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: backup-yourdomain-com-tls
+      hosts:
+        - backup.yourdomain.com
+
+persistence:
+  size: 20Gi
+```
+
+Then install with your custom values:
+
+```bash
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f values.yaml
+```
+
+See the [Helm chart README](deploy/postgresus/README.md) for all configuration options.
+
 ---
 
 ## 🚀 Usage
