@@ -72,6 +72,7 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
       - ./postgresus-data:/postgresus-data
     restart: unless-stopped`,
   },
+  
   Helm: {
     label: "Helm (Kubernetes)",
     language: "bash",
