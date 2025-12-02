@@ -80,7 +80,6 @@ Content: How to configure Teams webhook notifications
 - Docker Engine 20.10+
 - Docker Compose v2.0+
 
-
 ### Installation Options
 
 1. **Automated Script (Recommended for Linux)**
