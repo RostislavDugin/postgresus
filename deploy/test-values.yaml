@@ -1,0 +1,14 @@
+route:
+  enabled: true
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  annotations: {}
+  hostnames:
+  - postgresus.example.com
+  parentRefs:
+    - name: cilium-gateway-https
+      sectionName: web-gw-https
+      kind: Gateway
+  filters: []
+  matches: []
+  timeouts: {}

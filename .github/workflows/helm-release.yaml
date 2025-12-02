@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'deploy/postgresus/**' 
+      - 'deploy/**' 
   workflow_dispatch:
 
 jobs:

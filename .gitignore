@@ -6,5 +6,3 @@ docker-compose.yml
 node_modules/
 .idea
 /articles
-
-**/test-values.yaml
