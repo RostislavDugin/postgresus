@@ -47,7 +47,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
         if (selectDatabaseId) {
           updateSelectedDatabaseId(selectDatabaseId);
         } else if (!selectedDatabaseId && !isSilent && !isMobile) {
-          // On desktop, auto-select a database; on mobile, keep it unselected
+          // On desktop, auto-select a database; on mobile, keep it unselected to show the list first
           const savedDatabaseId = localStorage.getItem(
             `${SELECTED_DATABASE_STORAGE_KEY}_${workspace.id}`,
           );

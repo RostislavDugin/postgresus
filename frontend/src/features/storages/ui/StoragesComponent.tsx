@@ -34,15 +34,19 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
     }
   };
 
-  const loadStorages = () => {
-    setIsLoading(true);
+  const loadStorages = (isSilent = false, selectStorageId?: string) => {
+    if (!isSilent) {
+      setIsLoading(true);
+    }
 
     storageApi
       .getStorages(workspace.id)
       .then((storages: Storage[]) => {
         setStorages(storages);
-        if (!selectedStorageId && !isMobile) {
-          // On desktop, auto-select a storage; on mobile, keep it unselected
+        if (selectStorageId) {
+          updateSelectedStorageId(selectStorageId);
+        } else if (!selectedStorageId && !isSilent && !isMobile) {
+          // On desktop, auto-select a storage; on mobile, keep it unselected to show the list first
           const savedStorageId = localStorage.getItem(
             `${SELECTED_STORAGE_STORAGE_KEY}_${workspace.id}`,
           );
@@ -154,8 +158,8 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
             isShowName
             isShowClose={false}
             onClose={() => setIsShowAddStorage(false)}
-            onChanged={() => {
-              loadStorages();
+            onChanged={(storage) => {
+              loadStorages(false, storage.id);
               setIsShowAddStorage(false);
             }}
           />

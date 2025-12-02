@@ -7,14 +7,14 @@ import { useEffect, useState } from 'react';
  * @returns isMobile boolean
  */
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState<boolean>(false);
+  // Initialize with actual value to avoid race conditions
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 768);
 
   useEffect(() => {
     const updateIsMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
 
-    updateIsMobile(); // Set initial value
     window.addEventListener('resize', updateIsMobile);
 
     return () => {

@@ -47,7 +47,7 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
         if (selectNotifierId) {
           updateSelectedNotifierId(selectNotifierId);
         } else if (!selectedNotifierId && !isSilent && !isMobile) {
-          // On desktop, auto-select a notifier; on mobile, keep it unselected
+          // On desktop, auto-select a notifier; on mobile, keep it unselected to show the list first
           const savedNotifierId = localStorage.getItem(
             `${SELECTED_NOTIFIER_STORAGE_KEY}_${workspace.id}`,
           );
