@@ -2,13 +2,13 @@
 
 # Namespace configuration
 namespace:
-  create: true
+  create: false
   name: postgresus
 
 # Image configuration
 image:
   repository: rostislavdugin/postgresus
-  tag: latest
+  tag: ""
   pullPolicy: Always
 
 # StatefulSet configuration
@@ -47,22 +47,7 @@ persistence:
 ingress:
   enabled: false
   className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/use-http2: "true"
-    # Gzip settings
-    nginx.ingress.kubernetes.io/enable-gzip: "true"
-    nginx.ingress.kubernetes.io/gzip-types: "text/plain text/css application/json application/javascript text/javascript text/xml application/xml application/xml+rss image/svg+xml"
-    nginx.ingress.kubernetes.io/gzip-min-length: "1000"
-    nginx.ingress.kubernetes.io/gzip-level: "9"
-    nginx.ingress.kubernetes.io/gzip-buffers: "16 8k"
-    nginx.ingress.kubernetes.io/gzip-http-version: "1.1"
-    nginx.ingress.kubernetes.io/gzip-vary: "on"
-    # Cert-manager settings
-    cert-manager.io/cluster-issuer: "clusteriissuer-letsencrypt"
-    cert-manager.io/duration: "2160h"
-    cert-manager.io/renew-before: "360h"
+  annotations: {}
   hosts:
     - host: postgresus.example.com
       paths:
@@ -72,6 +57,19 @@ ingress:
     - secretName: postgresus.example.com-tls
       hosts:
         - postgresus.example.com
+
+# HTTPRoute configuration for Gateway API
+route:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  annotations: {}
+  hostnames:
+  - postgresus.example.com
+  parentRefs: []
+  filters: []
+  matches: []
+  timeouts: {}
 
 # Health checks configuration
 # Note: The application only has /api/v1/system/health endpoint
