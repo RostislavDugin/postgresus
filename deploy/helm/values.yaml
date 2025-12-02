@@ -8,7 +8,7 @@ namespace:
 # Image configuration
 image:
   repository: rostislavdugin/postgresus
-  tag: latest
+  tag: ""
   pullPolicy: Always
 
 # StatefulSet configuration
