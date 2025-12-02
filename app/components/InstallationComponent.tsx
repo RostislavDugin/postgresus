@@ -76,7 +76,7 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     label: "Helm (Kubernetes)",
     language: "bash",
     description:
-      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and optional ingress.",
+      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and LoadBalancer service on port 80.",
     code: "",
     codeBlocks: [
       {
@@ -87,6 +87,10 @@ cd postgresus`,
       {
         label: "Install the Helm chart",
         code: `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`,
+      },
+      {
+        label: "Get the external IP",
+        code: `kubectl get svc -n postgresus`,
       },
     ],
   },

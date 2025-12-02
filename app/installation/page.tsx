@@ -65,21 +65,7 @@ cd postgresus`;
 
   const helmInstall = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`;
 
-  const helmValues = `ingress:
-  hosts:
-    - host: backup.yourdomain.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: backup-yourdomain-com-tls
-      hosts:
-        - backup.yourdomain.com
-
-persistence:
-  size: 20Gi`;
-
-  const helmInstallWithValues = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f values.yaml`;
+  const helmGetSvc = `kubectl get svc -n postgresus`;
 
   const helmUpgrade = `helm upgrade postgresus ./deploy/postgresus -n postgresus`;
 
@@ -280,8 +266,8 @@ persistence:
 
               <p>
                 For Kubernetes deployments, use the official Helm chart. This
-                will create a StatefulSet with persistent storage and optional
-                ingress.
+                will create a StatefulSet with persistent storage and
+                LoadBalancer service on port 80.
               </p>
 
               <p>First, clone the repository:</p>
@@ -306,30 +292,21 @@ persistence:
                 </div>
               </div>
 
+              <p>Get the external IP:</p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmGetSvc}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmGetSvc} />
+                </div>
+              </div>
+
               <p>
-                To customize the installation, create a <code>values.yaml</code>{" "}
-                file:
+                Access Postgresus at <code>http://&lt;EXTERNAL-IP&gt;</code>{" "}
+                (port 80).
               </p>
-
-              <div className="relative my-6">
-                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{helmValues}</code>
-                </pre>
-                <div className="absolute right-2 top-2">
-                  <CopyButton text={helmValues} />
-                </div>
-              </div>
-
-              <p>Then install with your custom values:</p>
-
-              <div className="relative my-6">
-                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{helmInstallWithValues}</code>
-                </pre>
-                <div className="absolute right-2 top-2">
-                  <CopyButton text={helmInstallWithValues} />
-                </div>
-              </div>
 
               <p>
                 See the{" "}
@@ -341,8 +318,8 @@ persistence:
                 >
                   Helm chart documentation
                 </a>{" "}
-                for all configuration options including resources, ingress
-                annotations and health checks.
+                for all configuration options including NodePort, Ingress with
+                HTTPS, custom storage and more.
               </p>
 
               <h2 id="getting-started">Getting started</h2>
