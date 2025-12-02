@@ -6,6 +6,14 @@
 helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
 ```
 
+After installation, get the external IP:
+
+```bash
+kubectl get svc -n postgresus
+```
+
+Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
+
 ## Configuration
 
 ### Main Parameters
@@ -40,21 +48,23 @@ helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
 
 ### Service
 
-| Parameter                  | Description             | Default Value |
-| -------------------------- | ----------------------- | ------------- |
-| `service.type`             | Service type            | `ClusterIP`   |
-| `service.port`             | Service port            | `4005`        |
-| `service.targetPort`       | Target port             | `4005`        |
-| `service.headless.enabled` | Enable headless service | `true`        |
+| Parameter                  | Description             | Default Value  |
+| -------------------------- | ----------------------- | -------------- |
+| `service.type`             | Service type            | `LoadBalancer` |
+| `service.port`             | External port           | `80`           |
+| `service.targetPort`       | Container port          | `4005`         |
+| `service.headless.enabled` | Enable headless service | `true`         |
 
-### Ingress
+### Ingress (Optional)
+
+Ingress is disabled by default. The chart uses LoadBalancer service for direct IP access.
 
 | Parameter               | Description       | Default Value            |
 | ----------------------- | ----------------- | ------------------------ |
-| `ingress.enabled`       | Enable Ingress    | `true`                   |
+| `ingress.enabled`       | Enable Ingress    | `false`                  |
 | `ingress.className`     | Ingress class     | `nginx`                  |
 | `ingress.hosts[0].host` | Hostname          | `postgresus.example.com` |
-| `ingress.tls`           | TLS configuration | See values.yaml          |
+| `ingress.tls`           | TLS configuration | `[]`                     |
 
 ### Health Checks
 
@@ -63,11 +73,54 @@ helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
 | `livenessProbe.enabled`  | Enable liveness probe  | `true`        |
 | `readinessProbe.enabled` | Enable readiness probe | `true`        |
 
-## Custom Ingress Example
+## Examples
+
+### Basic Installation (LoadBalancer on port 80)
+
+Default installation exposes Postgresus via LoadBalancer on port 80:
+
+```bash
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
+```
+
+Access via `http://<EXTERNAL-IP>`
+
+### Using NodePort
+
+If your cluster doesn't support LoadBalancer:
 
 ```yaml
-# custom-values.yaml
+# nodeport-values.yaml
+service:
+  type: NodePort
+  port: 80
+  targetPort: 4005
+  nodePort: 30080
+```
+
+```bash
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f nodeport-values.yaml
+```
+
+Access via `http://<NODE-IP>:30080`
+
+### Enable Ingress with HTTPS
+
+For domain-based access with TLS:
+
+```yaml
+# ingress-values.yaml
+service:
+  type: ClusterIP
+  port: 4005
+  targetPort: 4005
+
 ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: backup.example.com
       paths:
@@ -80,5 +133,18 @@ ingress:
 ```
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f custom-values.yaml
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f ingress-values.yaml
+```
+
+### Custom Storage Size
+
+```yaml
+# storage-values.yaml
+persistence:
+  size: 50Gi
+  storageClassName: "fast-ssd"
+```
+
+```bash
+helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f storage-values.yaml
 ```

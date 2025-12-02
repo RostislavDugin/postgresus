@@ -174,31 +174,15 @@ cd postgresus
 helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
 ```
 
-To customize the installation, create a `values.yaml` file:
-
-```yaml
-ingress:
-  hosts:
-    - host: backup.yourdomain.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: backup-yourdomain-com-tls
-      hosts:
-        - backup.yourdomain.com
-
-persistence:
-  size: 20Gi
-```
-
-Then install with your custom values:
+**Step 3:** Get the external IP:
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f values.yaml
+kubectl get svc -n postgresus
 ```
 
-See the [Helm chart README](deploy/postgresus/README.md) for all configuration options.
+Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
+
+To customize the installation (e.g., storage size, NodePort instead of LoadBalancer), see the [Helm chart README](deploy/postgresus/README.md) for all configuration options.
 
 ---
 
