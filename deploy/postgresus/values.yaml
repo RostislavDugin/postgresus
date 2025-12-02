@@ -45,7 +45,7 @@ persistence:
 
 # Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /

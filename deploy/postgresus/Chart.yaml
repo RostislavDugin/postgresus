@@ -2,8 +2,8 @@ apiVersion: v2
 name: postgresus
 description: A Helm chart for Postgresus - PostgreSQL backup and management system
 type: application
-version: 1.0.1
-appVersion: "v1.45.3"
+version: 1.0.2
+appVersion: "v1.46.0"
 keywords:
   - postgresql
   - backup

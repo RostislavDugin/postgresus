@@ -10,8 +10,6 @@ on:
 
 jobs:
   release:
-    # depending on default permission settings for your org (contents being read-only or read-write for workloads), you will have to add permissions
-    # see: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token
     permissions:
       contents: read
       packages: write
@@ -27,7 +25,7 @@ jobs:
         with:
             name: postgresus
             repository: ${{ github.repository_owner }}
-            tag: 1.0.1
+            tag: 1.0.2
             path: deploy/postgresus
             registry: ghcr.io
             registry_username: ${{ github.actor }}
