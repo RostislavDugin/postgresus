@@ -658,9 +658,10 @@ export default function PostgresusVsPgBackRestPage() {
               <ul>
                 <li>Local storage (POSIX, CIFS)</li>
                 <li>Amazon S3 and S3-compatible services</li>
+                <li>Cloudflare R2 (S3-compatible)</li>
                 <li>Azure Blob Storage</li>
-                <li>Google Cloud Storage</li>
                 <li>NAS (Network-attached storage)</li>
+                <li>Google Cloud Storage</li>
                 <li>SFTP</li>
               </ul>
 
