@@ -58,11 +58,10 @@ func (e *EmailNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 
 func (e *EmailNotifier) Send(
 	encryptor encryption.FieldEncryptor,
-	logger *slog.Logger,
+	_ *slog.Logger,
 	heading string,
 	message string,
 ) error {
-	// Decrypt SMTP password if provided
 	var smtpPassword string
 	if e.SMTPPassword != "" {
 		decrypted, err := encryptor.Decrypt(e.NotifierID, e.SMTPPassword)
@@ -72,7 +71,6 @@ func (e *EmailNotifier) Send(
 		smtpPassword = decrypted
 	}
 
-	// Compose email
 	from := e.From
 	if from == "" {
 		from = e.SMTPUser
@@ -81,151 +79,13 @@ func (e *EmailNotifier) Send(
 		}
 	}
 
-	to := []string{e.TargetEmail}
-
-	// Format the email content
-	subject := fmt.Sprintf("Subject: %s\r\n", heading)
-	mime := fmt.Sprintf(
-		"MIME-version: 1.0;\nContent-Type: %s; charset=\"%s\";\n\n",
-		MIMETypeHTML,
-		MIMECharsetUTF8,
-	)
-	body := message
-	fromHeader := fmt.Sprintf("From: %s\r\n", from)
-	toHeader := fmt.Sprintf("To: %s\r\n", e.TargetEmail)
-
-	// Combine all parts of the email
-	emailContent := []byte(fromHeader + toHeader + subject + mime + body)
-
-	addr := net.JoinHostPort(e.SMTPHost, fmt.Sprintf("%d", e.SMTPPort))
-	timeout := DefaultTimeout
-
-	// Determine if authentication is required
+	emailContent := e.buildEmailContent(heading, message, from)
 	isAuthRequired := e.SMTPUser != "" && smtpPassword != ""
 
-	// Handle different port scenarios
 	if e.SMTPPort == ImplicitTLSPort {
-		// Implicit TLS (port 465)
-		// Set up TLS config
-		tlsConfig := &tls.Config{
-			ServerName: e.SMTPHost,
-		}
-
-		// Dial with timeout
-		dialer := &net.Dialer{Timeout: timeout}
-		conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SMTP server: %w", err)
-		}
-		defer func() {
-			_ = conn.Close()
-		}()
-
-		// Create SMTP client
-		client, err := smtp.NewClient(conn, e.SMTPHost)
-		if err != nil {
-			return fmt.Errorf("failed to create SMTP client: %w", err)
-		}
-		defer func() {
-			_ = client.Quit()
-		}()
-
-		// Set up authentication only if credentials are provided
-		if isAuthRequired {
-			if err := e.authenticate(client, smtpPassword); err != nil {
-				return err
-			}
-		}
-
-		// Set sender and recipients
-		if err := client.Mail(from); err != nil {
-			return fmt.Errorf("failed to set sender: %w", err)
-		}
-		for _, recipient := range to {
-			if err := client.Rcpt(recipient); err != nil {
-				return fmt.Errorf("failed to set recipient: %w", err)
-			}
-		}
-
-		// Send the email body
-		writer, err := client.Data()
-		if err != nil {
-			return fmt.Errorf("failed to get data writer: %w", err)
-		}
-		_, err = writer.Write(emailContent)
-		if err != nil {
-			return fmt.Errorf("failed to write email content: %w", err)
-		}
-		err = writer.Close()
-		if err != nil {
-			return fmt.Errorf("failed to close data writer: %w", err)
-		}
-
-		return nil
-	} else {
-		// STARTTLS (port 587) or other ports
-		// Create a custom dialer with timeout
-		dialer := &net.Dialer{Timeout: timeout}
-		conn, err := dialer.Dial("tcp", addr)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SMTP server: %w", err)
-		}
-
-		// Create client from connection
-		client, err := smtp.NewClient(conn, e.SMTPHost)
-		if err != nil {
-			return fmt.Errorf("failed to create SMTP client: %w", err)
-		}
-		defer func() {
-			_ = client.Quit()
-		}()
-
-		// Send email using the client
-		if err := client.Hello(DefaultHelloName); err != nil {
-			return fmt.Errorf("SMTP hello failed: %w", err)
-		}
-
-		// Start TLS if available
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(&tls.Config{ServerName: e.SMTPHost}); err != nil {
-				return fmt.Errorf("STARTTLS failed: %w", err)
-			}
-		}
-
-		// Authenticate only if credentials are provided
-		if isAuthRequired {
-			if err := e.authenticate(client, smtpPassword); err != nil {
-				return err
-			}
-		}
-
-		if err := client.Mail(from); err != nil {
-			return fmt.Errorf("failed to set sender: %w", err)
-		}
-
-		for _, recipient := range to {
-			if err := client.Rcpt(recipient); err != nil {
-				return fmt.Errorf("failed to set recipient: %w", err)
-			}
-		}
-
-		writer, err := client.Data()
-		if err != nil {
-			return fmt.Errorf("failed to get data writer: %w", err)
-		}
-
-		_, err = writer.Write(emailContent)
-		if err != nil {
-			return fmt.Errorf("failed to write email content: %w", err)
-		}
-
-		err = writer.Close()
-		if err != nil {
-			return fmt.Errorf("failed to close data writer: %w", err)
-		}
-
-		return client.Quit()
+		return e.sendImplicitTLS(emailContent, from, smtpPassword, isAuthRequired)
 	}
+	return e.sendStartTLS(emailContent, from, smtpPassword, isAuthRequired)
 }
 
 func (e *EmailNotifier) HideSensitiveData() {
@@ -255,17 +115,164 @@ func (e *EmailNotifier) EncryptSensitiveData(encryptor encryption.FieldEncryptor
 	return nil
 }
 
-func (e *EmailNotifier) authenticate(client *smtp.Client, password string) error {
-	// Try PLAIN auth first (most common)
-	plainAuth := smtp.PlainAuth("", e.SMTPUser, password, e.SMTPHost)
-	if err := client.Auth(plainAuth); err == nil {
-		return nil
+func (e *EmailNotifier) buildEmailContent(heading, message, from string) []byte {
+	subject := fmt.Sprintf("Subject: %s\r\n", heading)
+	mime := fmt.Sprintf(
+		"MIME-version: 1.0;\nContent-Type: %s; charset=\"%s\";\n\n",
+		MIMETypeHTML,
+		MIMECharsetUTF8,
+	)
+	fromHeader := fmt.Sprintf("From: %s\r\n", from)
+	toHeader := fmt.Sprintf("To: %s\r\n", e.TargetEmail)
+	return []byte(fromHeader + toHeader + subject + mime + message)
+}
+
+func (e *EmailNotifier) sendImplicitTLS(
+	emailContent []byte,
+	from string,
+	password string,
+	isAuthRequired bool,
+) error {
+	createClient := func() (*smtp.Client, func(), error) {
+		return e.createImplicitTLSClient()
 	}
 
-	// If PLAIN fails, try LOGIN auth (required by Office 365 and some providers)
-	loginAuth := &loginAuth{e.SMTPUser, password}
+	client, cleanup, err := e.authenticateWithRetry(createClient, password, isAuthRequired)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	return e.sendEmail(client, from, emailContent)
+}
+
+func (e *EmailNotifier) sendStartTLS(
+	emailContent []byte,
+	from string,
+	password string,
+	isAuthRequired bool,
+) error {
+	createClient := func() (*smtp.Client, func(), error) {
+		return e.createStartTLSClient()
+	}
+
+	client, cleanup, err := e.authenticateWithRetry(createClient, password, isAuthRequired)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	return e.sendEmail(client, from, emailContent)
+}
+
+func (e *EmailNotifier) createImplicitTLSClient() (*smtp.Client, func(), error) {
+	addr := net.JoinHostPort(e.SMTPHost, fmt.Sprintf("%d", e.SMTPPort))
+	tlsConfig := &tls.Config{ServerName: e.SMTPHost}
+	dialer := &net.Dialer{Timeout: DefaultTimeout}
+
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+
+	client, err := smtp.NewClient(conn, e.SMTPHost)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+
+	return client, func() { _ = client.Quit() }, nil
+}
+
+func (e *EmailNotifier) createStartTLSClient() (*smtp.Client, func(), error) {
+	addr := net.JoinHostPort(e.SMTPHost, fmt.Sprintf("%d", e.SMTPPort))
+	dialer := &net.Dialer{Timeout: DefaultTimeout}
+
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+
+	client, err := smtp.NewClient(conn, e.SMTPHost)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+
+	if err := client.Hello(DefaultHelloName); err != nil {
+		_ = client.Quit()
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("SMTP hello failed: %w", err)
+	}
+
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: e.SMTPHost}); err != nil {
+			_ = client.Quit()
+			_ = conn.Close()
+			return nil, nil, fmt.Errorf("STARTTLS failed: %w", err)
+		}
+	}
+
+	return client, func() { _ = client.Quit() }, nil
+}
+
+func (e *EmailNotifier) authenticateWithRetry(
+	createClient func() (*smtp.Client, func(), error),
+	password string,
+	isAuthRequired bool,
+) (*smtp.Client, func(), error) {
+	client, cleanup, err := createClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !isAuthRequired {
+		return client, cleanup, nil
+	}
+
+	// Try PLAIN auth first
+	plainAuth := smtp.PlainAuth("", e.SMTPUser, password, e.SMTPHost)
+	if err := client.Auth(plainAuth); err == nil {
+		return client, cleanup, nil
+	}
+
+	// PLAIN auth failed, connection may be closed - recreate and try LOGIN auth
+	cleanup()
+
+	client, cleanup, err = createClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	loginAuth := &loginAuth{username: e.SMTPUser, password: password}
 	if err := client.Auth(loginAuth); err != nil {
-		return fmt.Errorf("SMTP authentication failed: %w", err)
+		cleanup()
+		return nil, nil, fmt.Errorf("SMTP authentication failed: %w", err)
+	}
+
+	return client, cleanup, nil
+}
+
+func (e *EmailNotifier) sendEmail(client *smtp.Client, from string, content []byte) error {
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("failed to set sender: %w", err)
+	}
+
+	if err := client.Rcpt(e.TargetEmail); err != nil {
+		return fmt.Errorf("failed to set recipient: %w", err)
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to get data writer: %w", err)
+	}
+
+	if _, err = writer.Write(content); err != nil {
+		return fmt.Errorf("failed to write email content: %w", err)
+	}
+
+	if err = writer.Close(); err != nil {
+		return fmt.Errorf("failed to close data writer: %w", err)
 	}
 
 	return nil
