@@ -378,7 +378,6 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	// Add encoding-related environment variables
 	cmd.Env = append(cmd.Env, "LC_ALL=C.UTF-8")
 	cmd.Env = append(cmd.Env, "LANG=C.UTF-8")
-	cmd.Env = append(cmd.Env, "PGOPTIONS=--client-encoding=UTF8")
 
 	shouldRequireSSL := pgConfig.IsHttps
 

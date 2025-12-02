@@ -417,7 +417,6 @@ func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
 		"PGCONNECT_TIMEOUT="+strconv.Itoa(pgConnectTimeout),
 		"LC_ALL=C.UTF-8",
 		"LANG=C.UTF-8",
-		"PGOPTIONS=--client-encoding=UTF8",
 	)
 
 	if shouldRequireSSL {
@@ -611,7 +610,6 @@ func (uc *CreatePostgresqlBackupUsecase) handleExitCode1NoStderr(
 			"PGCONNECT_TIMEOUT=" + strconv.Itoa(pgConnectTimeout),
 			"LC_ALL=C.UTF-8",
 			"LANG=C.UTF-8",
-			"PGOPTIONS=--client-encoding=UTF8",
 		},
 	)
 
