@@ -78,7 +78,7 @@ Content: How to configure Teams webhook notifications
 - RAM: Minimum 500 MB
 - Storage: 5 GB + backup storage space
 - Docker Engine 20.10+
-- Docker Compose v2.0+
+- Docker Compose v2.0+ 
 
 ### Installation Options
 
