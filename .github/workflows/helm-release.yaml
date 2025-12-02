@@ -24,7 +24,7 @@ jobs:
 
       - name: Read Helm Chart Version
         id: chart
-        uses: jacobtomlinson/gha-read-helm-chart@v1 # Use the latest version
+        uses: jacobtomlinson/gha-read-helm-chart@ca2f3b5038208efd3279dbe941e448d7ccdccbf6
         with:
           path: deploy/postgresus
 
