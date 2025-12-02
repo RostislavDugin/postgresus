@@ -63,11 +63,11 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
   const helmClone = `git clone https://github.com/RostislavDugin/postgresus.git
 cd postgresus`;
 
-  const helmInstall = `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`;
+  const helmInstall = `helm install postgresus ./deploy/helm -n postgresus --create-namespace`;
 
   const helmGetSvc = `kubectl get svc -n postgresus`;
 
-  const helmUpgrade = `helm upgrade postgresus ./deploy/postgresus -n postgresus`;
+  const helmUpgrade = `helm upgrade postgresus ./deploy/helm -n postgresus`;
 
   return (
     <>
@@ -311,7 +311,7 @@ cd postgresus`;
               <p>
                 See the{" "}
                 <a
-                  href="https://github.com/RostislavDugin/postgresus/tree/main/deploy/postgresus"
+                  href="https://github.com/RostislavDugin/postgresus/tree/main/deploy/helm"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-700"

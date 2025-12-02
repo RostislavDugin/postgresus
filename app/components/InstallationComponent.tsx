@@ -86,7 +86,7 @@ cd postgresus`,
       },
       {
         label: "Install the Helm chart",
-        code: `helm install postgresus ./deploy/postgresus -n postgresus --create-namespace`,
+        code: `helm install postgresus ./deploy/helm -n postgresus --create-namespace`,
       },
       {
         label: "Get the external IP",
