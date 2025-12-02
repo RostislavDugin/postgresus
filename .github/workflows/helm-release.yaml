@@ -22,11 +22,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read Helm Chart Version
-        id: chart
-        uses: jacobtomlinson/gha-read-helm-chart@ca2f3b5038208efd3279dbe941e448d7ccdccbf6
-        with:
-          path: deploy/postgresus
+      - name: Extract Chart Version and Set Output
+        id: get_version
+        run: |
+          CHART_VERSION=$(yq '.version' deploy/postgresus/Chart.yaml)
+          echo "chart_tag=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $CHART_VERSION"
+        shell: bash
 
       - name: Helm Setup
         uses: azure/setup-helm@v4
@@ -35,28 +37,20 @@ jobs:
 
       - name: Helm Lint and Template Test
         run: |
-            # Define the path to your chart
             CHART_PATH=./deploy/postgresus
-
             echo "Running helm lint..."
-            # 1. Helm Lint: Checks chart structure, metadata, and syntax.
             helm lint "$CHART_PATH"
-    
             echo "Running helm template dry-run..."
-            # 2. Helm Template: Renders the Kubernetes manifests with default values.
-            #    The output is piped to 'cat' just to ensure the command runs without error.
             helm template postgresus "$CHART_PATH" | cat
-            
-            # Optional: Test rendering with specific, non-default values
             echo "Running helm template with custom values..."
             helm template postgresus "$CHART_PATH" -f "$CHART_PATH/values.yaml" -f "./deploy/test-values.yaml" | cat
 
       - name: Chart | Push
         uses: appany/helm-oci-chart-releaser@v0.5.0
         with:
-          name: postgresus
+          name: postgresus-chart
           repository: ${{ github.repository_owner }}
-          tag: ${{ steps.chart.outputs.version }}
+          tag: ${{ steps.get_version.outputs.chart_tag }}
           path: deploy/postgresus
           registry: ghcr.io
           registry_username: ${{ github.actor }}
