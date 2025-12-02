@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
+helm install postgresus ./deploy/helm -n postgresus --create-namespace
 ```
 
 After installation, get the external IP:
@@ -80,7 +80,7 @@ Ingress is disabled by default. The chart uses LoadBalancer service for direct I
 Default installation exposes Postgresus via LoadBalancer on port 80:
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
+helm install postgresus ./deploy/helm -n postgresus --create-namespace
 ```
 
 Access via `http://<EXTERNAL-IP>`
@@ -99,7 +99,7 @@ service:
 ```
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f nodeport-values.yaml
+helm install postgresus ./deploy/helm -n postgresus --create-namespace -f nodeport-values.yaml
 ```
 
 Access via `http://<NODE-IP>:30080`
@@ -133,7 +133,7 @@ ingress:
 ```
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f ingress-values.yaml
+helm install postgresus ./deploy/helm -n postgresus --create-namespace -f ingress-values.yaml
 ```
 
 ### Custom Storage Size
@@ -146,5 +146,5 @@ persistence:
 ```
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f storage-values.yaml
+helm install postgresus ./deploy/helm -n postgresus --create-namespace -f storage-values.yaml
 ```

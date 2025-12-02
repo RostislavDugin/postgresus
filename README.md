@@ -171,7 +171,7 @@ cd postgresus
 **Step 2:** Install with Helm:
 
 ```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
+helm install postgresus ./deploy/helm -n postgresus --create-namespace
 ```
 
 **Step 3:** Get the external IP:
@@ -182,7 +182,7 @@ kubectl get svc -n postgresus
 
 Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
 
-To customize the installation (e.g., storage size, NodePort instead of LoadBalancer), see the [Helm chart README](deploy/postgresus/README.md) for all configuration options.
+To customize the installation (e.g., storage size, NodePort instead of LoadBalancer), see the [Helm chart README](deploy/helm/README.md) for all configuration options.
 
 ---
 
