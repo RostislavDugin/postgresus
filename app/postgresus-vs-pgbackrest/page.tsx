@@ -656,10 +656,11 @@ export default function PostgresusVsPgBackRestPage() {
               <h3 id="storage-pgbackrest">pgBackRest storage</h3>
 
               <ul>
-                <li>Local storage (POSIX)</li>
-                <li>Amazon S3</li>
+                <li>Local storage (POSIX, CIFS)</li>
+                <li>Amazon S3 and S3-compatible services</li>
                 <li>Azure Blob Storage</li>
                 <li>Google Cloud Storage</li>
+                <li>NAS (Network-attached storage)</li>
                 <li>SFTP</li>
               </ul>
 
