@@ -3,6 +3,9 @@ name: CI and Release
 on:
   push:
     branches: ["**"]
+    paths:
+      - '!.github/workflows/**'
+      - '!deploy/postgresus/**'
   pull_request:
     branches: ["**"]
   workflow_dispatch:
