@@ -1,4 +1,4 @@
-name: Release Charts
+name: Release Chart
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
       - name: Chart | Push
         uses: appany/helm-oci-chart-releaser@v0.5.0
         with:
-          name: postgresus-chart
+          name: postgresus
           repository: ${{ github.repository_owner }}
           tag: ${{ steps.get_version.outputs.chart_tag }}
           path: deploy/postgresus

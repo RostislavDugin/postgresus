@@ -161,42 +161,28 @@ docker compose up -d
 
 For Kubernetes deployments, use the official Helm chart.
 
-**Step 1:** Clone the repository:
-
-```bash
-git clone https://github.com/RostislavDugin/postgresus.git
-cd postgresus
-```
-
-**Step 2:** Install with Helm:
-
-```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace
-```
-
-To customize the installation, create a `values.yaml` file:
-
-```yaml
-ingress:
-  hosts:
-    - host: backup.yourdomain.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: backup-yourdomain-com-tls
+1. To customize the installation, create a `values.yaml` file:
+    ```yaml
+    ingress:
       hosts:
-        - backup.yourdomain.com
+        - host: backup.yourdomain.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: backup-yourdomain-com-tls
+          hosts:
+            - backup.yourdomain.com
 
-persistence:
-  size: 20Gi
-```
-
-Then install with your custom values:
-
-```bash
-helm install postgresus ./deploy/postgresus -n postgresus --create-namespace -f values.yaml
-```
+    persistence:
+      size: 20Gi
+    ```
+2. Install / Upgrade
+    ```bash
+    helm upgrade --install -n postgresus postgresus \
+      oci://github.com/RostislavDugin/postgresus \
+      --values my-values.yaml
+    ```
 
 See the [Helm chart README](deploy/postgresus/README.md) for all configuration options.
 
