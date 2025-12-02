@@ -31,7 +31,7 @@ jobs:
       - name: Helm Setup
         uses: azure/setup-helm@v4
         with:
-          version: ${{ steps.chart.outputs.version }}
+          version: v3.18.5
 
       - name: Helm Lint and Template Test
         run: |
