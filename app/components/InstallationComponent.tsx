@@ -76,7 +76,7 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     label: "Helm (Kubernetes)",
     language: "bash",
     description:
-      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and LoadBalancer service on port 80.",
+      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and LoadBalancer service on port 80. Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well.",
     code: "",
     codeBlocks: [
       {

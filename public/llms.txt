@@ -100,6 +100,7 @@ Content: How to configure Teams webhook notifications
    - Clone repository first: git clone https://github.com/RostislavDugin/postgresus.git
    - Official Helm chart for Kubernetes deployments
    - StatefulSet with persistent storage
+   - Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well
    - Configurable ingress with TLS support
    - Health checks with liveness/readiness probes
 
@@ -181,7 +182,7 @@ Each comparison explains the key differences, pros and cons and helps you choose
 Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts.
 
 ### Installation Time
-Typically less than 2 minutes on a standard VPS using the automated installer.
+Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. Typically less than 2 minutes on a standard VPS using the automated installer. For Kubernetes environments, use the official Helm chart for production-ready deployments.
 
 ### Backup Schedules
 Hourly, daily, weekly or monthly cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.

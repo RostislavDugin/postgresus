@@ -267,7 +267,9 @@ cd postgresus`;
               <p>
                 For Kubernetes deployments, use the official Helm chart. This
                 will create a StatefulSet with persistent storage and
-                LoadBalancer service on port 80.
+                LoadBalancer service on port 80. Config uses by default
+                LoadBalancer, but has predefined values for Ingress and
+                HTTPRoute as well.
               </p>
 
               <p>First, clone the repository:</p>

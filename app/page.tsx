@@ -332,7 +332,7 @@ export default function Index() {
                   width={20}
                   height={20}
                 />
-                <p>Run via .sh script, Docker or Docker Compose</p>
+                <p>Run via .sh script, Docker, Docker Compose or Helm</p>
               </div>
             </div>
 
@@ -892,8 +892,9 @@ export default function Index() {
             <h2 className="text-2xl font-bold sm:text-4xl">How to install?</h2>
 
             <p className="mt-5 max-w-[550px] text-base sm:text-lg">
-              You have three ways to install Postgresus: automated script
-              (recommended), simple Docker run or Docker Compose setup.
+              You have four ways to install Postgresus: automated script
+              (recommended), simple Docker run, Docker Compose setup or
+              Kubernetes with Helm.
             </p>
           </div>
 
@@ -965,12 +966,14 @@ export default function Index() {
                 </h3>
 
                 <p className="max-w-[500px] md:text-lg">
-                  The most direct route is to run the one-line cURL installer.
-                  It fetches the current Docker image, spins up a single
-                  PostgreSQL container. Then creates a docker-compose.yml and
-                  boots up the service so it will automatically start again when
-                  reboots occur. Overall time is usually less than two minutes
-                  on a typical VPS.
+                  Postgresus supports multiple installation methods: automated
+                  script, Docker, Docker Compose and Kubernetes with Helm. The
+                  quickest route is to run the one-line cURL installer, which
+                  fetches the current Docker image, creates a docker-compose.yml
+                  and boots up the service so it will automatically restart on
+                  reboots. For Kubernetes environments, use the official Helm
+                  chart for production-ready deployments. Overall time is
+                  usually less than two minutes on a typical VPS.
                 </p>
               </div>
 
