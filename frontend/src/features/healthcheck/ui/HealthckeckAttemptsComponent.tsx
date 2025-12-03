@@ -79,9 +79,12 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
 
   useEffect(() => {
     let interval: number | null = null;
+    let isCancelled = false;
 
     setIsHealthcheckConfigLoading(true);
     healthcheckConfigApi.getHealthcheckConfig(database.id).then((healthcheckConfig) => {
+      if (isCancelled) return;
+
       setIsHealthcheckConfigLoading(false);
 
       if (healthcheckConfig.isHealthcheckEnabled) {
@@ -93,17 +96,18 @@ export const HealthckeckAttemptsComponent = ({ database }: Props) => {
         if (period === 'today') {
           interval = setInterval(() => {
             loadHealthcheckAttempts(false);
-          }, 60_000); // 5 seconds
+          }, 60_000);
         }
       }
     });
 
     return () => {
+      isCancelled = true;
       if (interval) {
         clearInterval(interval);
       }
     };
-  }, [period]);
+  }, [database.id, period]);
 
   if (isHealthcheckConfigLoading) {
     return (
