@@ -45,6 +45,11 @@ type CreatePostgresqlBackupUsecase struct {
 	fieldEncryptor   encryption.FieldEncryptor
 }
 
+type writeResult struct {
+	bytesWritten int
+	writeErr     error
+}
+
 // Execute creates a backup of the database
 func (uc *CreatePostgresqlBackupUsecase) Execute(
 	ctx context.Context,
@@ -172,7 +177,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	// Start streaming into storage in its own goroutine
 	saveErrCh := make(chan error, 1)
 	go func() {
-		saveErr := storage.SaveFile(uc.fieldEncryptor, uc.logger, backupID, storageReader)
+		saveErr := storage.SaveFile(ctx, uc.fieldEncryptor, uc.logger, backupID, storageReader)
 		saveErrCh <- saveErr
 	}()
 
@@ -195,12 +200,10 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		copyResultCh <- err
 	}()
 
-	// Wait for the copy to finish first, then the dump process
 	copyErr := <-copyResultCh
 	bytesWritten := <-bytesWrittenCh
 	waitErr := cmd.Wait()
 
-	// Check for shutdown or cancellation before finalizing
 	select {
 	case <-ctx.Done():
 		uc.cleanupOnCancellation(encryptionWriter, storageWriter, saveErrCh)
@@ -213,7 +216,6 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	// Wait until storage ends reading
 	saveErr := <-saveErrCh
 	stderrOutput := <-stderrCh
 
@@ -267,7 +269,23 @@ func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
 
 		bytesRead, readErr := src.Read(buf)
 		if bytesRead > 0 {
-			bytesWritten, writeErr := dst.Write(buf[0:bytesRead])
+			writeResultCh := make(chan writeResult, 1)
+			go func() {
+				bytesWritten, writeErr := dst.Write(buf[0:bytesRead])
+				writeResultCh <- writeResult{bytesWritten, writeErr}
+			}()
+
+			var bytesWritten int
+			var writeErr error
+
+			select {
+			case <-ctx.Done():
+				return totalBytesWritten, fmt.Errorf("copy cancelled during write: %w", ctx.Err())
+			case result := <-writeResultCh:
+				bytesWritten = result.bytesWritten
+				writeErr = result.writeErr
+			}
+
 			if bytesWritten < 0 || bytesRead < bytesWritten {
 				bytesWritten = 0
 				if writeErr == nil {
@@ -353,6 +371,9 @@ func (uc *CreatePostgresqlBackupUsecase) createBackupContext(
 		for {
 			select {
 			case <-ctx.Done():
+				return
+			case <-parentCtx.Done():
+				cancel()
 				return
 			case <-ticker.C:
 				if config.IsShouldShutdown() {

@@ -3,18 +3,43 @@ package azure_blob_storage
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/google/uuid"
 )
+
+const (
+	azureConnectTimeout      = 30 * time.Second
+	azureResponseTimeout     = 30 * time.Second
+	azureIdleConnTimeout     = 90 * time.Second
+	azureTLSHandshakeTimeout = 30 * time.Second
+
+	// Chunk size for block blob uploads - 16MB provides good balance between
+	// memory usage and upload efficiency. This creates backpressure to pg_dump
+	// by only reading one chunk at a time and waiting for Azure to confirm receipt.
+	azureChunkSize = 16 * 1024 * 1024
+)
+
+type readSeekCloser struct {
+	*bytes.Reader
+}
+
+func (r *readSeekCloser) Close() error {
+	return nil
+}
 
 type AuthMethod string
 
@@ -39,27 +64,91 @@ func (s *AzureBlobStorage) TableName() string {
 }
 
 func (s *AzureBlobStorage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("upload cancelled before start: %w", ctx.Err())
+	default:
+	}
+
 	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
 
 	blobName := s.buildBlobName(fileID.String())
+	blockBlobClient := client.ServiceClient().
+		NewContainerClient(s.ContainerName).
+		NewBlockBlobClient(blobName)
 
-	_, err = client.UploadStream(
-		context.TODO(),
-		s.ContainerName,
-		blobName,
-		file,
-		nil,
-	)
+	var blockIDs []string
+	blockNumber := 0
+	buf := make([]byte, azureChunkSize)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("upload cancelled: %w", ctx.Err())
+		default:
+		}
+
+		n, readErr := io.ReadFull(file, buf)
+
+		if n == 0 && readErr == io.EOF {
+			break
+		}
+
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			return fmt.Errorf("read error: %w", readErr)
+		}
+
+		blockID := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%06d", blockNumber)))
+
+		_, err := blockBlobClient.StageBlock(
+			ctx,
+			blockID,
+			&readSeekCloser{bytes.NewReader(buf[:n])},
+			nil,
+		)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("upload cancelled: %w", ctx.Err())
+			default:
+				return fmt.Errorf("failed to stage block %d: %w", blockNumber, err)
+			}
+		}
+
+		blockIDs = append(blockIDs, blockID)
+		blockNumber++
+
+		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+			break
+		}
+	}
+
+	if len(blockIDs) == 0 {
+		_, err = client.UploadStream(
+			ctx,
+			s.ContainerName,
+			blobName,
+			bytes.NewReader([]byte{}),
+			nil,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to upload empty blob: %w", err)
+		}
+		return nil
+	}
+
+	_, err = blockBlobClient.CommitBlockList(ctx, blockIDs, &blockblob.CommitBlockListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to upload blob to Azure: %w", err)
+		return fmt.Errorf("failed to commit block list: %w", err)
 	}
 
 	return nil
@@ -253,6 +342,8 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 	var client *azblob.Client
 	var err error
 
+	clientOptions := s.buildClientOptions()
+
 	switch s.AuthMethod {
 	case AuthMethodConnectionString:
 		connectionString, decryptErr := encryptor.Decrypt(s.StorageID, s.ConnectionString)
@@ -260,7 +351,7 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 			return nil, fmt.Errorf("failed to decrypt Azure connection string: %w", decryptErr)
 		}
 
-		client, err = azblob.NewClientFromConnectionString(connectionString, nil)
+		client, err = azblob.NewClientFromConnectionString(connectionString, clientOptions)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to create Azure Blob client from connection string: %w",
@@ -279,7 +370,7 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 			return nil, fmt.Errorf("failed to create Azure shared key credential: %w", credErr)
 		}
 
-		client, err = azblob.NewClientWithSharedKeyCredential(accountURL, credential, nil)
+		client, err = azblob.NewClientWithSharedKeyCredential(accountURL, credential, clientOptions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Azure Blob client with shared key: %w", err)
 		}
@@ -288,6 +379,26 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 	}
 
 	return client, nil
+}
+
+func (s *AzureBlobStorage) buildClientOptions() *azblob.ClientOptions {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: azureConnectTimeout,
+		}).DialContext,
+		TLSHandshakeTimeout:   azureTLSHandshakeTimeout,
+		ResponseHeaderTimeout: azureResponseTimeout,
+		IdleConnTimeout:       azureIdleConnTimeout,
+	}
+
+	return &azblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Transport: &http.Client{Transport: transport},
+			Retry: policy.RetryOptions{
+				MaxRetries: 0,
+			},
+		},
+	}
 }
 
 func (s *AzureBlobStorage) buildAccountURL() string {

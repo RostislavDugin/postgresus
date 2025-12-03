@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
@@ -16,7 +18,20 @@ import (
 	"golang.org/x/oauth2/google"
 
 	drive "google.golang.org/api/drive/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+)
+
+const (
+	gdConnectTimeout      = 30 * time.Second
+	gdResponseTimeout     = 30 * time.Second
+	gdIdleConnTimeout     = 90 * time.Second
+	gdTLSHandshakeTimeout = 30 * time.Second
+
+	// Chunk size for Google Drive resumable uploads - 16MB provides good balance
+	// between memory usage and upload efficiency. Google Drive requires chunks
+	// to be multiples of 256KB for resumable uploads.
+	gdChunkSize = 16 * 1024 * 1024
 )
 
 type GoogleDriveStorage struct {
@@ -31,31 +46,44 @@ func (s *GoogleDriveStorage) TableName() string {
 }
 
 func (s *GoogleDriveStorage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
-	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
-		ctx := context.Background()
+	return s.withRetryOnAuth(ctx, encryptor, func(driveService *drive.Service) error {
 		filename := fileID.String()
 
-		// Ensure the postgresus_backups folder exists
 		folderID, err := s.ensureBackupsFolderExists(ctx, driveService)
 		if err != nil {
 			return fmt.Errorf("failed to create/find backups folder: %w", err)
 		}
 
-		// Delete any previous copy so we keep at most one object per logical file.
-		_ = s.deleteByName(ctx, driveService, filename, folderID) // ignore "not found"
+		_ = s.deleteByName(ctx, driveService, filename, folderID)
 
 		fileMeta := &drive.File{
 			Name:    filename,
 			Parents: []string{folderID},
 		}
 
-		_, err = driveService.Files.Create(fileMeta).Media(file).Context(ctx).Do()
+		backpressureReader := &backpressureReader{
+			reader:    file,
+			ctx:       ctx,
+			chunkSize: gdChunkSize,
+			buf:       make([]byte, gdChunkSize),
+		}
+
+		_, err = driveService.Files.Create(fileMeta).
+			Media(backpressureReader, googleapi.ChunkSize(gdChunkSize)).
+			Context(ctx).
+			Do()
 		if err != nil {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("upload cancelled: %w", ctx.Err())
+			default:
+			}
 			return fmt.Errorf("failed to upload file to Google Drive: %w", err)
 		}
 
@@ -70,30 +98,85 @@ func (s *GoogleDriveStorage) SaveFile(
 	})
 }
 
+type backpressureReader struct {
+	reader     io.Reader
+	ctx        context.Context
+	chunkSize  int
+	buf        []byte
+	bufStart   int
+	bufEnd     int
+	totalBytes int64
+	chunkCount int
+}
+
+func (r *backpressureReader) Read(p []byte) (n int, err error) {
+	select {
+	case <-r.ctx.Done():
+		return 0, r.ctx.Err()
+	default:
+	}
+
+	if r.bufStart >= r.bufEnd {
+		r.chunkCount++
+
+		bytesRead, readErr := io.ReadFull(r.reader, r.buf)
+		if bytesRead > 0 {
+			r.bufStart = 0
+			r.bufEnd = bytesRead
+		}
+
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			return 0, readErr
+		}
+
+		if bytesRead == 0 && readErr == io.EOF {
+			return 0, io.EOF
+		}
+	}
+
+	n = copy(p, r.buf[r.bufStart:r.bufEnd])
+	r.bufStart += n
+	r.totalBytes += int64(n)
+
+	if r.bufStart >= r.bufEnd {
+		select {
+		case <-r.ctx.Done():
+			return n, r.ctx.Err()
+		default:
+		}
+	}
+
+	return n, nil
+}
+
 func (s *GoogleDriveStorage) GetFile(
 	encryptor encryption.FieldEncryptor,
 	fileID uuid.UUID,
 ) (io.ReadCloser, error) {
 	var result io.ReadCloser
-	err := s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
-		folderID, err := s.findBackupsFolder(driveService)
-		if err != nil {
-			return fmt.Errorf("failed to find backups folder: %w", err)
-		}
+	err := s.withRetryOnAuth(
+		context.Background(),
+		encryptor,
+		func(driveService *drive.Service) error {
+			folderID, err := s.findBackupsFolder(driveService)
+			if err != nil {
+				return fmt.Errorf("failed to find backups folder: %w", err)
+			}
 
-		fileIDGoogle, err := s.lookupFileID(driveService, fileID.String(), folderID)
-		if err != nil {
-			return err
-		}
+			fileIDGoogle, err := s.lookupFileID(driveService, fileID.String(), folderID)
+			if err != nil {
+				return err
+			}
 
-		resp, err := driveService.Files.Get(fileIDGoogle).Download()
-		if err != nil {
-			return fmt.Errorf("failed to download file from Google Drive: %w", err)
-		}
+			resp, err := driveService.Files.Get(fileIDGoogle).Download()
+			if err != nil {
+				return fmt.Errorf("failed to download file from Google Drive: %w", err)
+			}
 
-		result = resp.Body
-		return nil
-	})
+			result = resp.Body
+			return nil
+		},
+	)
 
 	return result, err
 }
@@ -102,8 +185,8 @@ func (s *GoogleDriveStorage) DeleteFile(
 	encryptor encryption.FieldEncryptor,
 	fileID uuid.UUID,
 ) error {
-	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
-		ctx := context.Background()
+	ctx := context.Background()
+	return s.withRetryOnAuth(ctx, encryptor, func(driveService *drive.Service) error {
 		folderID, err := s.findBackupsFolder(driveService)
 		if err != nil {
 			return fmt.Errorf("failed to find backups folder: %w", err)
@@ -142,8 +225,8 @@ func (s *GoogleDriveStorage) Validate(encryptor encryption.FieldEncryptor) error
 }
 
 func (s *GoogleDriveStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
-	return s.withRetryOnAuth(encryptor, func(driveService *drive.Service) error {
-		ctx := context.Background()
+	ctx := context.Background()
+	return s.withRetryOnAuth(ctx, encryptor, func(driveService *drive.Service) error {
 		testFilename := "test-connection-" + uuid.New().String()
 		testData := []byte("test")
 
@@ -243,9 +326,16 @@ func (s *GoogleDriveStorage) Update(incoming *GoogleDriveStorage) {
 
 // withRetryOnAuth executes the provided function with retry logic for authentication errors
 func (s *GoogleDriveStorage) withRetryOnAuth(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	fn func(*drive.Service) error,
 ) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	driveService, err := s.getDriveService(encryptor)
 	if err != nil {
 		return err
@@ -253,6 +343,12 @@ func (s *GoogleDriveStorage) withRetryOnAuth(
 
 	err = fn(driveService)
 	if err != nil && s.isAuthError(err) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		// Try to refresh token and retry once
 		fmt.Printf("Google Drive auth error detected, attempting token refresh: %v\n", err)
 
@@ -422,7 +518,6 @@ func (s *GoogleDriveStorage) getDriveService(
 		return nil, err
 	}
 
-	// Decrypt credentials before use
 	clientSecret, err := encryptor.Decrypt(s.StorageID, s.ClientSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt Google Drive client secret: %w", err)
@@ -449,21 +544,39 @@ func (s *GoogleDriveStorage) getDriveService(
 
 	tokenSource := cfg.TokenSource(ctx, &token)
 
-	// Force token validation to ensure we're using the current token
 	currentToken, err := tokenSource.Token()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current token: %w", err)
 	}
 
-	// Create a new token source with the validated token
 	validatedTokenSource := oauth2.StaticTokenSource(currentToken)
 
-	driveService, err := drive.NewService(ctx, option.WithTokenSource(validatedTokenSource))
+	httpClient := s.buildHTTPClient(validatedTokenSource)
+
+	driveService, err := drive.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Drive client: %w", err)
 	}
 
 	return driveService, nil
+}
+
+func (s *GoogleDriveStorage) buildHTTPClient(tokenSource oauth2.TokenSource) *http.Client {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: gdConnectTimeout,
+		}).DialContext,
+		TLSHandshakeTimeout:   gdTLSHandshakeTimeout,
+		ResponseHeaderTimeout: gdResponseTimeout,
+		IdleConnTimeout:       gdIdleConnTimeout,
+	}
+
+	return &http.Client{
+		Transport: &oauth2.Transport{
+			Source: tokenSource,
+			Base:   transport,
+		},
+	}
 }
 
 func (s *GoogleDriveStorage) lookupFileID(

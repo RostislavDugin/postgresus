@@ -167,6 +167,7 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				fileID := uuid.New()
 
 				err = tc.storage.SaveFile(
+					context.Background(),
 					encryptor,
 					logger.GetLogger(),
 					fileID,
@@ -189,6 +190,7 @@ func Test_Storage_BasicOperations(t *testing.T) {
 
 				fileID := uuid.New()
 				err = tc.storage.SaveFile(
+					context.Background(),
 					encryptor,
 					logger.GetLogger(),
 					fileID,
@@ -238,7 +240,7 @@ func setupS3Container(ctx context.Context) (*S3Container, error) {
 	secretKey := "testpassword"
 	bucketName := "test-bucket"
 	region := "us-east-1"
-	endpoint := fmt.Sprintf("localhost:%s", env.TestMinioPort)
+	endpoint := fmt.Sprintf("127.0.0.1:%s", env.TestMinioPort)
 
 	// Create MinIO client and ensure bucket exists
 	minioClient, err := minio.New(endpoint, &minio.Options{

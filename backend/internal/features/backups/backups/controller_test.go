@@ -1,6 +1,7 @@
 package backups
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -701,7 +702,7 @@ func createTestBackup(
 	dummyContent := []byte("dummy backup content for testing")
 	reader := strings.NewReader(string(dummyContent))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := storages[0].SaveFile(encryption.GetFieldEncryptor(), logger, backup.ID, reader); err != nil {
+	if err := storages[0].SaveFile(context.Background(), encryption.GetFieldEncryptor(), logger, backup.ID, reader); err != nil {
 		panic(fmt.Sprintf("Failed to create test backup file: %v", err))
 	}
 

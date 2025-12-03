@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"postgresus-backend/internal/util/encryption"
@@ -10,6 +11,7 @@ import (
 
 type StorageFileSaver interface {
 	SaveFile(
+		ctx context.Context,
 		encryptor encryption.FieldEncryptor,
 		logger *slog.Logger,
 		fileID uuid.UUID,

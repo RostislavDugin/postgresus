@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -30,12 +31,13 @@ type Storage struct {
 }
 
 func (s *Storage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
-	err := s.getSpecificStorage().SaveFile(encryptor, logger, fileID, file)
+	err := s.getSpecificStorage().SaveFile(ctx, encryptor, logger, fileID, file)
 	if err != nil {
 		lastSaveError := err.Error()
 		s.LastSaveError = &lastSaveError

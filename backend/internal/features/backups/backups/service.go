@@ -275,7 +275,12 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		errMsg := err.Error()
 
 		// Check if backup was cancelled (not due to shutdown)
-		if strings.Contains(errMsg, "backup cancelled") && !strings.Contains(errMsg, "shutdown") {
+		isCancelled := strings.Contains(errMsg, "backup cancelled") ||
+			strings.Contains(errMsg, "context canceled") ||
+			errors.Is(err, context.Canceled)
+		isShutdown := strings.Contains(errMsg, "shutdown")
+
+		if isCancelled && !isShutdown {
 			backup.Status = BackupStatusCanceled
 			backup.BackupDurationMs = time.Since(start).Milliseconds()
 			backup.BackupSizeMb = 0

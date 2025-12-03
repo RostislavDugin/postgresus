@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
@@ -14,6 +16,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+const (
+	s3ConnectTimeout      = 30 * time.Second
+	s3ResponseTimeout     = 30 * time.Second
+	s3IdleConnTimeout     = 90 * time.Second
+	s3TLSHandshakeTimeout = 30 * time.Second
+
+	// Chunk size for multipart uploads - 16MB provides good balance between
+	// memory usage and upload efficiency. This creates backpressure to pg_dump
+	// by only reading one chunk at a time and waiting for S3 to confirm receipt.
+	multipartChunkSize = 16 * 1024 * 1024
 )
 
 type S3Storage struct {
@@ -33,29 +47,123 @@ func (s *S3Storage) TableName() string {
 }
 
 func (s *S3Storage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
-	client, err := s.getClient(encryptor)
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("upload cancelled before start: %w", ctx.Err())
+	default:
+	}
+
+	coreClient, err := s.getCoreClient(encryptor)
 	if err != nil {
 		return err
 	}
 
 	objectKey := s.buildObjectKey(fileID.String())
 
-	// Upload the file using MinIO client with streaming (size = -1 for unknown size)
-	_, err = client.PutObject(
-		context.TODO(),
+	uploadID, err := coreClient.NewMultipartUpload(
+		ctx,
 		s.S3Bucket,
 		objectKey,
-		file,
-		-1,
 		minio.PutObjectOptions{},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to upload file to S3: %w", err)
+		return fmt.Errorf("failed to initiate multipart upload: %w", err)
+	}
+
+	var parts []minio.CompletePart
+	partNumber := 1
+	buf := make([]byte, multipartChunkSize)
+
+	for {
+		select {
+		case <-ctx.Done():
+			_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
+			return fmt.Errorf("upload cancelled: %w", ctx.Err())
+		default:
+		}
+
+		n, readErr := io.ReadFull(file, buf)
+
+		if n == 0 && readErr == io.EOF {
+			break
+		}
+
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
+			return fmt.Errorf("read error: %w", readErr)
+		}
+
+		part, err := coreClient.PutObjectPart(
+			ctx,
+			s.S3Bucket,
+			objectKey,
+			uploadID,
+			partNumber,
+			bytes.NewReader(buf[:n]),
+			int64(n),
+			minio.PutObjectPartOptions{},
+		)
+		if err != nil {
+			_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
+
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("upload cancelled: %w", ctx.Err())
+			default:
+				return fmt.Errorf("failed to upload part %d: %w", partNumber, err)
+			}
+		}
+
+		parts = append(parts, minio.CompletePart{
+			PartNumber: partNumber,
+			ETag:       part.ETag,
+		})
+
+		partNumber++
+
+		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+			break
+		}
+	}
+
+	if len(parts) == 0 {
+		_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
+
+		client, err := s.getClient(encryptor)
+		if err != nil {
+			return err
+		}
+		_, err = client.PutObject(
+			ctx,
+			s.S3Bucket,
+			objectKey,
+			bytes.NewReader([]byte{}),
+			0,
+			minio.PutObjectOptions{},
+		)
+		if err != nil {
+			return fmt.Errorf("failed to upload empty file: %w", err)
+		}
+		return nil
+	}
+
+	_, err = coreClient.CompleteMultipartUpload(
+		ctx,
+		s.S3Bucket,
+		objectKey,
+		uploadID,
+		parts,
+		minio.PutObjectOptions{},
+	)
+	if err != nil {
+		_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
+		return fmt.Errorf("failed to complete multipart upload: %w", err)
 	}
 
 	return nil
@@ -252,8 +360,54 @@ func (s *S3Storage) buildObjectKey(fileName string) string {
 }
 
 func (s *S3Storage) getClient(encryptor encryption.FieldEncryptor) (*minio.Client, error) {
-	endpoint := s.S3Endpoint
-	useSSL := true
+	endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, err := s.getClientParams(
+		encryptor,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	minioClient, err := minio.New(endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure:       useSSL,
+		Region:       s.S3Region,
+		BucketLookup: bucketLookup,
+		Transport:    transport,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MinIO client: %w", err)
+	}
+
+	return minioClient, nil
+}
+
+func (s *S3Storage) getCoreClient(encryptor encryption.FieldEncryptor) (*minio.Core, error) {
+	endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, err := s.getClientParams(
+		encryptor,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	coreClient, err := minio.NewCore(endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure:       useSSL,
+		Region:       s.S3Region,
+		BucketLookup: bucketLookup,
+		Transport:    transport,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MinIO Core client: %w", err)
+	}
+
+	return coreClient, nil
+}
+
+func (s *S3Storage) getClientParams(
+	encryptor encryption.FieldEncryptor,
+) (endpoint string, useSSL bool, accessKey string, secretKey string, bucketLookup minio.BucketLookupType, transport *http.Transport, err error) {
+	endpoint = s.S3Endpoint
+	useSSL = true
 
 	if strings.HasPrefix(endpoint, "http://") {
 		useSSL = false
@@ -262,38 +416,33 @@ func (s *S3Storage) getClient(encryptor encryption.FieldEncryptor) (*minio.Clien
 		endpoint = strings.TrimPrefix(endpoint, "https://")
 	}
 
-	// If no endpoint is provided, use the AWS S3 endpoint for the region
 	if endpoint == "" {
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", s.S3Region)
 	}
 
-	// Decrypt credentials before use
-	accessKey, err := encryptor.Decrypt(s.StorageID, s.S3AccessKey)
+	accessKey, err = encryptor.Decrypt(s.StorageID, s.S3AccessKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt S3 access key: %w", err)
+		return "", false, "", "", 0, nil, fmt.Errorf("failed to decrypt S3 access key: %w", err)
 	}
 
-	secretKey, err := encryptor.Decrypt(s.StorageID, s.S3SecretKey)
+	secretKey, err = encryptor.Decrypt(s.StorageID, s.S3SecretKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt S3 secret key: %w", err)
+		return "", false, "", "", 0, nil, fmt.Errorf("failed to decrypt S3 secret key: %w", err)
 	}
 
-	// Configure bucket lookup strategy
-	bucketLookup := minio.BucketLookupAuto
+	bucketLookup = minio.BucketLookupAuto
 	if s.S3UseVirtualHostedStyle {
 		bucketLookup = minio.BucketLookupDNS
 	}
 
-	// Initialize the MinIO client
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure:       useSSL,
-		Region:       s.S3Region,
-		BucketLookup: bucketLookup,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize MinIO client: %w", err)
+	transport = &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: s3ConnectTimeout,
+		}).DialContext,
+		TLSHandshakeTimeout:   s3TLSHandshakeTimeout,
+		ResponseHeaderTimeout: s3ResponseTimeout,
+		IdleConnTimeout:       s3IdleConnTimeout,
 	}
 
-	return minioClient, nil
+	return endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, nil
 }

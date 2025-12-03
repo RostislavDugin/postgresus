@@ -1,6 +1,7 @@
 package nas_storage
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -14,6 +15,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hirochachacha/go-smb2"
+)
+
+const (
+	// Chunk size for NAS uploads - 16MB provides good balance between
+	// memory usage and upload efficiency. This creates backpressure to pg_dump
+	// by only reading one chunk at a time and waiting for NAS to confirm receipt.
+	nasChunkSize = 16 * 1024 * 1024
 )
 
 type NASStorage struct {
@@ -33,14 +41,21 @@ func (n *NASStorage) TableName() string {
 }
 
 func (n *NASStorage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	logger.Info("Starting to save file to NAS storage", "fileId", fileID.String(), "host", n.Host)
 
-	session, err := n.createSession(encryptor)
+	session, err := n.createSessionWithContext(ctx, encryptor)
 	if err != nil {
 		logger.Error("Failed to create NAS session", "fileId", fileID.String(), "error", err)
 		return fmt.Errorf("failed to create NAS session: %w", err)
@@ -121,7 +136,7 @@ func (n *NASStorage) SaveFile(
 	}()
 
 	logger.Debug("Copying file data to NAS", "fileId", fileID.String())
-	_, err = io.Copy(nasFile, file)
+	_, err = copyWithContext(ctx, nasFile, file)
 	if err != nil {
 		logger.Error("Failed to write file to NAS", "fileId", fileID.String(), "error", err)
 		return fmt.Errorf("failed to write file to NAS: %w", err)
@@ -290,20 +305,24 @@ func (n *NASStorage) Update(incoming *NASStorage) {
 }
 
 func (n *NASStorage) createSession(encryptor encryption.FieldEncryptor) (*smb2.Session, error) {
-	// Create connection with timeout
-	conn, err := n.createConnection()
+	return n.createSessionWithContext(context.Background(), encryptor)
+}
+
+func (n *NASStorage) createSessionWithContext(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+) (*smb2.Session, error) {
+	conn, err := n.createConnectionWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Decrypt password before use
 	password, err := encryptor.Decrypt(n.StorageID, n.Password)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("failed to decrypt NAS password: %w", err)
 	}
 
-	// Create SMB2 dialer
 	d := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
 			User:     n.Username,
@@ -312,7 +331,6 @@ func (n *NASStorage) createSession(encryptor encryption.FieldEncryptor) (*smb2.S
 		},
 	}
 
-	// Create session
 	session, err := d.Dial(conn)
 	if err != nil {
 		_ = conn.Close()
@@ -322,34 +340,30 @@ func (n *NASStorage) createSession(encryptor encryption.FieldEncryptor) (*smb2.S
 	return session, nil
 }
 
-func (n *NASStorage) createConnection() (net.Conn, error) {
+func (n *NASStorage) createConnectionWithContext(ctx context.Context) (net.Conn, error) {
 	address := net.JoinHostPort(n.Host, fmt.Sprintf("%d", n.Port))
 
-	// Create connection with timeout
 	dialer := &net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	if n.UseSSL {
-		// Use TLS connection
 		tlsConfig := &tls.Config{
 			ServerName:         n.Host,
-			InsecureSkipVerify: false, // Change to true if you want to skip cert verification
+			InsecureSkipVerify: false,
 		}
-
 		conn, err := tls.DialWithDialer(dialer, "tcp", address, tlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create SSL connection to %s: %w", address, err)
 		}
 		return conn, nil
-	} else {
-		// Use regular TCP connection
-		conn, err := dialer.Dial("tcp", address)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create connection to %s: %w", address, err)
-		}
-		return conn, nil
 	}
+
+	conn, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection to %s: %w", address, err)
+	}
+	return conn, nil
 }
 
 func (n *NASStorage) ensureDirectory(fs *smb2.Share, path string) error {
@@ -443,4 +457,72 @@ func (r *nasFileReader) Close() error {
 	}
 
 	return nil
+}
+
+type writeResult struct {
+	bytesWritten int
+	writeErr     error
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, nasChunkSize)
+	var written int64
+
+	for {
+		select {
+		case <-ctx.Done():
+			return written, ctx.Err()
+		default:
+		}
+
+		nr, readErr := io.ReadFull(src, buf)
+
+		if nr == 0 && readErr == io.EOF {
+			break
+		}
+
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			return written, readErr
+		}
+
+		writeResultCh := make(chan writeResult, 1)
+		go func() {
+			nw, writeErr := dst.Write(buf[0:nr])
+			writeResultCh <- writeResult{nw, writeErr}
+		}()
+
+		var nw int
+		var writeErr error
+
+		select {
+		case <-ctx.Done():
+			return written, ctx.Err()
+		case result := <-writeResultCh:
+			nw = result.bytesWritten
+			writeErr = result.writeErr
+		}
+
+		if nw < 0 || nr < nw {
+			nw = 0
+			if writeErr == nil {
+				writeErr = errors.New("invalid write result")
+			}
+		}
+
+		if writeErr != nil {
+			return written, writeErr
+		}
+
+		if nr != nw {
+			return written, io.ErrShortWrite
+		}
+
+		written += int64(nw)
+
+		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+			break
+		}
+	}
+
+	return written, nil
 }

@@ -1,6 +1,8 @@
 package local_storage
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +13,13 @@ import (
 	files_utils "postgresus-backend/internal/util/files"
 
 	"github.com/google/uuid"
+)
+
+const (
+	// Chunk size for local storage writes - 16MB provides good balance between
+	// memory usage and write efficiency. This creates backpressure to pg_dump
+	// by only reading one chunk at a time and waiting for disk to confirm receipt.
+	localChunkSize = 16 * 1024 * 1024
 )
 
 // LocalStorage uses ./postgresus_local_backups folder as a
@@ -25,11 +34,18 @@ func (l *LocalStorage) TableName() string {
 }
 
 func (l *LocalStorage) SaveFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileID uuid.UUID,
 	file io.Reader,
 ) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	logger.Info("Starting to save file to local storage", "fileId", fileID.String())
 
 	err := files_utils.EnsureDirectories([]string{
@@ -60,7 +76,7 @@ func (l *LocalStorage) SaveFile(
 	}()
 
 	logger.Debug("Copying file data to temp file", "fileId", fileID.String())
-	_, err = io.Copy(tempFile, file)
+	_, err = copyWithContext(ctx, tempFile, file)
 	if err != nil {
 		logger.Error("Failed to write to temp file", "fileId", fileID.String(), "error", err)
 		return fmt.Errorf("failed to write to temp file: %w", err)
@@ -174,4 +190,72 @@ func (l *LocalStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor)
 }
 
 func (l *LocalStorage) Update(incoming *LocalStorage) {
+}
+
+type writeResult struct {
+	bytesWritten int
+	writeErr     error
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, localChunkSize)
+	var written int64
+
+	for {
+		select {
+		case <-ctx.Done():
+			return written, ctx.Err()
+		default:
+		}
+
+		nr, readErr := io.ReadFull(src, buf)
+
+		if nr == 0 && readErr == io.EOF {
+			break
+		}
+
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			return written, readErr
+		}
+
+		writeResultCh := make(chan writeResult, 1)
+		go func() {
+			nw, writeErr := dst.Write(buf[0:nr])
+			writeResultCh <- writeResult{nw, writeErr}
+		}()
+
+		var nw int
+		var writeErr error
+
+		select {
+		case <-ctx.Done():
+			return written, ctx.Err()
+		case result := <-writeResultCh:
+			nw = result.bytesWritten
+			writeErr = result.writeErr
+		}
+
+		if nw < 0 || nr < nw {
+			nw = 0
+			if writeErr == nil {
+				writeErr = errors.New("invalid write result")
+			}
+		}
+
+		if writeErr != nil {
+			return written, writeErr
+		}
+
+		if nr != nw {
+			return written, io.ErrShortWrite
+		}
+
+		written += int64(nw)
+
+		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+			break
+		}
+	}
+
+	return written, nil
 }
