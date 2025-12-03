@@ -184,6 +184,8 @@ Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
 
 To customize the installation (e.g., storage size, NodePort instead of LoadBalancer), see the [Helm chart README](deploy/helm/README.md) for all configuration options.
 
+Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well.
+
 ---
 
 ## 🚀 Usage

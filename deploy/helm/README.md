@@ -55,9 +55,17 @@ Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
 | `service.targetPort`       | Container port          | `4005`         |
 | `service.headless.enabled` | Enable headless service | `true`         |
 
-### Ingress (Optional)
+### Traffic Exposure (3 Options)
 
-Ingress is disabled by default. The chart uses LoadBalancer service for direct IP access.
+The chart supports 3 ways to expose Postgresus:
+
+| Method | Use Case | Default |
+| ------ | -------- | ------- |
+| **LoadBalancer/NodePort** | Simple cloud clusters | Enabled |
+| **Ingress** | Traditional nginx/traefik ingress controllers | Disabled |
+| **HTTPRoute (Gateway API)** | Modern gateways (Istio, Envoy, Cilium) | Disabled |
+
+#### Ingress
 
 | Parameter               | Description       | Default Value            |
 | ----------------------- | ----------------- | ------------------------ |
@@ -65,6 +73,16 @@ Ingress is disabled by default. The chart uses LoadBalancer service for direct I
 | `ingress.className`     | Ingress class     | `nginx`                  |
 | `ingress.hosts[0].host` | Hostname          | `postgresus.example.com` |
 | `ingress.tls`           | TLS configuration | `[]`                     |
+
+#### HTTPRoute (Gateway API)
+
+| Parameter             | Description                | Default Value                      |
+| --------------------- | -------------------------- | ---------------------------------- |
+| `route.enabled`       | Enable HTTPRoute           | `false`                            |
+| `route.apiVersion`    | Gateway API version        | `gateway.networking.k8s.io/v1`     |
+| `route.hostnames`     | Hostnames for the route    | `["postgresus.example.com"]`       |
+| `route.parentRefs`    | Gateway references         | `[]`                               |
+| `route.annotations`   | Route annotations          | `{}`                               |
 
 ### Health Checks
 
@@ -134,6 +152,28 @@ ingress:
 
 ```bash
 helm install postgresus ./deploy/helm -n postgresus --create-namespace -f ingress-values.yaml
+```
+
+### HTTPRoute (Gateway API)
+
+For clusters using Istio, Envoy Gateway, Cilium, or other Gateway API implementations:
+
+```yaml
+# httproute-values.yaml
+service:
+  type: ClusterIP
+
+route:
+  enabled: true
+  hostnames:
+    - backup.example.com
+  parentRefs:
+    - name: my-gateway
+      namespace: istio-system
+```
+
+```bash
+helm install postgresus ./deploy/helm -n postgresus --create-namespace -f httproute-values.yaml
 ```
 
 ### Custom Storage Size
