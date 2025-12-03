@@ -55,6 +55,19 @@ ingress:
           pathType: Prefix
   tls: []
 
+# HTTPRoute configuration for Gateway API
+route:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  annotations: {}
+  hostnames:
+  - postgresus.example.com
+  parentRefs: []
+  filters: []
+  matches: []
+  timeouts: {}
+
 # Health checks configuration
 # Note: The application only has /api/v1/system/health endpoint
 livenessProbe:
