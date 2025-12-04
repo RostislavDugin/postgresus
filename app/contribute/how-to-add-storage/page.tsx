@@ -124,8 +124,9 @@ export default function HowToAddStoragePage() {
               <ul>
                 <li>
                   <code>
-                    SaveFile(encryptor encryption.FieldEncryptor, logger
-                    *slog.Logger, fileID uuid.UUID, file io.Reader) error
+                    SaveFile(ctx context.Context, encryptor
+                    encryption.FieldEncryptor, logger *slog.Logger, fileID
+                    uuid.UUID, file io.Reader) error
                   </code>{" "}
                   - saves a backup file to the storage
                 </li>
@@ -167,6 +168,29 @@ export default function HowToAddStoragePage() {
                   - encrypts sensitive fields before saving
                 </li>
               </ul>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 pt-4 px-4 my-6">
+                <p className="text-sm text-amber-900 m-0">
+                  <strong>⚠️ Context cancellation:</strong> Your{" "}
+                  <code>SaveFile</code> implementation must respect the{" "}
+                  <code>ctx</code> context for cancellation. Check{" "}
+                  <code>ctx.Done()</code> periodically during upload operations
+                  and return early with an appropriate error when the context is
+                  cancelled. This ensures graceful shutdown and backup
+                  cancellation work correctly.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-purple-200 bg-purple-50 pt-4 px-4 my-6">
+                <p className="text-sm text-purple-900 m-0">
+                  <strong>📦 Backpressure handling:</strong> When implementing{" "}
+                  <code>SaveFile</code>, read from the <code>io.Reader</code> in
+                  chunks of up to <strong>32 MB</strong> and upload them
+                  incrementally. This prevents memory exhaustion on large
+                  backups and respects backpressure from the upstream pipe.
+                  Avoid reading the entire file into memory at once.
+                </p>
+              </div>
 
               <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
                 <p className="text-sm text-blue-900 m-0">
