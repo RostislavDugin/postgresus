@@ -206,8 +206,8 @@ func (t *WebhookNotifier) sendPOST(webhookURL, heading, message string, logger *
 func (t *WebhookNotifier) buildRequestBody(heading, message string) []byte {
 	if t.BodyTemplate != nil && *t.BodyTemplate != "" {
 		result := *t.BodyTemplate
-		result = strings.ReplaceAll(result, "{{heading}}", heading)
-		result = strings.ReplaceAll(result, "{{message}}", message)
+		result = strings.ReplaceAll(result, "{{heading}}", escapeJSONString(heading))
+		result = strings.ReplaceAll(result, "{{message}}", escapeJSONString(message))
 		return []byte(result)
 	}
 
@@ -226,4 +226,18 @@ func (t *WebhookNotifier) applyHeaders(req *http.Request) {
 			req.Header.Set(h.Key, h.Value)
 		}
 	}
+}
+
+func escapeJSONString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil || len(b) < 2 {
+		escaped := strings.ReplaceAll(s, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+		escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+		escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+		escaped = strings.ReplaceAll(escaped, "\t", `\t`)
+		return escaped
+	}
+
+	return string(b[1 : len(b)-1])
 }
