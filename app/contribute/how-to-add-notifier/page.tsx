@@ -67,32 +67,35 @@ export default function HowToAddNotifierPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="how-to-add-notifier">
                 How to add new notifier to Postgresus
               </h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 This guide will walk you through the process of contributing a
                 new notification integration to Postgresus. You&apos;ll learn
                 how to implement the backend logic, create database migrations
                 and build the frontend UI components.
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
-                <p className="text-sm text-blue-900 m-0">
-                  <strong>💡 Note:</strong> This is a contribution guide for
-                  developers who want to add new notification integrations to
-                  the Postgresus project. If you only want to use existing
-                  notifiers, check out the{" "}
-                  <a href="/notifiers" className="text-blue-600">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">💡 Note:</strong> This is a
+                  contribution guide for developers who want to add new
+                  notification integrations to the Postgresus project. If you
+                  only want to use existing notifiers, check out the{" "}
+                  <a
+                    href="/notifiers"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
                     Notifiers documentation
                   </a>
                   .
@@ -140,28 +143,36 @@ export default function HowToAddNotifierPage() {
                 </li>
                 <li>
                   <code>
-                    EncryptSensitiveData(encryptor encryption.FieldEncryptor) 
+                    EncryptSensitiveData(encryptor encryption.FieldEncryptor)
                     error
                   </code>{" "}
                   - encrypts sensitive fields before saving
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
-                <p className="text-sm text-blue-900 m-0">
-                  <strong>🔐 Encryption requirement:</strong> All sensitive
-                  fields (bot tokens, webhook URLs, API keys, passwords) must be
-                  encrypted using the <code>EncryptSensitiveData()</code> method
-                  before saving to the database. Decrypt credentials in the{" "}
-                  <code>Send()</code> method before sending notifications. See{" "}
-                  <code>discord</code>, <code>telegram</code>,{" "}
-                  <code>slack</code>, or <code>teams</code> notifier models for
-                  implementation examples.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-green-400">
+                    🔐 Encryption requirement:
+                  </strong>{" "}
+                  All sensitive fields (bot tokens, webhook URLs, API keys,
+                  passwords) must be encrypted using the{" "}
+                  <code className="bg-[#374151] text-gray-200">
+                    EncryptSensitiveData()
+                  </code>{" "}
+                  method before saving to the database. Decrypt credentials in
+                  the <code className="bg-[#374151] text-gray-200">Send()</code>{" "}
+                  method before sending notifications. See{" "}
+                  <code className="bg-[#374151] text-gray-200">discord</code>,{" "}
+                  <code className="bg-[#374151] text-gray-200">telegram</code>,{" "}
+                  <code className="bg-[#374151] text-gray-200">slack</code>, or{" "}
+                  <code className="bg-[#374151] text-gray-200">teams</code>{" "}
+                  notifier models for implementation examples.
                 </p>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
-                <p className="text-sm text-gray-700 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
                   <strong>🔑 Important:</strong> Use UUID primary key as{" "}
                   <code>NotifierID</code> that references the main notifiers
                   table. This maintains referential integrity across the
@@ -258,8 +269,8 @@ export default function HowToAddNotifierPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
-                <p className="text-sm text-gray-700 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
                   <strong>💡 Tip:</strong> The <code>CASCADE DELETE</code>{" "}
                   ensures that when a notifier is deleted from the main
                   notifiers table, the related configuration is automatically
@@ -313,13 +324,16 @@ export default function HowToAddNotifierPage() {
                 validators and React components for managing your notifier.
               </p>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 pt-4 px-4 my-6">
-                <p className="text-sm text-amber-900 m-0">
-                  <strong>ℹ️ Backend-only contributions:</strong> If you&apos;re
-                  only comfortable with backend development, that&apos;s
-                  perfectly fine! Complete the backend part and contact{" "}
-                  <strong>@rostislav_dugin</strong> to help with the UI
-                  implementation.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">
+                    ℹ️ Backend-only contributions:
+                  </strong>{" "}
+                  If you&apos;re only comfortable with backend development,
+                  that&apos;s perfectly fine! Complete the backend part and
+                  contact{" "}
+                  <strong className="text-white">@rostislav_dugin</strong> to
+                  help with the UI implementation.
                 </p>
               </div>
 
@@ -453,12 +467,12 @@ export default function HowToAddNotifierPage() {
                 </li>
               </ol>
 
-              <div className="rounded-lg border border-green-200 bg-green-50 p-4 my-6">
-                <p className="text-sm text-green-900 m-0">
-                  <strong>🎉 Thank you!</strong> Your contributions help make
-                  Postgresus more versatile and valuable for the community. We
-                  appreciate your effort in expanding the notification
-                  capabilities!
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-green-400">🎉 Thank you!</strong> Your
+                  contributions help make Postgresus more versatile and valuable
+                  for the community. We appreciate your effort in expanding the
+                  notification capabilities!
                 </p>
               </div>
 

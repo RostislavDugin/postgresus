@@ -66,17 +66,17 @@ export default function ContributePage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="contribute">Contribute</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Contribution to Postgresus is welcome! I would appreciate any
                 help with the project.
               </p>
@@ -168,17 +168,17 @@ export default function ContributePage() {
                 <li>issues writing</li>
               </ul>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 my-6 pb-0">
-                <p className="text-sm text-amber-900 m-0">
-                  <strong>⚠️ Important:</strong> All the major changes for more
-                  than 10-20 lines of code it is better to discuss with me
-                  first. At least, inform me that you take something into work.
-                  Message me in Telegram (
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">⚠️ Important:</strong> All
+                  the major changes for more than 10-20 lines of code it is
+                  better to discuss with me first. At least, inform me that you
+                  take something into work. Message me in Telegram (
                   <a
                     href="https://t.me/rostislav_dugin"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-amber-900 underline"
+                    className="text-blue-400 underline hover:text-blue-300"
                   >
                     @rostislav_dugin
                   </a>
@@ -186,12 +186,15 @@ export default function ContributePage() {
                 </p>
               </div>
 
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 my-6 pb-0">
-                <p className="text-sm text-red-900 m-0">
-                  <strong>🚫 Note about large PRs:</strong> If you submit a
-                  large PR, most likely it will be refused. Because now there
-                  are a lot of AI PRs which take a huge amount of time to review
-                  and merge. I will not be able to review them.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-red-400">
+                    🚫 Note about large PRs:
+                  </strong>{" "}
+                  If you submit a large PR, most likely it will be refused.
+                  Because now there are a lot of AI PRs which take a huge amount
+                  of time to review and merge. I will not be able to review
+                  them.
                 </p>
               </div>
 

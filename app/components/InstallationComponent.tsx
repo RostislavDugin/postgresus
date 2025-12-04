@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import LiteYouTubeEmbed from "./LiteYouTubeEmbed";
 
 type InstallMethod =
   | "Automated Script"
@@ -20,6 +21,7 @@ type CodeBlock = {
 
 type Installation = {
   label: string;
+  title: string;
   code: string | ScriptVariant[];
   codeBlocks?: CodeBlock[];
   language: string;
@@ -28,7 +30,8 @@ type Installation = {
 
 const installationMethods: Record<InstallMethod, Installation> = {
   "Automated Script": {
-    label: "Automated script (recommended)",
+    label: "Automated script",
+    title: "Automated script (recommended)",
     language: "bash",
     description:
       "The installation script will install Docker with Docker Compose (if not already installed), set up Postgresus and configure automatic startup on system reboot.",
@@ -47,6 +50,7 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
   },
   "Docker Run": {
     label: "Docker",
+    title: "Docker",
     language: "bash",
     description:
       "The easiest way to run Postgresus. This single command will start Postgresus, store all data in ./postgresus-data directory and automatically restart on system reboot.",
@@ -59,6 +63,7 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
   },
   "Docker Compose": {
     label: "Docker Compose",
+    title: "Docker Compose",
     language: "yaml",
     description:
       "Create a docker-compose.yml file with the following configuration, then run: docker compose up -d",
@@ -74,23 +79,35 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
   },
   Helm: {
     label: "Helm (Kubernetes)",
+    title: "Helm (Kubernetes)",
     language: "bash",
     description:
-      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and LoadBalancer service on port 80. Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well.",
+      "For Kubernetes deployments, install directly from the OCI registry. Choose your preferred access method: ClusterIP with port-forward for development, LoadBalancer for cloud environments, or Ingress for domain-based access.",
     code: "",
     codeBlocks: [
       {
-        label: "Clone the repository",
-        code: `git clone https://github.com/RostislavDugin/postgresus.git
-cd postgresus`,
+        label: "With ClusterIP + port-forward (development)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace
+
+kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+# Access at http://localhost:4005`,
       },
       {
-        label: "Install the Helm chart",
-        code: `helm install postgresus ./deploy/helm -n postgresus --create-namespace`,
+        label: "With LoadBalancer (cloud environments)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set service.type=LoadBalancer
+
+kubectl get svc postgresus-service -n postgresus
+# Access at http://<EXTERNAL-IP>:4005`,
       },
       {
-        label: "Get the external IP",
-        code: `kubectl get svc -n postgresus`,
+        label: "With Ingress (domain-based access)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set ingress.enabled=true \\
+  --set ingress.hosts[0].host=backup.example.com`,
       },
     ],
   },
@@ -160,15 +177,15 @@ export default function InstallationComponent() {
   return (
     <div className="mx-auto w-full">
       {/* Installation methods tabs */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-2 justify-center">
         {methods.map((method) => (
           <button
             key={method}
             onClick={() => handleMethodChange(method)}
-            className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-colors md:px-6 md:py-2 md:text-base ${
+            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors sm:px-4 sm:py-2 md:px-6 md:py-2 md:text-base ${
               selectedMethod === method
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "bg-blue-600 text-white border border-[#155dfc]"
+                : "border border-[#ffffff20] hover:border-[#155dfc] hover:bg-blue-600 hover:text-white"
             }`}
           >
             {installationMethods[method].label}
@@ -176,79 +193,116 @@ export default function InstallationComponent() {
         ))}
       </div>
 
-      {/* Script variants tabs (only for Automated Script) */}
-      {hasVariants && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {(currentInstallation.code as ScriptVariant[]).map(
-            (variant, index) => (
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 mt-8 lg:mt-20">
+        <div className="w-full lg:w-[50%]">
+          <div className="text-xl md:text-2xl font-bold mb-3 md:mb-4">
+            {currentInstallation.title}
+          </div>
+
+          {/* Description */}
+          <div className="mb-4 md:mb-5 max-w-[550px] text-gray-400 text-sm md:text-base">
+            {currentInstallation.description}
+          </div>
+
+          {/* Script variants tabs (only for Automated Script) */}
+          {hasVariants && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {(currentInstallation.code as ScriptVariant[]).map(
+                (variant, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleVariantChange(index)}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm sm:px-4 sm:py-2 font-medium transition-colors ${
+                      selectedVariant === index
+                        ? "bg-[#2C2F35] text-white border border-[#2C2F35]"
+                        : "border border-[#ffffff20] hover:border-[#2C2F35] hover:bg-[#2C2F35] hover:text-white"
+                    }`}
+                  >
+                    {variant.label}
+                  </button>
+                )
+              )}
+            </div>
+          )}
+
+          {/* Multiple code blocks (for Helm) */}
+          {hasCodeBlocks ? (
+            <div className="space-y-4">
+              {currentInstallation.codeBlocks!.map((block, index) => (
+                <div key={index}>
+                  <p className="mb-2 text-gray-400 text-sm md:text-base">
+                    {block.label}
+                  </p>
+                  <div className="relative">
+                    <pre className="rounded-lg p-3 md:p-4 sm:pr-14 md:pr-16 text-sm border border-[#ffffff20] overflow-x-auto">
+                      <code className="block whitespace-pre-wrap wrap-break-word">
+                        {block.code}
+                      </code>
+                    </pre>
+                    <button
+                      onClick={() => handleCopyBlock(block.code, index)}
+                      className={`absolute right-2 top-2 rounded px-2 py-1 text-sm text-white transition-colors ${
+                        copiedBlockIndex === index
+                          ? "bg-green-500"
+                          : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                    >
+                      {copiedBlockIndex === index ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Single code block with copy button */
+            <div className="relative border border-[#ffffff20] max-w-full lg:max-w-[530px] rounded-lg p-2 sm:pr-14 md:pr-16">
+              <pre className="rounded-lg p-3 md:p-4 sm:pr-14 md:pr-16 text-sm overflow-x-auto">
+                <code className="block whitespace-pre-wrap wrap-break-word">
+                  {getCurrentCode()}
+                </code>
+              </pre>
+
               <button
-                key={index}
-                onClick={() => handleVariantChange(index)}
-                className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  selectedVariant === index
-                    ? "bg-blue-100 text-blue-700 ring-2 ring-blue-600"
-                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                onClick={handleCopy}
+                className={`absolute right-2 top-2 rounded px-2 py-1 text-sm text-white transition-colors border border-[#ffffff20] ${
+                  copied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
-                {variant.label}
+                {copied ? "Copied!" : "Copy"}
               </button>
-            )
-          )}
-        </div>
-      )}
-
-      {/* Description */}
-      <div className="mb-4 text-base md:text-lg max-w-[600px]">
-        {currentInstallation.description}
-      </div>
-
-      {/* Multiple code blocks (for Helm) */}
-      {hasCodeBlocks ? (
-        <div className="space-y-4 max-w-[600px]">
-          {currentInstallation.codeBlocks!.map((block, index) => (
-            <div key={index}>
-              <p className="mb-2 text-sm font-medium text-gray-700">
-                {block.label}
-              </p>
-              <div className="relative">
-                <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-                  <code className="block whitespace-pre-wrap wrap-break-word">
-                    {block.code}
-                  </code>
-                </pre>
-                <button
-                  onClick={() => handleCopyBlock(block.code, index)}
-                  className={`absolute right-2 top-2 rounded px-2 py-1 text-xs text-white transition-colors ${
-                    copiedBlockIndex === index
-                      ? "bg-green-500"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                >
-                  {copiedBlockIndex === index ? "Copied!" : "Copy"}
-                </button>
-              </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        /* Single code block with copy button */
-        <div className="relative max-w-[600px]">
-          <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
-            <code className="block whitespace-pre-wrap wrap-break-word">
-              {getCurrentCode()}
-            </code>
-          </pre>
+          )}
 
-          <button
-            onClick={handleCopy}
-            className={`absolute right-2 top-2 rounded px-2 py-1 text-xs text-white transition-colors ${
-              copied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
-            }`}
+          <a
+            href="/installation"
+            className="inline-flex items-center gap-1 mt-4 md:mt-5 text-blue-400 hover:text-blue-600 text-sm md:text-base"
           >
-            {copied ? "Copied!" : "Copy"}
-          </button>
+            Read more about installation
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
         </div>
-      )}
+
+        <div className="w-full lg:w-[50%]">
+          <div className="flex-1 relative">
+            <LiteYouTubeEmbed
+              videoId="KaNLPkuu03M"
+              title="How to install Postgresus"
+              thumbnailSrc="/images/index/how-to-install-preview.svg"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

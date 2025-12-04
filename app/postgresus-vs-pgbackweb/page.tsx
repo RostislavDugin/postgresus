@@ -69,17 +69,17 @@ export default function PostgresusVsPgBackWebPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="postgresus-vs-pgbackweb">Postgresus vs PgBackWeb</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Both Postgresus and PgBackWeb are open-source tools designed to
                 simplify PostgreSQL backup management through web interfaces.
                 While they share the common goal of making backups more
@@ -94,247 +94,52 @@ export default function PostgresusVsPgBackWebPage() {
                 Postgresus and PgBackWeb:
               </p>
 
-              <div className="not-prose overflow-x-auto my-6">
-                <table className="w-full border-collapse rounded-lg overflow-hidden shadow-sm border border-gray-200">
-                  <thead>
-                    <tr className="bg-gray-100 border-b border-gray-200">
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        Feature
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        Postgresus
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        PgBackWeb
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        License
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          Apache 2.0
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                          AGPL-3.0
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Storage options
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Local, S3, Google Drive, Cloudflare R2, Azure, NAS,
-                        Dropbox
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Local, S3-compatible only
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Notifications
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Slack, Discord, Telegram, Teams, Email, Webhooks
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Webhooks only
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Security
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            AES-256-GCM encryption
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Unique backup keys
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Read-only enforcement
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-green-500"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          PGP encryption
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Team features
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Workspaces
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Role-based access
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Audit logs
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-red-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Not available
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Health monitoring
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-green-500"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Built-in
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-red-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Not available
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Installation
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          One-line script or Docker
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Manual Docker setup
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Postgresus</th>
+                    <th>PgBackWeb</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>License</td>
+                    <td data-label="Postgresus">Apache 2.0</td>
+                    <td data-label="PgBackWeb">AGPL-3.0</td>
+                  </tr>
+                  <tr>
+                    <td>Storage options</td>
+                    <td data-label="Postgresus">Local, S3, Google Drive, Cloudflare R2, Azure, NAS, Dropbox</td>
+                    <td data-label="PgBackWeb">Local, S3-compatible only</td>
+                  </tr>
+                  <tr>
+                    <td>Notifications</td>
+                    <td data-label="Postgresus">Slack, Discord, Telegram, Teams, Email, Webhooks</td>
+                    <td data-label="PgBackWeb">Webhooks only</td>
+                  </tr>
+                  <tr>
+                    <td>Security</td>
+                    <td data-label="Postgresus">✅ AES-256-GCM, unique backup keys, read-only enforcement</td>
+                    <td data-label="PgBackWeb">✅ PGP encryption</td>
+                  </tr>
+                  <tr>
+                    <td>Team features</td>
+                    <td data-label="Postgresus">✅ Workspaces, role-based access, audit logs</td>
+                    <td data-label="PgBackWeb">❌ Not available</td>
+                  </tr>
+                  <tr>
+                    <td>Health monitoring</td>
+                    <td data-label="Postgresus">✅ Built-in</td>
+                    <td data-label="PgBackWeb">❌ Not available</td>
+                  </tr>
+                  <tr>
+                    <td>Installation</td>
+                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="PgBackWeb">Manual Docker setup</td>
+                  </tr>
+                </tbody>
+              </table>
 
               <h2 id="backup-features">Backup features</h2>
 
@@ -660,11 +465,11 @@ export default function PostgresusVsPgBackWebPage() {
                 tools, but they serve different needs:
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6">
-                <p className="text-blue-900 m-0">
-                  <strong>Choose Postgresus if you need:</strong>
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
+                <p className="text-blue-300 m-0">
+                  <strong className="text-blue-400">Choose Postgresus if you need:</strong>
                 </p>
-                <ul className="text-blue-900 mb-0">
+                <ul className="text-blue-200 mb-0">
                   <li>Enterprise-grade security with 3-level protection</li>
                   <li>Team collaboration with workspaces and audit logs</li>
                   <li>
@@ -677,11 +482,11 @@ export default function PostgresusVsPgBackWebPage() {
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
-                <p className="text-gray-900 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+                <p className="text-white m-0">
                   <strong>Choose PgBackWeb if you need:</strong>
                 </p>
-                <ul className="text-gray-900 mb-0">
+                <ul className="text-white mb-0">
                   <li>Simple backup solution for single-user scenarios</li>
                   <li>Only local or S3 storage</li>
                   <li>Webhook-only notifications are sufficient</li>

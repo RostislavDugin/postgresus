@@ -101,17 +101,17 @@ export default function SlackPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="slack-notifications">Slack notifications</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Configure Slack to receive instant notifications about your
                 PostgreSQL backup status. Get alerts for successful backups,
                 failures and warnings directly in your Slack channels.
@@ -170,7 +170,7 @@ export default function SlackPage() {
               <img
                 src="/images/notifier-slack/image-1.png"
                 alt="Navigate to OAuth &amp; Permissions"
-                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[700px]"
                 loading="lazy"
               />
 
@@ -207,7 +207,7 @@ export default function SlackPage() {
               <img
                 src="/images/notifier-slack/image-2.png"
                 alt="Add Bot Token Scopes"
-                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[700px]"
                 loading="lazy"
               />
 
@@ -224,7 +224,7 @@ export default function SlackPage() {
               <img
                 src="/images/notifier-slack/image-3.png"
                 alt="Install to Workspace"
-                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[700px]"
                 loading="lazy"
               />
 
@@ -268,7 +268,7 @@ export default function SlackPage() {
               <img
                 src="/images/notifier-slack/image-4.png"
                 alt="Get Channel ID"
-                className="my-6 rounded-lg border border-gray-200 max-w-[500px]"
+                className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[500px]"
                 loading="lazy"
               />
 
@@ -327,7 +327,7 @@ export default function SlackPage() {
               <img
                 src="/images/notifier-slack/image-5.png"
                 alt="Add Slack notifier"
-                className="my-6 rounded-lg border border-gray-200 max-w-[700px]"
+                className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[700px]"
                 loading="lazy"
               />
 

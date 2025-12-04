@@ -68,17 +68,17 @@ export default function NotifiersPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="notifiers">Notifiers</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Postgresus supports multiple notification channels to keep you
                 informed about your PostgreSQL backup status. Get instant alerts
                 when backups succeed, fail or encounter issues.
@@ -90,7 +90,7 @@ export default function NotifiersPage() {
                 <li>
                   <Link
                     href="/notifiers/slack"
-                    className="font-semibold text-blue-600 hover:text-blue-800"
+                    className="font-semibold! text-blue-600 hover:text-blue-800"
                   >
                     Slack
                   </Link>{" "}
@@ -107,7 +107,7 @@ export default function NotifiersPage() {
                 <li>
                   <Link
                     href="/notifiers/teams"
-                    className="font-semibold text-blue-600 hover:text-blue-800"
+                    className="font-semibold! text-blue-600 hover:text-blue-800"
                   >
                     Microsoft Teams
                   </Link>{" "}

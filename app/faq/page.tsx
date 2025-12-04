@@ -95,17 +95,17 @@ export default function FAQPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="faq">Frequently Asked Questions</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Find answers to the most common questions about Postgresus,
                 including installation, configuration and backup strategies.
               </p>
@@ -158,25 +158,37 @@ export default function FAQPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6 pb-0">
-                <p className="text-sm text-blue-900 m-0">
-                  <strong>💡 Note:</strong> When using host network mode, you
-                  can connect to your localhost database using{" "}
-                  <code>127.0.0.1</code> or <code>localhost</code> as the host
-                  in your Postgresus backup configuration. You&apos;ll also
-                  access the Postgresus UI directly at{" "}
-                  <code>http://localhost:4005</code> without port mapping.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">💡 Note:</strong> When
+                  using host network mode, you can connect to your localhost
+                  database using{" "}
+                  <code className="bg-[#374151] text-gray-200">127.0.0.1</code>{" "}
+                  or{" "}
+                  <code className="bg-[#374151] text-gray-200">localhost</code>{" "}
+                  as the host in your Postgresus backup configuration.
+                  You&apos;ll also access the Postgresus UI directly at{" "}
+                  <code className="bg-[#374151] text-gray-200">
+                    http://localhost:4005
+                  </code>{" "}
+                  without port mapping.
                 </p>
               </div>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 my-6 pb-0">
-                <p className="text-sm text-amber-900 m-0">
-                  <strong>⚠️ Important for Windows and macOS users:</strong> The{" "}
-                  <code>host</code> network mode only works natively on Linux.
-                  On Windows and macOS, Docker runs inside a Linux VM, so{" "}
-                  <code>host.docker.internal</code> should be used instead of{" "}
-                  <code>localhost</code> as the database host address in your
-                  backup configuration.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">
+                    ⚠️ Important for Windows and macOS users:
+                  </strong>{" "}
+                  The <code className="bg-[#374151] text-red-400">host</code>{" "}
+                  network mode only works natively on Linux. On Windows and
+                  macOS, Docker runs inside a Linux VM, so{" "}
+                  <code className="bg-[#374151] text-gray-200">
+                    host.docker.internal
+                  </code>{" "}
+                  should be used instead of{" "}
+                  <code className="bg-[#374151] text-gray-200">localhost</code>{" "}
+                  as the database host address in your backup configuration.
                 </p>
               </div>
 

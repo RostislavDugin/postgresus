@@ -21,7 +21,7 @@ export default function LiteYouTubeEmbed({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-lg shadow-lg"
+      className="relative w-full overflow-hidden rounded-lg"
       style={{ paddingBottom: "56.25%" }}
     >
       {!isIframeLoaded ? (
@@ -37,13 +37,15 @@ export default function LiteYouTubeEmbed({
             className="absolute cursor-pointer left-0 top-0 z-10 flex h-full w-full items-center justify-center transition-all hover:bg-opacity-20"
             aria-label={`Play ${title}`}
           >
-            <div className="flex items-center justify-center rounded-xl bg-red-600 px-5 py-2 transition-transform hover:scale-105 sm:px-5 sm:py-2">
+            <div className="flex items-center justify-center rounded-xl bg-blue-600 px-3 py-1 transition-transform hover:scale-105">
               <svg
-                className="h-6 w-6 text-white sm:h-8 sm:w-8"
-                fill="currentColor"
-                viewBox="0 0 24 24"
+                className="h-8 w-8 sm:h-12 sm:w-12"
+                viewBox="0 0 48 48"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
-                <path d="M8 5v14l11-7z" />
+                <rect width="48" height="48" rx="12" fill="#155DFC" />
+                <path d="M36 24L18 34.3923V13.6077L36 24Z" fill="white" />
               </svg>
             </div>
           </button>

@@ -70,7 +70,7 @@ export default function DocTableOfContentComponent() {
   }
 
   return (
-    <aside className="hidden w-64 border-l border-gray-200 bg-white xl:block">
+    <aside className="hidden w-64 border-l border-[#ffffff20] bg-[#0F1115] xl:block">
       <div className="sticky top-0 h-screen overflow-y-auto p-6">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
           On This Page
@@ -87,15 +87,15 @@ export default function DocTableOfContentComponent() {
                   onClick={() => handleClick(heading.id)}
                   className={`block w-full text-left transition-all duration-200 cursor-pointer relative pl-3 py-0.5 ${
                     activeId === heading.id
-                      ? "text-gray-900 font-normal"
-                      : "text-gray-500 hover:text-gray-900"
+                      ? "text-white font-normal"
+                      : "text-gray-500 hover:text-white"
                   }`}
                 >
                   <span
                     className={`absolute left-0 top-0 bottom-0 w-0.5 transition-all duration-200 ${
                       activeId === heading.id
-                        ? "bg-blue-500 opacity-100"
-                        : "bg-gray-300 opacity-0"
+                        ? "bg-blue-600 opacity-100"
+                        : "bg-gray-600 opacity-0"
                     }`}
                   />
                   {heading.text}

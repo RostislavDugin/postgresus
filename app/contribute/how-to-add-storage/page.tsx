@@ -68,32 +68,35 @@ export default function HowToAddStoragePage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="how-to-add-storage">
                 How to add new storage to Postgresus
               </h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 This guide will walk you through the process of contributing a
                 new storage integration to Postgresus. You&apos;ll learn how to
                 implement the backend logic, create database migrations and
                 build the frontend UI components for managing storage providers.
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
-                <p className="text-sm text-blue-900 m-0">
-                  <strong>💡 Note:</strong> This is a contribution guide for
-                  developers who want to add new storage integrations to the
-                  Postgresus project. If you only want to use existing storage
-                  providers, check out the{" "}
-                  <a href="/storages" className="text-blue-600">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">💡 Note:</strong> This is a
+                  contribution guide for developers who want to add new storage
+                  integrations to the Postgresus project. If you only want to
+                  use existing storage providers, check out the{" "}
+                  <a
+                    href="/storages"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
                     Storages documentation
                   </a>
                   .
@@ -124,8 +127,9 @@ export default function HowToAddStoragePage() {
               <ul>
                 <li>
                   <code>
-                    SaveFile(encryptor encryption.FieldEncryptor, logger
-                    *slog.Logger, fileID uuid.UUID, file io.Reader) error
+                    SaveFile(ctx context.Context, encryptor
+                    encryption.FieldEncryptor, logger *slog.Logger, fileID
+                    uuid.UUID, file io.Reader) error
                   </code>{" "}
                   - saves a backup file to the storage
                 </li>
@@ -168,20 +172,64 @@ export default function HowToAddStoragePage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 pt-4 px-4 my-6">
-                <p className="text-sm text-blue-900 m-0">
-                  <strong>🔐 Encryption requirement:</strong> All sensitive
-                  fields (API keys, passwords, access tokens, secrets) must be
-                  encrypted using the <code>EncryptSensitiveData()</code> method
-                  before saving to the database. Decrypt credentials before
-                  using them. See <code>azure_blob</code>,{" "}
-                  <code>google_drive</code> or <code>s3</code> storage models
-                  for implementation examples.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">
+                    ⚠️ Context cancellation:
+                  </strong>{" "}
+                  Your{" "}
+                  <code className="bg-[#374151] text-gray-200">SaveFile</code>{" "}
+                  implementation must respect the{" "}
+                  <code className="bg-[#374151] text-gray-200">ctx</code>{" "}
+                  context for cancellation. Check{" "}
+                  <code className="bg-[#374151] text-gray-200">ctx.Done()</code>{" "}
+                  periodically during upload operations and return early with an
+                  appropriate error when the context is cancelled. This ensures
+                  graceful shutdown and backup cancellation work correctly.
                 </p>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
-                <p className="text-sm text-gray-700 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-purple-400">
+                    📦 Backpressure handling:
+                  </strong>{" "}
+                  When implementing{" "}
+                  <code className="bg-[#374151] text-gray-200">SaveFile</code>,
+                  read from the{" "}
+                  <code className="bg-[#374151] text-gray-200">io.Reader</code>{" "}
+                  in chunks of up to{" "}
+                  <strong className="text-white">32 MB</strong> and upload them
+                  incrementally. This prevents memory exhaustion on large
+                  backups and respects backpressure from the upstream pipe.
+                  Avoid reading the entire file into memory at once.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-green-400">
+                    🔐 Encryption requirement:
+                  </strong>{" "}
+                  All sensitive fields (API keys, passwords, access tokens,
+                  secrets) must be encrypted using the{" "}
+                  <code className="bg-[#374151] text-gray-200">
+                    EncryptSensitiveData()
+                  </code>{" "}
+                  method before saving to the database. Decrypt credentials
+                  before using them. See{" "}
+                  <code className="bg-[#374151] text-gray-200">azure_blob</code>
+                  ,{" "}
+                  <code className="bg-[#374151] text-gray-200">
+                    google_drive
+                  </code>{" "}
+                  or <code className="bg-[#374151] text-gray-200">s3</code>{" "}
+                  storage models for implementation examples.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
                   <strong>🔑 Important:</strong> Use UUID primary key as{" "}
                   <code>StorageID</code> that references the main storages
                   table. This maintains referential integrity across the
@@ -287,8 +335,8 @@ export default function HowToAddStoragePage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 pt-4 px-4 my-6">
-                <p className="text-sm text-gray-700 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
                   <strong>💡 Tip:</strong> The <code>CASCADE DELETE</code>{" "}
                   ensures that when a storage is deleted from the main storages
                   table, the related configuration is automatically removed.
@@ -361,13 +409,16 @@ export default function HowToAddStoragePage() {
                 provider.
               </p>
 
-              <div className="rounded-lg border border-amber-200 bg-amber-50 pt-4 px-4 my-6">
-                <p className="text-sm text-amber-900 m-0">
-                  <strong>ℹ️ Backend-only contributions:</strong> If you&apos;re
-                  only comfortable with backend development, that&apos;s
-                  perfectly fine! Complete the backend part and contact{" "}
-                  <strong>@rostislav_dugin</strong> to help with the UI
-                  implementation.
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] pt-4 px-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-amber-400">
+                    ℹ️ Backend-only contributions:
+                  </strong>{" "}
+                  If you&apos;re only comfortable with backend development,
+                  that&apos;s perfectly fine! Complete the backend part and
+                  contact{" "}
+                  <strong className="text-white">@rostislav_dugin</strong> to
+                  help with the UI implementation.
                 </p>
               </div>
 
@@ -528,11 +579,12 @@ export default function HowToAddStoragePage() {
                 </li>
               </ol>
 
-              <div className="rounded-lg border border-green-200 bg-green-50 pt-4 px-4 my-6">
-                <p className="text-sm text-green-900 m-0">
-                  <strong>🎉 Thank you!</strong> Your contributions help make
-                  Postgresus more versatile and valuable for the community. We
-                  appreciate your effort in expanding the storage capabilities!
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-green-400">🎉 Thank you!</strong> Your
+                  contributions help make Postgresus more versatile and valuable
+                  for the community. We appreciate your effort in expanding the
+                  storage capabilities!
                 </p>
               </div>
 

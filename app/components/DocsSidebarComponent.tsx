@@ -153,12 +153,19 @@ export default function DocsSidebarComponent() {
             <Link
               href={item.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex-1 rounded-md px-2 py-1.5 text-sm transition-colors ${
+              className={`flex-1 rounded-md px-2 py-1.5 text-sm transition-colors relative pl-4 ${
                 isActive(item.href)
-                  ? "text-blue-600 font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "text-white font-medium"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
+              <span
+                className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-full transition-all duration-200 ${
+                  isActive(item.href)
+                    ? "bg-blue-600 opacity-100"
+                    : "bg-transparent opacity-0"
+                }`}
+              />
               {item.title}
             </Link>
             {item.children && (
@@ -166,8 +173,8 @@ export default function DocsSidebarComponent() {
                 onClick={() => toggleSection(item.href, !!item.children)}
                 className={`ml-1 rounded-md p-1 transition-all duration-200 ${
                   isActive(item.href)
-                    ? "text-gray-900"
-                    : "text-gray-400 hover:text-gray-600"
+                    ? "text-white"
+                    : "text-gray-500 hover:text-gray-300"
                 }`}
                 aria-label={`Toggle ${item.title} section`}
               >
@@ -197,18 +204,25 @@ export default function DocsSidebarComponent() {
                   : "max-h-0 opacity-0"
               }`}
             >
-              <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-200 pl-3">
+              <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[#ffffff20] pl-3">
                 {item.children.map((child) => (
                   <Link
                     key={child.href}
                     href={child.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`block rounded-md px-2 py-1.5 text-sm transition-colors ${
+                    className={`block rounded-md px-2 py-1.5 text-sm transition-colors relative pl-4 ${
                       isActive(child.href)
-                        ? "text-blue-600 font-medium"
-                        : "text-gray-600 hover:text-gray-900"
+                        ? "text-white font-medium"
+                        : "text-gray-400 hover:text-white"
                     }`}
                   >
+                    <span
+                      className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-full transition-all duration-200 ${
+                        isActive(child.href)
+                          ? "bg-blue-500 opacity-100"
+                          : "bg-transparent opacity-0"
+                      }`}
+                    />
                     {child.title}
                   </Link>
                 ))}
@@ -262,22 +276,22 @@ export default function DocsSidebarComponent() {
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 backdrop-blur-md bg-white/10 lg:hidden"
+          className="fixed inset-0 z-40 backdrop-blur-md bg-black/50 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Menu */}
       <aside
-        className={`fixed bottom-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-gray-200 bg-white p-6 shadow-2xl transition-transform duration-300 lg:hidden ${
+        className={`fixed bottom-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-[#ffffff20] bg-[#0F1115] p-6 shadow-2xl transition-transform duration-300 lg:hidden ${
           isMobileMenuOpen ? "translate-y-0" : "translate-y-full"
         }`}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
+          <h2 className="text-lg font-semibold text-white">Navigation</h2>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+            className="rounded-lg p-2 text-gray-400 hover:bg-[#1f2937]"
             aria-label="Close menu"
           >
             <svg
@@ -299,7 +313,7 @@ export default function DocsSidebarComponent() {
       </aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 border-r border-gray-200 bg-white lg:block">
+      <aside className="hidden w-64 border-r border-[#ffffff20] bg-[#0F1115] lg:block">
         <div className="sticky top-0 h-screen overflow-y-auto p-6">
           {renderSidebarContent()}
         </div>

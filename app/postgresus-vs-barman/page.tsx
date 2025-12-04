@@ -71,17 +71,17 @@ export default function PostgresusVsBarmanPage() {
 
       <DocsNavbarComponent />
 
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0F1115]">
         {/* Sidebar */}
         <DocsSidebarComponent />
 
         {/* Main Content */}
-        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="postgresus-vs-barman">Postgresus vs Barman</h1>
 
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-400">
                 Postgresus and Barman are both PostgreSQL backup tools, but they
                 take fundamentally different approaches. Postgresus provides an
                 intuitive web interface for logical backups with team
@@ -98,199 +98,67 @@ export default function PostgresusVsBarmanPage() {
                 Postgresus and Barman:
               </p>
 
-              <div className="not-prose overflow-x-auto my-6">
-                <table className="w-full border-collapse rounded-lg overflow-hidden shadow-sm border border-gray-200">
-                  <thead>
-                    <tr className="bg-gray-100 border-b border-gray-200">
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        Feature
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        Postgresus
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-900">
-                        Barman
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Target audience
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          Individuals, teams, enterprises
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                          DBAs, enterprises requiring PITR
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Interface
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Web UI
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Command-line only
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Backup type
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Logical (pg_dump)
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Physical (file-level)
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Recovery options
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Restore to any hour or day
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        WAL-based PITR (second-precise)
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Incremental backups
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Full backups with compression
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        rsync-based incremental
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Multi-server management
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Per-database scheduling
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Centralized backup server
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Team features
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="inline-flex items-center gap-1">
-                            <svg
-                              className="w-4 h-4 text-green-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            Workspaces, RBAC, audit logs
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-red-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          OS-level permissions only
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Notifications
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-green-500"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Slack, Teams, Telegram, Email
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500">
-                        <span className="inline-flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4 text-red-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          Requires custom scripting
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Learning curve
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          Minimal
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                          DBA expertise required
-                        </span>
-                      </td>
-                    </tr>
-                    <tr className="bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <td className="px-4 py-3 text-center font-medium text-gray-900">
-                        Installation
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          One-line script or Docker
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
-                        Manual configuration required
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Postgresus</th>
+                    <th>Barman</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Target audience</td>
+                    <td data-label="Postgresus">Individuals, teams, enterprises</td>
+                    <td data-label="Barman">DBAs, enterprises requiring PITR</td>
+                  </tr>
+                  <tr>
+                    <td>Interface</td>
+                    <td data-label="Postgresus">Web UI</td>
+                    <td data-label="Barman">Command-line only</td>
+                  </tr>
+                  <tr>
+                    <td>Backup type</td>
+                    <td data-label="Postgresus">Logical (pg_dump)</td>
+                    <td data-label="Barman">Physical (file-level)</td>
+                  </tr>
+                  <tr>
+                    <td>Recovery options</td>
+                    <td data-label="Postgresus">Restore to any hour or day</td>
+                    <td data-label="Barman">WAL-based PITR (second-precise)</td>
+                  </tr>
+                  <tr>
+                    <td>Incremental backups</td>
+                    <td data-label="Postgresus">Full backups with compression</td>
+                    <td data-label="Barman">rsync-based incremental</td>
+                  </tr>
+                  <tr>
+                    <td>Multi-server management</td>
+                    <td data-label="Postgresus">Per-database scheduling</td>
+                    <td data-label="Barman">Centralized backup server</td>
+                  </tr>
+                  <tr>
+                    <td>Team features</td>
+                    <td data-label="Postgresus">✅ Workspaces, RBAC, audit logs</td>
+                    <td data-label="Barman">❌ OS-level permissions only</td>
+                  </tr>
+                  <tr>
+                    <td>Notifications</td>
+                    <td data-label="Postgresus">✅ Slack, Teams, Telegram, Email</td>
+                    <td data-label="Barman">❌ Requires custom scripting</td>
+                  </tr>
+                  <tr>
+                    <td>Learning curve</td>
+                    <td data-label="Postgresus">Minimal</td>
+                    <td data-label="Barman">DBA expertise required</td>
+                  </tr>
+                  <tr>
+                    <td>Installation</td>
+                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="Barman">Manual configuration required</td>
+                  </tr>
+                </tbody>
+              </table>
 
               <h2 id="target-audience">Target audience</h2>
 
@@ -460,9 +328,9 @@ export default function PostgresusVsBarmanPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6">
-                <p className="text-blue-900 m-0">
-                  <strong>Note:</strong> For most applications, restoring to the
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+                <p className="text-gray-300 m-0">
+                  <strong className="text-amber-400">Note:</strong> For most applications, restoring to the
                   nearest hour or day (as Postgresus provides) is sufficient.
                   Second-precise PITR is typically only required for
                   mission-critical financial or transactional systems where
@@ -779,11 +647,11 @@ export default function PostgresusVsBarmanPage() {
                 requirements, team structure and technical expertise.
               </p>
 
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 my-6">
-                <p className="text-blue-900 m-0">
-                  <strong>Choose Postgresus if:</strong>
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
+                <p className="text-blue-300 m-0">
+                  <strong className="text-blue-400">Choose Postgresus if:</strong>
                 </p>
-                <ul className="text-blue-900 mb-0">
+                <ul className="text-blue-200 mb-0">
                   <li>
                     You&apos;re an individual developer, team or enterprise
                     looking for an intuitive backup solution
@@ -808,11 +676,11 @@ export default function PostgresusVsBarmanPage() {
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 my-6">
-                <p className="text-gray-900 m-0">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+                <p className="text-white m-0">
                   <strong>Choose Barman if:</strong>
                 </p>
-                <ul className="text-gray-900 mb-0">
+                <ul className="text-white mb-0">
                   <li>
                     You require second-precise Point-in-Time Recovery for
                     mission-critical systems
