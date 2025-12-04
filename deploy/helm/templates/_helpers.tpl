@@ -61,12 +61,8 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Namespace
+Namespace - uses the release namespace from helm install -n <namespace>
 */}}
 {{- define "postgresus.namespace" -}}
-{{- if .Values.namespace.create }}
-{{- .Values.namespace.name }}
-{{- else }}
 {{- .Release.Namespace }}
-{{- end }}
 {{- end }}

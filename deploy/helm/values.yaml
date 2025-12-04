@@ -1,10 +1,5 @@
 # Default values for postgresus
 
-# Namespace configuration
-namespace:
-  create: true
-  name: postgresus
-
 # Image configuration
 image:
   repository: rostislavdugin/postgresus

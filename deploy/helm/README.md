@@ -5,8 +5,11 @@
 Install directly from the OCI registry (no need to clone the repository):
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace
 ```
+
+The `-n postgresus --create-namespace` flags control which namespace the chart is installed into. You can use any namespace name you prefer.
 
 ## Accessing Postgresus
 
@@ -24,8 +27,6 @@ Then open `http://localhost:4005` in your browser.
 
 | Parameter          | Description        | Default Value               |
 | ------------------ | ------------------ | --------------------------- |
-| `namespace.create` | Create namespace   | `true`                      |
-| `namespace.name`   | Namespace name     | `postgresus`                |
 | `image.repository` | Docker image       | `rostislavdugin/postgresus` |
 | `image.tag`        | Image tag          | `latest`                    |
 | `image.pullPolicy` | Image pull policy  | `Always`                    |
@@ -85,7 +86,9 @@ service:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f nodeport-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  -f nodeport-values.yaml
 ```
 
 Access at `http://<NODE-IP>:30080`
@@ -103,7 +106,9 @@ service:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f loadbalancer-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  -f loadbalancer-values.yaml
 ```
 
 Get the external IP:
@@ -138,7 +143,9 @@ ingress:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f ingress-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  -f ingress-values.yaml
 ```
 
 ### Option 5: HTTPRoute (Gateway API)
@@ -157,7 +164,9 @@ route:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f httproute-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  -f httproute-values.yaml
 ```
 
 ## Ingress Configuration
@@ -195,7 +204,9 @@ persistence:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f storage-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  -f storage-values.yaml
 ```
 
 ## Upgrade
