@@ -159,32 +159,43 @@ docker compose up -d
 
 ### Option 4: Kubernetes with Helm
 
-For Kubernetes deployments, use the official Helm chart.
+For Kubernetes deployments, install directly from the OCI registry.
 
-**Step 1:** Clone the repository:
-
-```bash
-git clone https://github.com/RostislavDugin/postgresus.git
-cd postgresus
-```
-
-**Step 2:** Install with Helm:
+**With ClusterIP + port-forward (development/testing):**
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace
 ```
-
-**Step 3:** Get the external IP:
 
 ```bash
-kubectl get svc -n postgresus
+kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+# Access at http://localhost:4005
 ```
 
-Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
+**With LoadBalancer (cloud environments):**
 
-To customize the installation (e.g., storage size, NodePort instead of LoadBalancer), see the [Helm chart README](deploy/helm/README.md) for all configuration options.
+```bash
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  --set service.type=LoadBalancer
+```
 
-Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well.
+```bash
+kubectl get svc postgresus-service -n postgresus
+# Access at http://<EXTERNAL-IP>:4005
+```
+
+**With Ingress (domain-based access):**
+
+```bash
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
+  -n postgresus --create-namespace \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=backup.example.com
+```
+
+For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart README](deploy/helm/README.md).
 
 ---
 

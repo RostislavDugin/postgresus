@@ -16,8 +16,8 @@ replicaCount: 1
 
 # Service configuration
 service:
-  type: LoadBalancer
-  port: 80            # External port (HTTP default)
+  type: ClusterIP
+  port: 4005          # Service port
   targetPort: 4005    # Internal container port
   # Headless service for StatefulSet
   headless:

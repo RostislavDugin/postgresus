@@ -2,17 +2,21 @@
 
 ## Installation
 
-```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace
-```
-
-After installation, get the external IP:
+Install directly from the OCI registry (no need to clone the repository):
 
 ```bash
-kubectl get svc -n postgresus
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace
 ```
 
-Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
+## Accessing Postgresus
+
+By default, the chart creates a ClusterIP service. Use port-forward to access:
+
+```bash
+kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+```
+
+Then open `http://localhost:4005` in your browser.
 
 ## Configuration
 
@@ -27,14 +31,14 @@ Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
 | `image.pullPolicy` | Image pull policy  | `Always`                    |
 | `replicaCount`     | Number of replicas | `1`                         |
 
-### Resources
+### Service
 
-| Parameter                   | Description    | Default Value |
-| --------------------------- | -------------- | ------------- |
-| `resources.requests.memory` | Memory request | `1Gi`         |
-| `resources.requests.cpu`    | CPU request    | `500m`        |
-| `resources.limits.memory`   | Memory limit   | `1Gi`         |
-| `resources.limits.cpu`      | CPU limit      | `500m`        |
+| Parameter                  | Description             | Default Value |
+| -------------------------- | ----------------------- | ------------- |
+| `service.type`             | Service type            | `ClusterIP`   |
+| `service.port`             | Service port            | `4005`        |
+| `service.targetPort`       | Container port          | `4005`        |
+| `service.headless.enabled` | Enable headless service | `true`        |
 
 ### Storage
 
@@ -46,93 +50,76 @@ Access Postgresus at `http://<EXTERNAL-IP>` (port 80).
 | `persistence.size`             | Storage size              | `10Gi`                 |
 | `persistence.mountPath`        | Mount path                | `/postgresus-data`     |
 
-### Service
+### Resources
 
-| Parameter                  | Description             | Default Value  |
-| -------------------------- | ----------------------- | -------------- |
-| `service.type`             | Service type            | `LoadBalancer` |
-| `service.port`             | External port           | `80`           |
-| `service.targetPort`       | Container port          | `4005`         |
-| `service.headless.enabled` | Enable headless service | `true`         |
+| Parameter                   | Description    | Default Value |
+| --------------------------- | -------------- | ------------- |
+| `resources.requests.memory` | Memory request | `1Gi`         |
+| `resources.requests.cpu`    | CPU request    | `500m`        |
+| `resources.limits.memory`   | Memory limit   | `1Gi`         |
+| `resources.limits.cpu`      | CPU limit      | `500m`        |
 
-### Traffic Exposure (3 Options)
+## External Access Options
 
-The chart supports 3 ways to expose Postgresus:
+### Option 1: Port Forward (Default)
 
-| Method | Use Case | Default |
-| ------ | -------- | ------- |
-| **LoadBalancer/NodePort** | Simple cloud clusters | Enabled |
-| **Ingress** | Traditional nginx/traefik ingress controllers | Disabled |
-| **HTTPRoute (Gateway API)** | Modern gateways (Istio, Envoy, Cilium) | Disabled |
-
-#### Ingress
-
-| Parameter               | Description       | Default Value            |
-| ----------------------- | ----------------- | ------------------------ |
-| `ingress.enabled`       | Enable Ingress    | `false`                  |
-| `ingress.className`     | Ingress class     | `nginx`                  |
-| `ingress.hosts[0].host` | Hostname          | `postgresus.example.com` |
-| `ingress.tls`           | TLS configuration | `[]`                     |
-
-#### HTTPRoute (Gateway API)
-
-| Parameter             | Description                | Default Value                      |
-| --------------------- | -------------------------- | ---------------------------------- |
-| `route.enabled`       | Enable HTTPRoute           | `false`                            |
-| `route.apiVersion`    | Gateway API version        | `gateway.networking.k8s.io/v1`     |
-| `route.hostnames`     | Hostnames for the route    | `["postgresus.example.com"]`       |
-| `route.parentRefs`    | Gateway references         | `[]`                               |
-| `route.annotations`   | Route annotations          | `{}`                               |
-
-### Health Checks
-
-| Parameter                | Description            | Default Value |
-| ------------------------ | ---------------------- | ------------- |
-| `livenessProbe.enabled`  | Enable liveness probe  | `true`        |
-| `readinessProbe.enabled` | Enable readiness probe | `true`        |
-
-## Examples
-
-### Basic Installation (LoadBalancer on port 80)
-
-Default installation exposes Postgresus via LoadBalancer on port 80:
+Best for development or quick access:
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace
+kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
 ```
 
-Access via `http://<EXTERNAL-IP>`
+Access at `http://localhost:4005`
 
-### Using NodePort
+### Option 2: NodePort
 
-If your cluster doesn't support LoadBalancer:
+For direct access via node IP:
 
 ```yaml
 # nodeport-values.yaml
 service:
   type: NodePort
-  port: 80
+  port: 4005
   targetPort: 4005
   nodePort: 30080
 ```
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace -f nodeport-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f nodeport-values.yaml
 ```
 
-Access via `http://<NODE-IP>:30080`
+Access at `http://<NODE-IP>:30080`
 
-### Enable Ingress with HTTPS
+### Option 3: LoadBalancer
+
+For cloud environments with load balancer support:
+
+```yaml
+# loadbalancer-values.yaml
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 4005
+```
+
+```bash
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f loadbalancer-values.yaml
+```
+
+Get the external IP:
+
+```bash
+kubectl get svc -n postgresus
+```
+
+Access at `http://<EXTERNAL-IP>`
+
+### Option 4: Ingress
 
 For domain-based access with TLS:
 
 ```yaml
 # ingress-values.yaml
-service:
-  type: ClusterIP
-  port: 4005
-  targetPort: 4005
-
 ingress:
   enabled: true
   className: nginx
@@ -151,18 +138,15 @@ ingress:
 ```
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace -f ingress-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f ingress-values.yaml
 ```
 
-### HTTPRoute (Gateway API)
+### Option 5: HTTPRoute (Gateway API)
 
 For clusters using Istio, Envoy Gateway, Cilium, or other Gateway API implementations:
 
 ```yaml
 # httproute-values.yaml
-service:
-  type: ClusterIP
-
 route:
   enabled: true
   hostnames:
@@ -173,10 +157,35 @@ route:
 ```
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace -f httproute-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f httproute-values.yaml
 ```
 
-### Custom Storage Size
+## Ingress Configuration
+
+| Parameter               | Description       | Default Value            |
+| ----------------------- | ----------------- | ------------------------ |
+| `ingress.enabled`       | Enable Ingress    | `false`                  |
+| `ingress.className`     | Ingress class     | `nginx`                  |
+| `ingress.hosts[0].host` | Hostname          | `postgresus.example.com` |
+| `ingress.tls`           | TLS configuration | `[]`                     |
+
+## HTTPRoute Configuration
+
+| Parameter          | Description             | Default Value                  |
+| ------------------ | ----------------------- | ------------------------------ |
+| `route.enabled`    | Enable HTTPRoute        | `false`                        |
+| `route.apiVersion` | Gateway API version     | `gateway.networking.k8s.io/v1` |
+| `route.hostnames`  | Hostnames for the route | `["postgresus.example.com"]`   |
+| `route.parentRefs` | Gateway references      | `[]`                           |
+
+## Health Checks
+
+| Parameter                | Description            | Default Value |
+| ------------------------ | ---------------------- | ------------- |
+| `livenessProbe.enabled`  | Enable liveness probe  | `true`        |
+| `readinessProbe.enabled` | Enable readiness probe | `true`        |
+
+## Custom Storage Size
 
 ```yaml
 # storage-values.yaml
@@ -186,5 +195,17 @@ persistence:
 ```
 
 ```bash
-helm install postgresus ./deploy/helm -n postgresus --create-namespace -f storage-values.yaml
+helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus --create-namespace -f storage-values.yaml
+```
+
+## Upgrade
+
+```bash
+helm upgrade postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus
+```
+
+## Uninstall
+
+```bash
+helm uninstall postgresus -n postgresus
 ```

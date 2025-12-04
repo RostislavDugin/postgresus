@@ -465,3 +465,37 @@ jobs:
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
+
+  publish-helm-chart:
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-and-push]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Update Chart.yaml with release version
+        run: |
+          VERSION="${{ needs.determine-version.outputs.new_version }}"
+          sed -i "s/^version: .*/version: ${VERSION}/" deploy/helm/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"v${VERSION}\"/" deploy/helm/Chart.yaml
+          cat deploy/helm/Chart.yaml
+
+      - name: Package Helm chart
+        run: helm package deploy/helm --destination .
+
+      - name: Push Helm chart to GHCR
+        run: |
+          VERSION="${{ needs.determine-version.outputs.new_version }}"
+          helm push postgresus-${VERSION}.tgz oci://ghcr.io/rostislavdugin/charts
