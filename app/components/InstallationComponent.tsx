@@ -76,21 +76,32 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     label: "Helm (Kubernetes)",
     language: "bash",
     description:
-      "For Kubernetes deployments, clone the repository and use the official Helm chart. This will create a StatefulSet with persistent storage and LoadBalancer service on port 80. Config uses by default LoadBalancer, but has predefined values for Ingress and HTTPRoute as well.",
+      "For Kubernetes deployments, install directly from the OCI registry. Choose your preferred access method: ClusterIP with port-forward for development, LoadBalancer for cloud environments, or Ingress for domain-based access.",
     code: "",
     codeBlocks: [
       {
-        label: "Clone the repository",
-        code: `git clone https://github.com/RostislavDugin/postgresus.git
-cd postgresus`,
+        label: "With ClusterIP + port-forward (development)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace
+
+kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+# Access at http://localhost:4005`,
       },
       {
-        label: "Install the Helm chart",
-        code: `helm install postgresus ./deploy/helm -n postgresus --create-namespace`,
+        label: "With LoadBalancer (cloud environments)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set service.type=LoadBalancer
+
+kubectl get svc postgresus-service -n postgresus
+# Access at http://<EXTERNAL-IP>:4005`,
       },
       {
-        label: "Get the external IP",
-        code: `kubectl get svc -n postgresus`,
+        label: "With Ingress (domain-based access)",
+        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set ingress.enabled=true \\
+  --set ingress.hosts[0].host=backup.example.com`,
       },
     ],
   },
@@ -198,13 +209,13 @@ export default function InstallationComponent() {
       )}
 
       {/* Description */}
-      <div className="mb-4 text-base md:text-lg max-w-[600px]">
+      <div className="mb-4 text-base md:text-lg max-w-[650px]">
         {currentInstallation.description}
       </div>
 
       {/* Multiple code blocks (for Helm) */}
       {hasCodeBlocks ? (
-        <div className="space-y-4 max-w-[600px]">
+        <div className="space-y-4 max-w-[650px]">
           {currentInstallation.codeBlocks!.map((block, index) => (
             <div key={index}>
               <p className="mb-2 text-sm font-medium text-gray-700">
@@ -232,7 +243,7 @@ export default function InstallationComponent() {
         </div>
       ) : (
         /* Single code block with copy button */
-        <div className="relative max-w-[600px]">
+        <div className="relative max-w-[650px]">
           <pre className="rounded-lg bg-gray-100 p-4 pr-16 text-sm">
             <code className="block whitespace-pre-wrap wrap-break-word">
               {getCurrentCode()}

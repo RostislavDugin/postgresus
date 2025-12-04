@@ -60,14 +60,25 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
       - ./postgresus-data:/postgresus-data
     restart: unless-stopped`;
 
-  const helmClone = `git clone https://github.com/RostislavDugin/postgresus.git
-cd postgresus`;
+  const helmInstallClusterIP = `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace`;
 
-  const helmInstall = `helm install postgresus ./deploy/helm -n postgresus --create-namespace`;
+  const helmPortForward = `kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+# Access at http://localhost:4005`;
 
-  const helmGetSvc = `kubectl get svc -n postgresus`;
+  const helmInstallLoadBalancer = `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set service.type=LoadBalancer`;
 
-  const helmUpgrade = `helm upgrade postgresus ./deploy/helm -n postgresus`;
+  const helmGetSvc = `kubectl get svc postgresus-service -n postgresus
+# Access at http://<EXTERNAL-IP>:4005`;
+
+  const helmInstallIngress = `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
+  -n postgresus --create-namespace \\
+  --set ingress.enabled=true \\
+  --set ingress.hosts[0].host=backup.example.com`;
+
+  const helmUpgrade = `helm upgrade postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus`;
 
   return (
     <>
@@ -265,36 +276,49 @@ cd postgresus`;
               <h2 id="option-4-helm">Option 4: Kubernetes with Helm</h2>
 
               <p>
-                For Kubernetes deployments, use the official Helm chart. This
-                will create a StatefulSet with persistent storage and
-                LoadBalancer service on port 80. Config uses by default
-                LoadBalancer, but has predefined values for Ingress and
-                HTTPRoute as well.
+                For Kubernetes deployments, install directly from the OCI
+                registry. Choose your preferred access method based on your
+                environment.
               </p>
 
-              <p>First, clone the repository:</p>
+              <h3 id="helm-clusterip">
+                With ClusterIP + port-forward (development)
+              </h3>
 
               <div className="relative my-6">
                 <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{helmClone}</code>
+                  <code>{helmInstallClusterIP}</code>
                 </pre>
                 <div className="absolute right-2 top-2">
-                  <CopyButton text={helmClone} />
+                  <CopyButton text={helmInstallClusterIP} />
                 </div>
               </div>
 
-              <p>Then install the Helm chart:</p>
+              <p>Access via port-forward:</p>
 
               <div className="relative my-6">
                 <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{helmInstall}</code>
+                  <code>{helmPortForward}</code>
                 </pre>
                 <div className="absolute right-2 top-2">
-                  <CopyButton text={helmInstall} />
+                  <CopyButton text={helmPortForward} />
                 </div>
               </div>
 
-              <p>Get the external IP:</p>
+              <h3 id="helm-loadbalancer">
+                With LoadBalancer (cloud environments)
+              </h3>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmInstallLoadBalancer}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmInstallLoadBalancer} />
+                </div>
+              </div>
+
+              <p>Get the external IP and access Postgresus:</p>
 
               <div className="relative my-6">
                 <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
@@ -305,13 +329,20 @@ cd postgresus`;
                 </div>
               </div>
 
-              <p>
-                Access Postgresus at <code>http://&lt;EXTERNAL-IP&gt;</code>{" "}
-                (port 80).
-              </p>
+              <h3 id="helm-ingress">With Ingress (domain-based access)</h3>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{helmInstallIngress}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={helmInstallIngress} />
+                </div>
+              </div>
 
               <p>
-                See the{" "}
+                For more options (NodePort, TLS, HTTPRoute for Gateway API), see
+                the{" "}
                 <a
                   href="https://github.com/RostislavDugin/postgresus/tree/main/deploy/helm"
                   target="_blank"
@@ -319,9 +350,8 @@ cd postgresus`;
                   className="text-blue-600 hover:text-blue-700"
                 >
                   Helm chart documentation
-                </a>{" "}
-                for all configuration options including NodePort, Ingress with
-                HTTPS, custom storage and more.
+                </a>
+                .
               </p>
 
               <h2 id="getting-started">Getting started</h2>
@@ -404,9 +434,9 @@ cd postgresus`;
               </div>
 
               <p>
-                If you have custom values, add <code>-f values.yaml</code> to
-                the command. Helm will perform a rolling update to the new
-                version.
+                If you have custom values, add <code>-f values.yaml</code> or
+                use <code>--set</code> flags to preserve your configuration.
+                Helm will perform a rolling update to the new version.
               </p>
 
               <h2 id="troubleshooting">Troubleshooting</h2>
