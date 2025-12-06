@@ -203,7 +203,7 @@ article table thead {
 
 article table thead th {
   padding: 0.875rem 1rem;
-  text-align: left;
+  text-align: center;
   font-weight: 600;
   font-size: 0.8125rem;
   color: #9ca3af;
@@ -212,6 +212,10 @@ article table thead th {
   white-space: nowrap;
   border-bottom: 1px solid #ffffff20;
   border-right: 1px solid #ffffff20;
+}
+
+article table thead th:first-child {
+  text-align: left;
 }
 
 article table thead th:last-child {
