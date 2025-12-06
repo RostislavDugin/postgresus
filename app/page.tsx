@@ -206,6 +206,8 @@ export default function Index() {
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
+                fetchPriority="high"
+                loading="eager"
               />
 
               <span className="text-base md:text-lg font-semibold">
