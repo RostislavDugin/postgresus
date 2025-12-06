@@ -579,9 +579,9 @@ export default function Index() {
             </div>
 
             {/* Card 7: Many PostgreSQL versions - Mobile/Tablet separate, Desktop merged with card 10 */}
-            <div className="border-b md:border-r lg:border-r border-[#ffffff20] p-5 md:p-6 col-span-1 lg:row-span-2 lg:flex lg:flex-col">
+            <div className="border-b md:border-r lg:border-r border-[#ffffff20] col-span-1 lg:row-span-2 lg:flex lg:flex-col">
               {/* Card 7: Many PostgreSQL versions */}
-              <div className="lg:border-b lg:border-[#ffffff20] lg:pb-6 lg:mb-0">
+              <div className="p-5 md:p-6 lg:border-b lg:border-[#ffffff20]">
                 <div className="flex items-center justify-center w-6 h-6 rounded text-sm font-semibold mb-4 border border-[#ffffff20]">
                   7
                 </div>
@@ -605,7 +605,7 @@ export default function Index() {
               </div>
 
               {/* Card 10: Security - Only visible on desktop, merged with card 7 */}
-              <div className="hidden lg:block lg:pt-6">
+              <div className="hidden lg:block p-5 md:p-6">
                 <div className="flex items-center justify-center w-6 h-6 rounded text-sm font-semibold mb-4 border border-[#ffffff20]">
                   10
                 </div>
