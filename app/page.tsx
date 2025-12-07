@@ -638,7 +638,7 @@ export default function Index() {
             </div>
 
             {/* Card 8: Access management */}
-            <div className="border-b border-[#ffffff20] p-5 md:p-6 col-span-1">
+            <div className="border-b md:border-r lg:border-r border-[#ffffff20] p-5 md:p-6 col-span-1">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center justify-center w-6 h-6 rounded text-sm font-semibold border border-[#ffffff20]">
                   8
