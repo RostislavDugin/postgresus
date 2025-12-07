@@ -1085,14 +1085,29 @@ export default function Index() {
               answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v12 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
             />
             <FaqItem
+              number="2"
+              question="How do I install Postgresus in the quickest manner?"
+              answer="Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. The quickest route is to run the one-line cURL installer, which fetches the current Docker image, creates a docker-compose.yml and boots up the service so it will automatically restart on reboots. For Kubernetes environments, use the official Helm chart for production-ready deployments. Overall time is usually less than two minutes on a typical VPS."
+            />
+            <FaqItem
               number="3"
               question="What backup schedules can I schedule?"
               answer="You can choose from hourly, daily, weekly or monthly cycles and even choose an exact run time (such as 04:00 when it's late night). Weekly schedules enable you to choose a particular weekday, while monthly schedules enable you to choose a particular calendar day, giving you very fine-grained control of maintenance windows."
             />
             <FaqItem
+              number="4"
+              question="Where do my backups live and how much space will they occupy?"
+              answer="Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings."
+            />
+            <FaqItem
               number="5"
               question="How will I know a backup succeeded — or worse, failed?"
               answer="Postgresus can notify with real-time emails, Slack, Telegram, webhooks, Mattermost, Discord and more. You have the choice of what channels to ping so that your DevOps team hears about successes and failures in real time, making recovery routines and compliance audits easier."
+            />
+            <FaqItem
+              number="6"
+              question="How does Postgresus ensure security?"
+              answer="Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised."
             />
             <FaqItem
               number="7"
@@ -1119,9 +1134,19 @@ export default function Index() {
               }
             />
             <FaqItem
+              number="8"
+              question="How does PostgreSQL monitoring work?"
+              answer="Postgresus monitors your databases instantly. This optional feature helps avoid extra costs for edge DBs. Health checks are performed once a specific period (minute, 5 minutes, etc.). To enable the feature, choose your DB and select 'enable' monitoring. Then configure health checks period and number of failed attempts to consider the DB as unavailable."
+            />
+            <FaqItem
               number="9"
               question="Who is Postgresus suitable for?"
               answer="Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable PostgreSQL backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface."
+            />
+            <FaqItem
+              number="10"
+              question="How is Postgresus different from PgBackRest, Barman or pg_dump?"
+              answer="Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI."
             />
             <FaqItem
               number="11"
@@ -1142,37 +1167,6 @@ export default function Index() {
                   essential for security compliance and team accountability.
                 </>
               }
-            />
-            <FaqItem
-              number="13"
-              question="Is Postgresus an alternative to pg_dump?"
-              answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts."
-            />
-
-            <FaqItem
-              number="2"
-              question="How do I install Postgresus in the quickest manner?"
-              answer="Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. The quickest route is to run the one-line cURL installer, which fetches the current Docker image, creates a docker-compose.yml and boots up the service so it will automatically restart on reboots. For Kubernetes environments, use the official Helm chart for production-ready deployments. Overall time is usually less than two minutes on a typical VPS."
-            />
-            <FaqItem
-              number="4"
-              question="Where do my backups live and how much space will they occupy?"
-              answer="Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings."
-            />
-            <FaqItem
-              number="6"
-              question="How does Postgresus ensure security?"
-              answer="Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised."
-            />
-            <FaqItem
-              number="8"
-              question="How does PostgreSQL monitoring work?"
-              answer="Postgresus monitors your databases instantly. This optional feature helps avoid extra costs for edge DBs. Health checks are performed once a specific period (minute, 5 minutes, etc.). To enable the feature, choose your DB and select 'enable' monitoring. Then configure health checks period and number of failed attempts to consider the DB as unavailable."
-            />
-            <FaqItem
-              number="10"
-              question="How is Postgresus different from PgBackRest, Barman or pg_dump?"
-              answer="Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI."
             />
             <FaqItem
               number="12"
@@ -1218,6 +1212,11 @@ export default function Index() {
                   and helps you choose the right tool for your needs.
                 </>
               }
+            />
+            <FaqItem
+              number="13"
+              question="Is Postgresus an alternative to pg_dump?"
+              answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts."
             />
           </div>
         </div>
