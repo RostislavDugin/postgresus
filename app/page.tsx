@@ -404,7 +404,7 @@ export default function Index() {
               Postgresus provides everything you need for reliable PostgreSQL
               backup management. From automated scheduling to backups
               encryption. Suitable well for both individual developers with
-              personal projects, DevOps teams and enterprises.
+              personal projects, DevOps teams and enterprises
             </p>
           </div>
         </div>
@@ -591,7 +591,7 @@ export default function Index() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  PostgreSQL 13, 14, 15, 16, 17 and 18 are supported by the
+                  PostgreSQL 12, 13, 14, 15, 16, 17 and 18 are supported by the
                   project. You can backup any version from 2019
                 </p>
 
