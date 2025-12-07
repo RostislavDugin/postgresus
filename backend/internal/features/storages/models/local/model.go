@@ -191,117 +191,34 @@ func (l *LocalStorage) EncryptSensitiveData(encryptor encryption.FieldEncryptor)
 func (l *LocalStorage) Update(incoming *LocalStorage) {
 }
 
-type writeResult struct {
-	bytesWritten int
-	writeErr     error
-}
-
-type writeJob struct {
-	data []byte
-	n    int
-}
-
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
-	bufA := make([]byte, localChunkSize)
-	bufB := make([]byte, localChunkSize)
-
+	buf := make([]byte, localChunkSize)
 	var written int64
-
-	writeCh := make(chan writeJob, 1)
-	resultCh := make(chan writeResult, 1)
-	doneCh := make(chan struct{})
-
-	go func() {
-		defer close(doneCh)
-		for job := range writeCh {
-			nw, err := dst.Write(job.data[:job.n])
-			resultCh <- writeResult{nw, err}
-		}
-	}()
-
-	useBufferA := true
-	pendingWrite := false
 
 	for {
 		select {
 		case <-ctx.Done():
-			close(writeCh)
-			<-doneCh
 			return written, ctx.Err()
 		default:
 		}
 
-		var currentBuf []byte
-		if useBufferA {
-			currentBuf = bufA
-		} else {
-			currentBuf = bufB
-		}
-
-		nr, readErr := src.Read(currentBuf)
-
-		if nr == 0 && readErr == io.EOF {
-			break
-		}
-
-		if readErr != nil && readErr != io.EOF {
-			close(writeCh)
-			<-doneCh
-			return written, readErr
-		}
-
-		if pendingWrite {
-			select {
-			case <-ctx.Done():
-				close(writeCh)
-				<-doneCh
-				return written, ctx.Err()
-			case result := <-resultCh:
-				if result.writeErr != nil {
-					close(writeCh)
-					<-doneCh
-					return written, result.writeErr
-				}
-				written += int64(result.bytesWritten)
-			}
-		}
-
+		nr, readErr := src.Read(buf)
 		if nr > 0 {
-			select {
-			case <-ctx.Done():
-				close(writeCh)
-				<-doneCh
-				return written, ctx.Err()
-			case writeCh <- writeJob{currentBuf, nr}:
-				pendingWrite = true
+			nw, writeErr := dst.Write(buf[:nr])
+			written += int64(nw)
+			if writeErr != nil {
+				return written, writeErr
 			}
-
-			useBufferA = !useBufferA
+			if nr != nw {
+				return written, io.ErrShortWrite
+			}
 		}
 
 		if readErr == io.EOF {
-			break
+			return written, nil
+		}
+		if readErr != nil {
+			return written, readErr
 		}
 	}
-
-	if pendingWrite {
-		select {
-		case <-ctx.Done():
-			close(writeCh)
-			<-doneCh
-			return written, ctx.Err()
-		case result := <-resultCh:
-			if result.writeErr != nil {
-				close(writeCh)
-				<-doneCh
-				return written, result.writeErr
-			}
-			written += int64(result.bytesWritten)
-		}
-	}
-
-	close(writeCh)
-	<-doneCh
-
-	return written, nil
 }
