@@ -30,7 +30,7 @@ import (
 const (
 	backupTimeout            = 23 * time.Hour
 	shutdownCheckInterval    = 1 * time.Second
-	copyBufferSize           = 16 * 1024 * 1024
+	copyBufferSize           = 8 * 1024 * 1024
 	progressReportIntervalMB = 1.0
 	pgConnectTimeout         = 30
 	compressionLevel         = 5

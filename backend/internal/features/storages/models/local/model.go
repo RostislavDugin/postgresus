@@ -2,7 +2,6 @@ package local_storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,10 +15,10 @@ import (
 )
 
 const (
-	// Chunk size for local storage writes - 16MB provides good balance between
-	// memory usage and write efficiency. This creates backpressure to pg_dump
-	// by only reading one chunk at a time and waiting for disk to confirm receipt.
-	localChunkSize = 16 * 1024 * 1024
+	// Chunk size for local storage writes - 8MB per buffer with double-buffering
+	// allows overlapped I/O while keeping total memory under 32MB.
+	// Two 8MB buffers = 16MB for local storage, plus 8MB for pg_dump buffer = ~25MB total.
+	localChunkSize = 8 * 1024 * 1024
 )
 
 // LocalStorage uses ./postgresus_local_backups folder as a
@@ -197,65 +196,112 @@ type writeResult struct {
 	writeErr     error
 }
 
+type writeJob struct {
+	data []byte
+	n    int
+}
+
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
-	buf := make([]byte, localChunkSize)
+	bufA := make([]byte, localChunkSize)
+	bufB := make([]byte, localChunkSize)
+
 	var written int64
+
+	writeCh := make(chan writeJob, 1)
+	resultCh := make(chan writeResult, 1)
+	doneCh := make(chan struct{})
+
+	go func() {
+		defer close(doneCh)
+		for job := range writeCh {
+			nw, err := dst.Write(job.data[:job.n])
+			resultCh <- writeResult{nw, err}
+		}
+	}()
+
+	useBufferA := true
+	pendingWrite := false
 
 	for {
 		select {
 		case <-ctx.Done():
+			close(writeCh)
+			<-doneCh
 			return written, ctx.Err()
 		default:
 		}
 
-		nr, readErr := io.ReadFull(src, buf)
+		var currentBuf []byte
+		if useBufferA {
+			currentBuf = bufA
+		} else {
+			currentBuf = bufB
+		}
+
+		nr, readErr := src.Read(currentBuf)
 
 		if nr == 0 && readErr == io.EOF {
 			break
 		}
 
-		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+		if readErr != nil && readErr != io.EOF {
+			close(writeCh)
+			<-doneCh
 			return written, readErr
 		}
 
-		writeResultCh := make(chan writeResult, 1)
-		go func() {
-			nw, writeErr := dst.Write(buf[0:nr])
-			writeResultCh <- writeResult{nw, writeErr}
-		}()
-
-		var nw int
-		var writeErr error
-
-		select {
-		case <-ctx.Done():
-			return written, ctx.Err()
-		case result := <-writeResultCh:
-			nw = result.bytesWritten
-			writeErr = result.writeErr
-		}
-
-		if nw < 0 || nr < nw {
-			nw = 0
-			if writeErr == nil {
-				writeErr = errors.New("invalid write result")
+		if pendingWrite {
+			select {
+			case <-ctx.Done():
+				close(writeCh)
+				<-doneCh
+				return written, ctx.Err()
+			case result := <-resultCh:
+				if result.writeErr != nil {
+					close(writeCh)
+					<-doneCh
+					return written, result.writeErr
+				}
+				written += int64(result.bytesWritten)
 			}
 		}
 
-		if writeErr != nil {
-			return written, writeErr
+		if nr > 0 {
+			select {
+			case <-ctx.Done():
+				close(writeCh)
+				<-doneCh
+				return written, ctx.Err()
+			case writeCh <- writeJob{currentBuf, nr}:
+				pendingWrite = true
+			}
+
+			useBufferA = !useBufferA
 		}
 
-		if nr != nw {
-			return written, io.ErrShortWrite
-		}
-
-		written += int64(nw)
-
-		if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
+		if readErr == io.EOF {
 			break
 		}
 	}
+
+	if pendingWrite {
+		select {
+		case <-ctx.Done():
+			close(writeCh)
+			<-doneCh
+			return written, ctx.Err()
+		case result := <-resultCh:
+			if result.writeErr != nil {
+				close(writeCh)
+				<-doneCh
+				return written, result.writeErr
+			}
+			written += int64(result.bytesWritten)
+		}
+	}
+
+	close(writeCh)
+	<-doneCh
 
 	return written, nil
 }
