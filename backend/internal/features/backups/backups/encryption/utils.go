@@ -16,7 +16,7 @@ const (
 	NonceLen         = 12
 	ReservedLen      = 12
 	HeaderLen        = MagicBytesLen + SaltLen + NonceLen + ReservedLen
-	ChunkSize        = 32 * 1024
+	ChunkSize        = 1 * 1024 * 1024
 	PBKDF2Iterations = 100000
 )
 

@@ -502,7 +502,7 @@ func (uc *RestorePostgresqlBackupUsecase) copyWithShutdownCheck(
 	dst io.Writer,
 	src io.Reader,
 ) (int64, error) {
-	buf := make([]byte, 32*1024) // 32KB buffer
+	buf := make([]byte, 16*1024*1024) // 16MB buffer
 	var totalBytesWritten int64
 
 	for {
