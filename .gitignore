@@ -6,3 +6,5 @@ docker-compose.yml
 node_modules/
 .idea
 /articles
+
+.DS_Store

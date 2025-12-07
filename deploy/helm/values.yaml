@@ -3,7 +3,7 @@
 # Image configuration
 image:
   repository: rostislavdugin/postgresus
-  tag: latest
+  tag: null
   pullPolicy: Always
 
 # StatefulSet configuration
