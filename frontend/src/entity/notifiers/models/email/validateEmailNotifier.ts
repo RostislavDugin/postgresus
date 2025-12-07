@@ -1,6 +1,6 @@
 import type { EmailNotifier } from './EmailNotifier';
 
-export const validateEmailNotifier = (isCreate: boolean, notifier: EmailNotifier): boolean => {
+export const validateEmailNotifier = (notifier: EmailNotifier): boolean => {
   if (!notifier.targetEmail) {
     return false;
   }
@@ -10,10 +10,6 @@ export const validateEmailNotifier = (isCreate: boolean, notifier: EmailNotifier
   }
 
   if (!notifier.smtpPort) {
-    return false;
-  }
-
-  if (isCreate && !notifier.smtpPassword) {
     return false;
   }
 

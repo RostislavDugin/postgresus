@@ -182,7 +182,7 @@ export function EditNotifierComponent({
     }
 
     if (notifier.notifierType === NotifierType.EMAIL && notifier.emailNotifier) {
-      return validateEmailNotifier(!notifier.id, notifier.emailNotifier);
+      return validateEmailNotifier(notifier.emailNotifier);
     }
 
     if (notifier.notifierType === NotifierType.WEBHOOK && notifier.webhookNotifier) {
