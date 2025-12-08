@@ -294,7 +294,7 @@ export default function InstallationComponent() {
         </div>
 
         <div className="w-full lg:w-[50%]">
-          <div className="flex-1 relative">
+          <div className="flex-1 relative rounded-lg overflow-hidden shadow-lg border border-[#ffffff20]">
             <LiteYouTubeEmbed
               videoId="KaNLPkuu03M"
               title="How to install Postgresus"

@@ -296,7 +296,7 @@ export default function Index() {
         <div className="relative mx-auto w-full max-w-[1000px] 2xl:max-w-[1200px] px-4 md:px-6 lg:px-0 pt-12 md:pt-[100px] pb-12 md:pb-[100px]">
           {/* Background ellipse */}
           <div className="relative">
-            <div className="absolute left-1/2 -translate-x-1/2 w-[300px] md:w-[480px] h-[300px] md:h-[480px] bg-[#155dfc]/7 top-[-50px] md:top-[-100px] rounded-full blur-3xl -z-10" />
+            <div className="absolute left-1/2 -translate-x-1/2 w-[600px] md:w-[960px] h-[300px] md:h-[480px] bg-[#155dfc]/7 top-[-50px] md:top-[-100px] rounded-full blur-3xl -z-10" />
           </div>
 
           {/* Content */}
@@ -877,7 +877,7 @@ export default function Index() {
                   Select required schedule
                 </h3>
 
-                <div className="space-y-3 max-w-[370px] text-gray-200 text-sm md:text-base">
+                <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
                     You can choose any time you need: daily, weekly, monthly and
                     particular time (like 4 AM)
@@ -914,7 +914,7 @@ export default function Index() {
                   Enter your database info
                 </h3>
 
-                <div className="space-y-3 max-w-[370px] text-gray-200 text-sm md:text-base">
+                <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
                     Enter credentials of your PostgreSQL database, select
                     version and target DB. Also choose whether SSL is required
@@ -948,7 +948,7 @@ export default function Index() {
                   Choose storage for backups
                 </h3>
 
-                <div className="space-y-3 max-w-[370px] text-gray-200 text-sm md:text-base">
+                <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
                     You can keep files with backups locally, in S3, in Google
                     Drive, NAS, Dropbox and other services
@@ -981,7 +981,7 @@ export default function Index() {
                   Choose where you want to receive notifications (optional)
                 </h3>
 
-                <div className="space-y-3 max-w-[370px] text-gray-200 text-sm md:text-base">
+                <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
                     When backup succeed or failed, Postgresus is able to send
                     you notification. It can be chat with DevOps, your emails or
