@@ -80,6 +80,15 @@
 - **Dark & light themes**: Choose the look that suits your workflow
 - **Mobile adaptive**: Check your backups from anywhere on any device
 
+### ☁️ **Works with Self-Hosted & Cloud Databases**
+
+Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed databases:
+
+- **Cloud support**: AWS RDS, Google Cloud SQL, Azure Database for PostgreSQL
+- **Self-hosted**: Any PostgreSQL instance you manage yourself
+- **Why no PITR?**: Cloud providers already offer native PITR, and external PITR backups cannot be restored to managed cloud databases — making them impractical for cloud-hosted PostgreSQL
+- **Practical granularity**: Hourly and daily backups are sufficient for 99% of projects without the operational complexity of WAL archiving
+
 ### 🐳 **Self-Hosted & Secure**
 
 - **Docker-based**: Easy deployment and management
