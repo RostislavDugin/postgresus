@@ -296,7 +296,7 @@ export default function Index() {
         <div className="relative mx-auto w-full max-w-[1000px] 2xl:max-w-[1200px] px-4 md:px-6 lg:px-0 pt-12 md:pt-[100px] pb-12 md:pb-[100px]">
           {/* Background ellipse */}
           <div className="relative">
-            <div className="absolute left-1/2 -translate-x-1/2 w-[600px] md:w-[960px] h-[300px] md:h-[480px] bg-[#155dfc]/7 top-[-50px] md:top-[-100px] rounded-full blur-3xl -z-10" />
+            <div className="absolute left-1/2 -translate-x-1/2 w-[1200px] md:w-[1920px] h-[300px] md:h-[480px] bg-[#155dfc]/7 top-[-50px] md:top-[-100px] rounded-full blur-3xl -z-10" />
           </div>
 
           {/* Content */}
