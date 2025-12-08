@@ -109,9 +109,14 @@ export default function PostgresusVsBarmanPage() {
                 <tbody>
                   <tr>
                     <td>Target audience</td>
-                    <td data-label="Postgresus">Individuals, teams, enterprises</td>
-                    <td data-label="Barman">DBAs, enterprises requiring PITR</td>
+                    <td data-label="Postgresus">
+                      Individuals, teams, enterprises
+                    </td>
+                    <td data-label="Barman">
+                      DBAs, enterprises requiring PITR
+                    </td>
                   </tr>
+
                   <tr>
                     <td>Interface</td>
                     <td data-label="Postgresus">Web UI</td>
@@ -124,12 +129,18 @@ export default function PostgresusVsBarmanPage() {
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">Restore to any hour or day</td>
-                    <td data-label="Barman">WAL-based PITR (second-precise)</td>
+                    <td data-label="Postgresus">
+                      ❌ No PITR (restore to any hour or day)
+                    </td>
+                    <td data-label="Barman">
+                      ✅ WAL-based PITR (second-precise)
+                    </td>
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">Full backups with compression</td>
+                    <td data-label="Postgresus">
+                      Full backups with compression
+                    </td>
                     <td data-label="Barman">rsync-based incremental</td>
                   </tr>
                   <tr>
@@ -139,12 +150,16 @@ export default function PostgresusVsBarmanPage() {
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">✅ Workspaces, RBAC, audit logs</td>
+                    <td data-label="Postgresus">
+                      ✅ Workspaces, RBAC, audit logs
+                    </td>
                     <td data-label="Barman">❌ OS-level permissions only</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">✅ Slack, Teams, Telegram, Email</td>
+                    <td data-label="Postgresus">
+                      ✅ Slack, Teams, Telegram, Email
+                    </td>
                     <td data-label="Barman">❌ Requires custom scripting</td>
                   </tr>
                   <tr>
@@ -156,6 +171,20 @@ export default function PostgresusVsBarmanPage() {
                     <td>Installation</td>
                     <td data-label="Postgresus">One-line script or Docker</td>
                     <td data-label="Barman">Manual configuration required</td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for self-hosted DBs</td>
+                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="Barman">✅ Yes</td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for cloud DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ Yes (RDS, Cloud SQL, Azure)
+                    </td>
+                    <td data-label="Barman">
+                      ❌ No (requires filesystem access)
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -328,13 +357,20 @@ export default function PostgresusVsBarmanPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-gray-300 m-0">
-                  <strong className="text-amber-400">Note:</strong> For most applications, restoring to the
-                  nearest hour or day (as Postgresus provides) is sufficient.
-                  Second-precise PITR is typically only required for
-                  mission-critical financial or transactional systems where
-                  every transaction must be recoverable.
+                  <strong className="text-amber-400">Note:</strong> For most
+                  applications, restoring to the nearest hour or day (as
+                  Postgresus provides) is sufficient. Second-precise PITR is
+                  typically only required for mission-critical financial or
+                  transactional systems where every transaction must be
+                  recoverable.{" "}
+                  <Link
+                    href="/faq#why-no-pitr"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    Learn why Postgresus doesn&apos;t support PITR →
+                  </Link>
                 </p>
               </div>
 
@@ -649,7 +685,9 @@ export default function PostgresusVsBarmanPage() {
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
-                  <strong className="text-blue-400">Choose Postgresus if:</strong>
+                  <strong className="text-blue-400">
+                    Choose Postgresus if:
+                  </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>
@@ -673,21 +711,25 @@ export default function PostgresusVsBarmanPage() {
                     You want quick setup with minimal PostgreSQL expertise
                   </li>
                   <li>Built-in backup encryption is important to you</li>
+                  <li>
+                    You use cloud-managed databases (AWS RDS, Google Cloud SQL,
+                    Azure) or self-hosted PostgreSQL
+                  </li>
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-white m-0">
                   <strong>Choose Barman if:</strong>
                 </p>
                 <ul className="text-white mb-0">
                   <li>
                     You require second-precise Point-in-Time Recovery for
-                    mission-critical systems
+                    mission-critical self-hosted systems
                   </li>
                   <li>
-                    You need centralized management of multiple PostgreSQL
-                    servers from a dedicated backup server
+                    You need centralized management of multiple self-hosted
+                    PostgreSQL servers from a dedicated backup server
                   </li>
                   <li>
                     WAL archiving and streaming replication integration is
@@ -701,16 +743,22 @@ export default function PostgresusVsBarmanPage() {
                     Your organization has dedicated DBA expertise available
                   </li>
                   <li>You need Barman-to-Barman geographical redundancy</li>
+                  <li>
+                    You&apos;re building a database platform and need to backup
+                    customer databases with PITR capabilities
+                  </li>
                 </ul>
               </div>
 
               <p>
                 For most use cases, from individual projects to enterprise
                 deployments, Postgresus provides the right balance of power and
-                usability. Barman remains the specialized choice for
-                organizations with strict PITR requirements and dedicated DBA
-                teams — it excels in enterprise disaster recovery scenarios
-                where second-precise recovery is non-negotiable.
+                usability — and works seamlessly with both self-hosted and
+                cloud-managed databases. Barman remains the specialized choice
+                for organizations with strict PITR requirements on self-hosted
+                infrastructure and dedicated DBA teams, or for teams building
+                database platforms that need to provide PITR capabilities to
+                their customers.
               </p>
             </article>
           </div>

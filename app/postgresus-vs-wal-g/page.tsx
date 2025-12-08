@@ -111,7 +111,9 @@ export default function PostgresusVsWalGPage() {
                   <tr>
                     <td>Database focus</td>
                     <td data-label="Postgresus">PostgreSQL only</td>
-                    <td data-label="WAL-G">Multi-database (PostgreSQL, MySQL, MS SQL, etc.)</td>
+                    <td data-label="WAL-G">
+                      Multi-database (PostgreSQL, MySQL, MS SQL, etc.)
+                    </td>
                   </tr>
                   <tr>
                     <td>Interface</td>
@@ -130,22 +132,34 @@ export default function PostgresusVsWalGPage() {
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">Restore to any hour or day</td>
-                    <td data-label="WAL-G">WAL-based PITR (second-precise)</td>
+                    <td data-label="Postgresus">
+                      ❌ No PITR (restore to any hour or day)
+                    </td>
+                    <td data-label="WAL-G">
+                      ✅ WAL-based PITR (second-precise)
+                    </td>
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">Full backups with compression</td>
-                    <td data-label="WAL-G">Delta backups (changed pages only)</td>
+                    <td data-label="Postgresus">
+                      Full backups with compression
+                    </td>
+                    <td data-label="WAL-G">
+                      Delta backups (changed pages only)
+                    </td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">✅ Workspaces, RBAC, audit logs</td>
+                    <td data-label="Postgresus">
+                      ✅ Workspaces, RBAC, audit logs
+                    </td>
                     <td data-label="WAL-G">❌ OS-level permissions only</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">✅ Slack, Teams, Telegram, Email</td>
+                    <td data-label="Postgresus">
+                      ✅ Slack, Teams, Telegram, Email
+                    </td>
                     <td data-label="WAL-G">❌ Requires custom scripting</td>
                   </tr>
                   <tr>
@@ -162,6 +176,20 @@ export default function PostgresusVsWalGPage() {
                     <td>Installation</td>
                     <td data-label="Postgresus">One-line script or Docker</td>
                     <td data-label="WAL-G">Binary download + configuration</td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for self-hosted DBs</td>
+                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="WAL-G">✅ Yes</td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for cloud DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ Yes (RDS, Cloud SQL, Azure)
+                    </td>
+                    <td data-label="WAL-G">
+                      ❌ Backup only (no restore to cloud)
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -230,13 +258,16 @@ export default function PostgresusVsWalGPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-gray-300 m-0">
-                  <strong className="text-amber-400">When PostgreSQL focus matters:</strong> If your
-                  infrastructure runs PostgreSQL exclusively, a specialized tool
-                  like Postgresus can offer a more streamlined experience. You
-                  get features designed specifically for PostgreSQL without the
-                  overhead of supporting other database systems.
+                  <strong className="text-amber-400">
+                    When PostgreSQL focus matters:
+                  </strong>{" "}
+                  If your infrastructure runs PostgreSQL exclusively, a
+                  specialized tool like Postgresus can offer a more streamlined
+                  experience. You get features designed specifically for
+                  PostgreSQL without the overhead of supporting other database
+                  systems.
                 </p>
               </div>
 
@@ -413,13 +444,20 @@ export default function PostgresusVsWalGPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-gray-300 m-0">
-                  <strong className="text-amber-400">Note:</strong> For most applications, restoring to the
-                  nearest hour or day (as Postgresus provides) is sufficient.
-                  Second-precise PITR is typically only required for
-                  mission-critical financial or transactional systems where
-                  every transaction must be recoverable.
+                  <strong className="text-amber-400">Note:</strong> For most
+                  applications, restoring to the nearest hour or day (as
+                  Postgresus provides) is sufficient. Second-precise PITR is
+                  typically only required for mission-critical financial or
+                  transactional systems where every transaction must be
+                  recoverable.{" "}
+                  <Link
+                    href="/faq#why-no-pitr"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    Learn why Postgresus doesn&apos;t support PITR →
+                  </Link>
                 </p>
               </div>
 
@@ -739,7 +777,9 @@ export default function PostgresusVsWalGPage() {
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
-                  <strong className="text-blue-400">Choose Postgresus if:</strong>
+                  <strong className="text-blue-400">
+                    Choose Postgresus if:
+                  </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>
@@ -766,21 +806,25 @@ export default function PostgresusVsWalGPage() {
                     You want quick setup with minimal PostgreSQL expertise
                   </li>
                   <li>Built-in backup encryption is important to you</li>
+                  <li>
+                    You use cloud-managed databases (AWS RDS, Google Cloud SQL,
+                    Azure) or self-hosted PostgreSQL
+                  </li>
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-white m-0">
                   <strong>Choose WAL-G if:</strong>
                 </p>
                 <ul className="text-white mb-0">
                   <li>
-                    You manage multiple database systems (PostgreSQL, MySQL,
-                    MongoDB, etc.) and want a unified tool
+                    You manage multiple self-hosted database systems
+                    (PostgreSQL, MySQL, MongoDB, etc.) and want a unified tool
                   </li>
                   <li>
                     You require second-precise Point-in-Time Recovery for
-                    mission-critical systems
+                    mission-critical self-hosted systems
                   </li>
                   <li>
                     Delta backups are important for reducing storage and
@@ -797,16 +841,23 @@ export default function PostgresusVsWalGPage() {
                   <li>
                     Your team has DevOps expertise for CLI-based tool management
                   </li>
+                  <li>
+                    You&apos;re building a database platform and need to backup
+                    customer databases with PITR capabilities
+                  </li>
                 </ul>
               </div>
 
               <p>
                 For PostgreSQL-only environments, Postgresus offers a more
                 streamlined experience with its dedicated focus, intuitive
-                interface and built-in features. WAL-G remains an excellent
-                choice for organizations managing diverse database systems or
-                those who prefer CLI-based workflows and need advanced features
-                like delta backups and precise PITR.
+                interface and built-in features — and works seamlessly with both
+                self-hosted and cloud-managed databases. WAL-G remains an
+                excellent choice for organizations managing diverse self-hosted
+                database systems, those who prefer CLI-based workflows and need
+                advanced features like delta backups and precise PITR, or for
+                teams building database platforms that need to provide PITR
+                capabilities to their customers.
               </p>
             </article>
           </div>

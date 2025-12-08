@@ -181,6 +181,15 @@ Each comparison explains the key differences, pros and cons and helps you choose
 ### Is Postgresus an alternative to pg_dump?
 Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts.
 
+### Why doesn't Postgresus support PITR (Point-in-Time Recovery)?
+Postgresus intentionally focuses on logical backups rather than PITR for several practical reasons:
+1. Complex setup requirements — PITR tools typically need to be installed on the same server as your database, requiring direct filesystem access and careful configuration
+2. Restoration limitations — incremental backups cannot be restored without direct access to the database storage drive
+3. Cloud incompatibility — managed cloud databases (AWS RDS, Google Cloud SQL, Azure) don't allow restoring external PITR backups, making them useless for cloud-hosted PostgreSQL
+4. Built-in cloud PITR — cloud providers already offer native PITR capabilities, and even they typically default to hourly or daily granularity
+5. Practical sufficiency — for 99% of projects, hourly or daily logical backups provide adequate recovery points without the operational complexity of WAL archiving
+So instead of second-by-second restoration complexity, Postgresus prioritizes an intuitive UX for individuals and teams, making it the most reliable tool for day to day use
+
 ### Installation Time
 Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. Typically less than 2 minutes on a standard VPS using the automated installer. For Kubernetes environments, use the official Helm chart for production-ready deployments.
 

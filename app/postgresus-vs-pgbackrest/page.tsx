@@ -108,8 +108,12 @@ export default function PostgresusVsPgBackRestPage() {
                 <tbody>
                   <tr>
                     <td>Target audience</td>
-                    <td data-label="Postgresus">Individuals, teams, enterprises</td>
-                    <td data-label="pgBackRest">DBAs, large enterprises (500GB+ DBs)</td>
+                    <td data-label="Postgresus">
+                      Individuals, teams, enterprises
+                    </td>
+                    <td data-label="pgBackRest">
+                      DBAs, large enterprises (~1TB+ DBs)
+                    </td>
                   </tr>
                   <tr>
                     <td>Interface</td>
@@ -123,22 +127,32 @@ export default function PostgresusVsPgBackRestPage() {
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">Restore to any hour or day</td>
-                    <td data-label="pgBackRest">WAL-based PITR</td>
+                    <td data-label="Postgresus">
+                      ❌ No PITR (restore to any hour or day)
+                    </td>
+                    <td data-label="pgBackRest">
+                      ✅ WAL-based PITR (second-precise)
+                    </td>
                   </tr>
                   <tr>
                     <td>Parallel operations</td>
                     <td data-label="Postgresus">✅ Parallel restores</td>
-                    <td data-label="pgBackRest">✅ Parallel backup & restore</td>
+                    <td data-label="pgBackRest">
+                      ✅ Parallel backup & restore
+                    </td>
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">Full backups with compression</td>
+                    <td data-label="Postgresus">
+                      Full backups with compression
+                    </td>
                     <td data-label="pgBackRest">Block-level incremental</td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">✅ Workspaces, RBAC, audit logs</td>
+                    <td data-label="Postgresus">
+                      ✅ Workspaces, RBAC, audit logs
+                    </td>
                     <td data-label="pgBackRest">❌ Single user</td>
                   </tr>
                   <tr>
@@ -149,7 +163,23 @@ export default function PostgresusVsPgBackRestPage() {
                   <tr>
                     <td>Installation</td>
                     <td data-label="Postgresus">One-line script or Docker</td>
-                    <td data-label="pgBackRest">Manual configuration required</td>
+                    <td data-label="pgBackRest">
+                      Manual configuration required
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for self-hosted DBs</td>
+                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="pgBackRest">✅ Yes</td>
+                  </tr>
+                  <tr>
+                    <td>Suitable for cloud DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ Yes (RDS, Cloud SQL, Azure)
+                    </td>
+                    <td data-label="pgBackRest">
+                      ❌ No (requires filesystem access)
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -195,7 +225,7 @@ export default function PostgresusVsPgBackRestPage() {
 
               <ul>
                 <li>
-                  <strong>Large enterprises with 500GB+ databases</strong>:
+                  <strong>Large enterprises with ~1TB+ databases</strong>:
                   Block-level incremental backups and parallel processing become
                   essential at this scale.
                 </li>
@@ -321,13 +351,20 @@ export default function PostgresusVsPgBackRestPage() {
                 </li>
               </ul>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-gray-300 m-0">
-                  <strong className="text-amber-400">Note:</strong> For most applications, restoring to the
-                  nearest hour or day (as Postgresus provides) is sufficient.
-                  Second-precise PITR is typically only required for
-                  mission-critical financial or transactional systems where
-                  every transaction must be recoverable.
+                  <strong className="text-amber-400">Note:</strong> For most
+                  applications, restoring to the nearest hour or day (as
+                  Postgresus provides) is sufficient. Second-precise PITR is
+                  typically only required for mission-critical financial or
+                  transactional systems where every transaction must be
+                  recoverable.{" "}
+                  <Link
+                    href="/faq#why-no-pitr"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    Learn why Postgresus doesn&apos;t support PITR →
+                  </Link>
                 </p>
               </div>
 
@@ -593,7 +630,9 @@ export default function PostgresusVsPgBackRestPage() {
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
-                  <strong className="text-blue-400">Choose Postgresus if:</strong>
+                  <strong className="text-blue-400">
+                    Choose Postgresus if:
+                  </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>
@@ -613,20 +652,24 @@ export default function PostgresusVsPgBackRestPage() {
                     Restoring to any hour or day meets your recovery
                     requirements
                   </li>
-                  <li>You need parallel restores for faster recovery times</li>
                   <li>
                     You want quick setup with minimal PostgreSQL expertise
+                  </li>
+                  <li>
+                    You use cloud-managed databases (AWS RDS, Google Cloud SQL,
+                    Azure) or self-hosted PostgreSQL
                   </li>
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-white m-0">
                   <strong>Choose pgBackRest if:</strong>
                 </p>
                 <ul className="text-white mb-0">
                   <li>
-                    You&apos;re a DBA managing very large databases (500GB+)
+                    You&apos;re a DBA managing large self-hosted databases
+                    (~1TB+)
                   </li>
                   <li>
                     You require second-precise Point-in-Time Recovery for
@@ -642,15 +685,23 @@ export default function PostgresusVsPgBackRestPage() {
                   <li>
                     Your organization has dedicated DBA expertise available
                   </li>
+                  <li>
+                    You use self-hosted PostgreSQL databases (not cloud-managed)
+                  </li>
                 </ul>
               </div>
 
               <p>
                 For most use cases, from individual projects to enterprise
                 deployments, Postgresus provides the right balance of power and
-                usability. pgBackRest remains the specialized choice for DBAs
-                managing very large databases where its advanced features become
-                necessary - it&apos;s the best tool for such cases.
+                usability — and works seamlessly with both self-hosted and
+                cloud-managed databases.
+                <br />
+                <br />
+                pgBackRest remains the specialized choice for DBAs managing very
+                large self-hosted databases where its advanced features become
+                necessary, or for teams building database platforms that need to
+                provide PITR capabilities to their customers.
               </p>
             </article>
           </div>

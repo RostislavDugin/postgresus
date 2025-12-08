@@ -579,7 +579,7 @@ export default function Index() {
             </div>
 
             {/* Card 7: Many PostgreSQL versions - Mobile/Tablet separate, Desktop merged with card 10 */}
-            <div className="border-b md:border-r lg:border-r border-[#ffffff20] col-span-1 lg:row-span-2 lg:flex lg:flex-col">
+            <div className="border-b md:border-r lg:border-r lg:border-b-0 border-[#ffffff20] col-span-1 lg:row-span-2 lg:flex lg:flex-col">
               {/* Card 7: Many PostgreSQL versions */}
               <div className="p-5 md:p-6 lg:border-b lg:border-[#ffffff20]">
                 <div className="flex items-center justify-center w-6 h-6 rounded text-sm font-semibold mb-4 border border-[#ffffff20]">
@@ -748,38 +748,27 @@ export default function Index() {
               </div>
             </div>
 
-            {/* Try Postgresus CTA */}
-            <div className="col-span-1 md:col-span-2 lg:col-span-2 p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#16181D]">
-              <div>
-                <div className="text-lg md:text-xl font-bold mb-2">
-                  Launch Postgresus in 2 minutes
-                </div>
-
-                <p className="text-gray-400 text-sm md:text-base max-w-[350px]">
-                  You&apos;ll only need about 2 minutes to configure Postgresus
-                  and start managing backups
-                </p>
+            {/* Card 11: Suitable for clouds */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2 p-5 md:p-6 flex flex-col md:flex-row gap-4 md:gap-6">
+              <div className="flex items-center justify-center w-6 h-6 rounded text-sm font-semibold border border-[#ffffff20] shrink-0">
+                11
               </div>
 
-              <a
-                href="#installation"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-black bg-white rounded-lg font-medium hover:opacity-70 transition-colors shrink-0"
-              >
-                <span>Get started</span>
-                <svg
-                  aria-hidden={true}
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </a>
+              <div>
+                <h3 className="text-lg md:text-xl 2xl:text-2xl font-bold mb-4 md:mb-5">
+                  Suitable both for self-hosted and cloud databases
+                </h3>
+
+                <p className="text-gray-400 text-sm md:text-base">
+                  Postgresus works seamlessly with cloud-hosted PostgreSQL
+                  databases including AWS RDS, Google Cloud SQL, Azure Database.
+                  This is why Postgresus does not support incremental backups:
+                  clouds already have them, but usually you cannot restore
+                  external PITR backup back to the cloud. Hourly and daily
+                  granularity are enough for 99% of even large enterprise
+                  projects
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1217,6 +1206,51 @@ export default function Index() {
               number="13"
               question="Is Postgresus an alternative to pg_dump?"
               answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts."
+            />
+            <FaqItem
+              number="14"
+              question="Why doesn't Postgresus support PITR (Point-in-Time Recovery)?"
+              answer={
+                <>
+                  Postgresus intentionally focuses on logical backups rather
+                  than PITR for several practical reasons:
+                  <ol className="list-decimal list-inside mt-3 space-y-2">
+                    <li>
+                      <strong>Complex setup requirements</strong> — PITR tools
+                      typically need to be installed on the same server as your
+                      database, requiring direct filesystem access and careful
+                      configuration
+                    </li>
+                    <li>
+                      <strong>Restoration limitations</strong> — incremental
+                      backups cannot be restored without direct access to the
+                      database storage drive
+                    </li>
+                    <li>
+                      <strong>Cloud incompatibility</strong> — managed cloud
+                      databases (AWS RDS, Google Cloud SQL, Azure) don&apos;t
+                      allow restoring external PITR backups, making them useless
+                      for cloud-hosted PostgreSQL
+                    </li>
+                    <li>
+                      <strong>Built-in cloud PITR</strong> — cloud providers
+                      already offer native PITR capabilities, and even they
+                      typically default to hourly or daily granularity
+                    </li>
+                    <li>
+                      <strong>Practical sufficiency</strong> — for 99% of
+                      projects, hourly or daily logical backups provide adequate
+                      recovery points without the operational complexity of WAL
+                      archiving
+                    </li>
+                  </ol>
+                  <br />
+                  So instead of second-by-second restoration complexity,
+                  Postgresus prioritizes an intuitive UX for individuals and
+                  teams, making it the most reliable tool for managing multiple
+                  databases and day to day use
+                </>
+              }
             />
           </div>
         </div>
