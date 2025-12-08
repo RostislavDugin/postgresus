@@ -8,3 +8,4 @@ node_modules/
 /articles
 
 .DS_Store
+/scripts
