@@ -32,6 +32,29 @@ Then open `http://localhost:4005` in your browser.
 | `image.pullPolicy` | Image pull policy  | `Always`                    |
 | `replicaCount`     | Number of replicas | `1`                         |
 
+### Custom Root CA
+
+| Parameter      | Description                              | Default Value |
+| -------------- | ---------------------------------------- | ------------- |
+| `customRootCA` | Name of Secret containing CA certificate | `""`          |
+
+To trust a custom CA certificate (e.g., for internal services with self-signed certificates):
+
+1. Create a Secret with your CA certificate:
+
+```bash
+kubectl create secret generic my-root-ca \
+  --from-file=ca.crt=./path/to/ca-certificate.crt
+```
+
+2. Reference it in values:
+
+```yaml
+customRootCA: my-root-ca
+```
+
+The certificate will be mounted to `/etc/ssl/certs/custom-root-ca.crt` and the `SSL_CERT_FILE` environment variable will be set automatically.
+
 ### Service
 
 | Parameter                  | Description             | Default Value |

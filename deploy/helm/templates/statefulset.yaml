@@ -39,6 +39,11 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.customRootCA }}
+          env:
+            - name: SSL_CERT_FILE
+              value: /etc/ssl/certs/custom-root-ca.crt
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
@@ -46,6 +51,12 @@ spec:
           volumeMounts:
             - name: postgresus-storage
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- if .Values.customRootCA }}
+            - name: custom-root-ca
+              mountPath: /etc/ssl/certs/custom-root-ca.crt
+              subPath: ca.crt
+              readOnly: true
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if .Values.livenessProbe.enabled }}
@@ -66,6 +77,12 @@ spec:
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
           {{- end }}
+      {{- if .Values.customRootCA }}
+      volumes:
+        - name: custom-root-ca
+          secret:
+            secretName: {{ .Values.customRootCA }}
+      {{- end }}
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:

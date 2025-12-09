@@ -9,6 +9,9 @@ image:
 # StatefulSet configuration
 replicaCount: 1
 
+# RootCA setup, need name of secret in same namespace
+customRootCA: ""
+
 # Service configuration
 service:
   type: ClusterIP
