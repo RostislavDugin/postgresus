@@ -551,7 +551,8 @@ func verifyDatabaseVersion(
 	}
 
 	// Parse version from string like "PostgreSQL 14.2 on x86_64-pc-linux-gnu..."
-	re := regexp.MustCompile(`PostgreSQL (\d+)\.`)
+	// or "PostgreSQL 16 maintained by Postgre BY..." (some builds omit minor version)
+	re := regexp.MustCompile(`PostgreSQL (\d+)`)
 	matches := re.FindStringSubmatch(versionStr)
 	if len(matches) < 2 {
 		return fmt.Errorf("could not parse version from: %s", versionStr)
