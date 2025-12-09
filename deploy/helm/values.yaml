@@ -10,7 +10,7 @@ image:
 replicaCount: 1
 
 # RootCA setup, need name of secret in same namespace
-customRootCA: my-root-ca
+customRootCA: ""
 
 # Service configuration
 service:
