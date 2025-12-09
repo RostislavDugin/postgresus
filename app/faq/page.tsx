@@ -244,11 +244,6 @@ export default function FAQPage() {
                 <li>current dump format is suitable for 99% of the cases</li>
               </ul>
 
-              <p>
-                As for Nov 2025 Postgresus is going to add incremental backups
-                support. So this is priority in addition to current dump format.
-              </p>
-
               <h2 id="installation-directory">
                 Where is Postgresus installed if installed via .sh script?
               </h2>
