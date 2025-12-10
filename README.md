@@ -223,7 +223,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 If you need to reset the password, you can use the built-in password reset command:
 
 ```bash
-docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin@example.com"
+docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"
 ```
 
 Replace `admin` with the actual email address of the user whose password you want to reset.
