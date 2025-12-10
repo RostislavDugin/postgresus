@@ -97,7 +97,7 @@ Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed d
 
 ### 📦 Installation <a href="https://postgresus.com/installation">(docs)</a>
 
-You have three ways to install Postgresus:
+You have several ways to install Postgresus:
 
 - Script (recommended)
 - Simple Docker run
@@ -115,7 +115,7 @@ You have three ways to install Postgresus: automated script (recommended), simpl
 
 The installation script will:
 
-- ✅ Install Docker with Docker Compose(if not already installed)
+- ✅ Install Docker with Docker Compose (if not already installed)
 - ✅ Set up Postgresus
 - ✅ Configure automatic startup on system reboot
 
@@ -223,7 +223,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 If you need to reset the password, you can use the built-in password reset command:
 
 ```bash
-docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"
+docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin@example.com"
 ```
 
 Replace `admin` with the actual email address of the user whose password you want to reset.
@@ -238,4 +238,4 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! Read <a href="https://postgresus.com/contributing">contributing guide</a> for more details, prioerities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+Contributions are welcome! Read <a href="https://postgresus.com/contributing">contributing guide</a> for more details, priorities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
