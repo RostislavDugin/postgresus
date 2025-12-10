@@ -54,6 +54,11 @@ export const ShowDatabaseSpecificDataComponent = ({ database }: Props) => {
           </div>
 
           <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Schemas</div>
+            <div>{database.postgresql?.schemas || 'All (full backup)'}</div>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Use HTTPS</div>
             <div>{database.postgresql?.isHttps ? 'Yes' : 'No'}</div>
           </div>

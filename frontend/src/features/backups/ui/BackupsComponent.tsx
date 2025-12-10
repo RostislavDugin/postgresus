@@ -649,7 +649,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
 
       {showingRestoresBackupId && (
         <Modal
-          width={400}
+          width={420}
           open={!!showingRestoresBackupId}
           onCancel={() => setShowingRestoresBackupId(undefined)}
           title="Restore from backup"

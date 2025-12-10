@@ -29,6 +29,7 @@ type PostgresqlDatabase struct {
 	Password string  `json:"password" gorm:"type:text;not null"`
 	Database *string `json:"database" gorm:"type:text"`
 	IsHttps  bool    `json:"isHttps"  gorm:"type:boolean;default:false"`
+	Schemas  *string `json:"schemas"  gorm:"type:text"`
 }
 
 func (p *PostgresqlDatabase) TableName() string {
@@ -85,6 +86,7 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	p.Username = incoming.Username
 	p.Database = incoming.Database
 	p.IsHttps = incoming.IsHttps
+	p.Schemas = incoming.Schemas
 
 	if incoming.Password != "" {
 		p.Password = incoming.Password
