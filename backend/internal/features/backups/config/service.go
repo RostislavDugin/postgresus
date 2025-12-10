@@ -117,6 +117,12 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 	return config, nil
 }
 
+func (s *BackupConfigService) FindBackupConfigByDbIdNoInit(
+	databaseID uuid.UUID,
+) (*BackupConfig, error) {
+	return s.backupConfigRepository.FindByDatabaseID(databaseID)
+}
+
 func (s *BackupConfigService) IsStorageUsing(
 	user *users_models.User,
 	storageID uuid.UUID,

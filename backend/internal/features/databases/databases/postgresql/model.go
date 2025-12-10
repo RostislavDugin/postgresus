@@ -164,6 +164,71 @@ func verifyDatabaseVersion(
 	return nil
 }
 
+// ListAccessibleDatabases connects to the cluster and returns databases the user can CONNECT to
+func (p *PostgresqlDatabase) ListAccessibleDatabases(logger *slog.Logger) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Try common system databases for initial connection
+	candidates := []string{"postgres", "template1"}
+	var lastErr error
+
+	for _, dbName := range candidates {
+		connStr := buildConnectionStringForDB(p, dbName)
+
+		conn, err := pgx.Connect(ctx, connStr)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to connect to database '%s': %w", dbName, err)
+			continue
+		}
+
+		// Ensure we always close the connection
+		defer func() {
+			if closeErr := conn.Close(ctx); closeErr != nil {
+				logger.Error("Failed to close connection", "error", closeErr)
+			}
+		}()
+
+		// Verify version after successful connection
+		if err := verifyDatabaseVersion(ctx, conn, p.Version); err != nil {
+			return nil, err
+		}
+
+		// List accessible databases (exclude templates, require CONNECT privilege)
+		rows, err := conn.Query(ctx, `
+			SELECT datname
+			FROM pg_database
+			WHERE datistemplate = false
+			  AND datallowconn = true
+			  AND has_database_privilege(current_user, datname, 'CONNECT')
+			ORDER BY datname`)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list databases: %w", err)
+		}
+		defer rows.Close()
+
+		var dbs []string
+		for rows.Next() {
+			var name string
+			if scanErr := rows.Scan(&name); scanErr != nil {
+				return nil, fmt.Errorf("failed to scan database name: %w", scanErr)
+			}
+			dbs = append(dbs, name)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("error iterating over database rows: %w", err)
+		}
+
+		return dbs, nil
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+
+	return nil, errors.New("unable to connect to cluster using known system databases")
+}
+
 // testBasicOperations tests basic operations that backup tools need
 func testBasicOperations(ctx context.Context, conn *pgx.Conn, dbName string) error {
 	var hasCreatePriv bool

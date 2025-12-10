@@ -58,6 +58,12 @@
 - **SSL support**: Secure connections available
 - **Easy restoration**: One-click restore from any backup
 
+### 🧩 **Cluster-based Setup**
+
+- **Discover databases**: Connect to a PostgreSQL cluster and list databases the user can access
+- **Bulk import**: Select multiple databases and create them at once
+- **Shared setup**: Apply a single backup schedule, storage and notifiers to all selected databases
+
 ### 👥 **Suitable for Teams** <a href="https://postgresus.com/access-management">(docs)</a>
 
 - **Workspaces**: Group databases, notifiers and storages for different projects or teams
@@ -147,12 +153,29 @@ docker compose up -d
 ## 🚀 Usage
 
 1. **Access the dashboard**: Navigate to `http://localhost:4005`
-2. **Add first DB for backup**: Click "New Database" and follow the setup wizard
+2. **Add database(s)**: Click "Add database" and choose either:
+   - **Single database**: classic flow for one DB
+   - **From cluster**: discover and import multiple DBs from a PostgreSQL cluster
 3. **Configure schedule**: Choose from hourly, daily, weekly or monthly intervals
 4. **Set database connection**: Enter your PostgreSQL credentials and connection details
 5. **Choose storage**: Select where to store your backups (local, S3, Google Drive, etc.)
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications
 7. **Save and start**: Postgresus will validate settings and begin the backup schedule
+
+### Import multiple databases from a cluster
+
+1. Go to Databases → **Add database** → **From cluster**
+2. Enter connection: PostgreSQL version, host, port, username, password, HTTPS if needed
+3. Click **Load databases** to list accessible DBs (templates are excluded)
+4. Select the databases you want to back up (multi-select)
+5. Set a shared backup schedule and storage
+6. Select notifiers (optional)
+7. Click **Create** — Postgresus creates a database entry per selected DB and applies your shared settings
+
+Notes:
+- Requires `CONNECT` privilege to each selected database; templates are excluded automatically
+- The specified PostgreSQL version must match the server; choose the actual version of the cluster
+- HTTPS toggle uses `sslmode=require`
 
 ### 🔑 Resetting Password <a href="https://postgresus.com/password">(docs)</a>
 

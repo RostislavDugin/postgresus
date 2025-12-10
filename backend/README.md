@@ -3,6 +3,10 @@
 Keep in mind: you need to use dev-db from docker-compose.yml in this folder
 instead of postgresus-db from docker-compose.yml in the root folder.
 
+## Requirements
+
+- Go 1.23+
+
 > Copy .env.example to .env
 > Copy docker-compose.yml.example to docker-compose.yml (for development only)
 > Go to tools folder and install Postgres versions
@@ -46,6 +50,10 @@ To generate swagger docs:
 Swagger URL is:
 
 > http://localhost:4005/api/v1/docs/swagger/index.html#/
+
+## New endpoints
+
+- POST `/api/v1/databases/list-databases-direct` — list accessible databases in a PostgreSQL cluster without saving configuration. See Swagger for request/response schema.
 
 # Project structure
 

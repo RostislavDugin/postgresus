@@ -73,6 +73,17 @@ export const databaseApi = {
     );
   },
 
+  async listDatabasesDirect(database: Database) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(database));
+    return apiHelper
+      .fetchPostJson<{ databases: string[] }>(
+        `${getApplicationServer()}/api/v1/databases/list-databases-direct`,
+        requestOptions,
+      )
+      .then((res) => res.databases);
+  },
+
   async isNotifierUsing(notifierId: string) {
     const requestOptions: RequestOptions = new RequestOptions();
     return apiHelper

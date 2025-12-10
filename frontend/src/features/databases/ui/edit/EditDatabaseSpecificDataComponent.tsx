@@ -101,7 +101,7 @@ export const EditDatabaseSpecificDataComponent = ({
   if (!editingDatabase.postgresql?.port) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.username) isAllFieldsFilled = false;
   if (!editingDatabase.id && !editingDatabase.postgresql?.password) isAllFieldsFilled = false;
-  if (!editingDatabase.postgresql?.database) isAllFieldsFilled = false;
+  if (isShowDbName && !editingDatabase.postgresql?.database) isAllFieldsFilled = false;
 
   const isLocalhostDb =
     editingDatabase.postgresql?.host?.includes('localhost') ||

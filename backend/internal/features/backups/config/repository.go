@@ -81,7 +81,7 @@ func (r *BackupConfigRepository) GetWithEnabledBackups() ([]*BackupConfig, error
 		GetDb().
 		Preload("BackupInterval").
 		Preload("Storage").
-		Where("is_backups_enabled = ?", true).
+		Where("is_backups_enabled = ? AND (managed_by_cluster = FALSE OR cluster_id IS NULL)", true).
 		Find(&backupConfigs).Error; err != nil {
 		return nil, err
 	}

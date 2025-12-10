@@ -24,6 +24,7 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/databases", c.GetDatabases)
 	router.POST("/databases/:id/test-connection", c.TestDatabaseConnection)
 	router.POST("/databases/test-connection-direct", c.TestDatabaseConnectionDirect)
+	router.POST("/databases/list-databases-direct", c.ListAccessibleDatabasesDirect)
 	router.POST("/databases/:id/copy", c.CopyDatabase)
 	router.GET("/databases/notifier/:id/is-using", c.IsNotifierUsing)
 
@@ -263,6 +264,39 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "connection successful"})
+}
+
+// ListAccessibleDatabasesDirect
+// @Summary List databases in a cluster directly
+// @Description List accessible databases in a PostgreSQL cluster without saving configuration
+// @Tags databases
+// @Accept json
+// @Produce json
+// @Param request body Database true "Database connection configuration"
+// @Success 200 {object} map[string][]string
+// @Failure 400
+// @Failure 401
+// @Router /databases/list-databases-direct [post]
+func (c *DatabaseController) ListAccessibleDatabasesDirect(ctx *gin.Context) {
+	_, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var request Database
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	dbs, err := c.databaseService.ListAccessibleDatabasesDirect(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"databases": dbs})
 }
 
 // IsNotifierUsing

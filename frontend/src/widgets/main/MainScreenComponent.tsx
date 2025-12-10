@@ -17,6 +17,7 @@ import { type WorkspaceResponse, workspaceApi } from '../../entity/workspaces';
 import { DatabasesComponent } from '../../features/databases/ui/DatabasesComponent';
 import { NotifiersComponent } from '../../features/notifiers/ui/NotifiersComponent';
 import { SettingsComponent } from '../../features/settings';
+import { ClustersComponent } from '../../features/clusters/ui/ClustersComponent';
 import { StoragesComponent } from '../../features/storages/ui/StoragesComponent';
 import { ProfileComponent } from '../../features/users';
 import { UsersComponent } from '../../features/users/ui/UsersComponent';
@@ -36,6 +37,7 @@ export const MainScreenComponent = () => {
     | 'notifiers'
     | 'storages'
     | 'databases'
+    | 'clusters'
     | 'profile'
     | 'postgresus-settings'
     | 'users'
@@ -200,6 +202,16 @@ export const MainScreenComponent = () => {
                 isVisible: true,
               },
               {
+                text: 'Clusters',
+                name: 'clusters',
+                icon: '/icons/menu/database-gray.svg',
+                selectedIcon: '/icons/menu/database-white.svg',
+                onClick: () => setSelectedTab('clusters'),
+                isAdminOnly: false,
+                marginTop: '0px',
+                isVisible: !!selectedWorkspace,
+              },
+              {
                 text: 'Storages',
                 name: 'storages',
                 icon: '/icons/menu/storage-gray.svg',
@@ -334,6 +346,14 @@ export const MainScreenComponent = () => {
                   workspace={selectedWorkspace}
                   isCanManageDBs={isCanManageDBs}
                   key={`databases-${selectedWorkspace.id}`}
+                />
+              )}
+              {selectedTab === 'clusters' && selectedWorkspace && (
+                <ClustersComponent
+                  contentHeight={contentHeight}
+                  workspace={selectedWorkspace}
+                  isCanManageDBs={isCanManageDBs}
+                  key={`clusters-${selectedWorkspace.id}`}
                 />
               )}
               {selectedTab === 'settings' && selectedWorkspace && user && (

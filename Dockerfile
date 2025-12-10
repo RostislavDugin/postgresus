@@ -54,6 +54,7 @@ COPY --from=frontend-build /frontend/dist /app/ui/build
 
 # Generate Swagger documentation
 COPY backend/ ./
+RUN go mod tidy
 RUN swag init -d . -g cmd/main.go -o swagger
 
 # Compile the backend

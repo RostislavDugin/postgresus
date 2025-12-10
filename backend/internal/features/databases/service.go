@@ -297,6 +297,45 @@ func (s *DatabaseService) TestDatabaseConnectionDirect(
 	return usingDatabase.TestConnection(s.logger)
 }
 
+func (s *DatabaseService) ListAccessibleDatabasesDirect(
+	database *Database,
+) ([]string, error) {
+	var usingDatabase *Database
+
+	if database.ID != uuid.Nil {
+		existingDatabase, err := s.dbRepository.FindByID(database.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		if database.WorkspaceID != nil && existingDatabase.WorkspaceID != nil &&
+			*existingDatabase.WorkspaceID != *database.WorkspaceID {
+			return nil, errors.New("database does not belong to this workspace")
+		}
+
+		existingDatabase.Update(database)
+
+		if err := existingDatabase.Validate(); err != nil {
+			return nil, err
+		}
+
+		usingDatabase = existingDatabase
+	} else {
+		usingDatabase = database
+	}
+
+	if usingDatabase.Type != DatabaseTypePostgres || usingDatabase.Postgresql == nil {
+		return nil, errors.New("postgresql configuration is required")
+	}
+
+	dbs, err := usingDatabase.Postgresql.ListAccessibleDatabases(s.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return dbs, nil
+}
+
 func (s *DatabaseService) GetDatabaseByID(
 	id uuid.UUID,
 ) (*Database, error) {

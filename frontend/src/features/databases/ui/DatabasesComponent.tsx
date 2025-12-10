@@ -1,10 +1,11 @@
-import { Button, Modal, Spin } from 'antd';
+import { Button, Modal, Segmented, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { databaseApi } from '../../../entity/databases';
 import type { Database } from '../../../entity/databases';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { CreateDatabaseComponent } from './CreateDatabaseComponent';
+import { CreateDatabasesFromClusterComponent } from './CreateDatabasesFromClusterComponent';
 import { DatabaseCardComponent } from './DatabaseCardComponent';
 import { DatabaseComponent } from './DatabaseComponent';
 
@@ -20,6 +21,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isShowAddDatabase, setIsShowAddDatabase] = useState(false);
+  const [addMode, setAddMode] = useState<'single' | 'cluster'>('single');
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | undefined>(undefined);
 
   const loadDatabases = (isSilent = false) => {
@@ -58,7 +60,14 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
   }
 
   const addDatabaseButton = (
-    <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddDatabase(true)}>
+    <Button
+      type="primary"
+      className="mb-2 w-full"
+      onClick={() => {
+        setAddMode('single');
+        setIsShowAddDatabase(true);
+      }}
+    >
       Add database
     </Button>
   );
@@ -139,14 +148,37 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
         >
           <div className="mt-5" />
 
-          <CreateDatabaseComponent
-            workspaceId={workspace.id}
-            onCreated={() => {
-              loadDatabases();
-              setIsShowAddDatabase(false);
-            }}
-            onClose={() => setIsShowAddDatabase(false)}
-          />
+          <div className="mb-4 flex justify-center">
+            <Segmented
+              size="small"
+              value={addMode}
+              onChange={(v) => setAddMode(v as 'single' | 'cluster')}
+              options={[
+                { label: 'Single database', value: 'single' },
+                { label: 'From cluster', value: 'cluster' },
+              ]}
+            />
+          </div>
+
+          {addMode === 'single' ? (
+            <CreateDatabaseComponent
+              workspaceId={workspace.id}
+              onCreated={() => {
+                loadDatabases();
+                setIsShowAddDatabase(false);
+              }}
+              onClose={() => setIsShowAddDatabase(false)}
+            />
+          ) : (
+            <CreateDatabasesFromClusterComponent
+              workspaceId={workspace.id}
+              onCreated={() => {
+                loadDatabases();
+                setIsShowAddDatabase(false);
+              }}
+              onClose={() => setIsShowAddDatabase(false)}
+            />
+          )}
         </Modal>
       )}
     </>

@@ -24,6 +24,10 @@ type BackupConfig struct {
 	Storage   *storages.Storage `json:"storage"   gorm:"foreignKey:StorageID"`
 	StorageID *uuid.UUID        `json:"storageId" gorm:"column:storage_id;type:uuid;"`
 
+	// Cluster management
+	ClusterID        *uuid.UUID `json:"clusterId"          gorm:"column:cluster_id;type:uuid"`
+	ManagedByCluster bool       `json:"managedByCluster"    gorm:"column:managed_by_cluster;type:boolean;not null"`
+
 	SendNotificationsOn       []BackupNotificationType `json:"sendNotificationsOn" gorm:"-"`
 	SendNotificationsOnString string                   `json:"-"                   gorm:"column:send_notifications_on;type:text;not null"`
 

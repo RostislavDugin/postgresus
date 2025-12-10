@@ -550,6 +550,10 @@ func (s *BackupService) deleteBackup(backup *Backup) error {
 	return s.backupRepository.DeleteByID(backup.ID)
 }
 
+func (s *BackupService) DeleteBackupsForDatabase(databaseID uuid.UUID) error {
+	return s.deleteDbBackups(databaseID)
+}
+
 func (s *BackupService) deleteDbBackups(databaseID uuid.UUID) error {
 	dbBackupsInProgress, err := s.backupRepository.FindByDatabaseIdAndStatus(
 		databaseID,

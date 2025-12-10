@@ -16,6 +16,7 @@ import (
 	"postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/backups/backups"
 	backups_config "postgresus-backend/internal/features/backups/config"
+	"postgresus-backend/internal/features/clusters"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/disk"
 	healthcheck_attempt "postgresus-backend/internal/features/healthcheck/attempt"
@@ -192,6 +193,7 @@ func setUpRoutes(r *gin.Engine) {
 	notifiers.GetNotifierController().RegisterRoutes(protected)
 	storages.GetStorageController().RegisterRoutes(protected)
 	databases.GetDatabaseController().RegisterRoutes(protected)
+	clusters.GetClusterController().RegisterRoutes(protected)
 	backups.GetBackupController().RegisterRoutes(protected)
 	restores.GetRestoreController().RegisterRoutes(protected)
 	healthcheck_config.GetHealthcheckConfigController().RegisterRoutes(protected)
@@ -210,6 +212,7 @@ func setUpDependencies() {
 	audit_logs.SetupDependencies()
 	notifiers.SetupDependencies()
 	storages.SetupDependencies()
+	clusters.SetupDependencies()
 }
 
 func runBackgroundTasks(log *slog.Logger) {
@@ -222,6 +225,10 @@ func runBackgroundTasks(log *slog.Logger) {
 
 	go runWithPanicLogging(log, "backup background service", func() {
 		backups.GetBackupBackgroundService().Run()
+	})
+
+	go runWithPanicLogging(log, "cluster background service", func() {
+		clusters.GetClusterBackgroundService().Run()
 	})
 
 	go runWithPanicLogging(log, "restore background service", func() {
