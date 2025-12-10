@@ -83,6 +83,17 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		"--no-acl",    // Skip restoring access privileges (GRANT/REVOKE commands)
 	}
 
+	// Add schema filters if specified
+	if pg.Schemas != nil && *pg.Schemas != "" {
+		schemas := strings.Split(*pg.Schemas, ",")
+		for _, schema := range schemas {
+			schema = strings.TrimSpace(schema)
+			if schema != "" {
+				args = append(args, "--schema", schema)
+			}
+		}
+	}
+
 	return uc.restoreFromStorage(
 		originalDB,
 		tools.GetPostgresqlExecutable(

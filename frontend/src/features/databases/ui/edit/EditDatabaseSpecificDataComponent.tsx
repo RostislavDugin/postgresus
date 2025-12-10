@@ -275,6 +275,32 @@ export const EditDatabaseSpecificDataComponent = ({
             </div>
           )}
 
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Schemas</div>
+            <Input
+              value={editingDatabase.postgresql?.schemas}
+              onChange={(e) => {
+                if (!editingDatabase.postgresql) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  postgresql: { ...editingDatabase.postgresql, schemas: e.target.value.trim() },
+                });
+                setIsConnectionTested(false);
+              }}
+              size="small"
+              className="max-w-[200px] grow"
+              placeholder="public,myschema (optional)"
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Comma-separated list of schemas to include. Leave empty for all schemas."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+
           <div className="mb-3 flex w-full items-center">
             <div className="min-w-[150px]">Use HTTPS</div>
             <Switch
