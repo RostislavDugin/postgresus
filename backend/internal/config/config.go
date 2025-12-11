@@ -58,6 +58,13 @@ type EnvVariables struct {
 	// testing Telegram
 	TestTelegramBotToken string `env:"TEST_TELEGRAM_BOT_TOKEN"`
 	TestTelegramChatID   string `env:"TEST_TELEGRAM_CHAT_ID"`
+
+	// testing Supabase
+	TestSupabaseHost     string `env:"TEST_SUPABASE_HOST"`
+	TestSupabasePort     string `env:"TEST_SUPABASE_PORT"`
+	TestSupabaseUsername string `env:"TEST_SUPABASE_USERNAME"`
+	TestSupabasePassword string `env:"TEST_SUPABASE_PASSWORD"`
+	TestSupabaseDatabase string `env:"TEST_SUPABASE_DATABASE"`
 }
 
 var (

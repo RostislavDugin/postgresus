@@ -14,6 +14,7 @@ import (
 	"postgresus-backend/internal/features/storages"
 	users_models "postgresus-backend/internal/features/users/models"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/tools"
 	"time"
 
@@ -30,6 +31,7 @@ type RestoreService struct {
 	logger               *slog.Logger
 	workspaceService     *workspaces_services.WorkspaceService
 	auditLogService      *audit_logs.AuditLogService
+	fieldEncryptor       encryption.FieldEncryptor
 }
 
 func (s *RestoreService) OnBeforeBackupRemove(backup *backups.Backup) error {
@@ -120,12 +122,6 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
-	fmt.Printf(
-		"restore from %s to %s\n",
-		backupDatabase.Postgresql.Version,
-		requestDTO.PostgresqlDatabase.Version,
-	)
-
 	if tools.IsBackupDbVersionHigherThanRestoreDbVersion(
 		backupDatabase.Postgresql.Version,
 		requestDTO.PostgresqlDatabase.Version,
@@ -212,6 +208,10 @@ func (s *RestoreService) RestoreBackup(
 
 	restoringToDB := &databases.Database{
 		Postgresql: requestDTO.PostgresqlDatabase,
+	}
+
+	if err := restoringToDB.PopulateVersionIfEmpty(s.logger, s.fieldEncryptor); err != nil {
+		return fmt.Errorf("failed to auto-detect database version: %w", err)
 	}
 
 	err = s.restoreBackupUsecase.Execute(

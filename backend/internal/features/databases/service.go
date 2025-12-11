@@ -68,6 +68,10 @@ func (s *DatabaseService) CreateDatabase(
 		return nil, err
 	}
 
+	if err := database.PopulateVersionIfEmpty(s.logger, s.fieldEncryptor); err != nil {
+		return nil, fmt.Errorf("failed to auto-detect database version: %w", err)
+	}
+
 	if err := database.EncryptSensitiveFields(s.fieldEncryptor); err != nil {
 		return nil, fmt.Errorf("failed to encrypt sensitive fields: %w", err)
 	}
@@ -123,6 +127,10 @@ func (s *DatabaseService) UpdateDatabase(
 
 	if err := existingDatabase.Validate(); err != nil {
 		return err
+	}
+
+	if err := existingDatabase.PopulateVersionIfEmpty(s.logger, s.fieldEncryptor); err != nil {
+		return fmt.Errorf("failed to auto-detect database version: %w", err)
 	}
 
 	if err := existingDatabase.EncryptSensitiveFields(s.fieldEncryptor); err != nil {

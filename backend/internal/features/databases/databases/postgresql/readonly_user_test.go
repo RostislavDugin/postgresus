@@ -246,6 +246,188 @@ func Test_ReadOnlyUser_MultipleSchemas_AllAccessible(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_CreateReadOnlyUser_DatabaseNameWithDash_Success(t *testing.T) {
+	env := config.GetEnv()
+	container := connectToPostgresContainer(t, env.TestPostgres16Port)
+	defer container.DB.Close()
+
+	dashDbName := "test-db-with-dash"
+
+	_, err := container.DB.Exec(fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, dashDbName))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(`CREATE DATABASE "%s"`, dashDbName))
+	assert.NoError(t, err)
+
+	defer func() {
+		_, _ = container.DB.Exec(fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, dashDbName))
+	}()
+
+	dashDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, container.Username, container.Password, dashDbName)
+	dashDB, err := sqlx.Connect("postgres", dashDSN)
+	assert.NoError(t, err)
+	defer dashDB.Close()
+
+	_, err = dashDB.Exec(`
+		CREATE TABLE dash_test (
+			id SERIAL PRIMARY KEY,
+			data TEXT NOT NULL
+		);
+		INSERT INTO dash_test (data) VALUES ('test1'), ('test2');
+	`)
+	assert.NoError(t, err)
+
+	pgModel := &PostgresqlDatabase{
+		Version:  tools.GetPostgresqlVersionEnum("16"),
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: container.Username,
+		Password: container.Password,
+		Database: &dashDbName,
+		IsHttps:  false,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
+
+	username, password, err := pgModel.CreateReadOnlyUser(ctx, logger, nil, uuid.New())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, username)
+	assert.NotEmpty(t, password)
+	assert.True(t, strings.HasPrefix(username, "postgresus-"))
+
+	readOnlyDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, username, password, dashDbName)
+	readOnlyConn, err := sqlx.Connect("postgres", readOnlyDSN)
+	assert.NoError(t, err)
+	defer readOnlyConn.Close()
+
+	var count int
+	err = readOnlyConn.Get(&count, "SELECT COUNT(*) FROM dash_test")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, err = readOnlyConn.Exec("INSERT INTO dash_test (data) VALUES ('should-fail')")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+
+	_, err = dashDB.Exec(fmt.Sprintf(`DROP OWNED BY "%s" CASCADE`, username))
+	if err != nil {
+		t.Logf("Warning: Failed to drop owned objects: %v", err)
+	}
+
+	_, err = dashDB.Exec(fmt.Sprintf(`DROP USER IF EXISTS "%s"`, username))
+	assert.NoError(t, err)
+}
+
+func Test_CreateReadOnlyUser_Supabase_UserCanReadButNotWrite(t *testing.T) {
+	env := config.GetEnv()
+
+	if env.TestSupabaseHost == "" {
+		t.Skip("Skipping Supabase test: missing environment variables")
+	}
+
+	portInt, err := strconv.Atoi(env.TestSupabasePort)
+	assert.NoError(t, err)
+
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
+		env.TestSupabaseHost,
+		portInt,
+		env.TestSupabaseUsername,
+		env.TestSupabasePassword,
+		env.TestSupabaseDatabase,
+	)
+
+	adminDB, err := sqlx.Connect("postgres", dsn)
+	assert.NoError(t, err)
+	defer adminDB.Close()
+
+	tableName := fmt.Sprintf(
+		"readonly_test_%s",
+		strings.ReplaceAll(uuid.New().String()[:8], "-", ""),
+	)
+	_, err = adminDB.Exec(fmt.Sprintf(`
+		DROP TABLE IF EXISTS public.%s CASCADE;
+		CREATE TABLE public.%s (
+			id SERIAL PRIMARY KEY,
+			data TEXT NOT NULL
+		);
+		INSERT INTO public.%s (data) VALUES ('test1'), ('test2');
+	`, tableName, tableName, tableName))
+	assert.NoError(t, err)
+
+	defer func() {
+		_, _ = adminDB.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS public.%s CASCADE`, tableName))
+	}()
+
+	pgModel := &PostgresqlDatabase{
+		Host:     env.TestSupabaseHost,
+		Port:     portInt,
+		Username: env.TestSupabaseUsername,
+		Password: env.TestSupabasePassword,
+		Database: &env.TestSupabaseDatabase,
+		IsHttps:  true,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
+
+	connectionUsername, newPassword, err := pgModel.CreateReadOnlyUser(ctx, logger, nil, uuid.New())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, connectionUsername)
+	assert.NotEmpty(t, newPassword)
+	assert.True(t, strings.HasPrefix(connectionUsername, "postgresus-"))
+
+	baseUsername := connectionUsername
+	if idx := strings.Index(connectionUsername, "."); idx != -1 {
+		baseUsername = connectionUsername[:idx]
+	}
+
+	defer func() {
+		_, _ = adminDB.Exec(fmt.Sprintf(`DROP OWNED BY "%s" CASCADE`, baseUsername))
+		_, _ = adminDB.Exec(fmt.Sprintf(`DROP USER IF EXISTS "%s"`, baseUsername))
+	}()
+
+	readOnlyDSN := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
+		env.TestSupabaseHost,
+		portInt,
+		connectionUsername,
+		newPassword,
+		env.TestSupabaseDatabase,
+	)
+	readOnlyConn, err := sqlx.Connect("postgres", readOnlyDSN)
+	assert.NoError(t, err)
+	defer readOnlyConn.Close()
+
+	var count int
+	err = readOnlyConn.Get(&count, fmt.Sprintf("SELECT COUNT(*) FROM public.%s", tableName))
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, err = readOnlyConn.Exec(
+		fmt.Sprintf("INSERT INTO public.%s (data) VALUES ('should-fail')", tableName),
+	)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+
+	_, err = readOnlyConn.Exec(
+		fmt.Sprintf("UPDATE public.%s SET data = 'hacked' WHERE id = 1", tableName),
+	)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+
+	_, err = readOnlyConn.Exec(fmt.Sprintf("DELETE FROM public.%s WHERE id = 1", tableName))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+
+	_, err = readOnlyConn.Exec("CREATE TABLE public.hack_table (id INT)")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+}
+
 type PostgresContainer struct {
 	Host     string
 	Port     int

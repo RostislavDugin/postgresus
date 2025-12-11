@@ -75,6 +75,16 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	return nil
 }
 
+func (d *Database) PopulateVersionIfEmpty(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+) error {
+	if d.Postgresql != nil {
+		return d.Postgresql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	return nil
+}
+
 func (d *Database) Update(incoming *Database) {
 	d.Name = incoming.Name
 	d.Type = incoming.Type

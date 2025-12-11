@@ -1,13 +1,8 @@
-import { InfoCircleOutlined } from '@ant-design/icons';
-import { Button, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
+import { DownOutlined, UpOutlined } from '@ant-design/icons';
+import { Button, Input, InputNumber, Select, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 
-import {
-  type Database,
-  DatabaseType,
-  PostgresqlVersion,
-  databaseApi,
-} from '../../../../entity/databases';
+import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
 import { ToastHelper } from '../../../../shared/toast';
 
 interface Props {
@@ -23,7 +18,6 @@ interface Props {
   isSaveToApi: boolean;
   onSaved: (database: Database) => void;
 
-  isShowDbVersionHint?: boolean;
   isShowDbName?: boolean;
 }
 
@@ -39,8 +33,6 @@ export const EditDatabaseSpecificDataComponent = ({
   saveButtonText,
   isSaveToApi,
   onSaved,
-
-  isShowDbVersionHint = true,
   isShowDbName = true,
 }: Props) => {
   const [editingDatabase, setEditingDatabase] = useState<Database>();
@@ -49,6 +41,36 @@ export const EditDatabaseSpecificDataComponent = ({
   const [isConnectionTested, setIsConnectionTested] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
+
+  const hasAdvancedValues = !!database.postgresql?.includeSchemas?.length;
+  const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
+
+  const [hasAutoAddedPublicSchema, setHasAutoAddedPublicSchema] = useState(false);
+
+  const autoAddPublicSchemaForSupabase = (updatedDatabase: Database): Database => {
+    if (hasAutoAddedPublicSchema) return updatedDatabase;
+
+    const host = updatedDatabase.postgresql?.host || '';
+    const username = updatedDatabase.postgresql?.username || '';
+    const isSupabase = host.includes('supabase') || username.includes('supabase');
+
+    if (isSupabase && updatedDatabase.postgresql) {
+      setHasAutoAddedPublicSchema(true);
+
+      const currentSchemas = updatedDatabase.postgresql.includeSchemas || [];
+      if (!currentSchemas.includes('public')) {
+        return {
+          ...updatedDatabase,
+          postgresql: {
+            ...updatedDatabase.postgresql,
+            includeSchemas: ['public', ...currentSchemas],
+          },
+        };
+      }
+    }
+
+    return updatedDatabase;
+  };
 
   const testConnection = async () => {
     if (!editingDatabase) return;
@@ -100,7 +122,6 @@ export const EditDatabaseSpecificDataComponent = ({
   if (!editingDatabase) return null;
 
   let isAllFieldsFilled = true;
-  if (!editingDatabase.postgresql?.version) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.host) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.port) isAllFieldsFilled = false;
   if (!editingDatabase.postgresql?.username) isAllFieldsFilled = false;
@@ -111,51 +132,14 @@ export const EditDatabaseSpecificDataComponent = ({
     editingDatabase.postgresql?.host?.includes('localhost') ||
     editingDatabase.postgresql?.host?.includes('127.0.0.1');
 
+  const isSupabaseDb =
+    editingDatabase.postgresql?.host?.includes('supabase') ||
+    editingDatabase.postgresql?.username?.includes('supabase');
+
   return (
     <div>
       {editingDatabase.type === DatabaseType.POSTGRES && (
         <>
-          <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">PG version</div>
-
-            <Select
-              value={editingDatabase.postgresql?.version}
-              onChange={(v) => {
-                if (!editingDatabase.postgresql) return;
-
-                setEditingDatabase({
-                  ...editingDatabase,
-                  postgresql: {
-                    ...editingDatabase.postgresql,
-                    version: v as PostgresqlVersion,
-                  },
-                });
-                setIsConnectionTested(false);
-              }}
-              size="small"
-              className="max-w-[200px] grow"
-              placeholder="Select PG version"
-              options={[
-                { label: '12', value: PostgresqlVersion.PostgresqlVersion12 },
-                { label: '13', value: PostgresqlVersion.PostgresqlVersion13 },
-                { label: '14', value: PostgresqlVersion.PostgresqlVersion14 },
-                { label: '15', value: PostgresqlVersion.PostgresqlVersion15 },
-                { label: '16', value: PostgresqlVersion.PostgresqlVersion16 },
-                { label: '17', value: PostgresqlVersion.PostgresqlVersion17 },
-                { label: '18', value: PostgresqlVersion.PostgresqlVersion18 },
-              ]}
-            />
-
-            {isShowDbVersionHint && (
-              <Tooltip
-                className="cursor-pointer"
-                title="Please select the version of PostgreSQL you are backing up now. You will be able to restore backup to the same version or higher"
-              >
-                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-              </Tooltip>
-            )}
-          </div>
-
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Host</div>
             <Input
@@ -163,13 +147,14 @@ export const EditDatabaseSpecificDataComponent = ({
               onChange={(e) => {
                 if (!editingDatabase.postgresql) return;
 
-                setEditingDatabase({
+                const updatedDatabase = {
                   ...editingDatabase,
                   postgresql: {
                     ...editingDatabase.postgresql,
                     host: e.target.value.trim().replace('https://', '').replace('http://', ''),
                   },
-                });
+                };
+                setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
                 setIsConnectionTested(false);
               }}
               size="small"
@@ -184,7 +169,7 @@ export const EditDatabaseSpecificDataComponent = ({
               <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
                 Please{' '}
                 <a
-                  href="https://postgresus.com/faq#how-to-backup-localhost"
+                  href="https://postgresus.com/faq/localhost"
                   target="_blank"
                   rel="noreferrer"
                   className="!text-blue-600 dark:!text-blue-400"
@@ -192,6 +177,24 @@ export const EditDatabaseSpecificDataComponent = ({
                   read this document
                 </a>{' '}
                 to study how to backup local database
+              </div>
+            </div>
+          )}
+
+          {isSupabaseDb && (
+            <div className="mb-1 flex">
+              <div className="min-w-[150px]" />
+              <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
+                Please{' '}
+                <a
+                  href="https://postgresus.com/faq/supabase"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="!text-blue-600 dark:!text-blue-400"
+                >
+                  read this document
+                </a>{' '}
+                to study how to backup Supabase database
               </div>
             </div>
           )}
@@ -223,10 +226,11 @@ export const EditDatabaseSpecificDataComponent = ({
               onChange={(e) => {
                 if (!editingDatabase.postgresql) return;
 
-                setEditingDatabase({
+                const updatedDatabase = {
                   ...editingDatabase,
                   postgresql: { ...editingDatabase.postgresql, username: e.target.value.trim() },
-                });
+                };
+                setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
                 setIsConnectionTested(false);
               }}
               size="small"
@@ -291,6 +295,43 @@ export const EditDatabaseSpecificDataComponent = ({
               size="small"
             />
           </div>
+
+          <div className="mt-4 mb-3 flex items-center">
+            <div
+              className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
+              onClick={() => setShowAdvanced(!isShowAdvanced)}
+            >
+              <span className="mr-2">Advanced settings</span>
+
+              {isShowAdvanced ? (
+                <UpOutlined style={{ fontSize: '12px' }} />
+              ) : (
+                <DownOutlined style={{ fontSize: '12px' }} />
+              )}
+            </div>
+          </div>
+
+          {isShowAdvanced && (
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px]">Include schemas</div>
+              <Select
+                mode="tags"
+                value={editingDatabase.postgresql?.includeSchemas || []}
+                onChange={(values) => {
+                  if (!editingDatabase.postgresql) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    postgresql: { ...editingDatabase.postgresql, includeSchemas: values },
+                  });
+                }}
+                size="small"
+                className="max-w-[200px] grow"
+                placeholder="All schemas (default)"
+                tokenSeparators={[',']}
+              />
+            </div>
+          )}
         </>
       )}
 

@@ -111,7 +111,6 @@ export const RestoresComponent = ({ database, backup }: Props) => {
               setEditingDatabase({ ...database });
               restore(database);
             }}
-            isShowDbVersionHint={false}
           />
         </>
       );
