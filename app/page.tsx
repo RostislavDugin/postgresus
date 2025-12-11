@@ -1228,9 +1228,9 @@ export default function Index() {
                     </li>
                     <li>
                       <strong>Cloud incompatibility</strong> — managed cloud
-                      databases (AWS RDS, Google Cloud SQL, Azure) don&apos;t
-                      allow restoring external PITR backups, making them useless
-                      for cloud-hosted PostgreSQL
+                      databases (AWS RDS, Google Cloud SQL, Azure, Supabase)
+                      don&apos;t allow restoring external PITR backups, making
+                      them useless for cloud-hosted PostgreSQL
                     </li>
                     <li>
                       <strong>Built-in cloud PITR</strong> — cloud providers
