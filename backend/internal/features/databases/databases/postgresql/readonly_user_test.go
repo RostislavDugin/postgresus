@@ -246,6 +246,81 @@ func Test_ReadOnlyUser_MultipleSchemas_AllAccessible(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_CreateReadOnlyUser_DatabaseNameWithDash_Success(t *testing.T) {
+	env := config.GetEnv()
+	container := connectToPostgresContainer(t, env.TestPostgres16Port)
+	defer container.DB.Close()
+
+	dashDbName := "test-db-with-dash"
+
+	_, err := container.DB.Exec(fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, dashDbName))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(`CREATE DATABASE "%s"`, dashDbName))
+	assert.NoError(t, err)
+
+	defer func() {
+		_, _ = container.DB.Exec(fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, dashDbName))
+	}()
+
+	dashDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, container.Username, container.Password, dashDbName)
+	dashDB, err := sqlx.Connect("postgres", dashDSN)
+	assert.NoError(t, err)
+	defer dashDB.Close()
+
+	_, err = dashDB.Exec(`
+		CREATE TABLE dash_test (
+			id SERIAL PRIMARY KEY,
+			data TEXT NOT NULL
+		);
+		INSERT INTO dash_test (data) VALUES ('test1'), ('test2');
+	`)
+	assert.NoError(t, err)
+
+	pgModel := &PostgresqlDatabase{
+		Version:  tools.GetPostgresqlVersionEnum("16"),
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: container.Username,
+		Password: container.Password,
+		Database: &dashDbName,
+		IsHttps:  false,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := context.Background()
+
+	username, password, err := pgModel.CreateReadOnlyUser(ctx, logger, nil, uuid.New())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, username)
+	assert.NotEmpty(t, password)
+	assert.True(t, strings.HasPrefix(username, "postgresus-"))
+
+	readOnlyDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, username, password, dashDbName)
+	readOnlyConn, err := sqlx.Connect("postgres", readOnlyDSN)
+	assert.NoError(t, err)
+	defer readOnlyConn.Close()
+
+	var count int
+	err = readOnlyConn.Get(&count, "SELECT COUNT(*) FROM dash_test")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, err = readOnlyConn.Exec("INSERT INTO dash_test (data) VALUES ('should-fail')")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+
+	_, err = dashDB.Exec(fmt.Sprintf(`DROP OWNED BY "%s" CASCADE`, username))
+	if err != nil {
+		t.Logf("Warning: Failed to drop owned objects: %v", err)
+	}
+
+	_, err = dashDB.Exec(fmt.Sprintf(`DROP USER IF EXISTS "%s"`, username))
+	assert.NoError(t, err)
+}
+
 func Test_CreateReadOnlyUser_Supabase_UserCanReadButNotWrite(t *testing.T) {
 	env := config.GetEnv()
 

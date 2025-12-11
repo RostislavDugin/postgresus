@@ -424,14 +424,14 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		// Step 2: Grant database connection privilege and revoke TEMP
 		_, err = tx.Exec(
 			ctx,
-			fmt.Sprintf(`GRANT CONNECT ON DATABASE %s TO "%s"`, *p.Database, baseUsername),
+			fmt.Sprintf(`GRANT CONNECT ON DATABASE "%s" TO "%s"`, *p.Database, baseUsername),
 		)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to grant connect privilege: %w", err)
 		}
 
 		// Revoke TEMP privilege from PUBLIC role (like CREATE on public schema, TEMP is granted to PUBLIC by default)
-		_, err = tx.Exec(ctx, fmt.Sprintf(`REVOKE TEMP ON DATABASE %s FROM PUBLIC`, *p.Database))
+		_, err = tx.Exec(ctx, fmt.Sprintf(`REVOKE TEMP ON DATABASE "%s" FROM PUBLIC`, *p.Database))
 		if err != nil {
 			logger.Warn("Failed to revoke TEMP from PUBLIC", "error", err)
 		}
@@ -439,7 +439,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		// Also revoke from the specific user (belt and suspenders)
 		_, err = tx.Exec(
 			ctx,
-			fmt.Sprintf(`REVOKE TEMP ON DATABASE %s FROM "%s"`, *p.Database, baseUsername),
+			fmt.Sprintf(`REVOKE TEMP ON DATABASE "%s" FROM "%s"`, *p.Database, baseUsername),
 		)
 		if err != nil {
 			logger.Warn("Failed to revoke TEMP privilege", "error", err, "username", baseUsername)
