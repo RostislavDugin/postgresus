@@ -3,6 +3,7 @@ package s3_storage
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ type S3Storage struct {
 
 	S3Prefix                string `json:"s3Prefix"                gorm:"type:text;column:s3_prefix"`
 	S3UseVirtualHostedStyle bool   `json:"s3UseVirtualHostedStyle" gorm:"default:false;column:s3_use_virtual_hosted_style"`
+	SkipTLSVerify           bool   `json:"skipTLSVerify"           gorm:"default:false;column:skip_tls_verify"`
 }
 
 func (s *S3Storage) TableName() string {
@@ -331,6 +333,7 @@ func (s *S3Storage) Update(incoming *S3Storage) {
 	s.S3Region = incoming.S3Region
 	s.S3Endpoint = incoming.S3Endpoint
 	s.S3UseVirtualHostedStyle = incoming.S3UseVirtualHostedStyle
+	s.SkipTLSVerify = incoming.SkipTLSVerify
 
 	if incoming.S3AccessKey != "" {
 		s.S3AccessKey = incoming.S3AccessKey
@@ -442,6 +445,9 @@ func (s *S3Storage) getClientParams(
 		TLSHandshakeTimeout:   s3TLSHandshakeTimeout,
 		ResponseHeaderTimeout: s3ResponseTimeout,
 		IdleConnTimeout:       s3IdleConnTimeout,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: s.SkipTLSVerify,
+		},
 	}
 
 	return endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, nil

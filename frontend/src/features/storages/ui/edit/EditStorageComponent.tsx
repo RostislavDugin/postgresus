@@ -39,6 +39,7 @@ export function EditStorageComponent({
 
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isTestConnectionSuccess, setIsTestConnectionSuccess] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | undefined>();
 
   const save = async () => {
     if (!storage) return;
@@ -60,6 +61,7 @@ export function EditStorageComponent({
     if (!storage) return;
 
     setIsTestingConnection(true);
+    setConnectionError(undefined);
 
     try {
       await storageApi.testStorageConnectionDirect(storage);
@@ -69,7 +71,9 @@ export function EditStorageComponent({
         description: 'Storage connection tested successfully',
       });
     } catch (e) {
-      alert((e as Error).message);
+      const errorMessage = (e as Error).message;
+      setConnectionError(errorMessage);
+      alert(errorMessage);
     }
 
     setIsTestingConnection(false);
@@ -290,7 +294,9 @@ export function EditStorageComponent({
             setUnsaved={() => {
               setIsUnsaved(true);
               setIsTestConnectionSuccess(false);
+              setConnectionError(undefined);
             }}
+            connectionError={connectionError}
           />
         )}
 

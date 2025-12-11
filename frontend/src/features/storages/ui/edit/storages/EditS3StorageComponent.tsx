@@ -1,6 +1,6 @@
 import { DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
 import { Checkbox, Input, Tooltip } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { Storage } from '../../../../../entity/storages';
 
@@ -8,12 +8,26 @@ interface Props {
   storage: Storage;
   setStorage: (storage: Storage) => void;
   setUnsaved: () => void;
+  connectionError?: string;
 }
 
-export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Props) {
+export function EditS3StorageComponent({
+  storage,
+  setStorage,
+  setUnsaved,
+  connectionError,
+}: Props) {
   const hasAdvancedValues =
-    !!storage?.s3Storage?.s3Prefix || !!storage?.s3Storage?.s3UseVirtualHostedStyle;
+    !!storage?.s3Storage?.s3Prefix ||
+    !!storage?.s3Storage?.s3UseVirtualHostedStyle ||
+    !!storage?.s3Storage?.skipTLSVerify;
   const [showAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
+
+  useEffect(() => {
+    if (connectionError?.includes('failed to verify certificate')) {
+      setShowAdvanced(true);
+    }
+  }, [connectionError]);
 
   return (
     <>
@@ -221,6 +235,36 @@ export function EditS3StorageComponent({ storage, setStorage, setUnsaved }: Prop
               <Tooltip
                 className="cursor-pointer"
                 title="Use virtual-hosted-style URLs (bucket.s3.region.amazonaws.com) instead of path-style (s3.region.amazonaws.com/bucket). May be required if you see COS errors."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+            <div className="mb-1 min-w-[110px] sm:mb-0">Skip TLS verify</div>
+            <div className="flex items-center">
+              <Checkbox
+                checked={storage?.s3Storage?.skipTLSVerify || false}
+                onChange={(e) => {
+                  if (!storage?.s3Storage) return;
+
+                  setStorage({
+                    ...storage,
+                    s3Storage: {
+                      ...storage.s3Storage,
+                      skipTLSVerify: e.target.checked,
+                    },
+                  });
+                  setUnsaved();
+                }}
+              >
+                Skip TLS
+              </Checkbox>
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Skip TLS certificate verification. Enable this if your S3-compatible storage uses a self-signed certificate. Warning: this reduces security."
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>

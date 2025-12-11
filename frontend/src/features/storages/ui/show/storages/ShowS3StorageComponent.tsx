@@ -45,6 +45,13 @@ export function ShowS3StorageComponent({ storage }: Props) {
           Enabled
         </div>
       )}
+
+      {storage?.s3Storage?.skipTLSVerify && (
+        <div className="mb-1 flex items-center">
+          <div className="min-w-[110px]">Skip TLS</div>
+          Enabled
+        </div>
+      )}
     </>
   );
 }
