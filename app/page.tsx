@@ -1307,6 +1307,13 @@ export default function Index() {
               </a>
             </div>
 
+            <a
+              href="mailto:info@postgresus.com"
+              className="hover:text-gray-200 transition-colors text-sm md:text-base mb-4"
+            >
+              info@postgresus.com
+            </a>
+
             <p className="text-gray-400 text-sm md:text-base text-center">
               © 2025 Postgresus. All rights reserved.
             </p>
