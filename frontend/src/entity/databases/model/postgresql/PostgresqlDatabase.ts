@@ -11,5 +11,7 @@ export interface PostgresqlDatabase {
   password: string;
   database?: string;
   isHttps: boolean;
-  schemas?: string;
+
+  // backup settings
+  includeSchemas?: string[];
 }

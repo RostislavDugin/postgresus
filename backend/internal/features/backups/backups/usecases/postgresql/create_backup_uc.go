@@ -334,15 +334,8 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlD
 		"--verbose",
 	}
 
-	// Add schema filters if specified
-	if pg.Schemas != nil && *pg.Schemas != "" {
-		schemas := strings.Split(*pg.Schemas, ",")
-		for _, schema := range schemas {
-			schema = strings.TrimSpace(schema)
-			if schema != "" {
-				args = append(args, "--schema", schema)
-			}
-		}
+	for _, schema := range pg.IncludeSchemas {
+		args = append(args, "-n", schema)
 	}
 
 	compressionArgs := uc.getCompressionArgs(pg.Version)

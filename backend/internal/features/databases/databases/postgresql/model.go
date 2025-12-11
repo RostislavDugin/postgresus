@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"gorm.io/gorm"
 )
 
 type PostgresqlDatabase struct {
@@ -29,18 +30,37 @@ type PostgresqlDatabase struct {
 	Password string  `json:"password" gorm:"type:text;not null"`
 	Database *string `json:"database" gorm:"type:text"`
 	IsHttps  bool    `json:"isHttps"  gorm:"type:boolean;default:false"`
-	Schemas  *string `json:"schemas"  gorm:"type:text"`
+
+	// backup settings
+	IncludeSchemas       []string `json:"includeSchemas" gorm:"-"`
+	IncludeSchemasString string   `json:"-"              gorm:"column:include_schemas;type:text;not null;default:''"`
 }
 
 func (p *PostgresqlDatabase) TableName() string {
 	return "postgresql_databases"
 }
 
-func (p *PostgresqlDatabase) Validate() error {
-	if p.Version == "" {
-		return errors.New("version is required")
+func (p *PostgresqlDatabase) BeforeSave(_ *gorm.DB) error {
+	if len(p.IncludeSchemas) > 0 {
+		p.IncludeSchemasString = strings.Join(p.IncludeSchemas, ",")
+	} else {
+		p.IncludeSchemasString = ""
 	}
 
+	return nil
+}
+
+func (p *PostgresqlDatabase) AfterFind(_ *gorm.DB) error {
+	if p.IncludeSchemasString != "" {
+		p.IncludeSchemas = strings.Split(p.IncludeSchemasString, ",")
+	} else {
+		p.IncludeSchemas = []string{}
+	}
+
+	return nil
+}
+
+func (p *PostgresqlDatabase) Validate() error {
 	if p.Host == "" {
 		return errors.New("host is required")
 	}
@@ -86,7 +106,7 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	p.Username = incoming.Username
 	p.Database = incoming.Database
 	p.IsHttps = incoming.IsHttps
-	p.Schemas = incoming.Schemas
+	p.IncludeSchemas = incoming.IncludeSchemas
 
 	if incoming.Password != "" {
 		p.Password = incoming.Password
@@ -105,6 +125,50 @@ func (p *PostgresqlDatabase) EncryptSensitiveFields(
 		p.Password = encrypted
 	}
 
+	return nil
+}
+
+// PopulateVersionIfEmpty detects and sets the PostgreSQL version if not already set.
+// This should be called before encrypting sensitive fields.
+func (p *PostgresqlDatabase) PopulateVersionIfEmpty(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) error {
+	if p.Version != "" {
+		return nil
+	}
+
+	if p.Database == nil || *p.Database == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	password, err := decryptPasswordIfNeeded(p.Password, encryptor, databaseID)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	connStr := buildConnectionStringForDB(p, *p.Database, password)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() {
+		if closeErr := conn.Close(ctx); closeErr != nil {
+			logger.Error("Failed to close connection", "error", closeErr)
+		}
+	}()
+
+	detectedVersion, err := detectDatabaseVersion(ctx, conn)
+	if err != nil {
+		return err
+	}
+
+	p.Version = detectedVersion
 	return nil
 }
 
@@ -288,8 +352,20 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 
 	// Retry logic for username collision
 	maxRetries := 3
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		username := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+	for attempt := range maxRetries {
+		// Generate base username for PostgreSQL user creation
+		baseUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+
+		// For Supabase session pooler, the username format for connection is "username.projectid"
+		// but the actual PostgreSQL user must be created with just the base name.
+		// The pooler will strip the ".projectid" suffix when authenticating.
+		connectionUsername := baseUsername
+		if isSupabaseConnection(p.Host, p.Username) {
+			if supabaseProjectID := extractSupabaseProjectID(p.Username); supabaseProjectID != "" {
+				connectionUsername = fmt.Sprintf("%s.%s", baseUsername, supabaseProjectID)
+			}
+		}
+
 		newPassword := uuid.New().String()
 
 		tx, err := conn.Begin(ctx)
@@ -307,9 +383,10 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		}()
 
 		// Step 1: Create PostgreSQL user with LOGIN privilege
+		// Note: We use baseUsername for the actual PostgreSQL user name if Supabase is used
 		_, err = tx.Exec(
 			ctx,
-			fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s' LOGIN`, username, newPassword),
+			fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s' LOGIN`, baseUsername, newPassword),
 		)
 		if err != nil {
 			if err.Error() != "" && attempt < maxRetries-1 {
@@ -333,21 +410,21 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		}
 
 		// Now revoke from the specific user as well (belt and suspenders)
-		_, err = tx.Exec(ctx, fmt.Sprintf(`REVOKE CREATE ON SCHEMA public FROM "%s"`, username))
+		_, err = tx.Exec(ctx, fmt.Sprintf(`REVOKE CREATE ON SCHEMA public FROM "%s"`, baseUsername))
 		if err != nil {
 			logger.Error(
 				"Failed to revoke CREATE on public schema from user",
 				"error",
 				err,
 				"username",
-				username,
+				baseUsername,
 			)
 		}
 
 		// Step 2: Grant database connection privilege and revoke TEMP
 		_, err = tx.Exec(
 			ctx,
-			fmt.Sprintf(`GRANT CONNECT ON DATABASE %s TO "%s"`, *p.Database, username),
+			fmt.Sprintf(`GRANT CONNECT ON DATABASE %s TO "%s"`, *p.Database, baseUsername),
 		)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to grant connect privilege: %w", err)
@@ -362,10 +439,10 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		// Also revoke from the specific user (belt and suspenders)
 		_, err = tx.Exec(
 			ctx,
-			fmt.Sprintf(`REVOKE TEMP ON DATABASE %s FROM "%s"`, *p.Database, username),
+			fmt.Sprintf(`REVOKE TEMP ON DATABASE %s FROM "%s"`, *p.Database, baseUsername),
 		)
 		if err != nil {
-			logger.Warn("Failed to revoke TEMP privilege", "error", err, "username", username)
+			logger.Warn("Failed to revoke TEMP privilege", "error", err, "username", baseUsername)
 		}
 
 		// Step 3: Discover all user-created schemas
@@ -398,7 +475,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 			// Revoke CREATE specifically (handles inheritance from PUBLIC role)
 			_, err = tx.Exec(
 				ctx,
-				fmt.Sprintf(`REVOKE CREATE ON SCHEMA "%s" FROM "%s"`, schema, username),
+				fmt.Sprintf(`REVOKE CREATE ON SCHEMA "%s" FROM "%s"`, schema, baseUsername),
 			)
 			if err != nil {
 				logger.Warn(
@@ -408,14 +485,14 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 					"schema",
 					schema,
 					"username",
-					username,
+					baseUsername,
 				)
 			}
 
 			// Grant only USAGE (not CREATE)
 			_, err = tx.Exec(
 				ctx,
-				fmt.Sprintf(`GRANT USAGE ON SCHEMA "%s" TO "%s"`, schema, username),
+				fmt.Sprintf(`GRANT USAGE ON SCHEMA "%s" TO "%s"`, schema, baseUsername),
 			)
 			if err != nil {
 				return "", "", fmt.Errorf("failed to grant usage on schema %s: %w", schema, err)
@@ -437,7 +514,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 					EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %%I TO "%s"', schema_rec.schema_name);
 				END LOOP;
 			END $$;
-		`, username, username)
+		`, baseUsername, baseUsername)
 
 		_, err = tx.Exec(ctx, grantSelectSQL)
 		if err != nil {
@@ -459,7 +536,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 					EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %%I GRANT SELECT ON SEQUENCES TO "%s"', schema_rec.schema_name);
 				END LOOP;
 			END $$;
-		`, username, username)
+		`, baseUsername, baseUsername)
 
 		_, err = tx.Exec(ctx, defaultPrivilegesSQL)
 		if err != nil {
@@ -468,7 +545,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 
 		// Step 7: Verify user creation before committing
 		var verifyUsername string
-		err = tx.QueryRow(ctx, fmt.Sprintf(`SELECT rolname FROM pg_roles WHERE rolname = '%s'`, username)).
+		err = tx.QueryRow(ctx, fmt.Sprintf(`SELECT rolname FROM pg_roles WHERE rolname = '%s'`, baseUsername)).
 			Scan(&verifyUsername)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to verify user creation: %w", err)
@@ -479,8 +556,15 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 		}
 
 		success = true
-		logger.Info("Read-only user created successfully", "username", username)
-		return username, newPassword, nil
+		// Return connectionUsername (with project ID suffix for Supabase) for the caller to use when connecting
+		logger.Info(
+			"Read-only user created successfully",
+			"username",
+			baseUsername,
+			"connectionUsername",
+			connectionUsername,
+		)
+		return connectionUsername, newPassword, nil
 	}
 
 	return "", "", errors.New("failed to generate unique username after 3 attempts")
@@ -523,10 +607,12 @@ func testSingleDatabaseConnection(
 		}
 	}()
 
-	// Check version after successful connection
-	if err := verifyDatabaseVersion(ctx, conn, postgresDb.Version); err != nil {
+	// Detect and set the database version automatically
+	detectedVersion, err := detectDatabaseVersion(ctx, conn)
+	if err != nil {
 		return err
 	}
+	postgresDb.Version = detectedVersion
 
 	// Test if we can perform basic operations (like pg_dump would need)
 	if err := testBasicOperations(ctx, conn, *postgresDb.Database); err != nil {
@@ -540,16 +626,12 @@ func testSingleDatabaseConnection(
 	return nil
 }
 
-// verifyDatabaseVersion checks if the actual database version matches the specified version
-func verifyDatabaseVersion(
-	ctx context.Context,
-	conn *pgx.Conn,
-	expectedVersion tools.PostgresqlVersion,
-) error {
+// detectDatabaseVersion queries and returns the PostgreSQL major version
+func detectDatabaseVersion(ctx context.Context, conn *pgx.Conn) (tools.PostgresqlVersion, error) {
 	var versionStr string
 	err := conn.QueryRow(ctx, "SELECT version()").Scan(&versionStr)
 	if err != nil {
-		return fmt.Errorf("failed to query database version: %w", err)
+		return "", fmt.Errorf("failed to query database version: %w", err)
 	}
 
 	// Parse version from string like "PostgreSQL 14.2 on x86_64-pc-linux-gnu..."
@@ -557,19 +639,18 @@ func verifyDatabaseVersion(
 	re := regexp.MustCompile(`PostgreSQL (\d+)`)
 	matches := re.FindStringSubmatch(versionStr)
 	if len(matches) < 2 {
-		return fmt.Errorf("could not parse version from: %s", versionStr)
+		return "", fmt.Errorf("could not parse version from: %s", versionStr)
 	}
 
-	actualVersion := tools.GetPostgresqlVersionEnum(matches[1])
-	if actualVersion != expectedVersion {
-		return fmt.Errorf(
-			"you specified wrong version. Real version is %s, but you specified %s",
-			actualVersion,
-			expectedVersion,
-		)
-	}
+	majorVersion := matches[1]
 
-	return nil
+	// Map to known PostgresqlVersion enum values
+	switch majorVersion {
+	case "12", "13", "14", "15", "16", "17", "18":
+		return tools.PostgresqlVersion(majorVersion), nil
+	default:
+		return "", fmt.Errorf("unsupported PostgreSQL version: %s", majorVersion)
+	}
 }
 
 // testBasicOperations tests basic operations that backup tools need
@@ -616,4 +697,16 @@ func decryptPasswordIfNeeded(
 		return password, nil
 	}
 	return encryptor.Decrypt(databaseID, password)
+}
+
+func isSupabaseConnection(host, username string) bool {
+	return strings.Contains(strings.ToLower(host), "supabase") ||
+		strings.Contains(strings.ToLower(username), "supabase")
+}
+
+func extractSupabaseProjectID(username string) string {
+	if idx := strings.Index(username, "."); idx != -1 {
+		return username[idx+1:]
+	}
+	return ""
 }

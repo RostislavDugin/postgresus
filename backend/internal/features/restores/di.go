@@ -8,6 +8,7 @@ import (
 	"postgresus-backend/internal/features/restores/usecases"
 	"postgresus-backend/internal/features/storages"
 	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 )
 
@@ -22,6 +23,7 @@ var restoreService = &RestoreService{
 	logger.GetLogger(),
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
+	encryption.GetFieldEncryptor(),
 }
 var restoreController = &RestoreController{
 	restoreService,
