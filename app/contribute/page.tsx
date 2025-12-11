@@ -313,7 +313,6 @@ export default function ContributePage() {
               <h3 id="storages">Storages</h3>
 
               <ul>
-                <li>Verify Supabase support</li>
                 <li>Add FTP</li>
                 <li>Add Dropbox</li>
                 <li>Add OneDrive</li>

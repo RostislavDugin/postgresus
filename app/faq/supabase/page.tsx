@@ -65,6 +65,11 @@ export default function SupabasePage() {
                 name: "Configure Postgresus",
                 text: "Enter the Supabase connection details in Postgresus to start backing up your database.",
               },
+              {
+                "@type": "HowToStep",
+                name: "Understand schema limitations",
+                text: "By default, only the public schema is backed up as other Supabase schemas are restricted.",
+              },
             ],
           }),
         }}
@@ -176,6 +181,26 @@ export default function SupabasePage() {
                   use cases, the free Session Pooler with IPv4 option works
                   perfectly for backups. The paid IPv4 add-on is only necessary
                   if you need a direct connection for other reasons.
+                </p>
+              </div>
+
+              <h2 id="default-schema">Default schema limitation</h2>
+
+              <p>
+                By default, Postgresus backs up only the <code>public</code>{" "}
+                schema when working with Supabase databases. This is because
+                Supabase restricts access to other schemas (such as{" "}
+                <code>auth</code>, <code>storage</code>, and{" "}
+                <code>realtime</code>) for security reasons.
+              </p>
+
+              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
+                <p className="text-sm text-gray-300 m-0">
+                  <strong className="text-blue-400">ℹ️ Note:</strong> The{" "}
+                  <code>public</code> schema contains your application data and
+                  custom tables. Supabase-managed schemas like <code>auth</code>{" "}
+                  and <code>storage</code> are protected and managed by Supabase
+                  itself.
                 </p>
               </div>
 
