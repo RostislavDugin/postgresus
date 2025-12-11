@@ -45,7 +45,15 @@ Content: Information about how Postgresus ensures enterprise-level security thro
 
 ### FAQ - Frequently Asked Questions
 URL: /faq
-Content: Frequently asked questions about Postgresus, including how to backup localhost databases, why Postgresus uses directory format with zstd compression instead of raw SQL dumps and other common questions about installation, configuration and backup strategies.
+Content: Frequently asked questions about Postgresus, including why Postgresus uses directory format with zstd compression instead of raw SQL dumps and other common questions about installation, configuration and backup strategies.
+
+#### How to backup localhost databases
+URL: /faq/localhost
+Content: Step-by-step guide on how to backup PostgreSQL databases running on localhost using Postgresus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
+
+#### How to backup Supabase
+URL: /faq/supabase
+Content: Step-by-step guide on how to backup Supabase PostgreSQL databases using Postgresus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
 
 ### Storage Configuration
 URL: /storages

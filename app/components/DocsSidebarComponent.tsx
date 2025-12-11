@@ -46,6 +46,10 @@ const navItems: NavItem[] = [
   {
     title: "FAQ",
     href: "/faq",
+    children: [
+      { title: "How to backup localhost", href: "/faq/localhost" },
+      { title: "How to backup Supabase", href: "/faq/supabase" },
+    ],
   },
   {
     title: "Contribute",

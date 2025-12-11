@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import DocsNavbarComponent from "../components/DocsNavbarComponent";
 import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
-import { CopyButton } from "../components/CopyButton";
 
 export const metadata: Metadata = {
   title: "FAQ - Frequently Asked Questions | Postgresus",
@@ -38,22 +37,6 @@ export const metadata: Metadata = {
 };
 
 export default function FAQPage() {
-  const dockerComposeHost = `services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
-    network_mode: host
-    volumes:
-      - ./postgresus-data:/postgresus-data
-    restart: unless-stopped`;
-
-  const dockerRunHost = `docker run -d \\
-  --name postgresus \\
-  --network host \\
-  -v ./postgresus-data:/postgresus-data \\
-  --restart unless-stopped \\
-  rostislavdugin/postgresus:latest`;
-
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -64,14 +47,6 @@ export default function FAQPage() {
             "@context": "https://schema.org",
             "@type": "FAQPage",
             mainEntity: [
-              {
-                "@type": "Question",
-                name: "How to backup localhost databases?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: "To backup databases running on localhost, you need to configure Postgresus to use host network mode in Docker. This allows the container to access services running on your host machine (localhost).",
-                },
-              },
               {
                 "@type": "Question",
                 name: "Why does Postgresus not use raw SQL dump format?",
@@ -117,88 +92,6 @@ export default function FAQPage() {
                 Find answers to the most common questions about Postgresus,
                 including installation, configuration and backup strategies.
               </p>
-
-              <h2 id="how-to-backup-localhost">
-                How to backup localhost databases?
-              </h2>
-
-              <p>
-                If you&apos;re running Postgresus in Docker and want to back up
-                databases running on your host machine (localhost), you need to
-                configure Docker to use <strong>host network mode</strong>.
-              </p>
-
-              <p>
-                By default, Docker containers run in an isolated network and
-                cannot access services on <code>localhost</code>. The host
-                network mode allows the container to share the host&apos;s
-                network namespace.
-              </p>
-
-              <h3 id="docker-compose-solution">Solution for Docker Compose:</h3>
-
-              <p>
-                Update your <code>docker-compose.yml</code> file to use{" "}
-                <code>network_mode: host</code>:
-              </p>
-
-              <div className="relative my-6">
-                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{dockerComposeHost}</code>
-                </pre>
-                <div className="absolute right-2 top-2">
-                  <CopyButton text={dockerComposeHost} />
-                </div>
-              </div>
-
-              <h3 id="docker-run-solution">Solution for Docker run:</h3>
-
-              <p>
-                Use the <code>--network host</code> flag:
-              </p>
-
-              <div className="relative my-6">
-                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-                  <code>{dockerRunHost}</code>
-                </pre>
-                <div className="absolute right-2 top-2">
-                  <CopyButton text={dockerRunHost} />
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
-                <p className="text-sm text-gray-300 m-0">
-                  <strong className="text-amber-400">💡 Note:</strong> When
-                  using host network mode, you can connect to your localhost
-                  database using{" "}
-                  <code className="bg-[#374151] text-gray-200">127.0.0.1</code>{" "}
-                  or{" "}
-                  <code className="bg-[#374151] text-gray-200">localhost</code>{" "}
-                  as the host in your Postgresus backup configuration.
-                  You&apos;ll also access the Postgresus UI directly at{" "}
-                  <code className="bg-[#374151] text-gray-200">
-                    http://localhost:4005
-                  </code>{" "}
-                  without port mapping.
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6 pb-0">
-                <p className="text-sm text-gray-300 m-0">
-                  <strong className="text-amber-400">
-                    ⚠️ Important for Windows and macOS users:
-                  </strong>{" "}
-                  The <code className="bg-[#374151] text-red-400">host</code>{" "}
-                  network mode only works natively on Linux. On Windows and
-                  macOS, Docker runs inside a Linux VM, so{" "}
-                  <code className="bg-[#374151] text-gray-200">
-                    host.docker.internal
-                  </code>{" "}
-                  should be used instead of{" "}
-                  <code className="bg-[#374151] text-gray-200">localhost</code>{" "}
-                  as the database host address in your backup configuration.
-                </p>
-              </div>
 
               <h2 id="why-no-raw-sql-dump">
                 Why does Postgresus not use raw SQL dump format?
