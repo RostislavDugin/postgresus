@@ -82,6 +82,25 @@ jobs:
           cd frontend
           npm run lint
 
+  test-frontend:
+    runs-on: ubuntu-latest
+    needs: [lint-frontend]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
       - name: Run frontend tests
         run: |
           cd frontend
@@ -213,7 +232,7 @@ jobs:
 
   determine-version:
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend]
+    needs: [test-backend, test-frontend]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
       should_release: ${{ steps.version_bump.outputs.should_release }}
@@ -306,7 +325,7 @@ jobs:
 
   build-only:
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend]
+    needs: [test-backend, test-frontend]
     if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[skip-release]') }}
     steps:
       - name: Check out code
