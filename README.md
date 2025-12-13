@@ -232,7 +232,7 @@ Replace `admin` with the actual email address of the user whose password you wan
 
 ## 📝 License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details
 
 ---
 
