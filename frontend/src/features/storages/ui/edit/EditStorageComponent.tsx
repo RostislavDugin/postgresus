@@ -142,7 +142,6 @@ export function EditStorageComponent({
         username: '',
         password: '',
         useSsl: false,
-        passiveMode: true,
         path: '',
       };
     }

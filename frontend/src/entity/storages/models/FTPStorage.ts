@@ -5,6 +5,5 @@ export interface FTPStorage {
   password: string;
   useSsl: boolean;
   skipTlsVerify?: boolean;
-  passiveMode: boolean;
   path?: string;
 }

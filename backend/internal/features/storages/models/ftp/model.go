@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	ftpConnectTimeout = 30 * time.Second
-	ftpChunkSize      = 16 * 1024 * 1024
+	ftpConnectTimeout     = 30 * time.Second
+	ftpTestConnectTimeout = 10 * time.Second
+	ftpChunkSize          = 16 * 1024 * 1024
 )
 
 type FTPStorage struct {
@@ -29,7 +30,6 @@ type FTPStorage struct {
 	Path          string    `json:"path"          gorm:"type:text;column:path"`
 	UseSSL        bool      `json:"useSsl"        gorm:"not null;default:false;column:use_ssl"`
 	SkipTLSVerify bool      `json:"skipTlsVerify" gorm:"not null;default:false;column:skip_tls_verify"`
-	PassiveMode   bool      `json:"passiveMode"   gorm:"not null;default:true;column:passive_mode"`
 }
 
 func (f *FTPStorage) TableName() string {
@@ -51,7 +51,7 @@ func (f *FTPStorage) SaveFile(
 
 	logger.Info("Starting to save file to FTP storage", "fileId", fileID.String(), "host", f.Host)
 
-	conn, err := f.connect(encryptor)
+	conn, err := f.connect(encryptor, ftpConnectTimeout)
 	if err != nil {
 		logger.Error("Failed to connect to FTP", "fileId", fileID.String(), "error", err)
 		return fmt.Errorf("failed to connect to FTP: %w", err)
@@ -114,7 +114,7 @@ func (f *FTPStorage) GetFile(
 	encryptor encryption.FieldEncryptor,
 	fileID uuid.UUID,
 ) (io.ReadCloser, error) {
-	conn, err := f.connect(encryptor)
+	conn, err := f.connect(encryptor, ftpConnectTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to FTP: %w", err)
 	}
@@ -134,7 +134,7 @@ func (f *FTPStorage) GetFile(
 }
 
 func (f *FTPStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileID uuid.UUID) error {
-	conn, err := f.connect(encryptor)
+	conn, err := f.connect(encryptor, ftpConnectTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
@@ -175,7 +175,10 @@ func (f *FTPStorage) Validate(encryptor encryption.FieldEncryptor) error {
 }
 
 func (f *FTPStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
-	conn, err := f.connect(encryptor)
+	ctx, cancel := context.WithTimeout(context.Background(), ftpTestConnectTimeout)
+	defer cancel()
+
+	conn, err := f.connectWithContext(ctx, encryptor, ftpTestConnectTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
@@ -214,7 +217,6 @@ func (f *FTPStorage) Update(incoming *FTPStorage) {
 	f.Username = incoming.Username
 	f.UseSSL = incoming.UseSSL
 	f.SkipTLSVerify = incoming.SkipTLSVerify
-	f.PassiveMode = incoming.PassiveMode
 	f.Path = incoming.Path
 
 	if incoming.Password != "" {
@@ -222,13 +224,27 @@ func (f *FTPStorage) Update(incoming *FTPStorage) {
 	}
 }
 
-func (f *FTPStorage) connect(encryptor encryption.FieldEncryptor) (*ftp.ServerConn, error) {
+func (f *FTPStorage) connect(
+	encryptor encryption.FieldEncryptor,
+	timeout time.Duration,
+) (*ftp.ServerConn, error) {
+	return f.connectWithContext(context.Background(), encryptor, timeout)
+}
+
+func (f *FTPStorage) connectWithContext(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	timeout time.Duration,
+) (*ftp.ServerConn, error) {
 	password, err := encryptor.Decrypt(f.StorageID, f.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt FTP password: %w", err)
 	}
 
 	address := fmt.Sprintf("%s:%d", f.Host, f.Port)
+
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	var conn *ftp.ServerConn
 	if f.UseSSL {
@@ -237,11 +253,11 @@ func (f *FTPStorage) connect(encryptor encryption.FieldEncryptor) (*ftp.ServerCo
 			InsecureSkipVerify: f.SkipTLSVerify,
 		}
 		conn, err = ftp.Dial(address,
-			ftp.DialWithTimeout(ftpConnectTimeout),
+			ftp.DialWithContext(dialCtx),
 			ftp.DialWithExplicitTLS(tlsConfig),
 		)
 	} else {
-		conn, err = ftp.Dial(address, ftp.DialWithTimeout(ftpConnectTimeout))
+		conn, err = ftp.Dial(address, ftp.DialWithContext(dialCtx))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial FTP server: %w", err)

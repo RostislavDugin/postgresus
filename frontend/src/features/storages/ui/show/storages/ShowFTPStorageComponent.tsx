@@ -43,13 +43,6 @@ export function ShowFTPStorageComponent({ storage }: Props) {
           Enabled
         </div>
       )}
-
-      {storage?.ftpStorage?.passiveMode === false && (
-        <div className="mb-1 flex items-center">
-          <div className="min-w-[110px]">Passive mode</div>
-          Disabled
-        </div>
-      )}
     </>
   );
 }

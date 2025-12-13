@@ -136,14 +136,13 @@ func Test_Storage_BasicOperations(t *testing.T) {
 		{
 			name: "FTPStorage",
 			storage: &ftp_storage.FTPStorage{
-				StorageID:   uuid.New(),
-				Host:        "localhost",
-				Port:        ftpPort,
-				Username:    "testuser",
-				Password:    "testpassword",
-				UseSSL:      false,
-				PassiveMode: true,
-				Path:        "test-files",
+				StorageID: uuid.New(),
+				Host:      "localhost",
+				Port:      ftpPort,
+				Username:  "testuser",
+				Password:  "testpassword",
+				UseSSL:    false,
+				Path:      "test-files",
 			},
 		},
 	}

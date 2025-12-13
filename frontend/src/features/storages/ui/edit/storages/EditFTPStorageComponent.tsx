@@ -11,8 +11,7 @@ interface Props {
 }
 
 export function EditFTPStorageComponent({ storage, setStorage, setUnsaved }: Props) {
-  const hasAdvancedValues =
-    !!storage?.ftpStorage?.skipTlsVerify || storage?.ftpStorage?.passiveMode === false;
+  const hasAdvancedValues = !!storage?.ftpStorage?.skipTlsVerify;
   const [showAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   return (
@@ -190,36 +189,6 @@ export function EditFTPStorageComponent({ storage, setStorage, setUnsaved }: Pro
 
       {showAdvanced && (
         <>
-          <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
-            <div className="mb-1 min-w-[110px] sm:mb-0">Passive mode</div>
-            <div className="flex items-center">
-              <Checkbox
-                checked={storage?.ftpStorage?.passiveMode !== false}
-                onChange={(e) => {
-                  if (!storage?.ftpStorage) return;
-
-                  setStorage({
-                    ...storage,
-                    ftpStorage: {
-                      ...storage.ftpStorage,
-                      passiveMode: e.target.checked,
-                    },
-                  });
-                  setUnsaved();
-                }}
-              >
-                Use passive mode
-              </Checkbox>
-
-              <Tooltip
-                className="cursor-pointer"
-                title="Passive mode is recommended for most firewalls and NAT configurations. Disable only if you have issues connecting."
-              >
-                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-              </Tooltip>
-            </div>
-          </div>
-
           {storage?.ftpStorage?.useSsl && (
             <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
               <div className="mb-1 min-w-[110px] sm:mb-0">Skip TLS verify</div>
