@@ -9,6 +9,7 @@ import {
 } from '../../../../entity/storages';
 import { ToastHelper } from '../../../../shared/toast';
 import { EditAzureBlobStorageComponent } from './storages/EditAzureBlobStorageComponent';
+import { EditFTPStorageComponent } from './storages/EditFTPStorageComponent';
 import { EditGoogleDriveStorageComponent } from './storages/EditGoogleDriveStorageComponent';
 import { EditNASStorageComponent } from './storages/EditNASStorageComponent';
 import { EditS3StorageComponent } from './storages/EditS3StorageComponent';
@@ -86,6 +87,7 @@ export function EditStorageComponent({
     storage.s3Storage = undefined;
     storage.googleDriveStorage = undefined;
     storage.azureBlobStorage = undefined;
+    storage.ftpStorage = undefined;
 
     if (type === StorageType.LOCAL) {
       storage.localStorage = {};
@@ -130,6 +132,18 @@ export function EditStorageComponent({
         containerName: '',
         endpoint: '',
         prefix: '',
+      };
+    }
+
+    if (type === StorageType.FTP) {
+      storage.ftpStorage = {
+        host: '',
+        port: 21,
+        username: '',
+        password: '',
+        useSsl: false,
+        passiveMode: true,
+        path: '',
       };
     }
 
@@ -235,6 +249,19 @@ export function EditStorageComponent({
       }
     }
 
+    if (storage.type === StorageType.FTP) {
+      if (storage.id) {
+        return storage.ftpStorage?.host && storage.ftpStorage?.port && storage.ftpStorage?.username;
+      }
+
+      return (
+        storage.ftpStorage?.host &&
+        storage.ftpStorage?.port &&
+        storage.ftpStorage?.username &&
+        storage.ftpStorage?.password
+      );
+    }
+
     return false;
   };
 
@@ -271,6 +298,7 @@ export function EditStorageComponent({
               { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
               { label: 'NAS', value: StorageType.NAS },
               { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
+              { label: 'FTP', value: StorageType.FTP },
             ]}
             onChange={(value) => {
               setStorageType(value);
@@ -324,6 +352,17 @@ export function EditStorageComponent({
 
         {storage?.type === StorageType.AZURE_BLOB && (
           <EditAzureBlobStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.FTP && (
+          <EditFTPStorageComponent
             storage={storage}
             setStorage={setStorage}
             setUnsaved={() => {

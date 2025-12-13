@@ -34,17 +34,21 @@ func (r *StorageRepository) Save(storage *Storage) (*Storage, error) {
 			if storage.AzureBlobStorage != nil {
 				storage.AzureBlobStorage.StorageID = storage.ID
 			}
+		case StorageTypeFTP:
+			if storage.FTPStorage != nil {
+				storage.FTPStorage.StorageID = storage.ID
+			}
 		}
 
 		if storage.ID == uuid.Nil {
 			if err := tx.Create(storage).
-				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage").
+				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage", "FTPStorage").
 				Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Save(storage).
-				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage").
+				Omit("LocalStorage", "S3Storage", "GoogleDriveStorage", "NASStorage", "AzureBlobStorage", "FTPStorage").
 				Error; err != nil {
 				return err
 			}
@@ -86,6 +90,13 @@ func (r *StorageRepository) Save(storage *Storage) (*Storage, error) {
 					return err
 				}
 			}
+		case StorageTypeFTP:
+			if storage.FTPStorage != nil {
+				storage.FTPStorage.StorageID = storage.ID // Ensure ID is set
+				if err := tx.Save(storage.FTPStorage).Error; err != nil {
+					return err
+				}
+			}
 		}
 
 		return nil
@@ -108,6 +119,7 @@ func (r *StorageRepository) FindByID(id uuid.UUID) (*Storage, error) {
 		Preload("GoogleDriveStorage").
 		Preload("NASStorage").
 		Preload("AzureBlobStorage").
+		Preload("FTPStorage").
 		Where("id = ?", id).
 		First(&s).Error; err != nil {
 		return nil, err
@@ -126,6 +138,7 @@ func (r *StorageRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Storage
 		Preload("GoogleDriveStorage").
 		Preload("NASStorage").
 		Preload("AzureBlobStorage").
+		Preload("FTPStorage").
 		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&storages).Error; err != nil {
@@ -166,6 +179,12 @@ func (r *StorageRepository) Delete(s *Storage) error {
 		case StorageTypeAzureBlob:
 			if s.AzureBlobStorage != nil {
 				if err := tx.Delete(s.AzureBlobStorage).Error; err != nil {
+					return err
+				}
+			}
+		case StorageTypeFTP:
+			if s.FTPStorage != nil {
+				if err := tx.Delete(s.FTPStorage).Error; err != nil {
 					return err
 				}
 			}

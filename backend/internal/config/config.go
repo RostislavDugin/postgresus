@@ -48,6 +48,7 @@ type EnvVariables struct {
 	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
 
 	TestNASPort string `env:"TEST_NAS_PORT"`
+	TestFTPPort string `env:"TEST_FTP_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`

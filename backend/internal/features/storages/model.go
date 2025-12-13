@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "postgresus-backend/internal/features/storages/models/ftp"
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
@@ -28,6 +29,7 @@ type Storage struct {
 	GoogleDriveStorage *google_drive_storage.GoogleDriveStorage `json:"googleDriveStorage" gorm:"foreignKey:StorageID"`
 	NASStorage         *nas_storage.NASStorage                  `json:"nasStorage"         gorm:"foreignKey:StorageID"`
 	AzureBlobStorage   *azure_blob_storage.AzureBlobStorage     `json:"azureBlobStorage"   gorm:"foreignKey:StorageID"`
+	FTPStorage         *ftp_storage.FTPStorage                  `json:"ftpStorage"         gorm:"foreignKey:StorageID"`
 }
 
 func (s *Storage) SaveFile(
@@ -109,6 +111,10 @@ func (s *Storage) Update(incoming *Storage) {
 		if s.AzureBlobStorage != nil && incoming.AzureBlobStorage != nil {
 			s.AzureBlobStorage.Update(incoming.AzureBlobStorage)
 		}
+	case StorageTypeFTP:
+		if s.FTPStorage != nil && incoming.FTPStorage != nil {
+			s.FTPStorage.Update(incoming.FTPStorage)
+		}
 	}
 }
 
@@ -124,6 +130,8 @@ func (s *Storage) getSpecificStorage() StorageFileSaver {
 		return s.NASStorage
 	case StorageTypeAzureBlob:
 		return s.AzureBlobStorage
+	case StorageTypeFTP:
+		return s.FTPStorage
 	default:
 		panic("invalid storage type: " + string(s.Type))
 	}

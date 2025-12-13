@@ -4,4 +4,5 @@ export enum StorageType {
   GOOGLE_DRIVE = 'GOOGLE_DRIVE',
   NAS = 'NAS',
   AZURE_BLOB = 'AZURE_BLOB',
+  FTP = 'FTP',
 }

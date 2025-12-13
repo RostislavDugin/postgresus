@@ -8,6 +8,7 @@ import (
 
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "postgresus-backend/internal/features/storages/models/ftp"
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
@@ -736,6 +737,55 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			verifyHiddenData: func(t *testing.T, storage *Storage) {
 				assert.Equal(t, "", storage.GoogleDriveStorage.ClientSecret)
 				assert.Equal(t, "", storage.GoogleDriveStorage.TokenJSON)
+			},
+		},
+		{
+			name:        "FTP Storage",
+			storageType: StorageTypeFTP,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeFTP,
+					Name:        "Test FTP Storage",
+					FTPStorage: &ftp_storage.FTPStorage{
+						Host:        "ftp.example.com",
+						Port:        21,
+						Username:    "testuser",
+						Password:    "original-password",
+						UseSSL:      false,
+						PassiveMode: true,
+						Path:        "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeFTP,
+					Name:        "Updated FTP Storage",
+					FTPStorage: &ftp_storage.FTPStorage{
+						Host:        "ftp2.example.com",
+						Port:        2121,
+						Username:    "testuser2",
+						Password:    "",
+						UseSSL:      true,
+						PassiveMode: false,
+						Path:        "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.FTPStorage.Password, "enc:"),
+					"Password should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				password, err := encryptor.Decrypt(storage.ID, storage.FTPStorage.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password", password)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.FTPStorage.Password)
 			},
 		},
 	}

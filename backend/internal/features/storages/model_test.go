@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"postgresus-backend/internal/config"
 	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "postgresus-backend/internal/features/storages/models/ftp"
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
@@ -70,6 +71,14 @@ func Test_Storage_BasicOperations(t *testing.T) {
 		}
 	}
 
+	// Setup FTP port
+	ftpPort := 21
+	if portStr := config.GetEnv().TestFTPPort; portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			ftpPort = port
+		}
+	}
+
 	// Run tests
 	testCases := []struct {
 		name    string
@@ -122,6 +131,19 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				AuthMethod:       azure_blob_storage.AuthMethodConnectionString,
 				ConnectionString: azuriteContainer.connectionString,
 				ContainerName:    azuriteContainer.containerNameStr,
+			},
+		},
+		{
+			name: "FTPStorage",
+			storage: &ftp_storage.FTPStorage{
+				StorageID:   uuid.New(),
+				Host:        "localhost",
+				Port:        ftpPort,
+				Username:    "testuser",
+				Password:    "testpassword",
+				UseSSL:      false,
+				PassiveMode: true,
+				Path:        "test-files",
 			},
 		},
 	}

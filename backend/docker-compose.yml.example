@@ -132,3 +132,17 @@ services:
       -s "backups;/shared;yes;no;no;testuser"
       -p
     container_name: test-nas
+
+  # Test FTP server
+  test-ftp:
+    image: stilliard/pure-ftpd:latest
+    ports:
+      - "${TEST_FTP_PORT:-21}:21"
+      - "30000-30009:30000-30009"
+    environment:
+      - PUBLICHOST=localhost
+      - FTP_USER_NAME=testuser
+      - FTP_USER_PASS=testpassword
+      - FTP_USER_HOME=/home/ftpusers/testuser
+      - FTP_PASSIVE_PORTS=30000:30009
+    container_name: test-ftp

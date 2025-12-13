@@ -8,3 +8,4 @@ export { getStorageLogoFromType } from './models/getStorageLogoFromType';
 export { getStorageNameFromType } from './models/getStorageNameFromType';
 export { type GoogleDriveStorage } from './models/GoogleDriveStorage';
 export { type AzureBlobStorage } from './models/AzureBlobStorage';
+export { type FTPStorage } from './models/FTPStorage';

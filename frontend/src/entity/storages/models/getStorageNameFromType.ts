@@ -12,6 +12,8 @@ export const getStorageNameFromType = (type: StorageType) => {
       return 'NAS';
     case StorageType.AZURE_BLOB:
       return 'Azure Blob Storage';
+    case StorageType.FTP:
+      return 'FTP';
     default:
       return '';
   }

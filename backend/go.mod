@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jlaffaye/ftp v0.2.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
@@ -27,7 +28,11 @@ require (
 	gorm.io/gorm v1.26.1
 )
 
-require github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
+require (
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+)
 
 require (
 	cloud.google.com/go/auth v0.16.2 // indirect
