@@ -1,8 +1,9 @@
-import { DownOutlined, UpOutlined } from '@ant-design/icons';
-import { Button, Input, InputNumber, Select, Switch } from 'antd';
+import { CopyOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
+import { App, Button, Input, InputNumber, Select, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
+import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
 import { ToastHelper } from '../../../../shared/toast';
 
 interface Props {
@@ -35,6 +36,8 @@ export const EditDatabaseSpecificDataComponent = ({
   onSaved,
   isShowDbName = true,
 }: Props) => {
+  const { message } = App.useApp();
+
   const [editingDatabase, setEditingDatabase] = useState<Database>();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -46,6 +49,46 @@ export const EditDatabaseSpecificDataComponent = ({
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [hasAutoAddedPublicSchema, setHasAutoAddedPublicSchema] = useState(false);
+
+  const parseFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const trimmedText = text.trim();
+
+      if (!trimmedText) {
+        message.error('Clipboard is empty');
+        return;
+      }
+
+      const result = ConnectionStringParser.parse(trimmedText);
+
+      if ('error' in result) {
+        message.error(result.error);
+        return;
+      }
+
+      if (!editingDatabase?.postgresql) return;
+
+      const updatedDatabase: Database = {
+        ...editingDatabase,
+        postgresql: {
+          ...editingDatabase.postgresql,
+          host: result.host,
+          port: result.port,
+          username: result.username,
+          password: result.password,
+          database: result.database,
+          isHttps: result.isHttps,
+        },
+      };
+
+      setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
+      setIsConnectionTested(false);
+      message.success('Connection string parsed successfully');
+    } catch {
+      message.error('Failed to read clipboard. Please check browser permissions.');
+    }
+  };
 
   const autoAddPublicSchemaForSupabase = (updatedDatabase: Database): Database => {
     if (hasAutoAddedPublicSchema) return updatedDatabase;
@@ -140,6 +183,17 @@ export const EditDatabaseSpecificDataComponent = ({
     <div>
       {editingDatabase.type === DatabaseType.POSTGRES && (
         <>
+          <div className="mb-3 flex">
+            <div className="min-w-[150px]" />
+            <div
+              className="cursor-pointer text-sm text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+              onClick={parseFromClipboard}
+            >
+              <CopyOutlined className="mr-1" />
+              Parse from clipboard
+            </div>
+          </div>
+
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Host</div>
             <Input

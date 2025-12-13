@@ -82,6 +82,11 @@ jobs:
           cd frontend
           npm run lint
 
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm run test
+
   test-backend:
     runs-on: ubuntu-latest
     needs: [lint-backend]
