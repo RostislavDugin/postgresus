@@ -72,6 +72,7 @@ export const EditBackupConfigComponent = ({
   const [storages, setStorages] = useState<Storage[]>([]);
   const [isStoragesLoading, setIsStoragesLoading] = useState(false);
   const [isShowCreateStorage, setShowCreateStorage] = useState(false);
+  const [storageSelectKey, setStorageSelectKey] = useState(0);
 
   const [isShowWarn, setIsShowWarn] = useState(false);
 
@@ -397,6 +398,7 @@ export const EditBackupConfigComponent = ({
         <div className="mb-1 min-w-[150px] sm:mb-0">Storage</div>
         <div className="flex w-full items-center">
           <Select
+            key={storageSelectKey}
             value={backupConfig.storage?.id}
             onChange={(storageId) => {
               if (storageId.includes('create-new-storage')) {
@@ -527,7 +529,10 @@ export const EditBackupConfigComponent = ({
           title="Add storage"
           footer={<div />}
           open={isShowCreateStorage}
-          onCancel={() => setShowCreateStorage(false)}
+          onCancel={() => {
+            setShowCreateStorage(false);
+            setStorageSelectKey((prev) => prev + 1);
+          }}
         >
           <div className="my-3 max-w-[275px] text-gray-500 dark:text-gray-400">
             Storage - is a place where backups will be stored (local disk, S3, Google Drive, etc.)

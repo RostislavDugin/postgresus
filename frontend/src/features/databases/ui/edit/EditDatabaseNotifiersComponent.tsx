@@ -43,6 +43,7 @@ export const EditDatabaseNotifiersComponent = ({
   const [notifiers, setNotifiers] = useState<Notifier[]>([]);
   const [isNotifiersLoading, setIsNotifiersLoading] = useState(false);
   const [isShowCreateNotifier, setShowCreateNotifier] = useState(false);
+  const [notifierSelectKey, setNotifierSelectKey] = useState(0);
 
   const saveDatabase = async () => {
     if (!editingDatabase) return;
@@ -104,6 +105,7 @@ export const EditDatabaseNotifiersComponent = ({
         <div className="min-w-[150px]">Notifiers</div>
 
         <Select
+          key={notifierSelectKey}
           mode="multiple"
           value={editingDatabase.notifiers.map((n) => n.id)}
           onChange={(notifiersIds) => {
@@ -160,7 +162,10 @@ export const EditDatabaseNotifiersComponent = ({
           title="Add notifier"
           footer={<div />}
           open={isShowCreateNotifier}
-          onCancel={() => setShowCreateNotifier(false)}
+          onCancel={() => {
+            setShowCreateNotifier(false);
+            setNotifierSelectKey((prev) => prev + 1);
+          }}
         >
           <div className="my-3 max-w-[275px] text-gray-500 dark:text-gray-400">
             Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)
