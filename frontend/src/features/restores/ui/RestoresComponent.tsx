@@ -111,6 +111,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
               setEditingDatabase({ ...database });
               restore(database);
             }}
+            isRestoreMode={true}
           />
         </>
       );
@@ -245,6 +246,13 @@ export const RestoresComponent = ({ database, backup }: Props) => {
             </Button>
           }
         >
+          {showingRestoreError.failMessage?.includes('must be owner of extension') && (
+            <div className="mb-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-600 dark:bg-yellow-900/30">
+              <strong>💡 Tip:</strong> This error typically occurs when restoring to managed
+              PostgreSQL services (like Yandex Cloud, AWS RDS or similar). Try enabling{' '}
+              <strong>&quot;Exclude extensions&quot;</strong> in Advanced settings before restoring.
+            </div>
+          )}
           <div className="overflow-y-auto text-sm whitespace-pre-wrap" style={{ height: '400px' }}>
             {showingRestoreError.failMessage}
           </div>

@@ -34,6 +34,9 @@ type PostgresqlDatabase struct {
 	// backup settings
 	IncludeSchemas       []string `json:"includeSchemas" gorm:"-"`
 	IncludeSchemasString string   `json:"-"              gorm:"column:include_schemas;type:text;not null;default:''"`
+
+	// restore settings (not saved to DB)
+	IsExcludeExtensions bool `json:"isExcludeExtensions" gorm:"-"`
 }
 
 func (p *PostgresqlDatabase) TableName() string {

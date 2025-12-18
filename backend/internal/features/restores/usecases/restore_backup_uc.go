@@ -21,6 +21,7 @@ func (uc *RestoreBackupUsecase) Execute(
 	restoringToDB *databases.Database,
 	backup *backups.Backup,
 	storage *storages.Storage,
+	isExcludeExtensions bool,
 ) error {
 	if originalDB.Type == databases.DatabaseTypePostgres {
 		return uc.restorePostgresqlBackupUsecase.Execute(
@@ -30,6 +31,7 @@ func (uc *RestoreBackupUsecase) Execute(
 			restore,
 			backup,
 			storage,
+			isExcludeExtensions,
 		)
 	}
 

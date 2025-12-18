@@ -42,6 +42,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	restore models.Restore,
 	backup *backups.Backup,
 	storage *storages.Storage,
+	isExcludeExtensions bool,
 ) error {
 	if originalDB.Type != databases.DatabaseTypePostgres {
 		return errors.New("database type not supported")
@@ -96,6 +97,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		backup,
 		storage,
 		pg,
+		isExcludeExtensions,
 	)
 }
 
@@ -108,6 +110,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	backup *backups.Backup,
 	storage *storages.Storage,
 	pgConfig *pgtypes.PostgresqlDatabase,
+	isExcludeExtensions bool,
 ) error {
 	uc.logger.Info(
 		"Restoring PostgreSQL backup from storage via temporary file",
@@ -115,6 +118,8 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 		pgBin,
 		"args",
 		args,
+		"isExcludeExtensions",
+		isExcludeExtensions,
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
@@ -170,6 +175,26 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 		return fmt.Errorf("failed to download backup to temporary file: %w", err)
 	}
 	defer cleanupFunc()
+
+	// If excluding extensions, generate filtered TOC list and use it
+	if isExcludeExtensions {
+		tocListFile, err := uc.generateFilteredTocList(
+			ctx,
+			pgBin,
+			tempBackupFile,
+			pgpassFile,
+			pgConfig,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to generate filtered TOC list: %w", err)
+		}
+		defer func() {
+			_ = os.Remove(tocListFile)
+		}()
+
+		// Add -L flag to use the filtered list
+		args = append(args, "-L", tocListFile)
+	}
 
 	// Add the temporary backup file as the last argument to pg_restore
 	args = append(args, tempBackupFile)
@@ -552,6 +577,75 @@ func (uc *RestorePostgresqlBackupUsecase) copyWithShutdownCheck(
 // containsIgnoreCase checks if a string contains a substring, ignoring case
 func containsIgnoreCase(str, substr string) bool {
 	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
+}
+
+// generateFilteredTocList generates a pg_restore TOC list file with extensions filtered out.
+// This is used when isExcludeExtensions is true to skip CREATE EXTENSION statements.
+func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
+	ctx context.Context,
+	pgBin string,
+	backupFile string,
+	pgpassFile string,
+	pgConfig *pgtypes.PostgresqlDatabase,
+) (string, error) {
+	uc.logger.Info("Generating filtered TOC list to exclude extensions", "backupFile", backupFile)
+
+	// Run pg_restore -l to get the TOC list
+	listCmd := exec.CommandContext(ctx, pgBin, "-l", backupFile)
+	uc.setupPgRestoreEnvironment(listCmd, pgpassFile, pgConfig)
+
+	tocOutput, err := listCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate TOC list: %w", err)
+	}
+
+	// Filter out EXTENSION lines
+	var filteredLines []string
+	for _, line := range strings.Split(string(tocOutput), "\n") {
+		// Skip lines that contain EXTENSION (but not COMMENT ON EXTENSION)
+		// TOC format: "123; 1234 12345 EXTENSION - extension_name owner"
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" {
+			continue
+		}
+
+		// Check if this is an EXTENSION entry (not a comment about extension)
+		// Extension lines look like: "3420; 0 0 EXTENSION - uuid-ossp"
+		if strings.Contains(trimmedLine, " EXTENSION ") &&
+			!strings.Contains(strings.ToUpper(trimmedLine), "COMMENT") {
+			uc.logger.Info("Excluding extension from restore", "tocLine", trimmedLine)
+			continue
+		}
+
+		filteredLines = append(filteredLines, line)
+	}
+
+	// Write filtered TOC to temporary file
+	tocFile, err := os.CreateTemp("", "pg_restore_toc_*.list")
+	if err != nil {
+		return "", fmt.Errorf("failed to create TOC list file: %w", err)
+	}
+	tocFilePath := tocFile.Name()
+
+	filteredContent := strings.Join(filteredLines, "\n")
+	if _, err := tocFile.WriteString(filteredContent); err != nil {
+		_ = tocFile.Close()
+		_ = os.Remove(tocFilePath)
+		return "", fmt.Errorf("failed to write TOC list file: %w", err)
+	}
+
+	if err := tocFile.Close(); err != nil {
+		_ = os.Remove(tocFilePath)
+		return "", fmt.Errorf("failed to close TOC list file: %w", err)
+	}
+
+	uc.logger.Info("Generated filtered TOC list file",
+		"tocFile", tocFilePath,
+		"originalLines", len(strings.Split(string(tocOutput), "\n")),
+		"filteredLines", len(filteredLines),
+	)
+
+	return tocFilePath, nil
 }
 
 // createTempPgpassFile creates a temporary .pgpass file with the given password

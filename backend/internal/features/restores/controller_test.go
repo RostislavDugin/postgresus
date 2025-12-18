@@ -171,6 +171,36 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 	assert.Contains(t, string(testResp.Body), "insufficient permissions")
 }
 
+func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	_, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
+
+	request := RestoreBackupRequest{
+		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+			Version:             tools.PostgresqlVersion16,
+			Host:                "localhost",
+			Port:                5432,
+			Username:            "postgres",
+			Password:            "postgres",
+			IsExcludeExtensions: true,
+		},
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+	)
+
+	assert.Contains(t, string(testResp.Body), "restore started successfully")
+}
+
 func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)

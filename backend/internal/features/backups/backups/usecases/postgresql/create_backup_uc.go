@@ -131,7 +131,8 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	}
 	defer func() {
 		if pgpassFile != "" {
-			_ = os.Remove(pgpassFile)
+			// Remove the entire temp directory (which contains the .pgpass file)
+			_ = os.RemoveAll(filepath.Dir(pgpassFile))
 		}
 	}()
 

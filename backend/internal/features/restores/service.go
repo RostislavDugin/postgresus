@@ -214,6 +214,11 @@ func (s *RestoreService) RestoreBackup(
 		return fmt.Errorf("failed to auto-detect database version: %w", err)
 	}
 
+	isExcludeExtensions := false
+	if requestDTO.PostgresqlDatabase != nil {
+		isExcludeExtensions = requestDTO.PostgresqlDatabase.IsExcludeExtensions
+	}
+
 	err = s.restoreBackupUsecase.Execute(
 		backupConfig,
 		restore,
@@ -221,6 +226,7 @@ func (s *RestoreService) RestoreBackup(
 		restoringToDB,
 		backup,
 		storage,
+		isExcludeExtensions,
 	)
 	if err != nil {
 		errMsg := err.Error()

@@ -1,5 +1,5 @@
-import { CopyOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
-import { App, Button, Input, InputNumber, Select, Switch } from 'antd';
+import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { App, Button, Checkbox, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
@@ -20,6 +20,7 @@ interface Props {
   onSaved: (database: Database) => void;
 
   isShowDbName?: boolean;
+  isRestoreMode?: boolean;
 }
 
 export const EditDatabaseSpecificDataComponent = ({
@@ -35,6 +36,7 @@ export const EditDatabaseSpecificDataComponent = ({
   isSaveToApi,
   onSaved,
   isShowDbName = true,
+  isRestoreMode = false,
 }: Props) => {
   const { message } = App.useApp();
 
@@ -45,7 +47,8 @@ export const EditDatabaseSpecificDataComponent = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
-  const hasAdvancedValues = !!database.postgresql?.includeSchemas?.length;
+  const hasAdvancedValues =
+    !!database.postgresql?.includeSchemas?.length || !!database.postgresql?.isExcludeExtensions;
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [hasAutoAddedPublicSchema, setHasAutoAddedPublicSchema] = useState(false);
@@ -366,25 +369,60 @@ export const EditDatabaseSpecificDataComponent = ({
           </div>
 
           {isShowAdvanced && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Include schemas</div>
-              <Select
-                mode="tags"
-                value={editingDatabase.postgresql?.includeSchemas || []}
-                onChange={(values) => {
-                  if (!editingDatabase.postgresql) return;
+            <>
+              {!isRestoreMode && (
+                <div className="mb-1 flex w-full items-center">
+                  <div className="min-w-[150px]">Include schemas</div>
+                  <Select
+                    mode="tags"
+                    value={editingDatabase.postgresql?.includeSchemas || []}
+                    onChange={(values) => {
+                      if (!editingDatabase.postgresql) return;
 
-                  setEditingDatabase({
-                    ...editingDatabase,
-                    postgresql: { ...editingDatabase.postgresql, includeSchemas: values },
-                  });
-                }}
-                size="small"
-                className="max-w-[200px] grow"
-                placeholder="All schemas (default)"
-                tokenSeparators={[',']}
-              />
-            </div>
+                      setEditingDatabase({
+                        ...editingDatabase,
+                        postgresql: { ...editingDatabase.postgresql, includeSchemas: values },
+                      });
+                    }}
+                    size="small"
+                    className="max-w-[200px] grow"
+                    placeholder="All schemas (default)"
+                    tokenSeparators={[',']}
+                  />
+                </div>
+              )}
+
+              {isRestoreMode && (
+                <div className="mb-1 flex w-full items-center">
+                  <div className="min-w-[150px]">Exclude extensions</div>
+                  <div className="flex items-center">
+                    <Checkbox
+                      checked={editingDatabase.postgresql?.isExcludeExtensions || false}
+                      onChange={(e) => {
+                        if (!editingDatabase.postgresql) return;
+
+                        setEditingDatabase({
+                          ...editingDatabase,
+                          postgresql: {
+                            ...editingDatabase.postgresql,
+                            isExcludeExtensions: e.target.checked,
+                          },
+                        });
+                      }}
+                    >
+                      Skip extensions
+                    </Checkbox>
+
+                    <Tooltip
+                      className="cursor-pointer"
+                      title="Skip restoring extension definitions (CREATE EXTENSION statements). Enable this if you're restoring to a managed PostgreSQL service where extensions are managed by the provider."
+                    >
+                      <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                    </Tooltip>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
