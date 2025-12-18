@@ -548,10 +548,12 @@ func testBackupRestoreWithExcludeExtensionsForVersion(t *testing.T, pgVersion st
 	assert.NoError(t, err)
 	defer container.DB.Close()
 
-	// Create table with uuid-ossp extension
+	// Create table with uuid-ossp extension and add a comment on the extension
+	// The comment is important to test that COMMENT ON EXTENSION statements are also excluded
 	_, err = container.DB.Exec(`
 		DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE;
 		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+		COMMENT ON EXTENSION "uuid-ossp" IS 'Test comment on uuid-ossp extension';
 		
 		DROP TABLE IF EXISTS test_extension_data;
 		CREATE TABLE test_extension_data (

@@ -599,21 +599,21 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 		return "", fmt.Errorf("failed to generate TOC list: %w", err)
 	}
 
-	// Filter out EXTENSION lines
+	// Filter out EXTENSION-related lines (both CREATE EXTENSION and COMMENT ON EXTENSION)
 	var filteredLines []string
-	for _, line := range strings.Split(string(tocOutput), "\n") {
-		// Skip lines that contain EXTENSION (but not COMMENT ON EXTENSION)
-		// TOC format: "123; 1234 12345 EXTENSION - extension_name owner"
+	for line := range strings.SplitSeq(string(tocOutput), "\n") {
 		trimmedLine := strings.TrimSpace(line)
 		if trimmedLine == "" {
 			continue
 		}
 
-		// Check if this is an EXTENSION entry (not a comment about extension)
-		// Extension lines look like: "3420; 0 0 EXTENSION - uuid-ossp"
-		if strings.Contains(trimmedLine, " EXTENSION ") &&
-			!strings.Contains(strings.ToUpper(trimmedLine), "COMMENT") {
-			uc.logger.Info("Excluding extension from restore", "tocLine", trimmedLine)
+		upperLine := strings.ToUpper(trimmedLine)
+
+		// Skip lines that contain " EXTENSION " - this catches both:
+		// - CREATE EXTENSION entries: "3420; 0 0 EXTENSION - uuid-ossp"
+		// - COMMENT ON EXTENSION entries: "3462; 0 0 COMMENT - EXTENSION "uuid-ossp""
+		if strings.Contains(upperLine, " EXTENSION ") {
+			uc.logger.Info("Excluding extension-related entry from restore", "tocLine", trimmedLine)
 			continue
 		}
 
