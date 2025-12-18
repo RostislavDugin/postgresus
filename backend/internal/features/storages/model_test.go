@@ -13,6 +13,7 @@ import (
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
+	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
@@ -143,6 +144,20 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				Password:  "testpassword",
 				UseSSL:    false,
 				Path:      "test-files",
+			},
+		},
+		{
+			name: "RcloneStorage",
+			storage: &rclone_storage.RcloneStorage{
+				StorageID: uuid.New(),
+				ConfigContent: fmt.Sprintf(`[minio]
+type = s3
+provider = Other
+access_key_id = %s
+secret_access_key = %s
+endpoint = http://%s
+acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoint),
+				RemotePath: s3Container.bucketName,
 			},
 		},
 	}

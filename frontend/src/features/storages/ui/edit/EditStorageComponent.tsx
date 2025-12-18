@@ -12,6 +12,7 @@ import { EditAzureBlobStorageComponent } from './storages/EditAzureBlobStorageCo
 import { EditFTPStorageComponent } from './storages/EditFTPStorageComponent';
 import { EditGoogleDriveStorageComponent } from './storages/EditGoogleDriveStorageComponent';
 import { EditNASStorageComponent } from './storages/EditNASStorageComponent';
+import { EditRcloneStorageComponent } from './storages/EditRcloneStorageComponent';
 import { EditS3StorageComponent } from './storages/EditS3StorageComponent';
 
 interface Props {
@@ -88,6 +89,7 @@ export function EditStorageComponent({
     storage.googleDriveStorage = undefined;
     storage.azureBlobStorage = undefined;
     storage.ftpStorage = undefined;
+    storage.rcloneStorage = undefined;
 
     if (type === StorageType.LOCAL) {
       storage.localStorage = {};
@@ -143,6 +145,13 @@ export function EditStorageComponent({
         password: '',
         useSsl: false,
         path: '',
+      };
+    }
+
+    if (type === StorageType.RCLONE) {
+      storage.rcloneStorage = {
+        configContent: '',
+        remotePath: '',
       };
     }
 
@@ -261,6 +270,14 @@ export function EditStorageComponent({
       );
     }
 
+    if (storage.type === StorageType.RCLONE) {
+      if (storage.id) {
+        return true;
+      }
+
+      return storage.rcloneStorage?.configContent;
+    }
+
     return false;
   };
 
@@ -298,6 +315,7 @@ export function EditStorageComponent({
               { label: 'NAS', value: StorageType.NAS },
               { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
               { label: 'FTP', value: StorageType.FTP },
+              { label: 'Rclone', value: StorageType.RCLONE },
             ]}
             onChange={(value) => {
               setStorageType(value);
@@ -362,6 +380,17 @@ export function EditStorageComponent({
 
         {storage?.type === StorageType.FTP && (
           <EditFTPStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.RCLONE && (
+          <EditRcloneStorageComponent
             storage={storage}
             setStorage={setStorage}
             setUnsaved={() => {

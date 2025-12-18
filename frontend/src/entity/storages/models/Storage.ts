@@ -3,6 +3,7 @@ import type { FTPStorage } from './FTPStorage';
 import type { GoogleDriveStorage } from './GoogleDriveStorage';
 import type { LocalStorage } from './LocalStorage';
 import type { NASStorage } from './NASStorage';
+import type { RcloneStorage } from './RcloneStorage';
 import type { S3Storage } from './S3Storage';
 import type { StorageType } from './StorageType';
 
@@ -20,4 +21,5 @@ export interface Storage {
   nasStorage?: NASStorage;
   azureBlobStorage?: AzureBlobStorage;
   ftpStorage?: FTPStorage;
+  rcloneStorage?: RcloneStorage;
 }

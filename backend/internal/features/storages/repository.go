@@ -120,6 +120,7 @@ func (r *StorageRepository) FindByID(id uuid.UUID) (*Storage, error) {
 		Preload("NASStorage").
 		Preload("AzureBlobStorage").
 		Preload("FTPStorage").
+		Preload("RcloneStorage").
 		Where("id = ?", id).
 		First(&s).Error; err != nil {
 		return nil, err
@@ -139,6 +140,7 @@ func (r *StorageRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Storage
 		Preload("NASStorage").
 		Preload("AzureBlobStorage").
 		Preload("FTPStorage").
+		Preload("RcloneStorage").
 		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&storages).Error; err != nil {

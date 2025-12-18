@@ -12,6 +12,7 @@ import (
 	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
+	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_middleware "postgresus-backend/internal/features/users/middleware"
@@ -784,6 +785,52 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 			verifyHiddenData: func(t *testing.T, storage *Storage) {
 				assert.Equal(t, "", storage.FTPStorage.Password)
+			},
+		},
+		{
+			name:        "Rclone Storage",
+			storageType: StorageTypeRclone,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeRclone,
+					Name:        "Test Rclone Storage",
+					RcloneStorage: &rclone_storage.RcloneStorage{
+						ConfigContent: "[myremote]\ntype = s3\nprovider = AWS\naccess_key_id = test\nsecret_access_key = secret\n",
+						RemotePath:    "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeRclone,
+					Name:        "Updated Rclone Storage",
+					RcloneStorage: &rclone_storage.RcloneStorage{
+						ConfigContent: "",
+						RemotePath:    "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.RcloneStorage.ConfigContent, "enc:"),
+					"ConfigContent should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				configContent, err := encryptor.Decrypt(
+					storage.ID,
+					storage.RcloneStorage.ConfigContent,
+				)
+				assert.NoError(t, err)
+				assert.Equal(
+					t,
+					"[myremote]\ntype = s3\nprovider = AWS\naccess_key_id = test\nsecret_access_key = secret\n",
+					configContent,
+				)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.RcloneStorage.ConfigContent)
 			},
 		},
 	}
