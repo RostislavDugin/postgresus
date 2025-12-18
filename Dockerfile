@@ -22,7 +22,7 @@ RUN npm run build
 
 # ========= BUILD BACKEND =========
 # Backend build stage
-FROM --platform=$BUILDPLATFORM golang:1.23.3 AS backend-build
+FROM --platform=$BUILDPLATFORM golang:1.24.4 AS backend-build
 
 # Make TARGET args available early so tools built here match the final image arch
 ARG TARGETOS
