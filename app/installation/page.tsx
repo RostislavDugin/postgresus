@@ -369,7 +369,7 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
                 </li>
                 <li>
                   <strong>Configure schedule</strong>: Set up your backup
-                  schedule (hourly, daily, weekly or monthly)
+                  schedule (hourly, daily, weekly, monthly or cron)
                 </li>
                 <li>
                   <strong>Choose storage destination</strong>: Select where to

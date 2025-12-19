@@ -13,7 +13,7 @@
 
 ## Key Features
 
-- Scheduled PostgreSQL backups (hourly, daily, weekly, monthly)
+- Scheduled PostgreSQL backups (hourly, daily, weekly, monthly, cron)
 - Multiple storage destinations: Local, S3, Cloudflare R2, Google Drive, Dropbox, NAS, SFTP, rclone and more
 - Real-time notifications: Slack, Telegram, Discord, Microsoft Teams, Email, Webhooks and more
 - Database health monitoring with configurable health checks
@@ -114,7 +114,7 @@ Content: How to configure Teams webhook notifications
 
 ### Backup Process
 
-1. Select schedule (hourly, daily, weekly, monthly, specific time)
+1. Select schedule (hourly, daily, weekly, monthly, specific time, cron)
 2. Configure database connection (host, port, credentials, version, SSL)
 3. Choose storage destination(s)
 4. Set up notification channels (optional)
@@ -204,7 +204,7 @@ So instead of second-by-second restoration complexity, Postgresus prioritizes an
 Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. Typically less than 2 minutes on a standard VPS using the automated installer. For Kubernetes environments, use the official Helm chart for production-ready deployments.
 
 ### Backup Schedules
-Hourly, daily, weekly or monthly cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
+Hourly, daily, weekly, monthly or cron cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
 
 ### Storage Space
 Archives saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Balanced compression typically shrinks dump size by 4-8x with ~20% runtime overhead.

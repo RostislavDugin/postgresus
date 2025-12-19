@@ -147,7 +147,7 @@ export default function Index() {
                 name: "What backup schedules can I schedule?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "You can choose from hourly, daily, weekly or monthly cycles and even choose an exact run time (such as 04:00 when it's late night). Weekly schedules enable you to choose a particular weekday, while monthly schedules enable you to choose a particular calendar day, giving you very fine-grained control of maintenance windows.",
+                  text: "You can choose from hourly, daily, weekly, monthly or cron cycles and even choose an exact run time (such as 04:00 when it's late night). Weekly schedules enable you to choose a particular weekday, while monthly schedules enable you to choose a particular calendar day, giving you very fine-grained control of maintenance windows.",
                 },
               },
               {
@@ -868,8 +868,8 @@ export default function Index() {
 
                 <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
-                    You can choose any time you need: daily, weekly, monthly and
-                    particular time (like 4 AM)
+                    You can choose any time you need: daily, weekly, monthly,
+                    particular time (like 4 AM) and cron cycles
                   </p>
                   <p>
                     For week interval you need to specify particular day, for
@@ -1081,7 +1081,7 @@ export default function Index() {
             <FaqItem
               number="3"
               question="What backup schedules can I schedule?"
-              answer="You can choose from hourly, daily, weekly or monthly cycles and even choose an exact run time (such as 04:00 when it's late night). Weekly schedules enable you to choose a particular weekday, while monthly schedules enable you to choose a particular calendar day, giving you very fine-grained control of maintenance windows."
+              answer="You can choose from hourly, daily, weekly, monthly or cron cycles and even choose an exact run time (such as 04:00 when it's late night). Weekly schedules enable you to choose a particular weekday, while monthly schedules enable you to choose a particular calendar day, giving you very fine-grained control of maintenance windows."
             />
             <FaqItem
               number="4"
@@ -1105,7 +1105,7 @@ export default function Index() {
                 <>
                   To start your very first Postgresus backup, simply log in to
                   the dashboard, click on New Backup, select an interval —
-                  hourly, daily, weekly or monthly. Then specify the exact run
+                  hourly, daily, weekly, monthly or cron. Then specify the exact run
                   time (e.g., 02:30 for off-peak hours).
                   <br />
                   <br />

@@ -319,7 +319,7 @@ export default function PostgresusVsBarmanPage() {
               <ul>
                 <li>
                   <strong>Restore to any hour or day</strong>: With hourly,
-                  daily, weekly or monthly backup schedules, you can restore to
+                  daily, weekly, monthly or cron backup schedules, you can restore to
                   any backup point you&apos;ve configured.
                 </li>
                 <li>

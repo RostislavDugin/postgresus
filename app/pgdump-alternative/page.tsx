@@ -344,7 +344,7 @@ fi`}</code>
               <ul>
                 <li>
                   <strong>Visual scheduler</strong>: Set hourly, daily, weekly,
-                  or monthly backups with specific times.
+                  monthly or cron backups with specific times.
                 </li>
                 <li>
                   <strong>Automatic compression</strong>: zstd compression

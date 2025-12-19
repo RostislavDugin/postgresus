@@ -148,7 +148,7 @@ export default function PostgresusVsPgBackWebPage() {
               <ul>
                 <li>
                   <strong>Postgresus</strong>: Supports hourly, daily, weekly
-                  and monthly schedules with precise timing (e.g. 4 AM).
+                  monthly or cron schedules with precise timing (e.g. 4 AM).
                   Implements{" "}
                   <strong>balanced compression using zstd (level 5)</strong>,
                   reducing backup sizes by 4-8x with only ~20% runtime overhead.
