@@ -19,6 +19,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.97
 	github.com/pkg/sftp v1.13.10
 	github.com/rclone/rclone v1.72.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.10
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/files v1.0.1
@@ -155,7 +156,6 @@ require (
 	github.com/putdotio/go-putio/putio v0.0.0-20200123120452-16d982cac2b8 // indirect
 	github.com/relvacode/iso8601 v1.7.0 // indirect
 	github.com/rfjakob/eme v1.1.2 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // indirect
