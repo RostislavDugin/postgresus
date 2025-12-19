@@ -331,7 +331,7 @@ export const EditDatabaseSpecificDataComponent = ({
                 }}
                 size="small"
                 className="max-w-[200px] grow"
-                placeholder="Enter PG database name (optional)"
+                placeholder="Enter PG database name"
               />
             </div>
           )}
