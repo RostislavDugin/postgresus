@@ -78,7 +78,7 @@ export default function Index() {
             },
             featureList: [
               "Scheduled PostgreSQL backups",
-              "Multiple storage destinations (S3, Google Drive, Dropbox, etc.)",
+              "Multiple storage destinations (S3, Google Drive, Dropbox, SFTP, rclone, etc.)",
               "Real-time notifications (Slack, Telegram, Discord, Webhook, email, etc.)",
               "Database health monitoring",
               "Self-hosted via Docker",
@@ -131,7 +131,7 @@ export default function Index() {
                 name: "What is Postgresus and why should I use it instead of hand-rolled scripts?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
+                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
                 },
               },
               {
@@ -1071,7 +1071,7 @@ export default function Index() {
             <FaqItem
               number="1"
               question="What is Postgresus and why should I use it instead of hand-rolled scripts?"
-              answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v12 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
+              answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v12 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
             />
             <FaqItem
               number="2"

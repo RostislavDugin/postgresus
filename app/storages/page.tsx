@@ -7,7 +7,7 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 export const metadata: Metadata = {
   title: "Storages - Postgresus Documentation",
   description:
-    "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP and Dropbox.",
+    "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
   keywords: [
     "Postgresus storages",
     "backup storage",
@@ -19,11 +19,13 @@ export const metadata: Metadata = {
     "local storage",
     "Azure Blob Storage",
     "FTP backup",
+    "SFTP backup",
+    "rclone backup",
   ],
   openGraph: {
     title: "Storages - Postgresus Documentation",
     description:
-      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP and Dropbox.",
+      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
     type: "article",
     url: "https://postgresus.com/storages",
   },
@@ -31,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Storages - Postgresus Documentation",
     description:
-      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP and Dropbox.",
+      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
   },
   alternates: {
     canonical: "https://postgresus.com/storages",
@@ -51,7 +53,7 @@ export default function StoragesPage() {
             "@type": "TechArticle",
             headline: "Storages - Postgresus Documentation",
             description:
-              "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP and Dropbox.",
+              "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
             author: {
               "@type": "Organization",
               name: "Postgresus",
@@ -124,6 +126,13 @@ export default function StoragesPage() {
                 </li>
                 <li>
                   <strong>FTP</strong> - File Transfer Protocol servers
+                </li>
+                <li>
+                  <strong>SFTP</strong> - SSH File Transfer Protocol servers
+                </li>
+                <li>
+                  <strong>rclone</strong> - Connect to 70+ cloud storage
+                  providers via rclone
                 </li>
               </ul>
             </article>

@@ -14,7 +14,7 @@
 ## Key Features
 
 - Scheduled PostgreSQL backups (hourly, daily, weekly, monthly)
-- Multiple storage destinations: Local, S3, Cloudflare R2, Google Drive, Dropbox, NAS and more
+- Multiple storage destinations: Local, S3, Cloudflare R2, Google Drive, Dropbox, NAS, SFTP, rclone and more
 - Real-time notifications: Slack, Telegram, Discord, Microsoft Teams, Email, Webhooks and more
 - Database health monitoring with configurable health checks
 - Self-hosted via Docker with zero-config installation
@@ -128,6 +128,8 @@ Content: How to configure Teams webhook notifications
 - **Google Drive**: Cloud storage via Google Cloud API
 - **NAS**: Network-attached storage devices
 - **Dropbox**: Cloud storage integration
+- **SFTP**: SSH File Transfer Protocol servers
+- **rclone**: Connect to 70+ cloud storage providers
 - and more
 
 ### Notification Channels
