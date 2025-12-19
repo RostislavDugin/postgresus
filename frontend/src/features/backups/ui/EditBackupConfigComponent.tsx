@@ -2,6 +2,7 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import {
   Button,
   Checkbox,
+  Input,
   InputNumber,
   Modal,
   Select,
@@ -10,6 +11,7 @@ import {
   TimePicker,
   Tooltip,
 } from 'antd';
+import { CronExpressionParser } from 'cron-parser';
 import dayjs, { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -19,10 +21,11 @@ import type { Database } from '../../../entity/databases';
 import { Period } from '../../../entity/databases/model/Period';
 import { type Interval, IntervalType } from '../../../entity/intervals';
 import { type Storage, getStorageLogoFromType, storageApi } from '../../../entity/storages';
+import { getUserTimeFormat } from '../../../shared/time';
 import {
+  getUserTimeFormat as getIs12Hour,
   getLocalDayOfMonth,
   getLocalWeekday,
-  getUserTimeFormat,
   getUtcDayOfMonth,
   getUtcWeekday,
 } from '../../../shared/time/utils';
@@ -77,9 +80,11 @@ export const EditBackupConfigComponent = ({
   const [isShowWarn, setIsShowWarn] = useState(false);
 
   const timeFormat = useMemo(() => {
-    const is12 = getUserTimeFormat();
+    const is12 = getIs12Hour();
     return { use12Hours: is12, format: is12 ? 'h:mm A' : 'HH:mm' };
   }, []);
+
+  const dateTimeFormat = useMemo(() => getUserTimeFormat(), []);
 
   const updateBackupConfig = (patch: Partial<BackupConfig>) => {
     setBackupConfig((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -201,7 +206,8 @@ export const EditBackupConfigComponent = ({
       Boolean(backupInterval?.interval) &&
       (!backupInterval ||
         ((backupInterval.interval !== IntervalType.WEEKLY || displayedWeekday) &&
-          (backupInterval.interval !== IntervalType.MONTHLY || displayedDayOfMonth))));
+          (backupInterval.interval !== IntervalType.MONTHLY || displayedDayOfMonth) &&
+          (backupInterval.interval !== IntervalType.CRON || backupInterval.cronExpression))));
 
   return (
     <div>
@@ -230,6 +236,7 @@ export const EditBackupConfigComponent = ({
                 { label: 'Daily', value: IntervalType.DAILY },
                 { label: 'Weekly', value: IntervalType.WEEKLY },
                 { label: 'Monthly', value: IntervalType.MONTHLY },
+                { label: 'Cron', value: IntervalType.CRON },
               ]}
             />
           </div>
@@ -269,32 +276,92 @@ export const EditBackupConfigComponent = ({
             </div>
           )}
 
-          {backupInterval?.interval !== IntervalType.HOURLY && (
-            <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
-              <div className="mb-1 min-w-[150px] sm:mb-0">Backup time of day</div>
-              <TimePicker
-                value={localTime}
-                format={timeFormat.format}
-                use12Hours={timeFormat.use12Hours}
-                allowClear={false}
-                size="small"
-                className="w-full max-w-[200px] grow"
-                onChange={(t) => {
-                  if (!t) return;
-                  const patch: Partial<Interval> = { timeOfDay: t.utc().format('HH:mm') };
-
-                  if (backupInterval?.interval === IntervalType.WEEKLY && displayedWeekday) {
-                    patch.weekday = getUtcWeekday(displayedWeekday, t);
+          {backupInterval?.interval === IntervalType.CRON && (
+            <>
+              <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+                <div className="mb-1 min-w-[150px] sm:mb-0">Cron expression (UTC)</div>
+                <div className="flex items-center">
+                  <Input
+                    value={backupInterval?.cronExpression || ''}
+                    onChange={(e) => saveInterval({ cronExpression: e.target.value })}
+                    placeholder="0 2 * * *"
+                    size="small"
+                    className="w-full max-w-[200px] grow"
+                  />
+                  <Tooltip
+                    className="cursor-pointer"
+                    title={
+                      <div>
+                        <div className="font-bold">
+                          Cron format: minute hour day month weekday (UTC)
+                        </div>
+                        <div className="mt-1">Examples:</div>
+                        <div>• 0 2 * * * - Daily at 2:00 AM UTC</div>
+                        <div>• 0 */6 * * * - Every 6 hours</div>
+                        <div>• 0 3 * * 1 - Every Monday at 3:00 AM UTC</div>
+                        <div>• 30 4 1,15 * * - 1st and 15th at 4:30 AM UTC</div>
+                      </div>
+                    }
+                  >
+                    <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                  </Tooltip>
+                </div>
+              </div>
+              {backupInterval?.cronExpression &&
+                (() => {
+                  try {
+                    const interval = CronExpressionParser.parse(backupInterval.cronExpression, {
+                      tz: 'UTC',
+                    });
+                    const nextRun = interval.next().toDate();
+                    return (
+                      <div className="mb-1 flex w-full flex-col items-start text-xs text-gray-600 sm:flex-row sm:items-center dark:text-gray-400">
+                        <div className="mb-1 min-w-[150px] sm:mb-0" />
+                        <div className="text-gray-600 dark:text-gray-400">
+                          Next run {dayjs(nextRun).local().format(dateTimeFormat.format)}
+                          <br />({dayjs(nextRun).fromNow()})
+                        </div>
+                      </div>
+                    );
+                  } catch {
+                    return (
+                      <div className="mb-1 flex w-full flex-col items-start text-red-500 sm:flex-row sm:items-center">
+                        <div className="mb-1 min-w-[150px] sm:mb-0" />
+                        <div className="text-red-500">Invalid cron expression</div>
+                      </div>
+                    );
                   }
-                  if (backupInterval?.interval === IntervalType.MONTHLY && displayedDayOfMonth) {
-                    patch.dayOfMonth = getUtcDayOfMonth(displayedDayOfMonth, t);
-                  }
-
-                  saveInterval(patch);
-                }}
-              />
-            </div>
+                })()}
+            </>
           )}
+
+          {backupInterval?.interval !== IntervalType.HOURLY &&
+            backupInterval?.interval !== IntervalType.CRON && (
+              <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+                <div className="mb-1 min-w-[150px] sm:mb-0">Backup time of day</div>
+                <TimePicker
+                  value={localTime}
+                  format={timeFormat.format}
+                  use12Hours={timeFormat.use12Hours}
+                  allowClear={false}
+                  size="small"
+                  className="w-full max-w-[200px] grow"
+                  onChange={(t) => {
+                    if (!t) return;
+                    const patch: Partial<Interval> = { timeOfDay: t.utc().format('HH:mm') };
+
+                    if (backupInterval?.interval === IntervalType.WEEKLY && displayedWeekday) {
+                      patch.weekday = getUtcWeekday(displayedWeekday, t);
+                    }
+                    if (backupInterval?.interval === IntervalType.MONTHLY && displayedDayOfMonth) {
+                      patch.dayOfMonth = getUtcDayOfMonth(displayedDayOfMonth, t);
+                    }
+
+                    saveInterval(patch);
+                  }}
+                />
+              </div>
+            )}
 
           <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
             <div className="mb-1 min-w-[150px] sm:mb-0">Retry backup if failed</div>

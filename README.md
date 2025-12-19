@@ -38,14 +38,14 @@
 
 ### 🔄 **Scheduled Backups**
 
-- **Flexible scheduling**: hourly, daily, weekly, monthly
+- **Flexible scheduling**: hourly, daily, weekly, monthly or cron
 - **Precise timing**: run backups at specific times (e.g., 4 AM during low traffic)
 - **Smart compression**: 4-8x space savings with balanced compression (~20% overhead)
 
 ### 🗄️ **Multiple Storage Destinations** <a href="https://postgresus.com/storages">(view supported)</a>
 
 - **Local storage**: Keep backups on your VPS/server
-- **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox and more
+- **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox, SFTP, Rclone and more
 - **Secure**: All data stays under your control
 
 ### 📱 **Smart Notifications** <a href="https://postgresus.com/notifiers">(view supported)</a>
@@ -212,7 +212,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 
 1. **Access the dashboard**: Navigate to `http://localhost:4005`
 2. **Add first DB for backup**: Click "New Database" and follow the setup wizard
-3. **Configure schedule**: Choose from hourly, daily, weekly or monthly intervals
+3. **Configure schedule**: Choose from hourly, daily, weekly, monthly or cron intervals
 4. **Set database connection**: Enter your PostgreSQL credentials and connection details
 5. **Choose storage**: Select where to store your backups (local, S3, Google Drive, etc.)
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications

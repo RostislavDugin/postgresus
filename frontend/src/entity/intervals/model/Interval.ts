@@ -8,4 +8,6 @@ export interface Interval {
   weekday?: number;
   // only for MONTHLY
   dayOfMonth?: number;
+  // only for CRON
+  cronExpression?: string;
 }

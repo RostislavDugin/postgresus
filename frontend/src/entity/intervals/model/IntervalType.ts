@@ -3,4 +3,5 @@ export enum IntervalType {
   DAILY = 'DAILY',
   WEEKLY = 'WEEKLY',
   MONTHLY = 'MONTHLY',
+  CRON = 'CRON',
 }
