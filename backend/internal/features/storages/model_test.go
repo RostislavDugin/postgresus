@@ -15,6 +15,7 @@ import (
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
+	sftp_storage "postgresus-backend/internal/features/storages/models/sftp"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
 	"strconv"
@@ -77,6 +78,14 @@ func Test_Storage_BasicOperations(t *testing.T) {
 	if portStr := config.GetEnv().TestFTPPort; portStr != "" {
 		if port, err := strconv.Atoi(portStr); err == nil {
 			ftpPort = port
+		}
+	}
+
+	// Setup SFTP port
+	sftpPort := 22
+	if portStr := config.GetEnv().TestSFTPPort; portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			sftpPort = port
 		}
 	}
 
@@ -144,6 +153,18 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				Password:  "testpassword",
 				UseSSL:    false,
 				Path:      "test-files",
+			},
+		},
+		{
+			name: "SFTPStorage",
+			storage: &sftp_storage.SFTPStorage{
+				StorageID:         uuid.New(),
+				Host:              "localhost",
+				Port:              sftpPort,
+				Username:          "testuser",
+				Password:          "testpassword",
+				SkipHostKeyVerify: true,
+				Path:              "upload",
 			},
 		},
 		{

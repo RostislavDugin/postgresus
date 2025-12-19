@@ -7,6 +7,7 @@ import { ShowGoogleDriveStorageComponent } from './storages/ShowGoogleDriveStora
 import { ShowNASStorageComponent } from './storages/ShowNASStorageComponent';
 import { ShowRcloneStorageComponent } from './storages/ShowRcloneStorageComponent';
 import { ShowS3StorageComponent } from './storages/ShowS3StorageComponent';
+import { ShowSFTPStorageComponent } from './storages/ShowSFTPStorageComponent';
 
 interface Props {
   storage?: Storage;
@@ -49,6 +50,10 @@ export function ShowStorageComponent({ storage }: Props) {
 
       <div>
         {storage?.type === StorageType.FTP && <ShowFTPStorageComponent storage={storage} />}
+      </div>
+
+      <div>
+        {storage?.type === StorageType.SFTP && <ShowSFTPStorageComponent storage={storage} />}
       </div>
 
       <div>

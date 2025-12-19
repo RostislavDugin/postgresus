@@ -165,6 +165,10 @@ jobs:
           TEST_AZURITE_BLOB_PORT=10000
           # testing NAS
           TEST_NAS_PORT=7006
+          # testing FTP
+          TEST_FTP_PORT=7007
+          # testing SFTP
+          TEST_SFTP_PORT=7008
           # testing Telegram
           TEST_TELEGRAM_BOT_TOKEN=${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
           TEST_TELEGRAM_CHAT_ID=${{ secrets.TEST_TELEGRAM_CHAT_ID }}
@@ -199,6 +203,12 @@ jobs:
 
           # Wait for Azurite
           timeout 60 bash -c 'until nc -z localhost 10000; do sleep 2; done'
+
+          # Wait for FTP
+          timeout 60 bash -c 'until nc -z localhost 7007; do sleep 2; done'
+
+          # Wait for SFTP
+          timeout 60 bash -c 'until nc -z localhost 7008; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |

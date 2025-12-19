@@ -14,6 +14,7 @@ import (
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
+	sftp_storage "postgresus-backend/internal/features/storages/models/sftp"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_middleware "postgresus-backend/internal/features/users/middleware"
 	users_services "postgresus-backend/internal/features/users/services"
@@ -785,6 +786,62 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 			verifyHiddenData: func(t *testing.T, storage *Storage) {
 				assert.Equal(t, "", storage.FTPStorage.Password)
+			},
+		},
+		{
+			name:        "SFTP Storage",
+			storageType: StorageTypeSFTP,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeSFTP,
+					Name:        "Test SFTP Storage",
+					SFTPStorage: &sftp_storage.SFTPStorage{
+						Host:              "sftp.example.com",
+						Port:              22,
+						Username:          "testuser",
+						Password:          "original-password",
+						PrivateKey:        "original-private-key",
+						SkipHostKeyVerify: false,
+						Path:              "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeSFTP,
+					Name:        "Updated SFTP Storage",
+					SFTPStorage: &sftp_storage.SFTPStorage{
+						Host:              "sftp2.example.com",
+						Port:              2222,
+						Username:          "testuser2",
+						Password:          "",
+						PrivateKey:        "",
+						SkipHostKeyVerify: true,
+						Path:              "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.SFTPStorage.Password, "enc:"),
+					"Password should be encrypted with 'enc:' prefix")
+				assert.True(t, strings.HasPrefix(storage.SFTPStorage.PrivateKey, "enc:"),
+					"PrivateKey should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				password, err := encryptor.Decrypt(storage.ID, storage.SFTPStorage.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password", password)
+
+				privateKey, err := encryptor.Decrypt(storage.ID, storage.SFTPStorage.PrivateKey)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-private-key", privateKey)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.SFTPStorage.Password)
+				assert.Equal(t, "", storage.SFTPStorage.PrivateKey)
 			},
 		},
 		{

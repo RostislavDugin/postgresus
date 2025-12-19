@@ -12,6 +12,7 @@ import (
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
+	sftp_storage "postgresus-backend/internal/features/storages/models/sftp"
 	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type Storage struct {
 	NASStorage         *nas_storage.NASStorage                  `json:"nasStorage"         gorm:"foreignKey:StorageID"`
 	AzureBlobStorage   *azure_blob_storage.AzureBlobStorage     `json:"azureBlobStorage"   gorm:"foreignKey:StorageID"`
 	FTPStorage         *ftp_storage.FTPStorage                  `json:"ftpStorage"         gorm:"foreignKey:StorageID"`
+	SFTPStorage        *sftp_storage.SFTPStorage                `json:"sftpStorage"        gorm:"foreignKey:StorageID"`
 	RcloneStorage      *rclone_storage.RcloneStorage            `json:"rcloneStorage"      gorm:"foreignKey:StorageID"`
 }
 
@@ -117,6 +119,10 @@ func (s *Storage) Update(incoming *Storage) {
 		if s.FTPStorage != nil && incoming.FTPStorage != nil {
 			s.FTPStorage.Update(incoming.FTPStorage)
 		}
+	case StorageTypeSFTP:
+		if s.SFTPStorage != nil && incoming.SFTPStorage != nil {
+			s.SFTPStorage.Update(incoming.SFTPStorage)
+		}
 	case StorageTypeRclone:
 		if s.RcloneStorage != nil && incoming.RcloneStorage != nil {
 			s.RcloneStorage.Update(incoming.RcloneStorage)
@@ -138,6 +144,8 @@ func (s *Storage) getSpecificStorage() StorageFileSaver {
 		return s.AzureBlobStorage
 	case StorageTypeFTP:
 		return s.FTPStorage
+	case StorageTypeSFTP:
+		return s.SFTPStorage
 	case StorageTypeRclone:
 		return s.RcloneStorage
 	default:

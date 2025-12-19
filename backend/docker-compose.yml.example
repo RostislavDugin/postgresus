@@ -146,3 +146,11 @@ services:
       - FTP_USER_HOME=/home/ftpusers/testuser
       - FTP_PASSIVE_PORTS=30000:30009
     container_name: test-ftp
+
+  # Test SFTP server
+  test-sftp:
+    image: atmoz/sftp:latest
+    ports:
+      - "${TEST_SFTP_PORT:-7008}:22"
+    command: testuser:testpassword:1001::upload
+    container_name: test-sftp

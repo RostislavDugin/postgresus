@@ -5,5 +5,6 @@ export enum StorageType {
   NAS = 'NAS',
   AZURE_BLOB = 'AZURE_BLOB',
   FTP = 'FTP',
+  SFTP = 'SFTP',
   RCLONE = 'RCLONE',
 }

@@ -9,5 +9,6 @@ const (
 	StorageTypeNAS         StorageType = "NAS"
 	StorageTypeAzureBlob   StorageType = "AZURE_BLOB"
 	StorageTypeFTP         StorageType = "FTP"
+	StorageTypeSFTP        StorageType = "SFTP"
 	StorageTypeRclone      StorageType = "RCLONE"
 )
