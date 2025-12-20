@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"postgresus-backend/internal/features/databases"
 	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -181,7 +182,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		return
 	}
 
-	fileReader, err := c.backupService.GetBackupFile(user, id)
+	fileReader, dbType, err := c.backupService.GetBackupFile(user, id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -192,10 +193,15 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		}
 	}()
 
+	extension := ".dump.zst"
+	if dbType == databases.DatabaseTypeMysql {
+		extension = ".sql.zst"
+	}
+
 	ctx.Header("Content-Type", "application/octet-stream")
 	ctx.Header(
 		"Content-Disposition",
-		fmt.Sprintf("attachment; filename=\"backup_%s.dump\"", id.String()),
+		fmt.Sprintf("attachment; filename=\"backup_%s%s\"", id.String(), extension),
 	)
 
 	_, err = io.Copy(ctx.Writer, fileReader)

@@ -5,7 +5,12 @@ import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
 import type { Backup } from '../../../entity/backups';
-import { type Database, DatabaseType, type PostgresqlDatabase } from '../../../entity/databases';
+import {
+  type Database,
+  DatabaseType,
+  type MysqlDatabase,
+  type PostgresqlDatabase,
+} from '../../../entity/databases';
 import { type Restore, RestoreStatus, restoreApi } from '../../../entity/restores';
 import { getUserTimeFormat } from '../../../shared/time';
 import { EditDatabaseSpecificDataComponent } from '../../databases/ui/edit/EditDatabaseSpecificDataComponent';
@@ -28,6 +33,15 @@ export const RestoresComponent = ({ database, backup }: Props) => {
           port: undefined,
           password: undefined,
         } as unknown as PostgresqlDatabase)
+      : undefined,
+    mysql: database.mysql
+      ? ({
+          ...database.mysql,
+          username: undefined,
+          host: undefined,
+          port: undefined,
+          password: undefined,
+        } as unknown as MysqlDatabase)
       : undefined,
   });
 
@@ -61,7 +75,14 @@ export const RestoresComponent = ({ database, backup }: Props) => {
     try {
       await restoreApi.restoreBackup({
         backupId: backup.id,
-        postgresql: editingDatabase.postgresql as PostgresqlDatabase,
+        postgresql:
+          database.type === DatabaseType.POSTGRES
+            ? (editingDatabase.postgresql as PostgresqlDatabase)
+            : undefined,
+        mysql:
+          database.type === DatabaseType.MYSQL
+            ? (editingDatabase.mysql as MysqlDatabase)
+            : undefined,
       });
       await loadRestores();
 
@@ -87,35 +108,33 @@ export const RestoresComponent = ({ database, backup }: Props) => {
   );
 
   if (isShowRestore) {
-    if (database.type === DatabaseType.POSTGRES) {
-      return (
-        <>
-          <div className="my-5 text-sm">
-            Enter info of the database we will restore backup to.{' '}
-            <u>The empty database for restore should be created before the restore</u>. During the
-            restore, all the current data will be cleared
-            <br />
-            <br />
-            Make sure the database is not used right now (most likely you do not want to restore the
-            data to the same DB where the backup was made)
-          </div>
+    return (
+      <>
+        <div className="my-5 text-sm">
+          Enter info of the database we will restore backup to.{' '}
+          <u>The empty database for restore should be created before the restore</u>. During the
+          restore, all the current data will be cleared
+          <br />
+          <br />
+          Make sure the database is not used right now (most likely you do not want to restore the
+          data to the same DB where the backup was made)
+        </div>
 
-          <EditDatabaseSpecificDataComponent
-            database={editingDatabase}
-            onCancel={() => setIsShowRestore(false)}
-            isShowBackButton={false}
-            onBack={() => setIsShowRestore(false)}
-            saveButtonText="Restore to this DB"
-            isSaveToApi={false}
-            onSaved={(database) => {
-              setEditingDatabase({ ...database });
-              restore(database);
-            }}
-            isRestoreMode={true}
-          />
-        </>
-      );
-    }
+        <EditDatabaseSpecificDataComponent
+          database={editingDatabase}
+          onCancel={() => setIsShowRestore(false)}
+          isShowBackButton={false}
+          onBack={() => setIsShowRestore(false)}
+          saveButtonText="Restore to this DB"
+          isSaveToApi={false}
+          onSaved={(database) => {
+            setEditingDatabase({ ...database });
+            restore(database);
+          }}
+          isRestoreMode={true}
+        />
+      </>
+    );
   }
 
   return (

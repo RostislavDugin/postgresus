@@ -31,14 +31,6 @@ services:
     container_name: test-minio
     command: server /data --console-address ":9001"
 
-  # Test Azurite container
-  test-azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    ports:
-      - "${TEST_AZURITE_BLOB_PORT:-10000}:10000"
-    container_name: test-azurite
-    command: azurite-blob --blobHost 0.0.0.0
-
   # Test PostgreSQL containers
   test-postgres-12:
     image: postgres:12
@@ -117,6 +109,14 @@ services:
     container_name: test-postgres-18
     shm_size: 1gb
 
+  # Test Azurite container
+  test-azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - "${TEST_AZURITE_BLOB_PORT:-10000}:10000"
+    container_name: test-azurite
+    command: azurite-blob --blobHost 0.0.0.0
+
   # Test NAS server (Samba)
   test-nas:
     image: dperson/samba:latest
@@ -154,3 +154,61 @@ services:
       - "${TEST_SFTP_PORT:-7008}:22"
     command: testuser:testpassword:1001::upload
     container_name: test-sftp
+
+  # Test MySQL containers
+  test-mysql-57:
+    image: mysql:5.7
+    ports:
+      - "${TEST_MYSQL_57_PORT:-33057}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysqldata/mysql-57:/var/lib/mysql
+    container_name: test-mysql-57
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mysql-80:
+    image: mysql:8.0
+    ports:
+      - "${TEST_MYSQL_80_PORT:-33080}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./mysqldata/mysql-80:/var/lib/mysql
+    container_name: test-mysql-80
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mysql-84:
+    image: mysql:8.4
+    ports:
+      - "${TEST_MYSQL_84_PORT:-33084}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysqldata/mysql-84:/var/lib/mysql
+    container_name: test-mysql-84
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

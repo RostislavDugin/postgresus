@@ -179,6 +179,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
           footer={<div />}
           open={isShowAddDatabase}
           onCancel={() => setIsShowAddDatabase(false)}
+          maskClosable={false}
           width={420}
         >
           <div className="mt-5" />

@@ -337,6 +337,30 @@ func Test_BackupPostgresql_SchemaSelection_OnlySpecifiedSchemas(t *testing.T) {
 	}
 }
 
+func Test_BackupAndRestorePostgresql_WithReadOnlyUser_RestoreIsSuccessful(t *testing.T) {
+	env := config.GetEnv()
+	cases := []struct {
+		name    string
+		version string
+		port    string
+	}{
+		{"PostgreSQL 12", "12", env.TestPostgres12Port},
+		{"PostgreSQL 13", "13", env.TestPostgres13Port},
+		{"PostgreSQL 14", "14", env.TestPostgres14Port},
+		{"PostgreSQL 15", "15", env.TestPostgres15Port},
+		{"PostgreSQL 16", "16", env.TestPostgres16Port},
+		{"PostgreSQL 17", "17", env.TestPostgres17Port},
+		{"PostgreSQL 18", "18", env.TestPostgres18Port},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testBackupRestoreWithReadOnlyUserForVersion(t, tc.version, tc.port)
+		})
+	}
+}
+
 func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	container, err := connectToPostgresContainer(pgVersion, port)
 	assert.NoError(t, err)
@@ -804,6 +828,100 @@ func testBackupRestoreWithoutExcludeExtensionsForVersion(
 		t,
 		router,
 		"/api/v1/databases/"+database.ID.String(),
+		"Bearer "+user.Token,
+		http.StatusNoContent,
+	)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
+}
+
+func testBackupRestoreWithReadOnlyUserForVersion(t *testing.T, pgVersion string, port string) {
+	container, err := connectToPostgresContainer(pgVersion, port)
+	assert.NoError(t, err)
+	defer func() {
+		if container.DB != nil {
+			container.DB.Close()
+		}
+	}()
+
+	_, err = container.DB.Exec(createAndFillTableQuery)
+	assert.NoError(t, err)
+
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("ReadOnly Test Workspace", user, router)
+
+	storage := storages.CreateTestStorage(workspace.ID)
+
+	database := createDatabaseViaAPI(
+		t, router, "ReadOnly Test Database", workspace.ID,
+		container.Host, container.Port,
+		container.Username, container.Password, container.Database,
+		user.Token,
+	)
+
+	readOnlyUser := createReadOnlyUserViaAPI(t, router, database.ID, user.Token)
+	assert.NotEmpty(t, readOnlyUser.Username)
+	assert.NotEmpty(t, readOnlyUser.Password)
+
+	updatedDatabase := updateDatabaseCredentialsViaAPI(
+		t, router, database,
+		readOnlyUser.Username, readOnlyUser.Password,
+		user.Token,
+	)
+
+	enableBackupsViaAPI(
+		t, router, updatedDatabase.ID, storage.ID,
+		backups_config.BackupEncryptionNone, user.Token,
+	)
+
+	createBackupViaAPI(t, router, updatedDatabase.ID, user.Token)
+
+	backup := waitForBackupCompletion(t, router, updatedDatabase.ID, user.Token, 5*time.Minute)
+	assert.Equal(t, backups.BackupStatusCompleted, backup.Status)
+
+	newDBName := "restoreddb_readonly"
+	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf("CREATE DATABASE %s;", newDBName))
+	assert.NoError(t, err)
+
+	newDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, container.Username, container.Password, newDBName)
+	newDB, err := sqlx.Connect("postgres", newDSN)
+	assert.NoError(t, err)
+	defer newDB.Close()
+
+	createRestoreViaAPI(
+		t, router, backup.ID,
+		container.Host, container.Port,
+		container.Username, container.Password, newDBName,
+		user.Token,
+	)
+
+	restore := waitForRestoreCompletion(t, router, backup.ID, user.Token, 5*time.Minute)
+	assert.Equal(t, restores_enums.RestoreStatusCompleted, restore.Status)
+
+	var tableExists bool
+	err = newDB.Get(
+		&tableExists,
+		"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'test_data')",
+	)
+	assert.NoError(t, err)
+	assert.True(t, tableExists, "Table 'test_data' should exist in restored database")
+
+	verifyDataIntegrity(t, container.DB, newDB)
+
+	err = os.Remove(filepath.Join(config.GetEnv().DataFolder, backup.ID.String()))
+	if err != nil {
+		t.Logf("Warning: Failed to delete backup file: %v", err)
+	}
+
+	test_utils.MakeDeleteRequest(
+		t,
+		router,
+		"/api/v1/databases/"+updatedDatabase.ID.String(),
 		"Bearer "+user.Token,
 		http.StatusNoContent,
 	)
@@ -1418,6 +1536,67 @@ func verifyDataIntegrity(t *testing.T, originalDB *sqlx.DB, restoredDB *sqlx.DB)
 			assert.Equal(t, originalData[i].Value, restoredData[i].Value, "Value should match")
 		}
 	}
+}
+
+func createReadOnlyUserViaAPI(
+	t *testing.T,
+	router *gin.Engine,
+	databaseID uuid.UUID,
+	token string,
+) *databases.CreateReadOnlyUserResponse {
+	var database databases.Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/databases/%s", databaseID.String()),
+		"Bearer "+token,
+		http.StatusOK,
+		&database,
+	)
+
+	var response databases.CreateReadOnlyUserResponse
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create-readonly-user",
+		"Bearer "+token,
+		database,
+		http.StatusOK,
+		&response,
+	)
+
+	return &response
+}
+
+func updateDatabaseCredentialsViaAPI(
+	t *testing.T,
+	router *gin.Engine,
+	database *databases.Database,
+	username string,
+	password string,
+	token string,
+) *databases.Database {
+	database.Postgresql.Username = username
+	database.Postgresql.Password = password
+
+	w := workspaces_testing.MakeAPIRequest(
+		router,
+		"POST",
+		"/api/v1/databases/update",
+		"Bearer "+token,
+		database,
+	)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Failed to update database. Status: %d, Body: %s", w.Code, w.Body.String())
+	}
+
+	var updatedDatabase databases.Database
+	if err := json.Unmarshal(w.Body.Bytes(), &updatedDatabase); err != nil {
+		t.Fatalf("Failed to unmarshal database response: %v", err)
+	}
+
+	return &updatedDatabase
 }
 
 func connectToPostgresContainer(version string, port string) (*PostgresContainer, error) {

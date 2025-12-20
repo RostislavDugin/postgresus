@@ -16,6 +16,7 @@ import (
 
 	"postgresus-backend/internal/config"
 	backup_encryption "postgresus-backend/internal/features/backups/backups/encryption"
+	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
@@ -50,7 +51,6 @@ type writeResult struct {
 	writeErr     error
 }
 
-// Execute creates a backup of the database
 func (uc *CreatePostgresqlBackupUsecase) Execute(
 	ctx context.Context,
 	backupID uuid.UUID,
@@ -60,7 +60,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) (*BackupMetadata, error) {
+) (*usecases_common.BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating PostgreSQL backup via pg_dump custom format",
 		"databaseId",
@@ -119,7 +119,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	db *databases.Database,
 	backupProgressListener func(completedMBs float64),
-) (*BackupMetadata, error) {
+) (*usecases_common.BackupMetadata, error) {
 	uc.logger.Info("Streaming PostgreSQL backup to storage", "pgBin", pgBin, "args", args)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
@@ -171,7 +171,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := &CountingWriter{writer: finalWriter}
+	countingWriter := usecases_common.NewCountingWriter(finalWriter)
 
 	// The backup ID becomes the object key / filename in storage
 
@@ -471,8 +471,8 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, BackupMetadata, error) {
-	metadata := BackupMetadata{}
+) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
+	metadata := usecases_common.BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_config.BackupEncryptionNone

@@ -178,6 +178,7 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
           footer={<div />}
           open={isShowAddNotifier}
           onCancel={() => setIsShowAddNotifier(false)}
+          maskClosable={false}
         >
           <div className="my-3 max-w-[250px] text-gray-500 dark:text-gray-400">
             Notifier - is a place where notifications will be sent (email, Slack, Telegram, etc.)

@@ -61,6 +61,7 @@ export function EditAzureBlobStorageComponent({ storage, setStorage, setUnsaved 
               size="small"
               className="w-full max-w-[250px]"
               placeholder="DefaultEndpointsProtocol=https;AccountName=..."
+              autoComplete="new-password"
             />
 
             <Tooltip
@@ -116,6 +117,7 @@ export function EditAzureBlobStorageComponent({ storage, setStorage, setUnsaved 
               size="small"
               className="w-full max-w-[250px]"
               placeholder="your-account-key"
+              autoComplete="new-password"
             />
           </div>
         </>

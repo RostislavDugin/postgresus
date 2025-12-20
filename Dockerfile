@@ -77,16 +77,57 @@ ENV APP_VERSION=$APP_VERSION
 # Set production mode for Docker containers
 ENV ENV_MODE=production
 
-# Install PostgreSQL server and client tools (versions 12-18) and rclone
+# Install PostgreSQL server and client tools (versions 12-18), MySQL client tools (5.7, 8.0, 8.4), and rclone
+# Note: MySQL 5.7 is only available for x86_64, MySQL 8.0+ supports both x86_64 and ARM64
+# Note: MySQL binaries require libncurses5 for terminal handling
+ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  wget ca-certificates gnupg lsb-release sudo gosu curl unzip && \
+  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5 && \
+  # Add PostgreSQL repository
   wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
   echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list && \
   apt-get update && \
+  # Install PostgreSQL
   apt-get install -y --no-install-recommends \
   postgresql-17 postgresql-18 postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
   postgresql-client-16 postgresql-client-17 postgresql-client-18 rclone && \
+  # Create MySQL directories
+  mkdir -p /usr/local/mysql-5.7/bin /usr/local/mysql-8.0/bin /usr/local/mysql-8.4/bin && \
+  # Download and install MySQL client tools (architecture-aware)
+  # MySQL 5.7: Only available for x86_64
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz -O /tmp/mysql57.tar.gz && \
+  tar -xzf /tmp/mysql57.tar.gz -C /tmp && \
+  cp /tmp/mysql-5.7.*/bin/mysql /usr/local/mysql-5.7/bin/ && \
+  cp /tmp/mysql-5.7.*/bin/mysqldump /usr/local/mysql-5.7/bin/ && \
+  rm -rf /tmp/mysql-5.7.* /tmp/mysql57.tar.gz; \
+  else \
+  echo "MySQL 5.7 not available for $TARGETARCH, skipping..."; \
+  fi && \
+  # MySQL 8.0: Available for both x86_64 and ARM64
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.40-linux-glibc2.17-x86_64-minimal.tar.xz -O /tmp/mysql80.tar.xz; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.40-linux-glibc2.17-aarch64-minimal.tar.xz -O /tmp/mysql80.tar.xz; \
+  fi && \
+  tar -xJf /tmp/mysql80.tar.xz -C /tmp && \
+  cp /tmp/mysql-8.0.*/bin/mysql /usr/local/mysql-8.0/bin/ && \
+  cp /tmp/mysql-8.0.*/bin/mysqldump /usr/local/mysql-8.0/bin/ && \
+  rm -rf /tmp/mysql-8.0.* /tmp/mysql80.tar.xz && \
+  # MySQL 8.4: Available for both x86_64 and ARM64
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-linux-glibc2.17-x86_64-minimal.tar.xz -O /tmp/mysql84.tar.xz; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-linux-glibc2.17-aarch64-minimal.tar.xz -O /tmp/mysql84.tar.xz; \
+  fi && \
+  tar -xJf /tmp/mysql84.tar.xz -C /tmp && \
+  cp /tmp/mysql-8.4.*/bin/mysql /usr/local/mysql-8.4/bin/ && \
+  cp /tmp/mysql-8.4.*/bin/mysqldump /usr/local/mysql-8.4/bin/ && \
+  rm -rf /tmp/mysql-8.4.* /tmp/mysql84.tar.xz && \
+  # Make MySQL binaries executable (ignore errors for empty dirs on ARM64)
+  chmod +x /usr/local/mysql-*/bin/* 2>/dev/null || true && \
+  # Cleanup
   rm -rf /var/lib/apt/lists/*
 
 # Create postgres user and set up directories

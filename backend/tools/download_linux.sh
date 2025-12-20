@@ -5,7 +5,7 @@ set -e  # Exit on any error
 # Ensure non-interactive mode for apt
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing PostgreSQL client tools versions 12-18 for Linux (Debian/Ubuntu)..."
+echo "Installing PostgreSQL and MySQL client tools for Linux (Debian/Ubuntu)..."
 echo
 
 # Check if running on supported system
@@ -22,19 +22,27 @@ else
     echo "This script requires sudo privileges to install packages."
 fi
 
-# Create postgresql directory
+# Create directories
 mkdir -p postgresql
+mkdir -p mysql
 
-# Get absolute path
+# Get absolute paths
 POSTGRES_DIR="$(pwd)/postgresql"
+MYSQL_DIR="$(pwd)/mysql"
 
 echo "Installing PostgreSQL client tools to: $POSTGRES_DIR"
+echo "Installing MySQL client tools to: $MYSQL_DIR"
 echo
+
+# ========== PostgreSQL Installation ==========
+echo "========================================"
+echo "Installing PostgreSQL client tools (versions 12-18)..."
+echo "========================================"
 
 # Add PostgreSQL official APT repository
 echo "Adding PostgreSQL official APT repository..."
 $SUDO apt-get update -qq -y
-$SUDO apt-get install -y -qq wget ca-certificates
+$SUDO apt-get install -y -qq wget ca-certificates gnupg lsb-release
 
 # Add GPG key
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | $SUDO apt-key add - 2>/dev/null
@@ -46,10 +54,10 @@ echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main"
 echo "Updating package list..."
 $SUDO apt-get update -qq -y
 
-# Install client tools for each version
-versions="12 13 14 15 16 17 18"
+# Install PostgreSQL client tools for each version
+pg_versions="12 13 14 15 16 17 18"
 
-for version in $versions; do
+for version in $pg_versions; do
     echo "Installing PostgreSQL $version client tools..."
     
     # Install client tools only
@@ -85,22 +93,116 @@ for version in $versions; do
     echo
 done
 
+# ========== MySQL Installation ==========
+echo "========================================"
+echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4)..."
+echo "========================================"
+
+# Add MySQL APT repository
+echo "Adding MySQL official APT repository..."
+wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb -O /tmp/mysql-apt-config.deb
+$SUDO DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/mysql-apt-config.deb || true
+rm /tmp/mysql-apt-config.deb
+
+# Update package list
+$SUDO apt-get update -qq -y
+
+# MySQL versions and their package names
+declare -A mysql_packages=(
+    ["5.7"]="mysql-community-client"
+    ["8.0"]="mysql-community-client"
+    ["8.4"]="mysql-community-client"
+)
+
+# Download and extract MySQL client tools
+mysql_versions="5.7 8.0 8.4"
+
+for version in $mysql_versions; do
+    echo "Installing MySQL $version client tools..."
+    
+    version_dir="$MYSQL_DIR/mysql-$version"
+    mkdir -p "$version_dir/bin"
+    
+    # Download MySQL client tools from official CDN
+    # Note: 5.7 is in Downloads, 8.0 and 8.4 specific versions are in archives
+    case $version in
+        "5.7")
+            MYSQL_URL="https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz"
+            ;;
+        "8.0")
+            MYSQL_URL="https://cdn.mysql.com/archives/mysql-8.0/mysql-8.0.40-linux-glibc2.17-x86_64-minimal.tar.xz"
+            ;;
+        "8.4")
+            MYSQL_URL="https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.3-linux-glibc2.17-x86_64-minimal.tar.xz"
+            ;;
+    esac
+    
+    TEMP_DIR="/tmp/mysql_install_$version"
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
+    
+    echo "  Downloading MySQL $version..."
+    wget -q "$MYSQL_URL" -O "mysql-$version.tar.gz" || wget -q "$MYSQL_URL" -O "mysql-$version.tar.xz"
+    
+    echo "  Extracting MySQL $version..."
+    if [[ "$MYSQL_URL" == *.xz ]]; then
+        tar -xJf "mysql-$version.tar.xz" 2>/dev/null || tar -xJf "mysql-$version.tar.gz" 2>/dev/null
+    else
+        tar -xzf "mysql-$version.tar.gz" 2>/dev/null || tar -xzf "mysql-$version.tar.xz" 2>/dev/null
+    fi
+    
+    # Find extracted directory
+    EXTRACTED_DIR=$(ls -d mysql-*/ 2>/dev/null | head -1)
+    
+    if [ -d "$EXTRACTED_DIR" ] && [ -f "$EXTRACTED_DIR/bin/mysqldump" ]; then
+        # Copy client binaries
+        cp "$EXTRACTED_DIR/bin/mysql" "$version_dir/bin/" 2>/dev/null || true
+        cp "$EXTRACTED_DIR/bin/mysqldump" "$version_dir/bin/" 2>/dev/null || true
+        chmod +x "$version_dir/bin/"*
+        
+        echo "  MySQL $version client tools installed successfully"
+    else
+        echo "  Warning: Could not extract MySQL $version binaries"
+        echo "  You may need to install MySQL $version client tools manually"
+    fi
+    
+    # Cleanup
+    cd - >/dev/null
+    rm -rf "$TEMP_DIR"
+    echo
+done
+
+echo "========================================"
 echo "Installation completed!"
+echo "========================================"
+echo
 echo "PostgreSQL client tools are available in: $POSTGRES_DIR"
+echo "MySQL client tools are available in: $MYSQL_DIR"
 echo
 
-# List installed versions
+# List installed PostgreSQL versions
 echo "Installed PostgreSQL client versions:"
-for version in $versions; do
+for version in $pg_versions; do
     version_dir="$POSTGRES_DIR/postgresql-$version"
     if [ -f "$version_dir/bin/pg_dump" ]; then
         echo "  postgresql-$version: $version_dir/bin/"
-        # Verify the correct version
         version_output=$("$version_dir/bin/pg_dump" --version 2>/dev/null | grep -o "pg_dump (PostgreSQL) [0-9]\+\.[0-9]\+")
         echo "    Version check: $version_output"
     fi
 done
 
 echo
-echo "Usage example:"
-echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version" 
+echo "Installed MySQL client versions:"
+for version in $mysql_versions; do
+    version_dir="$MYSQL_DIR/mysql-$version"
+    if [ -f "$version_dir/bin/mysqldump" ]; then
+        echo "  mysql-$version: $version_dir/bin/"
+        version_output=$("$version_dir/bin/mysqldump" --version 2>/dev/null | head -1)
+        echo "    Version check: $version_output"
+    fi
+done
+
+echo
+echo "Usage examples:"
+echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
+echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version" 

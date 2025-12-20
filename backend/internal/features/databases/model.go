@@ -3,6 +3,7 @@ package databases
 import (
 	"errors"
 	"log/slog"
+	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
 	"postgresus-backend/internal/util/encryption"
@@ -21,6 +22,7 @@ type Database struct {
 	Type        DatabaseType `json:"type"        gorm:"column:type;type:text;not null"`
 
 	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:DatabaseID"`
+	Mysql      *mysql.MysqlDatabase           `json:"mysql,omitempty"      gorm:"foreignKey:DatabaseID"`
 
 	Notifiers []notifiers.Notifier `json:"notifiers" gorm:"many2many:database_notifiers;"`
 
@@ -42,8 +44,12 @@ func (d *Database) Validate() error {
 		if d.Postgresql == nil {
 			return errors.New("postgresql database is required")
 		}
-
 		return d.Postgresql.Validate()
+	case DatabaseTypeMysql:
+		if d.Mysql == nil {
+			return errors.New("mysql database is required")
+		}
+		return d.Mysql.Validate()
 	default:
 		return errors.New("invalid database type: " + string(d.Type))
 	}
@@ -72,6 +78,9 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	if d.Postgresql != nil {
 		return d.Postgresql.EncryptSensitiveFields(d.ID, encryptor)
 	}
+	if d.Mysql != nil {
+		return d.Mysql.EncryptSensitiveFields(d.ID, encryptor)
+	}
 	return nil
 }
 
@@ -81,6 +90,9 @@ func (d *Database) PopulateVersionIfEmpty(
 ) error {
 	if d.Postgresql != nil {
 		return d.Postgresql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mysql != nil {
+		return d.Mysql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
 	}
 	return nil
 }
@@ -95,6 +107,10 @@ func (d *Database) Update(incoming *Database) {
 		if d.Postgresql != nil && incoming.Postgresql != nil {
 			d.Postgresql.Update(incoming.Postgresql)
 		}
+	case DatabaseTypeMysql:
+		if d.Mysql != nil && incoming.Mysql != nil {
+			d.Mysql.Update(incoming.Mysql)
+		}
 	}
 }
 
@@ -102,6 +118,8 @@ func (d *Database) getSpecificDatabase() DatabaseConnector {
 	switch d.Type {
 	case DatabaseTypePostgres:
 		return d.Postgresql
+	case DatabaseTypeMysql:
+		return d.Mysql
 	}
 
 	panic("invalid database type: " + string(d.Type))

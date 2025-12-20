@@ -502,19 +502,19 @@ func (s *BackupService) CancelBackup(
 func (s *BackupService) GetBackupFile(
 	user *users_models.User,
 	backupID uuid.UUID,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, databases.DatabaseType, error) {
 	backup, err := s.backupRepository.FindByID(backupID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if database.WorkspaceID == nil {
-		return nil, errors.New("cannot download backup for database without workspace")
+		return nil, "", errors.New("cannot download backup for database without workspace")
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
@@ -522,10 +522,10 @@ func (s *BackupService) GetBackupFile(
 		user,
 	)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if !canAccess {
-		return nil, errors.New("insufficient permissions to download backup for this database")
+		return nil, "", errors.New("insufficient permissions to download backup for this database")
 	}
 
 	s.auditLogService.WriteAuditLog(
@@ -538,7 +538,12 @@ func (s *BackupService) GetBackupFile(
 		database.WorkspaceID,
 	)
 
-	return s.getBackupReader(backupID)
+	reader, err := s.getBackupReader(backupID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return reader, database.Type, nil
 }
 
 func (s *BackupService) deleteBackup(backup *Backup) error {

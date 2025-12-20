@@ -1,0 +1,67 @@
+# Git and GitHub
+.git
+.gitignore
+.github
+
+# Node modules everywhere
+node_modules
+**/node_modules
+
+# Backend - exclude everything except what's needed for build
+backend/tools
+backend/mysqldata
+backend/pgdata
+backend/temp
+backend/images
+backend/bin
+backend/*.exe
+
+# Scripts and data directories
+scripts
+postgresus-data
+
+# IDE and editor files
+.idea
+.vscode
+.cursor
+**/*.swp
+**/*.swo
+
+# Documentation and articles (not needed for build)
+articles
+docs
+pages
+
+# Notifiers not needed in container
+notifiers
+
+# Dist (will be built fresh)
+frontend/dist
+
+# Environment files (handled separately)
+.env.local
+.env.development
+
+# Logs and temp files
+**/*.log
+tmp
+temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Helm charts and deployment configs
+deploy
+
+# License and other root files
+LICENSE
+CITATION.cff
+*.md
+assets
+
+# Python cache
+**/__pycache__
+
+# Pre-commit config
+.pre-commit-config.yaml

@@ -4,6 +4,7 @@ type DatabaseType string
 
 const (
 	DatabaseTypePostgres DatabaseType = "POSTGRES"
+	DatabaseTypeMysql    DatabaseType = "MYSQL"
 )
 
 type HealthStatus string

@@ -1,7 +1,7 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, databaseApi } from '../../../../entity/databases';
+import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
 
 interface Props {
   database: Database;
@@ -21,6 +21,10 @@ export const CreateReadOnlyComponent = ({
   const [isCreatingReadOnlyUser, setIsCreatingReadOnlyUser] = useState(false);
   const [isShowSkipConfirmation, setShowSkipConfirmation] = useState(false);
 
+  const isPostgres = database.type === DatabaseType.POSTGRES;
+  const isMysql = database.type === DatabaseType.MYSQL;
+  const databaseTypeName = isPostgres ? 'PostgreSQL' : isMysql ? 'MySQL' : 'database';
+
   const checkReadOnlyUser = async (): Promise<boolean> => {
     try {
       const response = await databaseApi.isUserReadOnly(database);
@@ -36,8 +40,15 @@ export const CreateReadOnlyComponent = ({
 
     try {
       const response = await databaseApi.createReadOnlyUser(database);
-      database.postgresql!.username = response.username;
-      database.postgresql!.password = response.password;
+
+      if (isPostgres && database.postgresql) {
+        database.postgresql.username = response.username;
+        database.postgresql.password = response.password;
+      } else if (isMysql && database.mysql) {
+        database.mysql.username = response.username;
+        database.mysql.password = response.password;
+      }
+
       onReadOnlyUserUpdated(database);
       onContinue();
     } catch (e) {
@@ -62,7 +73,6 @@ export const CreateReadOnlyComponent = ({
 
       const isReadOnly = await checkReadOnlyUser();
       if (isReadOnly) {
-        // already has a read-only user
         onContinue();
       }
 
@@ -86,8 +96,8 @@ export const CreateReadOnlyComponent = ({
         <p className="mb-3 text-lg font-bold">Create a read-only user for Postgresus?</p>
 
         <p className="mb-2">
-          A read-only user is a PostgreSQL user with limited permissions that can only read data
-          from your database, not modify it. This is recommended for backup operations because:
+          A read-only user is a {databaseTypeName} user with limited permissions that can only read
+          data from your database, not modify it. This is recommended for backup operations because:
         </p>
 
         <ul className="mb-2 ml-5 list-disc">

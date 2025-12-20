@@ -600,6 +600,7 @@ export const EditBackupConfigComponent = ({
             setShowCreateStorage(false);
             setStorageSelectKey((prev) => prev + 1);
           }}
+          maskClosable={false}
         >
           <div className="my-3 max-w-[275px] text-gray-500 dark:text-gray-400">
             Storage - is a place where backups will be stored (local disk, S3, Google Drive, etc.)

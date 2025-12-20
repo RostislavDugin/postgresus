@@ -3,6 +3,7 @@ main
 docker-compose.yml
 pgdata
 pgdata_test/
+mysqldata/
 main.exe
 swagger/
 swagger/*

@@ -169,6 +169,10 @@ jobs:
           TEST_FTP_PORT=7007
           # testing SFTP
           TEST_SFTP_PORT=7008
+          # testing MySQL
+          TEST_MYSQL_57_PORT=33057
+          TEST_MYSQL_80_PORT=33080
+          TEST_MYSQL_84_PORT=33084
           # testing Telegram
           TEST_TELEGRAM_BOT_TOKEN=${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
           TEST_TELEGRAM_CHAT_ID=${{ secrets.TEST_TELEGRAM_CHAT_ID }}
@@ -210,6 +214,14 @@ jobs:
           # Wait for SFTP
           timeout 60 bash -c 'until nc -z localhost 7008; do sleep 2; done'
 
+          # Wait for MySQL containers
+          echo "Waiting for MySQL 5.7..."
+          timeout 120 bash -c 'until docker exec test-mysql-57 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 8.0..."
+          timeout 120 bash -c 'until docker exec test-mysql-80 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 8.4..."
+          timeout 120 bash -c 'until docker exec test-mysql-84 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+
       - name: Create data and temp directories
         run: |
           # Create directories that are used for backups and restore
@@ -217,7 +229,7 @@ jobs:
           mkdir -p postgresus-data/backups
           mkdir -p postgresus-data/temp
 
-      - name: Install PostgreSQL client tools
+      - name: Install PostgreSQL and MySQL client tools
         run: |
           chmod +x backend/tools/download_linux.sh
           cd backend/tools

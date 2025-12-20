@@ -8,6 +8,7 @@ import (
 	"time"
 
 	audit_logs "postgresus-backend/internal/features/audit_logs"
+	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
 	users_models "postgresus-backend/internal/features/users/models"
@@ -404,6 +405,20 @@ func (s *DatabaseService) CopyDatabase(
 				IsHttps:    existingDatabase.Postgresql.IsHttps,
 			}
 		}
+	case DatabaseTypeMysql:
+		if existingDatabase.Mysql != nil {
+			newDatabase.Mysql = &mysql.MysqlDatabase{
+				ID:         uuid.Nil,
+				DatabaseID: nil,
+				Version:    existingDatabase.Mysql.Version,
+				Host:       existingDatabase.Mysql.Host,
+				Port:       existingDatabase.Mysql.Port,
+				Username:   existingDatabase.Mysql.Username,
+				Password:   existingDatabase.Mysql.Password,
+				Database:   existingDatabase.Mysql.Database,
+				IsHttps:    existingDatabase.Mysql.IsHttps,
+			}
+		}
 	}
 
 	if err := newDatabase.Validate(); err != nil {
@@ -518,19 +533,27 @@ func (s *DatabaseService) IsUserReadOnly(
 		usingDatabase = database
 	}
 
-	if usingDatabase.Type != DatabaseTypePostgres {
-		return false, errors.New("read-only check only supported for PostgreSQL databases")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	return usingDatabase.Postgresql.IsUserReadOnly(
-		ctx,
-		s.logger,
-		s.fieldEncryptor,
-		usingDatabase.ID,
-	)
+	switch usingDatabase.Type {
+	case DatabaseTypePostgres:
+		return usingDatabase.Postgresql.IsUserReadOnly(
+			ctx,
+			s.logger,
+			s.fieldEncryptor,
+			usingDatabase.ID,
+		)
+	case DatabaseTypeMysql:
+		return usingDatabase.Mysql.IsUserReadOnly(
+			ctx,
+			s.logger,
+			s.fieldEncryptor,
+			usingDatabase.ID,
+		)
+	default:
+		return false, errors.New("read-only check not supported for this database type")
+	}
 }
 
 func (s *DatabaseService) CreateReadOnlyUser(
@@ -582,16 +605,25 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		usingDatabase = database
 	}
 
-	if usingDatabase.Type != DatabaseTypePostgres {
-		return "", "", errors.New("read-only user creation only supported for PostgreSQL")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	username, password, err := usingDatabase.Postgresql.CreateReadOnlyUser(
-		ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
-	)
+	var username, password string
+	var err error
+
+	switch usingDatabase.Type {
+	case DatabaseTypePostgres:
+		username, password, err = usingDatabase.Postgresql.CreateReadOnlyUser(
+			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+		)
+	case DatabaseTypeMysql:
+		username, password, err = usingDatabase.Mysql.CreateReadOnlyUser(
+			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+		)
+	default:
+		return "", "", errors.New("read-only user creation not supported for this database type")
+	}
+
 	if err != nil {
 		return "", "", err
 	}

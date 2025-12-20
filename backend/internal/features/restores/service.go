@@ -122,13 +122,8 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
-	if tools.IsBackupDbVersionHigherThanRestoreDbVersion(
-		backupDatabase.Postgresql.Version,
-		requestDTO.PostgresqlDatabase.Version,
-	) {
-		return errors.New(`backup database version is higher than restore database version. ` +
-			`Should be restored to the same version as the backup database or higher. ` +
-			`For example, you can restore PG 15 backup to PG 15, 16 or higher. But cannot restore to 14 and lower`)
+	if err := s.validateVersionCompatibility(backupDatabase, requestDTO); err != nil {
+		return err
 	}
 
 	go func() {
@@ -163,9 +158,14 @@ func (s *RestoreService) RestoreBackup(
 		return err
 	}
 
-	if database.Type == databases.DatabaseTypePostgres {
+	switch database.Type {
+	case databases.DatabaseTypePostgres:
 		if requestDTO.PostgresqlDatabase == nil {
 			return errors.New("postgresql database is required")
+		}
+	case databases.DatabaseTypeMysql:
+		if requestDTO.MysqlDatabase == nil {
+			return errors.New("mysql database is required")
 		}
 	}
 
@@ -207,7 +207,9 @@ func (s *RestoreService) RestoreBackup(
 	start := time.Now().UTC()
 
 	restoringToDB := &databases.Database{
+		Type:       database.Type,
 		Postgresql: requestDTO.PostgresqlDatabase,
+		Mysql:      requestDTO.MysqlDatabase,
 	}
 
 	if err := restoringToDB.PopulateVersionIfEmpty(s.logger, s.fieldEncryptor); err != nil {
@@ -248,5 +250,38 @@ func (s *RestoreService) RestoreBackup(
 		return err
 	}
 
+	return nil
+}
+
+func (s *RestoreService) validateVersionCompatibility(
+	backupDatabase *databases.Database,
+	requestDTO RestoreBackupRequest,
+) error {
+	switch backupDatabase.Type {
+	case databases.DatabaseTypePostgres:
+		if requestDTO.PostgresqlDatabase == nil {
+			return errors.New("postgresql database configuration is required for restore")
+		}
+		if tools.IsBackupDbVersionHigherThanRestoreDbVersion(
+			backupDatabase.Postgresql.Version,
+			requestDTO.PostgresqlDatabase.Version,
+		) {
+			return errors.New(`backup database version is higher than restore database version. ` +
+				`Should be restored to the same version as the backup database or higher. ` +
+				`For example, you can restore PG 15 backup to PG 15, 16 or higher. But cannot restore to 14 and lower`)
+		}
+	case databases.DatabaseTypeMysql:
+		if requestDTO.MysqlDatabase == nil {
+			return errors.New("mysql database configuration is required for restore")
+		}
+		if tools.IsMysqlBackupVersionHigherThanRestoreVersion(
+			backupDatabase.Mysql.Version,
+			requestDTO.MysqlDatabase.Version,
+		) {
+			return errors.New(`backup database version is higher than restore database version. ` +
+				`Should be restored to the same version as the backup database or higher. ` +
+				`For example, you can restore MySQL 8.0 backup to MySQL 8.0, 8.4 or higher. But cannot restore to 5.7`)
+		}
+	}
 	return nil
 }

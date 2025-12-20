@@ -99,6 +99,7 @@ export function AdminPasswordComponent({
         status={passwordError ? 'error' : undefined}
         iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
         visibilityToggle={{ visible: passwordVisible, onVisibleChange: setPasswordVisible }}
+        autoComplete="new-password"
       />
 
       <div className="my-1 text-xs font-semibold">Confirm password</div>
@@ -111,6 +112,7 @@ export function AdminPasswordComponent({
           setConfirmPassword(e.currentTarget.value);
         }}
         iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+        autoComplete="new-password"
         visibilityToggle={{
           visible: confirmPasswordVisible,
           onVisibleChange: setConfirmPasswordVisible,

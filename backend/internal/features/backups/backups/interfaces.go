@@ -3,7 +3,7 @@ package backups
 import (
 	"context"
 
-	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
+	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "postgresus-backend/internal/features/backups/config"
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/notifiers"
@@ -27,10 +27,8 @@ type CreateBackupUsecase interface {
 		backupConfig *backups_config.BackupConfig,
 		database *databases.Database,
 		storage *storages.Storage,
-		backupProgressListener func(
-			completedMBs float64,
-		),
-	) (*usecases_postgresql.BackupMetadata, error)
+		backupProgressListener func(completedMBs float64),
+	) (*usecases_common.BackupMetadata, error)
 }
 
 type BackupRemoveListener interface {

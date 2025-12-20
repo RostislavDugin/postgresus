@@ -2,7 +2,7 @@
 
 set -e  # Exit on any error
 
-echo "Installing PostgreSQL client tools versions 12-18 for MacOS..."
+echo "Installing PostgreSQL and MySQL client tools for MacOS..."
 echo
 
 # Check if Homebrew is installed
@@ -12,13 +12,16 @@ if ! command -v brew &> /dev/null; then
     exit 1
 fi
 
-# Create postgresql directory
+# Create directories
 mkdir -p postgresql
+mkdir -p mysql
 
-# Get absolute path
+# Get absolute paths
 POSTGRES_DIR="$(pwd)/postgresql"
+MYSQL_DIR="$(pwd)/mysql"
 
 echo "Installing PostgreSQL client tools to: $POSTGRES_DIR"
+echo "Installing MySQL client tools to: $MYSQL_DIR"
 echo
 
 # Update Homebrew
@@ -27,7 +30,12 @@ brew update
 
 # Install build dependencies
 echo "Installing build dependencies..."
-brew install wget openssl readline zlib
+brew install wget openssl readline zlib cmake
+
+# ========== PostgreSQL Installation ==========
+echo "========================================"
+echo "Building PostgreSQL client tools (versions 12-18)..."
+echo "========================================"
 
 # PostgreSQL source URLs
 declare -A PG_URLS=(
@@ -41,7 +49,7 @@ declare -A PG_URLS=(
 )
 
 # Create temporary build directory
-BUILD_DIR="/tmp/postgresql_build_$$"
+BUILD_DIR="/tmp/db_tools_build_$$"
 mkdir -p "$BUILD_DIR"
 
 echo "Using temporary build directory: $BUILD_DIR"
@@ -107,10 +115,10 @@ build_postgresql_client() {
     echo
 }
 
-# Build each version
-versions="12 13 14 15 16 17 18"
+# Build each PostgreSQL version
+pg_versions="12 13 14 15 16 17 18"
 
-for version in $versions; do
+for version in $pg_versions; do
     url=${PG_URLS[$version]}
     if [ -n "$url" ]; then
         build_postgresql_client "$version" "$url"
@@ -119,17 +127,108 @@ for version in $versions; do
     fi
 done
 
+# ========== MySQL Installation ==========
+echo "========================================"
+echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4)..."
+echo "========================================"
+
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    MYSQL_ARCH="arm64"
+else
+    MYSQL_ARCH="x86_64"
+fi
+
+# MySQL download URLs for macOS (using CDN)
+# Note: 5.7 is in Downloads, 8.0 and 8.4 specific versions are in archives
+declare -A MYSQL_URLS=(
+    ["5.7"]="https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-macos10.14-x86_64.tar.gz"
+    ["8.0"]="https://cdn.mysql.com/archives/mysql-8.0/mysql-8.0.40-macos14-${MYSQL_ARCH}.tar.gz"
+    ["8.4"]="https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.3-macos14-${MYSQL_ARCH}.tar.gz"
+)
+
+# Function to install MySQL client tools
+install_mysql_client() {
+    local version=$1
+    local url=$2
+    local version_dir="$MYSQL_DIR/mysql-$version"
+    
+    echo "Installing MySQL $version client tools..."
+    
+    # Skip if already exists
+    if [ -f "$version_dir/bin/mysqldump" ]; then
+        echo "MySQL $version already installed, skipping..."
+        return
+    fi
+    
+    mkdir -p "$version_dir/bin"
+    cd "$BUILD_DIR"
+    
+    # Download
+    echo "  Downloading MySQL $version..."
+    wget -q "$url" -O "mysql-$version.tar.gz" || {
+        echo "  Warning: Could not download MySQL $version for $MYSQL_ARCH"
+        echo "  You may need to install MySQL $version client tools manually"
+        return
+    }
+    
+    # Extract
+    echo "  Extracting MySQL $version..."
+    tar -xzf "mysql-$version.tar.gz"
+    
+    # Find extracted directory
+    EXTRACTED_DIR=$(ls -d mysql-*/ 2>/dev/null | head -1)
+    
+    if [ -d "$EXTRACTED_DIR" ] && [ -f "$EXTRACTED_DIR/bin/mysqldump" ]; then
+        # Copy client binaries
+        cp "$EXTRACTED_DIR/bin/mysql" "$version_dir/bin/" 2>/dev/null || true
+        cp "$EXTRACTED_DIR/bin/mysqldump" "$version_dir/bin/" 2>/dev/null || true
+        chmod +x "$version_dir/bin/"*
+        
+        echo "  MySQL $version client tools installed successfully"
+        
+        # Test the installation
+        local mysql_version=$("$version_dir/bin/mysqldump" --version 2>/dev/null | head -1)
+        echo "  Verified: $mysql_version"
+    else
+        echo "  Warning: Could not extract MySQL $version binaries"
+        echo "  You may need to install MySQL $version client tools manually"
+    fi
+    
+    # Clean up
+    rm -rf "mysql-$version.tar.gz" mysql-*/
+    
+    echo
+}
+
+# Install each MySQL version
+mysql_versions="5.7 8.0 8.4"
+
+for version in $mysql_versions; do
+    url=${MYSQL_URLS[$version]}
+    if [ -n "$url" ]; then
+        install_mysql_client "$version" "$url"
+    else
+        echo "Warning: No URL defined for MySQL $version"
+    fi
+done
+
 # Clean up build directory
 echo "Cleaning up build directory..."
 rm -rf "$BUILD_DIR"
 
+echo "========================================"
 echo "Installation completed!"
+echo "========================================"
+echo
 echo "PostgreSQL client tools are available in: $POSTGRES_DIR"
+echo "MySQL client tools are available in: $MYSQL_DIR"
 echo
 
-# List installed versions
+# List installed PostgreSQL versions
 echo "Installed PostgreSQL client versions:"
-for version in $versions; do
+for version in $pg_versions; do
     version_dir="$POSTGRES_DIR/postgresql-$version"
     if [ -f "$version_dir/bin/pg_dump" ]; then
         pg_version=$("$version_dir/bin/pg_dump" --version | cut -d' ' -f3)
@@ -138,8 +237,21 @@ for version in $versions; do
 done
 
 echo
-echo "Usage example:"
-echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
+echo "Installed MySQL client versions:"
+for version in $mysql_versions; do
+    version_dir="$MYSQL_DIR/mysql-$version"
+    if [ -f "$version_dir/bin/mysqldump" ]; then
+        mysql_version=$("$version_dir/bin/mysqldump" --version 2>/dev/null | head -1)
+        echo "  mysql-$version: $version_dir/bin/"
+        echo "    $mysql_version"
+    fi
+done
+
 echo
-echo "To add a specific version to your PATH temporarily:"
-echo "  export PATH=\"$POSTGRES_DIR/postgresql-15/bin:\$PATH\"" 
+echo "Usage examples:"
+echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
+echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version"
+echo
+echo "To add specific versions to your PATH temporarily:"
+echo "  export PATH=\"$POSTGRES_DIR/postgresql-15/bin:\$PATH\""
+echo "  export PATH=\"$MYSQL_DIR/mysql-8.0/bin:\$PATH\"" 

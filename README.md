@@ -36,25 +36,25 @@
 
 ## ✨ Features
 
-### 🔄 **Scheduled Backups**
+### 🔄 **Scheduled backups**
 
 - **Flexible scheduling**: hourly, daily, weekly, monthly or cron
 - **Precise timing**: run backups at specific times (e.g., 4 AM during low traffic)
 - **Smart compression**: 4-8x space savings with balanced compression (~20% overhead)
 
-### 🗄️ **Multiple Storage Destinations** <a href="https://postgresus.com/storages">(view supported)</a>
+### 🗄️ **Multiple storage destinations** <a href="https://postgresus.com/storages">(view supported)</a>
 
 - **Local storage**: Keep backups on your VPS/server
 - **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox, SFTP, Rclone and more
 - **Secure**: All data stays under your control
 
-### 📱 **Smart Notifications** <a href="https://postgresus.com/notifiers">(view supported)</a>
+### 📱 **Smart notifications** <a href="https://postgresus.com/notifiers">(view supported)</a>
 
 - **Multiple channels**: Email, Telegram, Slack, Discord, webhooks
 - **Real-time updates**: Success and failure notifications
 - **Team integration**: Perfect for DevOps workflows
 
-### 🐘 **PostgreSQL Support**
+### 🐘 **PostgreSQL support**
 
 - **Multiple versions**: PostgreSQL 12, 13, 14, 15, 16, 17 and 18
 - **SSL support**: Secure connections available
@@ -67,7 +67,7 @@
 - **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
 - **Read-only user**: Postgresus uses by default a read-only user for backups and never stores anything that can change your data
 
-### 👥 **Suitable for Teams** <a href="https://postgresus.com/access-management">(docs)</a>
+### 👥 **Suitable for teams** <a href="https://postgresus.com/access-management">(docs)</a>
 
 - **Workspaces**: Group databases, notifiers and storages for different projects or teams
 - **Access management**: Control who can view or manage specific databases with role-based permissions
@@ -80,7 +80,7 @@
 - **Dark & light themes**: Choose the look that suits your workflow
 - **Mobile adaptive**: Check your backups from anywhere on any device
 
-### ☁️ **Works with Self-Hosted & Cloud Databases**
+### ☁️ **Works with self-hosted & cloud databases**
 
 Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed databases:
 
@@ -89,7 +89,7 @@ Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed d
 - **Why no PITR?**: Cloud providers already offer native PITR, and external PITR backups cannot be restored to managed cloud databases — making them impractical for cloud-hosted PostgreSQL
 - **Practical granularity**: Hourly and daily backups are sufficient for 99% of projects without the operational complexity of WAL archiving
 
-### 🐳 **Self-Hosted & Secure**
+### 🐳 **Self-hosted & secure**
 
 - **Docker-based**: Easy deployment and management
 - **Privacy-first**: All your data stays on your infrastructure
@@ -111,7 +111,7 @@ You have several ways to install Postgresus:
 
 You have three ways to install Postgresus: automated script (recommended), simple Docker run, or Docker Compose setup.
 
-### Option 1: Automated Installation Script (Recommended, Linux only)
+### Option 1: Automated installation script (recommended, Linux only)
 
 The installation script will:
 
@@ -125,7 +125,7 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
 | sudo bash
 ```
 
-### Option 2: Simple Docker Run
+### Option 2: Simple Docker run
 
 The easiest way to run Postgresus with embedded PostgreSQL:
 
@@ -144,7 +144,7 @@ This single command will:
 - ✅ Store all data in `./postgresus-data` directory
 - ✅ Automatically restart on system reboot
 
-### Option 3: Docker Compose Setup
+### Option 3: Docker Compose setup
 
 Create a `docker-compose.yml` file with the following configuration:
 
@@ -218,7 +218,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications
 7. **Save and start**: Postgresus will validate settings and begin the backup schedule
 
-### 🔑 Resetting Password <a href="https://postgresus.com/password">(docs)</a>
+### 🔑 Resetting password <a href="https://postgresus.com/password">(docs)</a>
 
 If you need to reset the password, you can use the built-in password reset command:
 

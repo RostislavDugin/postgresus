@@ -22,7 +22,7 @@ import {
   backupConfigApi,
   backupsApi,
 } from '../../../entity/backups';
-import type { Database } from '../../../entity/databases';
+import { type Database, DatabaseType } from '../../../entity/databases';
 import { getUserTimeFormat } from '../../../shared/time';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { RestoresComponent } from '../../restores';
@@ -74,7 +74,8 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       // Find the backup to get a meaningful filename
       const backup = backups.find((b) => b.id === backupId);
       const createdAt = backup ? dayjs(backup.createdAt).format('YYYY-MM-DD_HH-mm-ss') : 'backup';
-      link.download = `${database.name}_backup_${createdAt}.dump`;
+      const extension = database.type === DatabaseType.MYSQL ? '.sql.zst' : '.dump.zst';
+      link.download = `${database.name}_backup_${createdAt}${extension}`;
 
       // Trigger download
       document.body.appendChild(link);

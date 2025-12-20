@@ -2,6 +2,7 @@ package databases
 
 import (
 	"errors"
+	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/storage"
 
@@ -25,26 +26,28 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 			if database.Postgresql == nil {
 				return errors.New("postgresql configuration is required for PostgreSQL database")
 			}
-
-			// Ensure DatabaseID is always set and never nil
 			database.Postgresql.DatabaseID = &database.ID
+		case DatabaseTypeMysql:
+			if database.Mysql == nil {
+				return errors.New("mysql configuration is required for MySQL database")
+			}
+			database.Mysql.DatabaseID = &database.ID
 		}
 
 		if isNew {
 			if err := tx.Create(database).
-				Omit("Postgresql", "Notifiers").
+				Omit("Postgresql", "Mysql", "Notifiers").
 				Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Save(database).
-				Omit("Postgresql", "Notifiers").
+				Omit("Postgresql", "Mysql", "Notifiers").
 				Error; err != nil {
 				return err
 			}
 		}
 
-		// Save the specific database type
 		switch database.Type {
 		case DatabaseTypePostgres:
 			database.Postgresql.DatabaseID = &database.ID
@@ -55,6 +58,18 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 				}
 			} else {
 				if err := tx.Save(database.Postgresql).Error; err != nil {
+					return err
+				}
+			}
+		case DatabaseTypeMysql:
+			database.Mysql.DatabaseID = &database.ID
+			if database.Mysql.ID == uuid.Nil {
+				database.Mysql.ID = uuid.New()
+				if err := tx.Create(database.Mysql).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(database.Mysql).Error; err != nil {
 					return err
 				}
 			}
@@ -83,6 +98,7 @@ func (r *DatabaseRepository) FindByID(id uuid.UUID) (*Database, error) {
 	if err := storage.
 		GetDb().
 		Preload("Postgresql").
+		Preload("Mysql").
 		Preload("Notifiers").
 		Where("id = ?", id).
 		First(&database).Error; err != nil {
@@ -98,6 +114,7 @@ func (r *DatabaseRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Databa
 	if err := storage.
 		GetDb().
 		Preload("Postgresql").
+		Preload("Mysql").
 		Preload("Notifiers").
 		Where("workspace_id = ?", workspaceID).
 		Order("CASE WHEN health_status = 'UNAVAILABLE' THEN 1 WHEN health_status = 'AVAILABLE' THEN 2 WHEN health_status IS NULL THEN 3 ELSE 4 END, name ASC").
@@ -126,6 +143,12 @@ func (r *DatabaseRepository) Delete(id uuid.UUID) error {
 			if err := tx.
 				Where("database_id = ?", id).
 				Delete(&postgresql.PostgresqlDatabase{}).Error; err != nil {
+				return err
+			}
+		case DatabaseTypeMysql:
+			if err := tx.
+				Where("database_id = ?", id).
+				Delete(&mysql.MysqlDatabase{}).Error; err != nil {
 				return err
 			}
 		}
@@ -158,6 +181,7 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 	if err := storage.
 		GetDb().
 		Preload("Postgresql").
+		Preload("Mysql").
 		Preload("Notifiers").
 		Find(&databases).Error; err != nil {
 		return nil, err

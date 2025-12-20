@@ -1,12 +1,20 @@
-import { Button, Input } from 'antd';
+import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, databaseApi } from '../../../../entity/databases';
+import {
+  type Database,
+  DatabaseType,
+  type MysqlDatabase,
+  type PostgresqlDatabase,
+  databaseApi,
+  getDatabaseLogoFromType,
+} from '../../../../entity/databases';
 
 interface Props {
   database: Database;
 
   isShowName?: boolean;
+  isShowType?: boolean;
   isShowCancelButton?: boolean;
   onCancel: () => void;
 
@@ -15,9 +23,15 @@ interface Props {
   onSaved: (db: Database) => void;
 }
 
+const databaseTypeOptions = [
+  { value: DatabaseType.POSTGRES, label: 'PostgreSQL' },
+  { value: DatabaseType.MYSQL, label: 'MySQL' },
+];
+
 export const EditDatabaseBaseInfoComponent = ({
   database,
   isShowName,
+  isShowType,
   isShowCancelButton,
   onCancel,
   saveButtonText,
@@ -30,6 +44,26 @@ export const EditDatabaseBaseInfoComponent = ({
 
   const updateDatabase = (patch: Partial<Database>) => {
     setEditingDatabase((prev) => (prev ? { ...prev, ...patch } : prev));
+    setIsUnsaved(true);
+  };
+
+  const handleTypeChange = (newType: DatabaseType) => {
+    if (!editingDatabase) return;
+
+    const updatedDatabase: Database = {
+      ...editingDatabase,
+      type: newType,
+    };
+
+    if (newType === DatabaseType.POSTGRES && !editingDatabase.postgresql) {
+      updatedDatabase.postgresql = {} as PostgresqlDatabase;
+      updatedDatabase.mysql = undefined;
+    } else if (newType === DatabaseType.MYSQL && !editingDatabase.mysql) {
+      updatedDatabase.mysql = {} as MysqlDatabase;
+      updatedDatabase.postgresql = undefined;
+    }
+
+    setEditingDatabase(updatedDatabase);
     setIsUnsaved(true);
   };
 
@@ -59,7 +93,6 @@ export const EditDatabaseBaseInfoComponent = ({
 
   if (!editingDatabase) return null;
 
-  // mandatory-field check
   const isAllFieldsFilled = !!editingDatabase.name?.trim();
 
   return (
@@ -74,6 +107,28 @@ export const EditDatabaseBaseInfoComponent = ({
             placeholder="My favourite DB"
             className="max-w-[200px] grow"
           />
+        </div>
+      )}
+
+      {isShowType && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Database type</div>
+
+          <div className="flex items-center">
+            <Select
+              value={editingDatabase.type}
+              onChange={handleTypeChange}
+              options={databaseTypeOptions}
+              size="small"
+              className="w-[200px] grow"
+            />
+
+            <img
+              src={getDatabaseLogoFromType(editingDatabase.type)}
+              alt="databaseIcon"
+              className="ml-2 h-4 w-4"
+            />
+          </div>
         </div>
       )}
 

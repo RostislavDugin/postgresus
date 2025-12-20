@@ -25,6 +25,7 @@ type EnvVariables struct {
 	DatabaseDsn          string            `env:"DATABASE_DSN"         required:"true"`
 	EnvMode              env_utils.EnvMode `env:"ENV_MODE"             required:"true"`
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
+	MysqlInstallDir      string            `env:"MYSQL_INSTALL_DIR"`
 
 	DataFolder    string
 	TempFolder    string
@@ -50,6 +51,10 @@ type EnvVariables struct {
 	TestNASPort  string `env:"TEST_NAS_PORT"`
 	TestFTPPort  string `env:"TEST_FTP_PORT"`
 	TestSFTPPort string `env:"TEST_SFTP_PORT"`
+
+	TestMysql57Port string `env:"TEST_MYSQL_57_PORT"`
+	TestMysql80Port string `env:"TEST_MYSQL_80_PORT"`
+	TestMysql84Port string `env:"TEST_MYSQL_84_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -151,6 +156,9 @@ func loadEnvVariables() {
 
 	env.PostgresesInstallDir = filepath.Join(backendRoot, "tools", "postgresql")
 	tools.VerifyPostgresesInstallation(log, env.EnvMode, env.PostgresesInstallDir)
+
+	env.MysqlInstallDir = filepath.Join(backendRoot, "tools", "mysql")
+	tools.VerifyMysqlInstallation(log, env.EnvMode, env.MysqlInstallDir)
 
 	// Store the data and temp folders one level below the root
 	// (projectRoot/postgresus-data -> /postgresus-data)

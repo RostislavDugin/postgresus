@@ -4,6 +4,7 @@ import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/
 import {
   type Database,
   DatabaseType,
+  type MysqlDatabase,
   Period,
   type PostgresqlDatabase,
   databaseApi,
@@ -21,18 +22,14 @@ interface Props {
   onClose: () => void;
 }
 
-export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
-  const [database, setDatabase] = useState<Database>({
+const createInitialDatabase = (workspaceId: string): Database =>
+  ({
     id: undefined as unknown as string,
     name: '',
     workspaceId,
     storePeriod: Period.MONTH,
 
-    postgresql: {
-      cpuCount: 1,
-    } as unknown as PostgresqlDatabase,
+    postgresql: {} as PostgresqlDatabase,
 
     type: DatabaseType.POSTGRES,
 
@@ -40,7 +37,24 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
 
     notifiers: [],
     sendNotificationsOn: [],
-  } as Database);
+  }) as Database;
+
+const initializeDatabaseTypeData = (db: Database): Database => {
+  if (db.type === DatabaseType.POSTGRES && !db.postgresql) {
+    return { ...db, postgresql: {} as PostgresqlDatabase, mysql: undefined };
+  }
+
+  if (db.type === DatabaseType.MYSQL && !db.mysql) {
+    return { ...db, mysql: {} as MysqlDatabase, postgresql: undefined };
+  }
+
+  return db;
+};
+
+export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
+  const [database, setDatabase] = useState<Database>(createInitialDatabase(workspaceId));
 
   const [step, setStep] = useState<
     'base-info' | 'db-settings' | 'create-readonly-user' | 'backup-config' | 'notifiers'
@@ -74,11 +88,13 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
         <EditDatabaseBaseInfoComponent
           database={database}
           isShowName
+          isShowType
           isSaveToApi={false}
           saveButtonText="Continue"
           onCancel={() => onClose()}
-          onSaved={(database) => {
-            setDatabase({ ...database });
+          onSaved={(db) => {
+            const initializedDb = initializeDatabaseTypeData(db);
+            setDatabase({ ...initializedDb });
             setStep('db-settings');
           }}
         />
