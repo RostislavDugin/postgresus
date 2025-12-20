@@ -43,7 +43,7 @@ func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
 
 			isReadOnly, err := mysqlModel.IsUserReadOnly(ctx, logger, nil, uuid.New())
 			assert.NoError(t, err)
-			assert.False(t, isReadOnly, "Admin user should not be read-only")
+			assert.False(t, isReadOnly, "Root user should not be read-only")
 		})
 	}
 }
@@ -327,9 +327,9 @@ func connectToMysqlContainer(
 	}
 
 	dbName := "testdb"
-	password := "testpassword"
-	username := "testuser"
-	host := "localhost"
+	host := "127.0.0.1"
+	username := "root"
+	password := "rootpassword"
 
 	portInt, err := strconv.Atoi(port)
 	assert.NoError(t, err)

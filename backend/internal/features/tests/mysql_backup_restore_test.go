@@ -529,7 +529,11 @@ func waitForMysqlRestoreCompletion(
 				return restore
 			}
 			if restore.Status == restores_enums.RestoreStatusFailed {
-				t.Fatalf("MySQL restore failed: %v", restore.FailMessage)
+				failMsg := "unknown error"
+				if restore.FailMessage != nil {
+					failMsg = *restore.FailMessage
+				}
+				t.Fatalf("MySQL restore failed: %s", failMsg)
 			}
 		}
 
@@ -570,9 +574,9 @@ func connectToMysqlContainer(version tools.MysqlVersion, port string) (*MysqlCon
 	}
 
 	dbName := "testdb"
-	password := "testpassword"
-	username := "testuser"
-	host := "localhost"
+	password := "rootpassword"
+	username := "root"
+	host := "127.0.0.1"
 
 	portInt, err := strconv.Atoi(port)
 	if err != nil {

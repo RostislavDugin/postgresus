@@ -1183,7 +1183,11 @@ func waitForBackupCompletion(
 				return backup
 			}
 			if backup.Status == backups.BackupStatusFailed {
-				t.Fatalf("Backup failed: %v", backup.FailMessage)
+				failMsg := "unknown error"
+				if backup.FailMessage != nil {
+					failMsg = *backup.FailMessage
+				}
+				t.Fatalf("Backup failed: %s", failMsg)
 			}
 		}
 
@@ -1221,7 +1225,11 @@ func waitForRestoreCompletion(
 				return restore
 			}
 			if restore.Status == restores_enums.RestoreStatusFailed {
-				t.Fatalf("Restore failed: %v", restore.FailMessage)
+				failMsg := "unknown error"
+				if restore.FailMessage != nil {
+					failMsg = *restore.FailMessage
+				}
+				t.Fatalf("Restore failed: %s", failMsg)
 			}
 		}
 

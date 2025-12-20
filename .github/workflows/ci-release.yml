@@ -229,11 +229,52 @@ jobs:
           mkdir -p postgresus-data/backups
           mkdir -p postgresus-data/temp
 
+      - name: Cache PostgreSQL client tools
+        id: cache-postgres
+        uses: actions/cache@v4
+        with:
+          path: /usr/lib/postgresql
+          key: postgres-clients-12-18-v1
+
+      - name: Cache MySQL client tools
+        id: cache-mysql
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mysql
+          key: mysql-clients-57-80-84-v1
+
+      - name: Install MySQL dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libncurses6
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+
       - name: Install PostgreSQL and MySQL client tools
+        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true'
         run: |
           chmod +x backend/tools/download_linux.sh
           cd backend/tools
           ./download_linux.sh
+
+      - name: Setup PostgreSQL symlinks (when using cache)
+        if: steps.cache-postgres.outputs.cache-hit == 'true'
+        run: |
+          cd backend/tools
+          mkdir -p postgresql
+          for version in 12 13 14 15 16 17 18; do
+            version_dir="postgresql/postgresql-$version"
+            mkdir -p "$version_dir/bin"
+            pg_bin_dir="/usr/lib/postgresql/$version/bin"
+            if [ -d "$pg_bin_dir" ]; then
+              ln -sf "$pg_bin_dir/pg_dump" "$version_dir/bin/pg_dump"
+              ln -sf "$pg_bin_dir/pg_dumpall" "$version_dir/bin/pg_dumpall"
+              ln -sf "$pg_bin_dir/psql" "$version_dir/bin/psql"
+              ln -sf "$pg_bin_dir/pg_restore" "$version_dir/bin/pg_restore"
+              ln -sf "$pg_bin_dir/createdb" "$version_dir/bin/createdb"
+              ln -sf "$pg_bin_dir/dropdb" "$version_dir/bin/dropdb"
+            fi
+          done
 
       - name: Run database migrations
         run: |

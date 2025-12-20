@@ -98,22 +98,6 @@ echo "========================================"
 echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4)..."
 echo "========================================"
 
-# Add MySQL APT repository
-echo "Adding MySQL official APT repository..."
-wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb -O /tmp/mysql-apt-config.deb
-$SUDO DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/mysql-apt-config.deb || true
-rm /tmp/mysql-apt-config.deb
-
-# Update package list
-$SUDO apt-get update -qq -y
-
-# MySQL versions and their package names
-declare -A mysql_packages=(
-    ["5.7"]="mysql-community-client"
-    ["8.0"]="mysql-community-client"
-    ["8.4"]="mysql-community-client"
-)
-
 # Download and extract MySQL client tools
 mysql_versions="5.7 8.0 8.4"
 
