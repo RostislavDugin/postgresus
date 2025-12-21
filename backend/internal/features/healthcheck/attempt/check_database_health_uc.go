@@ -13,13 +13,13 @@ import (
 	"gorm.io/gorm"
 )
 
-type CheckPgHealthUseCase struct {
+type CheckDatabaseHealthUseCase struct {
 	healthcheckAttemptRepository *HealthcheckAttemptRepository
 	healthcheckAttemptSender     HealthcheckAttemptSender
 	databaseService              DatabaseService
 }
 
-func (uc *CheckPgHealthUseCase) Execute(
+func (uc *CheckDatabaseHealthUseCase) Execute(
 	now time.Time,
 	healthcheckConfig *healthcheck_config.HealthcheckConfig,
 ) error {
@@ -68,7 +68,7 @@ func (uc *CheckPgHealthUseCase) Execute(
 
 	err = uc.healthcheckAttemptRepository.DeleteOlderThan(
 		database.ID,
-		time.Now().Add(-time.Duration(healthcheckConfig.StoreAttemptsDays)*24*time.Hour),
+		time.Now().UTC().Add(-time.Duration(healthcheckConfig.StoreAttemptsDays)*24*time.Hour),
 	)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (uc *CheckPgHealthUseCase) Execute(
 	return nil
 }
 
-func (uc *CheckPgHealthUseCase) updateDatabaseHealthStatusIfChanged(
+func (uc *CheckDatabaseHealthUseCase) updateDatabaseHealthStatusIfChanged(
 	database *databases.Database,
 	healthcheckConfig *healthcheck_config.HealthcheckConfig,
 	heathcheckAttempt *HealthcheckAttempt,
@@ -147,7 +147,7 @@ func (uc *CheckPgHealthUseCase) updateDatabaseHealthStatusIfChanged(
 	return nil
 }
 
-func (uc *CheckPgHealthUseCase) healthcheckDatabase(
+func (uc *CheckDatabaseHealthUseCase) healthcheckDatabase(
 	now time.Time,
 	database *databases.Database,
 ) (*HealthcheckAttempt, error) {
@@ -175,21 +175,30 @@ func (uc *CheckPgHealthUseCase) healthcheckDatabase(
 	return attempt, nil
 }
 
-func (uc *CheckPgHealthUseCase) validateDatabase(
+func (uc *CheckDatabaseHealthUseCase) validateDatabase(
 	database *databases.Database,
 ) error {
-	if database.Type != databases.DatabaseTypePostgres {
-		return errors.New("database type is not postgres")
-	}
-
-	if database.Postgresql == nil {
-		return errors.New("database Postgresql is not set")
+	switch database.Type {
+	case databases.DatabaseTypePostgres:
+		if database.Postgresql == nil {
+			return fmt.Errorf("database Postgresql config is not set")
+		}
+	case databases.DatabaseTypeMysql:
+		if database.Mysql == nil {
+			return fmt.Errorf("database MySQL config is not set")
+		}
+	case databases.DatabaseTypeMariadb:
+		if database.Mariadb == nil {
+			return fmt.Errorf("database MariaDB config is not set")
+		}
+	default:
+		return fmt.Errorf("unsupported database type: %s", database.Type)
 	}
 
 	return nil
 }
 
-func (uc *CheckPgHealthUseCase) isReadyForNewAttempt(
+func (uc *CheckDatabaseHealthUseCase) isReadyForNewAttempt(
 	now time.Time,
 	database *databases.Database,
 	healthcheckConfig *healthcheck_config.HealthcheckConfig,
@@ -211,7 +220,7 @@ func (uc *CheckPgHealthUseCase) isReadyForNewAttempt(
 	return now.After(nextAttemptTime.Add(-1 * time.Second)), nil
 }
 
-func (uc *CheckPgHealthUseCase) sendDbStatusNotification(
+func (uc *CheckDatabaseHealthUseCase) sendDbStatusNotification(
 	healthcheckConfig *healthcheck_config.HealthcheckConfig,
 	database *databases.Database,
 	newHealthStatus databases.HealthStatus,

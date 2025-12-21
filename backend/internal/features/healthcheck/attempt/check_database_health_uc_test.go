@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func Test_CheckPgHealthUseCase(t *testing.T) {
+func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
 
 	// Create workspace directly via service
@@ -65,7 +65,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 		}
 
 		// Create use case with mock sender
-		useCase := &CheckPgHealthUseCase{
+		useCase := &CheckDatabaseHealthUseCase{
 			healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
 			healthcheckAttemptSender:     mockSender,
 			databaseService:              mockDatabaseService,
@@ -129,7 +129,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 			}
 
 			// Create use case with mock sender
-			useCase := &CheckPgHealthUseCase{
+			useCase := &CheckDatabaseHealthUseCase{
 				healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
 				healthcheckAttemptSender:     mockSender,
 				databaseService:              mockDatabaseService,
@@ -206,7 +206,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 			}
 
 			// Create use case with mock sender
-			useCase := &CheckPgHealthUseCase{
+			useCase := &CheckDatabaseHealthUseCase{
 				healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
 				healthcheckAttemptSender:     mockSender,
 				databaseService:              mockDatabaseService,
@@ -282,7 +282,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 		}
 
 		// Create use case with mock sender
-		useCase := &CheckPgHealthUseCase{
+		useCase := &CheckDatabaseHealthUseCase{
 			healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
 			healthcheckAttemptSender:     mockSender,
 			databaseService:              mockDatabaseService,
@@ -349,7 +349,7 @@ func Test_CheckPgHealthUseCase(t *testing.T) {
 			}
 
 			// Create use case with mock sender
-			useCase := &CheckPgHealthUseCase{
+			useCase := &CheckDatabaseHealthUseCase{
 				healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
 				healthcheckAttemptSender:     mockSender,
 				databaseService:              mockDatabaseService,

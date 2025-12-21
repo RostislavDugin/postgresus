@@ -15,7 +15,7 @@ var healthcheckAttemptService = &HealthcheckAttemptService{
 	workspaces_services.GetWorkspaceService(),
 }
 
-var checkPgHealthUseCase = &CheckPgHealthUseCase{
+var checkDatabaseHealthUseCase = &CheckDatabaseHealthUseCase{
 	healthcheckAttemptRepository,
 	notifiers.GetNotifierService(),
 	databases.GetDatabaseService(),
@@ -23,7 +23,7 @@ var checkPgHealthUseCase = &CheckPgHealthUseCase{
 
 var healthcheckAttemptBackgroundService = &HealthcheckAttemptBackgroundService{
 	healthcheck_config.GetHealthcheckConfigService(),
-	checkPgHealthUseCase,
+	checkDatabaseHealthUseCase,
 	logger.GetLogger(),
 }
 var healthcheckAttemptController = &HealthcheckAttemptController{
