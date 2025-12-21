@@ -345,6 +345,7 @@ func (m *MariadbDatabase) buildDSN(password string, database string) string {
 
 // detectMariadbVersion parses VERSION() output to detect MariaDB version
 // MariaDB returns strings like "10.11.6-MariaDB" or "11.4.2-MariaDB-1:11.4.2+maria~ubu2204"
+// Minor versions are mapped to the closest supported version (e.g., 12.1 → 12.0)
 func detectMariadbVersion(ctx context.Context, db *sql.DB) (tools.MariadbVersion, error) {
 	var versionStr string
 	err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&versionStr)
@@ -367,36 +368,55 @@ func detectMariadbVersion(ctx context.Context, db *sql.DB) (tools.MariadbVersion
 
 	major := matches[1]
 	minor := matches[2]
-	versionKey := fmt.Sprintf("%s.%s", major, minor)
 
-	switch versionKey {
-	case "5.5":
+	return mapMariadbVersion(major, minor)
+}
+
+func mapMariadbVersion(major, minor string) (tools.MariadbVersion, error) {
+	switch major {
+	case "5":
 		return tools.MariadbVersion55, nil
-	case "10.1":
-		return tools.MariadbVersion101, nil
-	case "10.2":
-		return tools.MariadbVersion102, nil
-	case "10.3":
-		return tools.MariadbVersion103, nil
-	case "10.4":
-		return tools.MariadbVersion104, nil
-	case "10.5":
-		return tools.MariadbVersion105, nil
-	case "10.6":
-		return tools.MariadbVersion106, nil
-	case "10.11":
-		return tools.MariadbVersion1011, nil
-	case "11.4":
-		return tools.MariadbVersion114, nil
-	case "11.8":
-		return tools.MariadbVersion118, nil
-	case "12.0":
+	case "10":
+		return mapMariadb10xVersion(minor)
+	case "11":
+		return mapMariadb11xVersion(minor)
+	case "12":
 		return tools.MariadbVersion120, nil
 	default:
 		return "", fmt.Errorf(
-			"unsupported MariaDB version: %s (supported: 5.5, 10.1-10.6, 10.11, 11.4, 11.8, 12.0)",
-			versionKey,
+			"unsupported MariaDB major version: %s (supported: 5.x, 10.x, 11.x, 12.x)",
+			major,
 		)
+	}
+}
+
+func mapMariadb10xVersion(minor string) (tools.MariadbVersion, error) {
+	switch minor {
+	case "1":
+		return tools.MariadbVersion101, nil
+	case "2":
+		return tools.MariadbVersion102, nil
+	case "3":
+		return tools.MariadbVersion103, nil
+	case "4":
+		return tools.MariadbVersion104, nil
+	case "5":
+		return tools.MariadbVersion105, nil
+	case "6", "7", "8", "9", "10":
+		return tools.MariadbVersion106, nil
+	default:
+		return tools.MariadbVersion1011, nil
+	}
+}
+
+func mapMariadb11xVersion(minor string) (tools.MariadbVersion, error) {
+	switch minor {
+	case "0", "1", "2", "3", "4":
+		return tools.MariadbVersion114, nil
+	case "5", "6", "7", "8":
+		return tools.MariadbVersion118, nil
+	default:
+		return tools.MariadbVersion118, nil
 	}
 }
 

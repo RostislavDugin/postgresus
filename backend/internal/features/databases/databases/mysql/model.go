@@ -342,6 +342,8 @@ func (m *MysqlDatabase) buildDSN(password string, database string) string {
 	)
 }
 
+// detectMysqlVersion parses VERSION() output to detect MySQL version
+// Minor versions are mapped to the closest supported version (e.g., 8.1 → 8.0, 8.4+ → 8.4)
 func detectMysqlVersion(ctx context.Context, db *sql.DB) (tools.MysqlVersion, error) {
 	var versionStr string
 	err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&versionStr)
@@ -358,15 +360,31 @@ func detectMysqlVersion(ctx context.Context, db *sql.DB) (tools.MysqlVersion, er
 	major := matches[1]
 	minor := matches[2]
 
-	switch {
-	case major == "5" && minor == "7":
+	return mapMysqlVersion(major, minor)
+}
+
+func mapMysqlVersion(major, minor string) (tools.MysqlVersion, error) {
+	switch major {
+	case "5":
 		return tools.MysqlVersion57, nil
-	case major == "8" && minor == "0":
-		return tools.MysqlVersion80, nil
-	case major == "8" && minor == "4":
+	case "8":
+		return mapMysql8xVersion(minor), nil
+	case "9":
 		return tools.MysqlVersion84, nil
 	default:
-		return "", fmt.Errorf("unsupported MySQL version: %s.%s", major, minor)
+		return "", fmt.Errorf(
+			"unsupported MySQL major version: %s (supported: 5.x, 8.x, 9.x)",
+			major,
+		)
+	}
+}
+
+func mapMysql8xVersion(minor string) tools.MysqlVersion {
+	switch minor {
+	case "0", "1", "2", "3":
+		return tools.MysqlVersion80
+	default:
+		return tools.MysqlVersion84
 	}
 }
 
