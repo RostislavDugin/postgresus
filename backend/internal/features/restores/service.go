@@ -167,6 +167,10 @@ func (s *RestoreService) RestoreBackup(
 		if requestDTO.MysqlDatabase == nil {
 			return errors.New("mysql database is required")
 		}
+	case databases.DatabaseTypeMariadb:
+		if requestDTO.MariadbDatabase == nil {
+			return errors.New("mariadb database is required")
+		}
 	}
 
 	restore := models.Restore{
@@ -210,6 +214,7 @@ func (s *RestoreService) RestoreBackup(
 		Type:       database.Type,
 		Postgresql: requestDTO.PostgresqlDatabase,
 		Mysql:      requestDTO.MysqlDatabase,
+		Mariadb:    requestDTO.MariadbDatabase,
 	}
 
 	if err := restoringToDB.PopulateVersionIfEmpty(s.logger, s.fieldEncryptor); err != nil {
@@ -257,6 +262,38 @@ func (s *RestoreService) validateVersionCompatibility(
 	backupDatabase *databases.Database,
 	requestDTO RestoreBackupRequest,
 ) error {
+	// populate version
+	if requestDTO.MariadbDatabase != nil {
+		err := requestDTO.MariadbDatabase.PopulateVersion(
+			s.logger,
+			s.fieldEncryptor,
+			backupDatabase.ID,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	if requestDTO.MysqlDatabase != nil {
+		err := requestDTO.MysqlDatabase.PopulateVersion(
+			s.logger,
+			s.fieldEncryptor,
+			backupDatabase.ID,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	if requestDTO.PostgresqlDatabase != nil {
+		err := requestDTO.PostgresqlDatabase.PopulateVersion(
+			s.logger,
+			s.fieldEncryptor,
+			backupDatabase.ID,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
 	switch backupDatabase.Type {
 	case databases.DatabaseTypePostgres:
 		if requestDTO.PostgresqlDatabase == nil {
@@ -281,6 +318,18 @@ func (s *RestoreService) validateVersionCompatibility(
 			return errors.New(`backup database version is higher than restore database version. ` +
 				`Should be restored to the same version as the backup database or higher. ` +
 				`For example, you can restore MySQL 8.0 backup to MySQL 8.0, 8.4 or higher. But cannot restore to 5.7`)
+		}
+	case databases.DatabaseTypeMariadb:
+		if requestDTO.MariadbDatabase == nil {
+			return errors.New("mariadb database configuration is required for restore")
+		}
+		if tools.IsMariadbBackupVersionHigherThanRestoreVersion(
+			backupDatabase.Mariadb.Version,
+			requestDTO.MariadbDatabase.Version,
+		) {
+			return errors.New(`backup database version is higher than restore database version. ` +
+				`Should be restored to the same version as the backup database or higher. ` +
+				`For example, you can restore MariaDB 10.11 backup to MariaDB 10.11, 11.4 or higher. But cannot restore to 10.6`)
 		}
 	}
 	return nil

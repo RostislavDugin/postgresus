@@ -5,12 +5,7 @@ import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
 import type { Backup } from '../../../entity/backups';
-import {
-  type Database,
-  DatabaseType,
-  type MysqlDatabase,
-  type PostgresqlDatabase,
-} from '../../../entity/databases';
+import { type Database, DatabaseType } from '../../../entity/databases';
 import { type Restore, RestoreStatus, restoreApi } from '../../../entity/restores';
 import { getUserTimeFormat } from '../../../shared/time';
 import { EditDatabaseSpecificDataComponent } from '../../databases/ui/edit/EditDatabaseSpecificDataComponent';
@@ -20,30 +15,50 @@ interface Props {
   backup: Backup;
 }
 
+type DatabaseCredentials = {
+  username?: string;
+  host?: string;
+  port?: number;
+  password?: string;
+};
+
+const clearCredentials = <T extends DatabaseCredentials>(db: T | undefined): T | undefined => {
+  if (!db) return undefined;
+  return {
+    ...db,
+    username: undefined,
+    host: undefined,
+    port: undefined,
+    password: undefined,
+  } as T;
+};
+
+const createInitialEditingDatabase = (database: Database): Database => ({
+  ...database,
+  postgresql: clearCredentials(database.postgresql),
+  mysql: clearCredentials(database.mysql),
+  mariadb: clearCredentials(database.mariadb),
+});
+
+const getRestorePayload = (database: Database, editingDatabase: Database) => {
+  switch (database.type) {
+    case DatabaseType.POSTGRES:
+      return { postgresql: editingDatabase.postgresql };
+    case DatabaseType.MYSQL:
+      return { mysql: editingDatabase.mysql };
+    case DatabaseType.MARIADB:
+      return { mariadb: editingDatabase.mariadb };
+    default:
+      return {};
+  }
+};
+
 export const RestoresComponent = ({ database, backup }: Props) => {
   const { message } = App.useApp();
 
-  const [editingDatabase, setEditingDatabase] = useState<Database>({
-    ...database,
-    postgresql: database.postgresql
-      ? ({
-          ...database.postgresql,
-          username: undefined,
-          host: undefined,
-          port: undefined,
-          password: undefined,
-        } as unknown as PostgresqlDatabase)
-      : undefined,
-    mysql: database.mysql
-      ? ({
-          ...database.mysql,
-          username: undefined,
-          host: undefined,
-          port: undefined,
-          password: undefined,
-        } as unknown as MysqlDatabase)
-      : undefined,
-  });
+  const [editingDatabase, setEditingDatabase] = useState<Database>(
+    createInitialEditingDatabase(database),
+  );
 
   const [restores, setRestores] = useState<Restore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -75,14 +90,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
     try {
       await restoreApi.restoreBackup({
         backupId: backup.id,
-        postgresql:
-          database.type === DatabaseType.POSTGRES
-            ? (editingDatabase.postgresql as PostgresqlDatabase)
-            : undefined,
-        mysql:
-          database.type === DatabaseType.MYSQL
-            ? (editingDatabase.mysql as MysqlDatabase)
-            : undefined,
+        ...getRestorePayload(database, editingDatabase),
       });
       await loadRestores();
 
@@ -253,6 +261,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
           title="Restore error details"
           open={!!showingRestoreError}
           onCancel={() => setShowingRestoreError(undefined)}
+          maskClosable={false}
           footer={
             <Button
               icon={<CopyOutlined />}

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"postgresus-backend/internal/features/databases/databases/mariadb"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_testing "postgresus-backend/internal/features/users/testing"
@@ -881,11 +882,9 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 				}
 			},
 			verifySensitiveData: func(t *testing.T, database *Database) {
-				// Verify password is encrypted
 				assert.True(t, strings.HasPrefix(database.Postgresql.Password, "enc:"),
 					"Password should be encrypted in database")
 
-				// Verify it can be decrypted back to original
 				encryptor := encryption.GetFieldEncryptor()
 				decrypted, err := encryptor.Decrypt(database.ID, database.Postgresql.Password)
 				assert.NoError(t, err)
@@ -893,6 +892,55 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 			verifyHiddenData: func(t *testing.T, database *Database) {
 				assert.Equal(t, "", database.Postgresql.Password)
+			},
+		},
+		{
+			name:         "MariaDB Database",
+			databaseType: DatabaseTypeMariadb,
+			createDatabase: func(workspaceID uuid.UUID) *Database {
+				testDbName := "test_db"
+				return &Database{
+					WorkspaceID: &workspaceID,
+					Name:        "Test MariaDB Database",
+					Type:        DatabaseTypeMariadb,
+					Mariadb: &mariadb.MariadbDatabase{
+						Version:  tools.MariadbVersion1011,
+						Host:     "localhost",
+						Port:     3306,
+						Username: "root",
+						Password: "original-password-secret",
+						Database: &testDbName,
+					},
+				}
+			},
+			updateDatabase: func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database {
+				testDbName := "updated_test_db"
+				return &Database{
+					ID:          databaseID,
+					WorkspaceID: &workspaceID,
+					Name:        "Updated MariaDB Database",
+					Type:        DatabaseTypeMariadb,
+					Mariadb: &mariadb.MariadbDatabase{
+						Version:  tools.MariadbVersion114,
+						Host:     "updated-host",
+						Port:     3307,
+						Username: "updated_user",
+						Password: "",
+						Database: &testDbName,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.True(t, strings.HasPrefix(database.Mariadb.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.ID, database.Mariadb.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password-secret", decrypted)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.Mariadb.Password)
 			},
 		},
 	}

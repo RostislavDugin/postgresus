@@ -103,7 +103,10 @@ export function EditFTPStorageComponent({ storage, setStorage, setUnsaved }: Pro
           size="small"
           className="w-full max-w-[250px]"
           placeholder="password"
-          autoComplete="new-password"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
         />
       </div>
 

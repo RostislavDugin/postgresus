@@ -655,6 +655,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           onCancel={() => setShowingRestoresBackupId(undefined)}
           title="Restore from backup"
           footer={null}
+          maskClosable={false}
         >
           <RestoresComponent
             database={database}
@@ -668,6 +669,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           title="Backup error details"
           open={!!showingBackupError}
           onCancel={() => setShowingBackupError(undefined)}
+          maskClosable={false}
           footer={null}
         >
           <div className="text-sm">{showingBackupError.failMessage}</div>

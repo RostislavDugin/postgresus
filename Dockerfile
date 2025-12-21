@@ -77,9 +77,10 @@ ENV APP_VERSION=$APP_VERSION
 # Set production mode for Docker containers
 ENV ENV_MODE=production
 
-# Install PostgreSQL server and client tools (versions 12-18), MySQL client tools (5.7, 8.0, 8.4), and rclone
+# Install PostgreSQL server and client tools (versions 12-18), MySQL client tools (5.7, 8.0, 8.4), MariaDB client tools, and rclone
 # Note: MySQL 5.7 is only available for x86_64, MySQL 8.0+ supports both x86_64 and ARM64
 # Note: MySQL binaries require libncurses5 for terminal handling
+# Note: MariaDB uses a single client version (12.1) that is backward compatible with all server versions
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
   wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5 && \
@@ -127,6 +128,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   rm -rf /tmp/mysql-8.4.* /tmp/mysql84.tar.xz && \
   # Make MySQL binaries executable (ignore errors for empty dirs on ARM64)
   chmod +x /usr/local/mysql-*/bin/* 2>/dev/null || true && \
+  # Create MariaDB directories for both versions
+  # MariaDB uses two client versions:
+  # - 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
+  # - 12.1 (modern): For newer servers (10.2+)
+  mkdir -p /usr/local/mariadb-10.6/bin /usr/local/mariadb-12.1/bin && \
+  # Download and install MariaDB 10.6 client tools (legacy - for older servers)
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://archive.mariadb.org/mariadb-10.6.21/bintar-linux-systemd-x86_64/mariadb-10.6.21-linux-systemd-x86_64.tar.gz -O /tmp/mariadb106.tar.gz && \
+  tar -xzf /tmp/mariadb106.tar.gz -C /tmp && \
+  cp /tmp/mariadb-10.6.*/bin/mariadb /usr/local/mariadb-10.6/bin/ && \
+  cp /tmp/mariadb-10.6.*/bin/mariadb-dump /usr/local/mariadb-10.6/bin/ && \
+  rm -rf /tmp/mariadb-10.6.* /tmp/mariadb106.tar.gz; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  # For ARM64, install MariaDB 10.6 client from official repository
+  curl -fsSL https://mariadb.org/mariadb_release_signing_key.asc | gpg --dearmor -o /usr/share/keyrings/mariadb-keyring.gpg && \
+  echo "deb [signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://mirror.mariadb.org/repo/10.6/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/mariadb106.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mariadb-client && \
+  cp /usr/bin/mariadb /usr/local/mariadb-10.6/bin/mariadb && \
+  cp /usr/bin/mariadb-dump /usr/local/mariadb-10.6/bin/mariadb-dump && \
+  apt-get remove -y mariadb-client && \
+  rm /etc/apt/sources.list.d/mariadb106.list; \
+  fi && \
+  # Download and install MariaDB 12.1 client tools (modern - for newer servers)
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://archive.mariadb.org/mariadb-12.1.2/bintar-linux-systemd-x86_64/mariadb-12.1.2-linux-systemd-x86_64.tar.gz -O /tmp/mariadb121.tar.gz && \
+  tar -xzf /tmp/mariadb121.tar.gz -C /tmp && \
+  cp /tmp/mariadb-12.1.*/bin/mariadb /usr/local/mariadb-12.1/bin/ && \
+  cp /tmp/mariadb-12.1.*/bin/mariadb-dump /usr/local/mariadb-12.1/bin/ && \
+  rm -rf /tmp/mariadb-12.1.* /tmp/mariadb121.tar.gz; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  # For ARM64, install MariaDB 12.1 client from official repository
+  echo "deb [signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://mirror.mariadb.org/repo/12.1/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/mariadb121.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mariadb-client && \
+  cp /usr/bin/mariadb /usr/local/mariadb-12.1/bin/mariadb && \
+  cp /usr/bin/mariadb-dump /usr/local/mariadb-12.1/bin/mariadb-dump; \
+  fi && \
+  # Make MariaDB binaries executable
+  chmod +x /usr/local/mariadb-*/bin/* 2>/dev/null || true && \
   # Cleanup
   rm -rf /var/lib/apt/lists/*
 

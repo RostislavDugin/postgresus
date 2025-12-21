@@ -141,7 +141,15 @@ func (p *PostgresqlDatabase) PopulateVersionIfEmpty(
 	if p.Version != "" {
 		return nil
 	}
+	return p.PopulateVersion(logger, encryptor, databaseID)
+}
 
+// PopulateVersion detects and sets the PostgreSQL version by querying the database.
+func (p *PostgresqlDatabase) PopulateVersion(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) error {
 	if p.Database == nil || *p.Database == "" {
 		return nil
 	}

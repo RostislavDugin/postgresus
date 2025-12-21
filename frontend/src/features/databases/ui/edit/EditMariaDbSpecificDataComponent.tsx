@@ -1,9 +1,9 @@
-import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
-import { App, Button, Checkbox, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
+import { App, Button, Input, InputNumber, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { type Database, databaseApi } from '../../../../entity/databases';
-import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
+import { MariadbConnectionStringParser } from '../../../../entity/databases/model/mariadb/MariadbConnectionStringParser';
 import { ToastHelper } from '../../../../shared/toast';
 
 interface Props {
@@ -20,10 +20,9 @@ interface Props {
   onSaved: (database: Database) => void;
 
   isShowDbName?: boolean;
-  isRestoreMode?: boolean;
 }
 
-export const EditPostgreSqlSpecificDataComponent = ({
+export const EditMariaDbSpecificDataComponent = ({
   database,
 
   isShowCancelButton,
@@ -36,7 +35,6 @@ export const EditPostgreSqlSpecificDataComponent = ({
   isSaveToApi,
   onSaved,
   isShowDbName = true,
-  isRestoreMode = false,
 }: Props) => {
   const { message } = App.useApp();
 
@@ -46,12 +44,6 @@ export const EditPostgreSqlSpecificDataComponent = ({
   const [isConnectionTested, setIsConnectionTested] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
-
-  const hasAdvancedValues =
-    !!database.postgresql?.includeSchemas?.length || !!database.postgresql?.isExcludeExtensions;
-  const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
-
-  const [hasAutoAddedPublicSchema, setHasAutoAddedPublicSchema] = useState(false);
 
   const parseFromClipboard = async () => {
     try {
@@ -63,19 +55,19 @@ export const EditPostgreSqlSpecificDataComponent = ({
         return;
       }
 
-      const result = ConnectionStringParser.parse(trimmedText);
+      const result = MariadbConnectionStringParser.parse(trimmedText);
 
       if ('error' in result) {
         message.error(result.error);
         return;
       }
 
-      if (!editingDatabase?.postgresql) return;
+      if (!editingDatabase?.mariadb) return;
 
       const updatedDatabase: Database = {
         ...editingDatabase,
-        postgresql: {
-          ...editingDatabase.postgresql,
+        mariadb: {
+          ...editingDatabase.mariadb,
           host: result.host,
           port: result.port,
           username: result.username,
@@ -85,37 +77,12 @@ export const EditPostgreSqlSpecificDataComponent = ({
         },
       };
 
-      setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
+      setEditingDatabase(updatedDatabase);
       setIsConnectionTested(false);
       message.success('Connection string parsed successfully');
     } catch {
       message.error('Failed to read clipboard. Please check browser permissions.');
     }
-  };
-
-  const autoAddPublicSchemaForSupabase = (updatedDatabase: Database): Database => {
-    if (hasAutoAddedPublicSchema) return updatedDatabase;
-
-    const host = updatedDatabase.postgresql?.host || '';
-    const username = updatedDatabase.postgresql?.username || '';
-    const isSupabase = host.includes('supabase') || username.includes('supabase');
-
-    if (isSupabase && updatedDatabase.postgresql) {
-      setHasAutoAddedPublicSchema(true);
-
-      const currentSchemas = updatedDatabase.postgresql.includeSchemas || [];
-      if (!currentSchemas.includes('public')) {
-        return {
-          ...updatedDatabase,
-          postgresql: {
-            ...updatedDatabase.postgresql,
-            includeSchemas: ['public', ...currentSchemas],
-          },
-        };
-      }
-    }
-
-    return updatedDatabase;
   };
 
   const testConnection = async () => {
@@ -168,19 +135,15 @@ export const EditPostgreSqlSpecificDataComponent = ({
   if (!editingDatabase) return null;
 
   let isAllFieldsFilled = true;
-  if (!editingDatabase.postgresql?.host) isAllFieldsFilled = false;
-  if (!editingDatabase.postgresql?.port) isAllFieldsFilled = false;
-  if (!editingDatabase.postgresql?.username) isAllFieldsFilled = false;
-  if (!editingDatabase.id && !editingDatabase.postgresql?.password) isAllFieldsFilled = false;
-  if (!editingDatabase.postgresql?.database) isAllFieldsFilled = false;
+  if (!editingDatabase.mariadb?.host) isAllFieldsFilled = false;
+  if (!editingDatabase.mariadb?.port) isAllFieldsFilled = false;
+  if (!editingDatabase.mariadb?.username) isAllFieldsFilled = false;
+  if (!editingDatabase.id && !editingDatabase.mariadb?.password) isAllFieldsFilled = false;
+  if (!editingDatabase.mariadb?.database) isAllFieldsFilled = false;
 
   const isLocalhostDb =
-    editingDatabase.postgresql?.host?.includes('localhost') ||
-    editingDatabase.postgresql?.host?.includes('127.0.0.1');
-
-  const isSupabaseDb =
-    editingDatabase.postgresql?.host?.includes('supabase') ||
-    editingDatabase.postgresql?.username?.includes('supabase');
+    editingDatabase.mariadb?.host?.includes('localhost') ||
+    editingDatabase.mariadb?.host?.includes('127.0.0.1');
 
   return (
     <div>
@@ -198,23 +161,22 @@ export const EditPostgreSqlSpecificDataComponent = ({
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Host</div>
         <Input
-          value={editingDatabase.postgresql?.host}
+          value={editingDatabase.mariadb?.host}
           onChange={(e) => {
-            if (!editingDatabase.postgresql) return;
+            if (!editingDatabase.mariadb) return;
 
-            const updatedDatabase = {
+            setEditingDatabase({
               ...editingDatabase,
-              postgresql: {
-                ...editingDatabase.postgresql,
+              mariadb: {
+                ...editingDatabase.mariadb,
                 host: e.target.value.trim().replace('https://', '').replace('http://', ''),
               },
-            };
-            setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
+            });
             setIsConnectionTested(false);
           }}
           size="small"
           className="max-w-[200px] grow"
-          placeholder="Enter PG host"
+          placeholder="Enter MariaDB host"
         />
       </div>
 
@@ -236,80 +198,61 @@ export const EditPostgreSqlSpecificDataComponent = ({
         </div>
       )}
 
-      {isSupabaseDb && (
-        <div className="mb-1 flex">
-          <div className="min-w-[150px]" />
-          <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
-            Please{' '}
-            <a
-              href="https://postgresus.com/faq/supabase"
-              target="_blank"
-              rel="noreferrer"
-              className="!text-blue-600 dark:!text-blue-400"
-            >
-              read this document
-            </a>{' '}
-            to study how to backup Supabase database
-          </div>
-        </div>
-      )}
-
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Port</div>
         <InputNumber
           type="number"
-          value={editingDatabase.postgresql?.port}
+          value={editingDatabase.mariadb?.port}
           onChange={(e) => {
-            if (!editingDatabase.postgresql || e === null) return;
+            if (!editingDatabase.mariadb || e === null) return;
 
             setEditingDatabase({
               ...editingDatabase,
-              postgresql: { ...editingDatabase.postgresql, port: e },
+              mariadb: { ...editingDatabase.mariadb, port: e },
             });
             setIsConnectionTested(false);
           }}
           size="small"
           className="max-w-[200px] grow"
-          placeholder="Enter PG port"
+          placeholder="Enter MariaDB port"
         />
       </div>
 
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Username</div>
         <Input
-          value={editingDatabase.postgresql?.username}
+          value={editingDatabase.mariadb?.username}
           onChange={(e) => {
-            if (!editingDatabase.postgresql) return;
+            if (!editingDatabase.mariadb) return;
 
-            const updatedDatabase = {
+            setEditingDatabase({
               ...editingDatabase,
-              postgresql: { ...editingDatabase.postgresql, username: e.target.value.trim() },
-            };
-            setEditingDatabase(autoAddPublicSchemaForSupabase(updatedDatabase));
+              mariadb: { ...editingDatabase.mariadb, username: e.target.value.trim() },
+            });
             setIsConnectionTested(false);
           }}
           size="small"
           className="max-w-[200px] grow"
-          placeholder="Enter PG username"
+          placeholder="Enter MariaDB username"
         />
       </div>
 
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Password</div>
         <Input.Password
-          value={editingDatabase.postgresql?.password}
+          value={editingDatabase.mariadb?.password}
           onChange={(e) => {
-            if (!editingDatabase.postgresql) return;
+            if (!editingDatabase.mariadb) return;
 
             setEditingDatabase({
               ...editingDatabase,
-              postgresql: { ...editingDatabase.postgresql, password: e.target.value.trim() },
+              mariadb: { ...editingDatabase.mariadb, password: e.target.value.trim() },
             });
             setIsConnectionTested(false);
           }}
           size="small"
           className="max-w-[200px] grow"
-          placeholder="Enter PG password"
+          placeholder="Enter MariaDB password"
           autoComplete="off"
           data-1p-ignore
           data-lpignore="true"
@@ -321,19 +264,19 @@ export const EditPostgreSqlSpecificDataComponent = ({
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">DB name</div>
           <Input
-            value={editingDatabase.postgresql?.database}
+            value={editingDatabase.mariadb?.database}
             onChange={(e) => {
-              if (!editingDatabase.postgresql) return;
+              if (!editingDatabase.mariadb) return;
 
               setEditingDatabase({
                 ...editingDatabase,
-                postgresql: { ...editingDatabase.postgresql, database: e.target.value.trim() },
+                mariadb: { ...editingDatabase.mariadb, database: e.target.value.trim() },
               });
               setIsConnectionTested(false);
             }}
             size="small"
             className="max-w-[200px] grow"
-            placeholder="Enter PG database name"
+            placeholder="Enter MariaDB database name"
           />
         </div>
       )}
@@ -341,91 +284,19 @@ export const EditPostgreSqlSpecificDataComponent = ({
       <div className="mb-3 flex w-full items-center">
         <div className="min-w-[150px]">Use HTTPS</div>
         <Switch
-          checked={editingDatabase.postgresql?.isHttps}
+          checked={editingDatabase.mariadb?.isHttps}
           onChange={(checked) => {
-            if (!editingDatabase.postgresql) return;
+            if (!editingDatabase.mariadb) return;
 
             setEditingDatabase({
               ...editingDatabase,
-              postgresql: { ...editingDatabase.postgresql, isHttps: checked },
+              mariadb: { ...editingDatabase.mariadb, isHttps: checked },
             });
             setIsConnectionTested(false);
           }}
           size="small"
         />
       </div>
-
-      <div className="mt-4 mb-3 flex items-center">
-        <div
-          className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
-          onClick={() => setShowAdvanced(!isShowAdvanced)}
-        >
-          <span className="mr-2">Advanced settings</span>
-
-          {isShowAdvanced ? (
-            <UpOutlined style={{ fontSize: '12px' }} />
-          ) : (
-            <DownOutlined style={{ fontSize: '12px' }} />
-          )}
-        </div>
-      </div>
-
-      {isShowAdvanced && (
-        <>
-          {!isRestoreMode && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Include schemas</div>
-              <Select
-                mode="tags"
-                value={editingDatabase.postgresql?.includeSchemas || []}
-                onChange={(values) => {
-                  if (!editingDatabase.postgresql) return;
-
-                  setEditingDatabase({
-                    ...editingDatabase,
-                    postgresql: { ...editingDatabase.postgresql, includeSchemas: values },
-                  });
-                }}
-                size="small"
-                className="max-w-[200px] grow"
-                placeholder="All schemas (default)"
-                tokenSeparators={[',']}
-              />
-            </div>
-          )}
-
-          {isRestoreMode && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Exclude extensions</div>
-              <div className="flex items-center">
-                <Checkbox
-                  checked={editingDatabase.postgresql?.isExcludeExtensions || false}
-                  onChange={(e) => {
-                    if (!editingDatabase.postgresql) return;
-
-                    setEditingDatabase({
-                      ...editingDatabase,
-                      postgresql: {
-                        ...editingDatabase.postgresql,
-                        isExcludeExtensions: e.target.checked,
-                      },
-                    });
-                  }}
-                >
-                  Skip extensions
-                </Checkbox>
-
-                <Tooltip
-                  className="cursor-pointer"
-                  title="Skip restoring extension definitions (CREATE EXTENSION statements). Enable this if you're restoring to a managed PostgreSQL service where extensions are managed by the provider."
-                >
-                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-                </Tooltip>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       <div className="mt-5 flex">
         {isShowCancelButton && (

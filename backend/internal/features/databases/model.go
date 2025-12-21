@@ -3,6 +3,7 @@ package databases
 import (
 	"errors"
 	"log/slog"
+	"postgresus-backend/internal/features/databases/databases/mariadb"
 	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
@@ -23,6 +24,7 @@ type Database struct {
 
 	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:DatabaseID"`
 	Mysql      *mysql.MysqlDatabase           `json:"mysql,omitempty"      gorm:"foreignKey:DatabaseID"`
+	Mariadb    *mariadb.MariadbDatabase       `json:"mariadb,omitempty"    gorm:"foreignKey:DatabaseID"`
 
 	Notifiers []notifiers.Notifier `json:"notifiers" gorm:"many2many:database_notifiers;"`
 
@@ -50,6 +52,11 @@ func (d *Database) Validate() error {
 			return errors.New("mysql database is required")
 		}
 		return d.Mysql.Validate()
+	case DatabaseTypeMariadb:
+		if d.Mariadb == nil {
+			return errors.New("mariadb database is required")
+		}
+		return d.Mariadb.Validate()
 	default:
 		return errors.New("invalid database type: " + string(d.Type))
 	}
@@ -81,6 +88,9 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	if d.Mysql != nil {
 		return d.Mysql.EncryptSensitiveFields(d.ID, encryptor)
 	}
+	if d.Mariadb != nil {
+		return d.Mariadb.EncryptSensitiveFields(d.ID, encryptor)
+	}
 	return nil
 }
 
@@ -93,6 +103,9 @@ func (d *Database) PopulateVersionIfEmpty(
 	}
 	if d.Mysql != nil {
 		return d.Mysql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mariadb != nil {
+		return d.Mariadb.PopulateVersionIfEmpty(logger, encryptor, d.ID)
 	}
 	return nil
 }
@@ -111,6 +124,10 @@ func (d *Database) Update(incoming *Database) {
 		if d.Mysql != nil && incoming.Mysql != nil {
 			d.Mysql.Update(incoming.Mysql)
 		}
+	case DatabaseTypeMariadb:
+		if d.Mariadb != nil && incoming.Mariadb != nil {
+			d.Mariadb.Update(incoming.Mariadb)
+		}
 	}
 }
 
@@ -120,6 +137,8 @@ func (d *Database) getSpecificDatabase() DatabaseConnector {
 		return d.Postgresql
 	case DatabaseTypeMysql:
 		return d.Mysql
+	case DatabaseTypeMariadb:
+		return d.Mariadb
 	}
 
 	panic("invalid database type: " + string(d.Type))

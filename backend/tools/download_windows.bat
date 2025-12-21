@@ -8,13 +8,16 @@ echo.
 if not exist "downloads" mkdir downloads
 if not exist "postgresql" mkdir postgresql
 if not exist "mysql" mkdir mysql
+if not exist "mariadb" mkdir mariadb
 
 :: Get the absolute paths
 set "POSTGRES_DIR=%cd%\postgresql"
 set "MYSQL_DIR=%cd%\mysql"
+set "MARIADB_DIR=%cd%\mariadb"
 
 echo PostgreSQL will be installed to: %POSTGRES_DIR%
 echo MySQL will be installed to: %MYSQL_DIR%
+echo MariaDB will be installed to: %MARIADB_DIR%
 echo.
 
 cd downloads
@@ -188,6 +191,101 @@ for %%v in (%mysql_versions%) do (
     echo.
 )
 
+:: ========== MariaDB Installation ==========
+echo ========================================
+echo Installing MariaDB client tools (versions 10.6 and 12.1)...
+echo ========================================
+echo.
+
+:: MariaDB uses two client versions:
+:: - 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
+:: - 12.1 (modern): For newer servers (10.2+)
+
+:: MariaDB download URLs
+set "MARIADB106_URL=https://archive.mariadb.org/mariadb-10.6.21/winx64-packages/mariadb-10.6.21-winx64.zip"
+set "MARIADB121_URL=https://archive.mariadb.org/mariadb-12.1.2/winx64-packages/mariadb-12.1.2-winx64.zip"
+
+:: MariaDB versions to install
+set "mariadb_versions=10.6 12.1"
+
+:: Download and install each MariaDB version
+for %%v in (%mariadb_versions%) do (
+    echo Processing MariaDB %%v...
+    set "version_underscore=%%v"
+    set "version_underscore=!version_underscore:.=!"
+    set "mariadb_install_dir=%MARIADB_DIR%\mariadb-%%v"
+    
+    :: Build the URL variable name and get its value
+    call set "current_url=%%MARIADB!version_underscore!_URL%%"
+    
+    :: Check if already installed
+    if exist "!mariadb_install_dir!\bin\mariadb-dump.exe" (
+        echo MariaDB %%v already installed, skipping...
+    ) else (
+        :: Extract version number from URL for filename
+        for %%u in ("!current_url!") do set "mariadb_filename=%%~nxu"
+        
+        if not exist "!mariadb_filename!" (
+            echo Downloading MariaDB %%v...
+            echo Downloading from: !current_url!
+            curl -L -o "!mariadb_filename!" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" "!current_url!"
+            if !errorlevel! neq 0 (
+                echo ERROR: Download request failed
+                goto :next_mariadb_version
+            )
+            if not exist "!mariadb_filename!" (
+                echo ERROR: Download failed - file not created
+                goto :next_mariadb_version
+            )
+            for %%s in ("!mariadb_filename!") do if %%~zs LSS 1000000 (
+                echo ERROR: Download failed - file too small, likely error page
+                del "!mariadb_filename!" 2>nul
+                goto :next_mariadb_version
+            )
+            echo MariaDB %%v downloaded successfully
+        ) else (
+            echo MariaDB %%v already downloaded
+        )
+        
+        :: Verify file exists before extraction
+        if not exist "!mariadb_filename!" (
+            echo Download file not found, skipping extraction...
+            goto :next_mariadb_version
+        )
+        
+        :: Extract MariaDB
+        echo Extracting MariaDB %%v...
+        mkdir "!mariadb_install_dir!" 2>nul
+        mkdir "!mariadb_install_dir!\bin" 2>nul
+        
+        powershell -Command "Expand-Archive -Path '!mariadb_filename!' -DestinationPath '!mariadb_install_dir!_temp' -Force"
+        
+        :: Move files from nested directory to install_dir
+        for /d %%d in ("!mariadb_install_dir!_temp\mariadb-*") do (
+            if exist "%%d\bin\mariadb-dump.exe" (
+                copy "%%d\bin\mariadb.exe" "!mariadb_install_dir!\bin\" >nul 2>&1
+                copy "%%d\bin\mariadb-dump.exe" "!mariadb_install_dir!\bin\" >nul 2>&1
+            )
+        )
+        
+        :: Cleanup temp directory
+        rmdir /s /q "!mariadb_install_dir!_temp" 2>nul
+        
+        :: Verify installation
+        if exist "!mariadb_install_dir!\bin\mariadb-dump.exe" (
+            echo MariaDB %%v client tools installed successfully
+        ) else (
+            echo Failed to install MariaDB %%v - mariadb-dump.exe not found
+        )
+    )
+    
+    :next_mariadb_version
+    echo.
+)
+
+:skip_mariadb
+echo.
+
 cd ..
 
 echo.
@@ -197,6 +295,7 @@ echo ========================================
 echo.
 echo PostgreSQL versions are installed in: %POSTGRES_DIR%
 echo MySQL versions are installed in: %MYSQL_DIR%
+echo MariaDB is installed in: %MARIADB_DIR%
 echo.
 
 :: List installed PostgreSQL versions
@@ -218,9 +317,19 @@ for %%v in (%mysql_versions%) do (
 )
 
 echo.
+echo Installed MariaDB client versions:
+for %%v in (%mariadb_versions%) do (
+    set "version_dir=%MARIADB_DIR%\mariadb-%%v"
+    if exist "!version_dir!\bin\mariadb-dump.exe" (
+        echo   mariadb-%%v: !version_dir!\bin\
+    )
+)
+
+echo.
 echo Usage examples:
 echo   %POSTGRES_DIR%\postgresql-15\bin\pg_dump.exe --version
 echo   %MYSQL_DIR%\mysql-8.0\bin\mysqldump.exe --version
+echo   %MARIADB_DIR%\mariadb-12.1\bin\mariadb-dump.exe --version
 echo.
 
 pause

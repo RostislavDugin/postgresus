@@ -1,4 +1,5 @@
 import { type Database, DatabaseType } from '../../../../entity/databases';
+import { EditMariaDbSpecificDataComponent } from './EditMariaDbSpecificDataComponent';
 import { EditMySqlSpecificDataComponent } from './EditMySqlSpecificDataComponent';
 import { EditPostgreSqlSpecificDataComponent } from './EditPostgreSqlSpecificDataComponent';
 
@@ -34,38 +35,26 @@ export const EditDatabaseSpecificDataComponent = ({
   isShowDbName = true,
   isRestoreMode = false,
 }: Props) => {
-  if (database.type === DatabaseType.POSTGRES) {
-    return (
-      <EditPostgreSqlSpecificDataComponent
-        database={database}
-        isShowCancelButton={isShowCancelButton}
-        onCancel={onCancel}
-        isShowBackButton={isShowBackButton}
-        onBack={onBack}
-        saveButtonText={saveButtonText}
-        isSaveToApi={isSaveToApi}
-        onSaved={onSaved}
-        isShowDbName={isShowDbName}
-        isRestoreMode={isRestoreMode}
-      />
-    );
-  }
+  const commonProps = {
+    database,
+    isShowCancelButton,
+    onCancel,
+    isShowBackButton,
+    onBack,
+    saveButtonText,
+    isSaveToApi,
+    onSaved,
+    isShowDbName,
+  };
 
-  if (database.type === DatabaseType.MYSQL) {
-    return (
-      <EditMySqlSpecificDataComponent
-        database={database}
-        isShowCancelButton={isShowCancelButton}
-        onCancel={onCancel}
-        isShowBackButton={isShowBackButton}
-        onBack={onBack}
-        saveButtonText={saveButtonText}
-        isSaveToApi={isSaveToApi}
-        onSaved={onSaved}
-        isShowDbName={isShowDbName}
-      />
-    );
+  switch (database.type) {
+    case DatabaseType.POSTGRES:
+      return <EditPostgreSqlSpecificDataComponent {...commonProps} isRestoreMode={isRestoreMode} />;
+    case DatabaseType.MYSQL:
+      return <EditMySqlSpecificDataComponent {...commonProps} />;
+    case DatabaseType.MARIADB:
+      return <EditMariaDbSpecificDataComponent {...commonProps} />;
+    default:
+      return null;
   }
-
-  return null;
 };

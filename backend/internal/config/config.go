@@ -26,6 +26,7 @@ type EnvVariables struct {
 	EnvMode              env_utils.EnvMode `env:"ENV_MODE"             required:"true"`
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
 	MysqlInstallDir      string            `env:"MYSQL_INSTALL_DIR"`
+	MariadbInstallDir    string            `env:"MARIADB_INSTALL_DIR"`
 
 	DataFolder    string
 	TempFolder    string
@@ -55,6 +56,18 @@ type EnvVariables struct {
 	TestMysql57Port string `env:"TEST_MYSQL_57_PORT"`
 	TestMysql80Port string `env:"TEST_MYSQL_80_PORT"`
 	TestMysql84Port string `env:"TEST_MYSQL_84_PORT"`
+
+	TestMariadb55Port   string `env:"TEST_MARIADB_55_PORT"`
+	TestMariadb101Port  string `env:"TEST_MARIADB_101_PORT"`
+	TestMariadb102Port  string `env:"TEST_MARIADB_102_PORT"`
+	TestMariadb103Port  string `env:"TEST_MARIADB_103_PORT"`
+	TestMariadb104Port  string `env:"TEST_MARIADB_104_PORT"`
+	TestMariadb105Port  string `env:"TEST_MARIADB_105_PORT"`
+	TestMariadb106Port  string `env:"TEST_MARIADB_106_PORT"`
+	TestMariadb1011Port string `env:"TEST_MARIADB_1011_PORT"`
+	TestMariadb114Port  string `env:"TEST_MARIADB_114_PORT"`
+	TestMariadb118Port  string `env:"TEST_MARIADB_118_PORT"`
+	TestMariadb120Port  string `env:"TEST_MARIADB_120_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -159,6 +172,9 @@ func loadEnvVariables() {
 
 	env.MysqlInstallDir = filepath.Join(backendRoot, "tools", "mysql")
 	tools.VerifyMysqlInstallation(log, env.EnvMode, env.MysqlInstallDir)
+
+	env.MariadbInstallDir = filepath.Join(backendRoot, "tools", "mariadb")
+	tools.VerifyMariadbInstallation(log, env.EnvMode, env.MariadbInstallDir)
 
 	// Store the data and temp folders one level below the root
 	// (projectRoot/postgresus-data -> /postgresus-data)

@@ -1,7 +1,7 @@
 import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
-import type { MysqlDatabase, PostgresqlDatabase } from '../../databases';
+import type { MariadbDatabase, MysqlDatabase, PostgresqlDatabase } from '../../databases';
 import type { Restore } from '../model/Restore';
 
 export const restoreApi = {
@@ -17,16 +17,19 @@ export const restoreApi = {
     backupId,
     postgresql,
     mysql,
+    mariadb,
   }: {
     backupId: string;
     postgresql?: PostgresqlDatabase;
     mysql?: MysqlDatabase;
+    mariadb?: MariadbDatabase;
   }) {
     const requestOptions: RequestOptions = new RequestOptions();
     requestOptions.setBody(
       JSON.stringify({
         postgresqlDatabase: postgresql,
         mysqlDatabase: mysql,
+        mariadbDatabase: mariadb,
       }),
     );
 

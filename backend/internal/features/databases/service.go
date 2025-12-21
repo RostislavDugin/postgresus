@@ -8,6 +8,7 @@ import (
 	"time"
 
 	audit_logs "postgresus-backend/internal/features/audit_logs"
+	"postgresus-backend/internal/features/databases/databases/mariadb"
 	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
@@ -419,6 +420,20 @@ func (s *DatabaseService) CopyDatabase(
 				IsHttps:    existingDatabase.Mysql.IsHttps,
 			}
 		}
+	case DatabaseTypeMariadb:
+		if existingDatabase.Mariadb != nil {
+			newDatabase.Mariadb = &mariadb.MariadbDatabase{
+				ID:         uuid.Nil,
+				DatabaseID: nil,
+				Version:    existingDatabase.Mariadb.Version,
+				Host:       existingDatabase.Mariadb.Host,
+				Port:       existingDatabase.Mariadb.Port,
+				Username:   existingDatabase.Mariadb.Username,
+				Password:   existingDatabase.Mariadb.Password,
+				Database:   existingDatabase.Mariadb.Database,
+				IsHttps:    existingDatabase.Mariadb.IsHttps,
+			}
+		}
 	}
 
 	if err := newDatabase.Validate(); err != nil {
@@ -551,6 +566,13 @@ func (s *DatabaseService) IsUserReadOnly(
 			s.fieldEncryptor,
 			usingDatabase.ID,
 		)
+	case DatabaseTypeMariadb:
+		return usingDatabase.Mariadb.IsUserReadOnly(
+			ctx,
+			s.logger,
+			s.fieldEncryptor,
+			usingDatabase.ID,
+		)
 	default:
 		return false, errors.New("read-only check not supported for this database type")
 	}
@@ -618,6 +640,10 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		)
 	case DatabaseTypeMysql:
 		username, password, err = usingDatabase.Mysql.CreateReadOnlyUser(
+			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+		)
+	case DatabaseTypeMariadb:
+		username, password, err = usingDatabase.Mariadb.CreateReadOnlyUser(
 			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
 		)
 	default:

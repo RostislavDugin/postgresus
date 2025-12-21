@@ -1,7 +1,7 @@
 This directory is needed only for development and CI\CD.
 
-We have to download and install all the PostgreSQL versions from 12 to 18 and MySQL versions 5.7, 8.0, 8.4 locally.
-This is needed so we can call pg_dump, pg_restore, mysqldump, mysql, etc. on each version of the database.
+We have to download and install all the PostgreSQL versions from 12 to 18, MySQL versions 5.7, 8.0, 8.4 and MariaDB client tools locally.
+This is needed so we can call pg_dump, pg_restore, mysqldump, mysql, mariadb-dump, mariadb, etc. on each version of the database.
 
 You do not need to install the databases fully with all the components.
 We only need the client tools for each version.
@@ -23,6 +23,15 @@ We only need the client tools for each version.
 - MySQL 5.7
 - MySQL 8.0
 - MySQL 8.4
+
+### MariaDB
+
+MariaDB uses two client versions to support all server versions:
+
+- MariaDB 10.6 (legacy client - for older servers 5.5 and 10.1)
+- MariaDB 12.1 (modern client - for servers 10.2+)
+
+The reason for two versions is that MariaDB 12.1 client uses SQL queries that reference the `generation_expression` column in `information_schema.columns`, which was only added in MariaDB 10.2. Older servers (5.5, 10.1) don't have this column and fail with newer clients.
 
 ## Installation
 
@@ -61,6 +70,7 @@ chmod +x download_macos.sh
 
 - Uses the official PostgreSQL APT repository
 - Downloads MySQL client tools from official archives
+- Installs MariaDB client from official MariaDB repository
 - Requires sudo privileges to install packages
 - Creates symlinks in version-specific directories for consistency
 
@@ -69,6 +79,7 @@ chmod +x download_macos.sh
 - Requires Homebrew to be installed
 - Compiles PostgreSQL from source (client tools only)
 - Downloads pre-built MySQL binaries from dev.mysql.com
+- Downloads pre-built MariaDB binaries or installs via Homebrew
 - Takes longer than other platforms due to PostgreSQL compilation
 - Supports both Intel (x86_64) and Apple Silicon (arm64)
 
@@ -109,6 +120,20 @@ For example:
 - `./tools/mysql/mysql-8.0/bin/mysqldump`
 - `./tools/mysql/mysql-8.4/bin/mysqldump`
 
+### MariaDB
+
+MariaDB uses two client versions to handle compatibility with all server versions:
+
+```
+./tools/mariadb/mariadb-{client-version}/bin/mariadb-dump
+./tools/mariadb/mariadb-{client-version}/bin/mariadb
+```
+
+For example:
+
+- `./tools/mariadb/mariadb-10.6/bin/mariadb-dump` (legacy - for servers 5.5, 10.1)
+- `./tools/mariadb/mariadb-12.1/bin/mariadb-dump` (modern - for servers 10.2+)
+
 ## Usage
 
 After installation, you can use version-specific tools:
@@ -120,11 +145,17 @@ After installation, you can use version-specific tools:
 # Windows - MySQL
 ./mysql/mysql-8.0/bin/mysqldump.exe --version
 
+# Windows - MariaDB
+./mariadb/mariadb-12.1/bin/mariadb-dump.exe --version
+
 # Linux/MacOS - PostgreSQL
 ./postgresql/postgresql-15/bin/pg_dump --version
 
 # Linux/MacOS - MySQL
 ./mysql/mysql-8.0/bin/mysqldump --version
+
+# Linux/MacOS - MariaDB
+./mariadb/mariadb-12.1/bin/mariadb-dump --version
 ```
 
 ## Environment Variables
@@ -137,6 +168,10 @@ POSTGRES_INSTALL_DIR=C:\path\to\tools\postgresql
 
 # MySQL tools directory (default: ./tools/mysql)
 MYSQL_INSTALL_DIR=C:\path\to\tools\mysql
+
+# MariaDB tools directory (default: ./tools/mariadb)
+# Contains subdirectories: mariadb-10.6 and mariadb-12.1
+MARIADB_INSTALL_DIR=C:\path\to\tools\mariadb
 ```
 
 ## Troubleshooting
@@ -162,3 +197,22 @@ If downloads fail, you can manually download the files:
 
 - PostgreSQL: https://www.postgresql.org/ftp/source/
 - MySQL: https://dev.mysql.com/downloads/mysql/
+- MariaDB: https://mariadb.org/download/ or https://cdn.mysql.com/archives/mariadb-12.0/
+
+### MariaDB Client Compatibility
+
+MariaDB client tools require different versions depending on the server:
+
+**Legacy client (10.6)** - Required for:
+
+- MariaDB 5.5
+- MariaDB 10.1
+
+**Modern client (12.1)** - Works with:
+
+- MariaDB 10.2 - 10.6
+- MariaDB 10.11
+- MariaDB 11.4, 11.8
+- MariaDB 12.0
+
+The reason is that MariaDB 12.1 client uses SQL queries referencing the `generation_expression` column in `information_schema.columns`, which was added in MariaDB 10.2. The application automatically selects the appropriate client version based on the target server version.

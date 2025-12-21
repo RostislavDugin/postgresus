@@ -173,6 +173,18 @@ jobs:
           TEST_MYSQL_57_PORT=33057
           TEST_MYSQL_80_PORT=33080
           TEST_MYSQL_84_PORT=33084
+          # testing MariaDB
+          TEST_MARIADB_55_PORT=33055
+          TEST_MARIADB_101_PORT=33101
+          TEST_MARIADB_102_PORT=33102
+          TEST_MARIADB_103_PORT=33103
+          TEST_MARIADB_104_PORT=33104
+          TEST_MARIADB_105_PORT=33105
+          TEST_MARIADB_106_PORT=33106
+          TEST_MARIADB_1011_PORT=33111
+          TEST_MARIADB_114_PORT=33114
+          TEST_MARIADB_118_PORT=33118
+          TEST_MARIADB_120_PORT=33120
           # testing Telegram
           TEST_TELEGRAM_BOT_TOKEN=${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
           TEST_TELEGRAM_CHAT_ID=${{ secrets.TEST_TELEGRAM_CHAT_ID }}
@@ -222,6 +234,30 @@ jobs:
           echo "Waiting for MySQL 8.4..."
           timeout 120 bash -c 'until docker exec test-mysql-84 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
 
+          # Wait for MariaDB containers
+          echo "Waiting for MariaDB 5.5..."
+          timeout 120 bash -c 'until docker exec test-mariadb-55 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.1..."
+          timeout 120 bash -c 'until docker exec test-mariadb-101 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.2..."
+          timeout 120 bash -c 'until docker exec test-mariadb-102 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.3..."
+          timeout 120 bash -c 'until docker exec test-mariadb-103 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.4..."
+          timeout 120 bash -c 'until docker exec test-mariadb-104 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.5..."
+          timeout 120 bash -c 'until docker exec test-mariadb-105 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.6..."
+          timeout 120 bash -c 'until docker exec test-mariadb-106 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.11..."
+          timeout 120 bash -c 'until docker exec test-mariadb-1011 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 11.4..."
+          timeout 120 bash -c 'until docker exec test-mariadb-114 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 11.8..."
+          timeout 120 bash -c 'until docker exec test-mariadb-118 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 12.0..."
+          timeout 120 bash -c 'until docker exec test-mariadb-120 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+
       - name: Create data and temp directories
         run: |
           # Create directories that are used for backups and restore
@@ -243,6 +279,13 @@ jobs:
           path: backend/tools/mysql
           key: mysql-clients-57-80-84-v1
 
+      - name: Cache MariaDB client tools
+        id: cache-mariadb
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mariadb
+          key: mariadb-clients-106-121-v1
+
       - name: Install MySQL dependencies
         run: |
           sudo apt-get update -qq
@@ -250,8 +293,8 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
 
-      - name: Install PostgreSQL and MySQL client tools
-        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true'
+      - name: Install PostgreSQL, MySQL and MariaDB client tools
+        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true' || steps.cache-mariadb.outputs.cache-hit != 'true'
         run: |
           chmod +x backend/tools/download_linux.sh
           cd backend/tools
@@ -275,6 +318,23 @@ jobs:
               ln -sf "$pg_bin_dir/dropdb" "$version_dir/bin/dropdb"
             fi
           done
+
+      - name: Verify MariaDB client tools exist
+        run: |
+          cd backend/tools
+          echo "Checking MariaDB client tools..."
+          if [ -f "mariadb/mariadb-10.6/bin/mariadb-dump" ]; then
+            echo "MariaDB 10.6 client tools found"
+            ls -la mariadb/mariadb-10.6/bin/
+          else
+            echo "MariaDB 10.6 client tools NOT found"
+          fi
+          if [ -f "mariadb/mariadb-12.1/bin/mariadb-dump" ]; then
+            echo "MariaDB 12.1 client tools found"
+            ls -la mariadb/mariadb-12.1/bin/
+          else
+            echo "MariaDB 12.1 client tools NOT found"
+          fi
 
       - name: Run database migrations
         run: |

@@ -253,7 +253,10 @@ export const EditMySqlSpecificDataComponent = ({
           size="small"
           className="max-w-[200px] grow"
           placeholder="Enter MySQL password"
-          autoComplete="new-password"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
         />
       </div>
 

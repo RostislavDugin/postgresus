@@ -156,12 +156,84 @@ for version in $mysql_versions; do
     echo
 done
 
+# ========== MariaDB Installation ==========
+echo "========================================"
+echo "Installing MariaDB client tools (versions 10.6 and 12.1)..."
+echo "========================================"
+
+# MariaDB uses two client versions:
+# - 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
+# - 12.1 (modern): For newer servers (10.2+)
+
+MARIADB_DIR="$(pwd)/mariadb"
+
+echo "Installing MariaDB client tools to: $MARIADB_DIR"
+
+# Install dependencies
+$SUDO apt-get install -y -qq apt-transport-https curl
+
+# MariaDB versions to install with their URLs
+declare -A MARIADB_URLS=(
+    ["10.6"]="https://archive.mariadb.org/mariadb-10.6.21/bintar-linux-systemd-x86_64/mariadb-10.6.21-linux-systemd-x86_64.tar.gz"
+    ["12.1"]="https://archive.mariadb.org/mariadb-12.1.2/bintar-linux-systemd-x86_64/mariadb-12.1.2-linux-systemd-x86_64.tar.gz"
+)
+
+mariadb_versions="10.6 12.1"
+
+for version in $mariadb_versions; do
+    echo "Installing MariaDB $version client tools..."
+    
+    version_dir="$MARIADB_DIR/mariadb-$version"
+    mkdir -p "$version_dir/bin"
+    
+    # Skip if already exists
+    if [ -f "$version_dir/bin/mariadb-dump" ]; then
+        echo "MariaDB $version already installed, skipping..."
+        continue
+    fi
+    
+    url=${MARIADB_URLS[$version]}
+    
+    TEMP_DIR="/tmp/mariadb_install_$version"
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
+    
+    echo "  Downloading MariaDB $version from official archive..."
+    wget -q "$url" -O "mariadb-$version.tar.gz" || {
+        echo "  Warning: Could not download MariaDB $version binaries"
+        cd - >/dev/null
+        rm -rf "$TEMP_DIR"
+        continue
+    }
+    
+    echo "  Extracting MariaDB $version..."
+    tar -xzf "mariadb-$version.tar.gz"
+    EXTRACTED_DIR=$(ls -d mariadb-*/ 2>/dev/null | head -1)
+    
+    if [ -d "$EXTRACTED_DIR" ] && [ -f "$EXTRACTED_DIR/bin/mariadb-dump" ]; then
+        cp "$EXTRACTED_DIR/bin/mariadb" "$version_dir/bin/" 2>/dev/null || true
+        cp "$EXTRACTED_DIR/bin/mariadb-dump" "$version_dir/bin/" 2>/dev/null || true
+        chmod +x "$version_dir/bin/"*
+        echo "  MariaDB $version client tools installed successfully"
+    else
+        echo "  Warning: Could not extract MariaDB $version binaries"
+    fi
+    
+    # Cleanup
+    cd - >/dev/null
+    rm -rf "$TEMP_DIR"
+    echo
+done
+
+echo
+
 echo "========================================"
 echo "Installation completed!"
 echo "========================================"
 echo
 echo "PostgreSQL client tools are available in: $POSTGRES_DIR"
 echo "MySQL client tools are available in: $MYSQL_DIR"
+echo "MariaDB client tools are available in: $MARIADB_DIR"
 echo
 
 # List installed PostgreSQL versions
@@ -187,6 +259,18 @@ for version in $mysql_versions; do
 done
 
 echo
+echo "Installed MariaDB client versions:"
+for version in $mariadb_versions; do
+    version_dir="$MARIADB_DIR/mariadb-$version"
+    if [ -f "$version_dir/bin/mariadb-dump" ]; then
+        echo "  mariadb-$version: $version_dir/bin/"
+        version_output=$("$version_dir/bin/mariadb-dump" --version 2>/dev/null | head -1)
+        echo "    Version check: $version_output"
+    fi
+done
+
+echo
 echo "Usage examples:"
 echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
-echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version" 
+echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version"
+echo "  $MARIADB_DIR/mariadb-12.1/bin/mariadb-dump --version"

@@ -4,6 +4,7 @@ import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/
 import {
   type Database,
   DatabaseType,
+  type MariadbDatabase,
   type MysqlDatabase,
   Period,
   type PostgresqlDatabase,
@@ -40,15 +41,18 @@ const createInitialDatabase = (workspaceId: string): Database =>
   }) as Database;
 
 const initializeDatabaseTypeData = (db: Database): Database => {
-  if (db.type === DatabaseType.POSTGRES && !db.postgresql) {
-    return { ...db, postgresql: {} as PostgresqlDatabase, mysql: undefined };
-  }
+  const base = { ...db, postgresql: undefined, mysql: undefined, mariadb: undefined };
 
-  if (db.type === DatabaseType.MYSQL && !db.mysql) {
-    return { ...db, mysql: {} as MysqlDatabase, postgresql: undefined };
+  switch (db.type) {
+    case DatabaseType.POSTGRES:
+      return { ...base, postgresql: db.postgresql ?? ({} as PostgresqlDatabase) };
+    case DatabaseType.MYSQL:
+      return { ...base, mysql: db.mysql ?? ({} as MysqlDatabase) };
+    case DatabaseType.MARIADB:
+      return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
+    default:
+      return db;
   }
-
-  return db;
 };
 
 export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {

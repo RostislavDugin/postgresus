@@ -1,4 +1,5 @@
 import { type Database, DatabaseType } from '../../../../entity/databases';
+import { ShowMariaDbSpecificDataComponent } from './ShowMariaDbSpecificDataComponent';
 import { ShowMySqlSpecificDataComponent } from './ShowMySqlSpecificDataComponent';
 import { ShowPostgreSqlSpecificDataComponent } from './ShowPostgreSqlSpecificDataComponent';
 
@@ -7,13 +8,14 @@ interface Props {
 }
 
 export const ShowDatabaseSpecificDataComponent = ({ database }: Props) => {
-  if (database.type === DatabaseType.POSTGRES) {
-    return <ShowPostgreSqlSpecificDataComponent database={database} />;
+  switch (database.type) {
+    case DatabaseType.POSTGRES:
+      return <ShowPostgreSqlSpecificDataComponent database={database} />;
+    case DatabaseType.MYSQL:
+      return <ShowMySqlSpecificDataComponent database={database} />;
+    case DatabaseType.MARIADB:
+      return <ShowMariaDbSpecificDataComponent database={database} />;
+    default:
+      return null;
   }
-
-  if (database.type === DatabaseType.MYSQL) {
-    return <ShowMySqlSpecificDataComponent database={database} />;
-  }
-
-  return null;
 };

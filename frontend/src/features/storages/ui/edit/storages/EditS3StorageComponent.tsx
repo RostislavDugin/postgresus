@@ -104,7 +104,10 @@ export function EditS3StorageComponent({
           size="small"
           className="w-full max-w-[250px]"
           placeholder="AKIAIOSFODNN7EXAMPLE"
-          autoComplete="new-password"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
         />
       </div>
 
@@ -125,7 +128,10 @@ export function EditS3StorageComponent({
             setUnsaved();
           }}
           size="small"
-          autoComplete="new-password"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
           className="w-full max-w-[250px]"
           placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
         />

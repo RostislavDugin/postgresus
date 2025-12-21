@@ -212,3 +212,213 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Test MariaDB containers
+  test-mariadb-55:
+    image: mariadb:5.5
+    ports:
+      - "${TEST_MARIADB_55_PORT:-33055}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8 --collation-server=utf8_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-55:/var/lib/mysql
+    container_name: test-mariadb-55
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-101:
+    image: mariadb:10.1
+    ports:
+      - "${TEST_MARIADB_101_PORT:-33101}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-101:/var/lib/mysql
+    container_name: test-mariadb-101
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-102:
+    image: mariadb:10.2
+    ports:
+      - "${TEST_MARIADB_102_PORT:-33102}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-102:/var/lib/mysql
+    container_name: test-mariadb-102
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-103:
+    image: mariadb:10.3
+    ports:
+      - "${TEST_MARIADB_103_PORT:-33103}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-103:/var/lib/mysql
+    container_name: test-mariadb-103
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-104:
+    image: mariadb:10.4
+    ports:
+      - "${TEST_MARIADB_104_PORT:-33104}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-104:/var/lib/mysql
+    container_name: test-mariadb-104
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-105:
+    image: mariadb:10.5
+    ports:
+      - "${TEST_MARIADB_105_PORT:-33105}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-105:/var/lib/mysql
+    container_name: test-mariadb-105
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-106:
+    image: mariadb:10.6
+    ports:
+      - "${TEST_MARIADB_106_PORT:-33106}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-106:/var/lib/mysql
+    container_name: test-mariadb-106
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-1011:
+    image: mariadb:10.11
+    ports:
+      - "${TEST_MARIADB_1011_PORT:-33111}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-1011:/var/lib/mysql
+    container_name: test-mariadb-1011
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-114:
+    image: mariadb:11.4
+    ports:
+      - "${TEST_MARIADB_114_PORT:-33114}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-114:/var/lib/mysql
+    container_name: test-mariadb-114
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-118:
+    image: mariadb:11.8
+    ports:
+      - "${TEST_MARIADB_118_PORT:-33118}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-118:/var/lib/mysql
+    container_name: test-mariadb-118
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mariadb-120:
+    image: mariadb:12.0
+    ports:
+      - "${TEST_MARIADB_120_PORT:-33120}:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=rootpassword
+      - MARIADB_DATABASE=testdb
+      - MARIADB_USER=testuser
+      - MARIADB_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mariadbdata/mariadb-120:/var/lib/mysql
+    container_name: test-mariadb-120
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

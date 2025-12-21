@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   type Database,
   DatabaseType,
+  type MariadbDatabase,
   type MysqlDatabase,
   type PostgresqlDatabase,
   databaseApi,
@@ -26,6 +27,7 @@ interface Props {
 const databaseTypeOptions = [
   { value: DatabaseType.POSTGRES, label: 'PostgreSQL' },
   { value: DatabaseType.MYSQL, label: 'MySQL' },
+  { value: DatabaseType.MARIADB, label: 'MariaDB' },
 ];
 
 export const EditDatabaseBaseInfoComponent = ({
@@ -53,14 +55,21 @@ export const EditDatabaseBaseInfoComponent = ({
     const updatedDatabase: Database = {
       ...editingDatabase,
       type: newType,
+      postgresql: undefined,
+      mysql: undefined,
+      mariadb: undefined,
     };
 
-    if (newType === DatabaseType.POSTGRES && !editingDatabase.postgresql) {
-      updatedDatabase.postgresql = {} as PostgresqlDatabase;
-      updatedDatabase.mysql = undefined;
-    } else if (newType === DatabaseType.MYSQL && !editingDatabase.mysql) {
-      updatedDatabase.mysql = {} as MysqlDatabase;
-      updatedDatabase.postgresql = undefined;
+    switch (newType) {
+      case DatabaseType.POSTGRES:
+        updatedDatabase.postgresql = editingDatabase.postgresql ?? ({} as PostgresqlDatabase);
+        break;
+      case DatabaseType.MYSQL:
+        updatedDatabase.mysql = editingDatabase.mysql ?? ({} as MysqlDatabase);
+        break;
+      case DatabaseType.MARIADB:
+        updatedDatabase.mariadb = editingDatabase.mariadb ?? ({} as MariadbDatabase);
+        break;
     }
 
     setEditingDatabase(updatedDatabase);

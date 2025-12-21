@@ -1,4 +1,4 @@
-package mysql
+package mariadb
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 	"time"
 
 	"postgresus-backend/internal/util/encryption"
@@ -16,11 +17,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type MysqlDatabase struct {
+type MariadbDatabase struct {
 	ID         uuid.UUID  `json:"id"         gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	DatabaseID *uuid.UUID `json:"databaseId" gorm:"type:uuid;column:database_id"`
 
-	Version tools.MysqlVersion `json:"version" gorm:"type:text;not null"`
+	Version tools.MariadbVersion `json:"version" gorm:"type:text;not null"`
 
 	Host     string  `json:"host"     gorm:"type:text;not null"`
 	Port     int     `json:"port"     gorm:"type:int;not null"`
@@ -30,11 +31,11 @@ type MysqlDatabase struct {
 	IsHttps  bool    `json:"isHttps"  gorm:"type:boolean;default:false"`
 }
 
-func (m *MysqlDatabase) TableName() string {
-	return "mysql_databases"
+func (m *MariadbDatabase) TableName() string {
+	return "mariadb_databases"
 }
 
-func (m *MysqlDatabase) Validate() error {
+func (m *MariadbDatabase) Validate() error {
 	if m.Host == "" {
 		return errors.New("host is required")
 	}
@@ -50,7 +51,7 @@ func (m *MysqlDatabase) Validate() error {
 	return nil
 }
 
-func (m *MysqlDatabase) TestConnection(
+func (m *MariadbDatabase) TestConnection(
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
 	databaseID uuid.UUID,
@@ -59,7 +60,7 @@ func (m *MysqlDatabase) TestConnection(
 	defer cancel()
 
 	if m.Database == nil || *m.Database == "" {
-		return errors.New("database name is required for MySQL backup")
+		return errors.New("database name is required for MariaDB backup")
 	}
 
 	password, err := decryptPasswordIfNeeded(m.Password, encryptor, databaseID)
@@ -71,11 +72,11 @@ func (m *MysqlDatabase) TestConnection(
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MySQL database '%s': %w", *m.Database, err)
+		return fmt.Errorf("failed to connect to MariaDB database '%s': %w", *m.Database, err)
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close MySQL connection", "error", closeErr)
+			logger.Error("Failed to close MariaDB connection", "error", closeErr)
 		}
 	}()
 
@@ -84,10 +85,10 @@ func (m *MysqlDatabase) TestConnection(
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("failed to ping MySQL database '%s': %w", *m.Database, err)
+		return fmt.Errorf("failed to ping MariaDB database '%s': %w", *m.Database, err)
 	}
 
-	detectedVersion, err := detectMysqlVersion(ctx, db)
+	detectedVersion, err := detectMariadbVersion(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -96,14 +97,14 @@ func (m *MysqlDatabase) TestConnection(
 	return nil
 }
 
-func (m *MysqlDatabase) HideSensitiveData() {
+func (m *MariadbDatabase) HideSensitiveData() {
 	if m == nil {
 		return
 	}
 	m.Password = ""
 }
 
-func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
+func (m *MariadbDatabase) Update(incoming *MariadbDatabase) {
 	m.Version = incoming.Version
 	m.Host = incoming.Host
 	m.Port = incoming.Port
@@ -116,7 +117,7 @@ func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
 	}
 }
 
-func (m *MysqlDatabase) EncryptSensitiveFields(
+func (m *MariadbDatabase) EncryptSensitiveFields(
 	databaseID uuid.UUID,
 	encryptor encryption.FieldEncryptor,
 ) error {
@@ -130,7 +131,7 @@ func (m *MysqlDatabase) EncryptSensitiveFields(
 	return nil
 }
 
-func (m *MysqlDatabase) PopulateVersionIfEmpty(
+func (m *MariadbDatabase) PopulateVersionIfEmpty(
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
 	databaseID uuid.UUID,
@@ -141,7 +142,7 @@ func (m *MysqlDatabase) PopulateVersionIfEmpty(
 	return m.PopulateVersion(logger, encryptor, databaseID)
 }
 
-func (m *MysqlDatabase) PopulateVersion(
+func (m *MariadbDatabase) PopulateVersion(
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
 	databaseID uuid.UUID,
@@ -170,7 +171,7 @@ func (m *MysqlDatabase) PopulateVersion(
 		}
 	}()
 
-	detectedVersion, err := detectMysqlVersion(ctx, db)
+	detectedVersion, err := detectMariadbVersion(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -179,7 +180,7 @@ func (m *MysqlDatabase) PopulateVersion(
 	return nil
 }
 
-func (m *MysqlDatabase) IsUserReadOnly(
+func (m *MariadbDatabase) IsUserReadOnly(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -233,7 +234,7 @@ func (m *MysqlDatabase) IsUserReadOnly(
 	return true, nil
 }
 
-func (m *MysqlDatabase) CreateReadOnlyUser(
+func (m *MariadbDatabase) CreateReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -258,7 +259,8 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 
 	maxRetries := 3
 	for attempt := range maxRetries {
-		newUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+		// MariaDB 5.5 has a 16-character username limit, use shorter prefix
+		newUsername := fmt.Sprintf("pgs-%s", uuid.New().String()[:8])
 		newPassword := uuid.New().String()
 
 		tx, err := db.BeginTx(ctx, nil)
@@ -315,9 +317,8 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 
 		success = true
 		logger.Info(
-			"Read-only MySQL user created successfully",
-			"username",
-			newUsername,
+			"Read-only MariaDB user created successfully",
+			"username", newUsername,
 		)
 		return newUsername, newPassword, nil
 	}
@@ -325,7 +326,7 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 	return "", "", errors.New("failed to generate unique username after 3 attempts")
 }
 
-func (m *MysqlDatabase) buildDSN(password string, database string) string {
+func (m *MariadbDatabase) buildDSN(password string, database string) string {
 	tlsConfig := "false"
 	if m.IsHttps {
 		tlsConfig = "true"
@@ -342,31 +343,60 @@ func (m *MysqlDatabase) buildDSN(password string, database string) string {
 	)
 }
 
-func detectMysqlVersion(ctx context.Context, db *sql.DB) (tools.MysqlVersion, error) {
+// detectMariadbVersion parses VERSION() output to detect MariaDB version
+// MariaDB returns strings like "10.11.6-MariaDB" or "11.4.2-MariaDB-1:11.4.2+maria~ubu2204"
+func detectMariadbVersion(ctx context.Context, db *sql.DB) (tools.MariadbVersion, error) {
 	var versionStr string
 	err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&versionStr)
 	if err != nil {
-		return "", fmt.Errorf("failed to query MySQL version: %w", err)
+		return "", fmt.Errorf("failed to query MariaDB version: %w", err)
+	}
+
+	if !strings.Contains(strings.ToLower(versionStr), "mariadb") {
+		return "", fmt.Errorf(
+			"not a MariaDB server (version: %s). Use MySQL database type instead",
+			versionStr,
+		)
 	}
 
 	re := regexp.MustCompile(`^(\d+)\.(\d+)`)
 	matches := re.FindStringSubmatch(versionStr)
 	if len(matches) < 3 {
-		return "", fmt.Errorf("could not parse MySQL version: %s", versionStr)
+		return "", fmt.Errorf("could not parse MariaDB version: %s", versionStr)
 	}
 
 	major := matches[1]
 	minor := matches[2]
+	versionKey := fmt.Sprintf("%s.%s", major, minor)
 
-	switch {
-	case major == "5" && minor == "7":
-		return tools.MysqlVersion57, nil
-	case major == "8" && minor == "0":
-		return tools.MysqlVersion80, nil
-	case major == "8" && minor == "4":
-		return tools.MysqlVersion84, nil
+	switch versionKey {
+	case "5.5":
+		return tools.MariadbVersion55, nil
+	case "10.1":
+		return tools.MariadbVersion101, nil
+	case "10.2":
+		return tools.MariadbVersion102, nil
+	case "10.3":
+		return tools.MariadbVersion103, nil
+	case "10.4":
+		return tools.MariadbVersion104, nil
+	case "10.5":
+		return tools.MariadbVersion105, nil
+	case "10.6":
+		return tools.MariadbVersion106, nil
+	case "10.11":
+		return tools.MariadbVersion1011, nil
+	case "11.4":
+		return tools.MariadbVersion114, nil
+	case "11.8":
+		return tools.MariadbVersion118, nil
+	case "12.0":
+		return tools.MariadbVersion120, nil
 	default:
-		return "", fmt.Errorf("unsupported MySQL version: %s.%s", major, minor)
+		return "", fmt.Errorf(
+			"unsupported MariaDB version: %s (supported: 5.5, 10.1-10.6, 10.11, 11.4, 11.8, 12.0)",
+			versionKey,
+		)
 	}
 }
 

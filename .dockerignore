@@ -11,6 +11,7 @@ node_modules
 backend/tools
 backend/mysqldata
 backend/pgdata
+backend/mariadbdata
 backend/temp
 backend/images
 backend/bin
