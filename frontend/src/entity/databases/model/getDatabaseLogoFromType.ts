@@ -8,6 +8,8 @@ export const getDatabaseLogoFromType = (type: DatabaseType) => {
       return '/icons/databases/mysql.svg';
     case DatabaseType.MARIADB:
       return '/icons/databases/mariadb.svg';
+    case DatabaseType.MONGODB:
+      return '/icons/databases/mongodb.svg';
     default:
       return '';
   }

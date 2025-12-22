@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo Downloading and installing PostgreSQL and MySQL client tools for Windows...
+echo Downloading and installing PostgreSQL, MySQL, MariaDB and MongoDB client tools for Windows...
 echo.
 
 :: Create directories if they don't exist
@@ -9,15 +9,18 @@ if not exist "downloads" mkdir downloads
 if not exist "postgresql" mkdir postgresql
 if not exist "mysql" mkdir mysql
 if not exist "mariadb" mkdir mariadb
+if not exist "mongodb" mkdir mongodb
 
 :: Get the absolute paths
 set "POSTGRES_DIR=%cd%\postgresql"
 set "MYSQL_DIR=%cd%\mysql"
 set "MARIADB_DIR=%cd%\mariadb"
+set "MONGODB_DIR=%cd%\mongodb"
 
 echo PostgreSQL will be installed to: %POSTGRES_DIR%
 echo MySQL will be installed to: %MYSQL_DIR%
 echo MariaDB will be installed to: %MARIADB_DIR%
+echo MongoDB will be installed to: %MONGODB_DIR%
 echo.
 
 cd downloads
@@ -286,6 +289,73 @@ for %%v in (%mariadb_versions%) do (
 :skip_mariadb
 echo.
 
+:: ========== MongoDB Installation ==========
+echo ========================================
+echo Installing MongoDB Database Tools...
+echo ========================================
+echo.
+
+:: MongoDB Database Tools are backward compatible - single version supports all servers (4.0-8.0)
+set "MONGODB_TOOLS_URL=https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.10.0.zip"
+
+set "mongodb_install_dir=%MONGODB_DIR%"
+
+:: Check if already installed
+if exist "!mongodb_install_dir!\bin\mongodump.exe" (
+    echo MongoDB Database Tools already installed, skipping...
+) else (
+    set "mongodb_filename=mongodb-database-tools.zip"
+
+    if not exist "!mongodb_filename!" (
+        echo Downloading MongoDB Database Tools...
+        curl -L -o "!mongodb_filename!" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" "!MONGODB_TOOLS_URL!"
+        if !errorlevel! neq 0 (
+            echo ERROR: Download request failed
+            goto :skip_mongodb
+        )
+        if not exist "!mongodb_filename!" (
+            echo ERROR: Download failed - file not created
+            goto :skip_mongodb
+        )
+        for %%s in ("!mongodb_filename!") do if %%~zs LSS 1000000 (
+            echo ERROR: Download failed - file too small, likely error page
+            del "!mongodb_filename!" 2>nul
+            goto :skip_mongodb
+        )
+        echo MongoDB Database Tools downloaded successfully
+    ) else (
+        echo MongoDB Database Tools already downloaded
+    )
+
+    :: Extract MongoDB Database Tools
+    echo Extracting MongoDB Database Tools...
+    mkdir "!mongodb_install_dir!" 2>nul
+    mkdir "!mongodb_install_dir!\bin" 2>nul
+
+    powershell -Command "Expand-Archive -Path '!mongodb_filename!' -DestinationPath '!mongodb_install_dir!_temp' -Force"
+
+    :: Move files from nested directory to install_dir
+    for /d %%d in ("!mongodb_install_dir!_temp\mongodb-database-tools-*") do (
+        if exist "%%d\bin\mongodump.exe" (
+            copy "%%d\bin\mongodump.exe" "!mongodb_install_dir!\bin\" >nul 2>&1
+            copy "%%d\bin\mongorestore.exe" "!mongodb_install_dir!\bin\" >nul 2>&1
+        )
+    )
+
+    :: Cleanup temp directory
+    rmdir /s /q "!mongodb_install_dir!_temp" 2>nul
+
+    :: Verify installation
+    if exist "!mongodb_install_dir!\bin\mongodump.exe" (
+        echo MongoDB Database Tools installed successfully
+    ) else (
+        echo Failed to install MongoDB Database Tools - mongodump.exe not found
+    )
+)
+
+:skip_mongodb
+echo.
+
 cd ..
 
 echo.
@@ -296,6 +366,7 @@ echo.
 echo PostgreSQL versions are installed in: %POSTGRES_DIR%
 echo MySQL versions are installed in: %MYSQL_DIR%
 echo MariaDB is installed in: %MARIADB_DIR%
+echo MongoDB Database Tools are installed in: %MONGODB_DIR%
 echo.
 
 :: List installed PostgreSQL versions
@@ -326,10 +397,17 @@ for %%v in (%mariadb_versions%) do (
 )
 
 echo.
+echo Installed MongoDB Database Tools:
+if exist "%MONGODB_DIR%\bin\mongodump.exe" (
+    echo   mongodb: %MONGODB_DIR%\bin\
+)
+
+echo.
 echo Usage examples:
 echo   %POSTGRES_DIR%\postgresql-15\bin\pg_dump.exe --version
 echo   %MYSQL_DIR%\mysql-8.0\bin\mysqldump.exe --version
 echo   %MARIADB_DIR%\mariadb-12.1\bin\mariadb-dump.exe --version
+echo   %MONGODB_DIR%\bin\mongodump.exe --version
 echo.
 
 pause

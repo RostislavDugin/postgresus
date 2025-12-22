@@ -77,99 +77,107 @@ ENV APP_VERSION=$APP_VERSION
 # Set production mode for Docker containers
 ENV ENV_MODE=production
 
-# Install PostgreSQL server and client tools (versions 12-18), MySQL client tools (5.7, 8.0, 8.4), MariaDB client tools, and rclone
-# Note: MySQL 5.7 is only available for x86_64, MySQL 8.0+ supports both x86_64 and ARM64
-# Note: MySQL binaries require libncurses5 for terminal handling
-# Note: MariaDB uses a single client version (12.1) that is backward compatible with all server versions
+# ========= STEP 1: Install base packages =========
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5
+RUN rm -rf /var/lib/apt/lists/*
+
+# ========= Install PostgreSQL client binaries (versions 12-18) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
 ARG TARGETARCH
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5 && \
-  # Add PostgreSQL repository
-  wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+RUN mkdir -p /usr/lib/postgresql/12/bin /usr/lib/postgresql/13/bin \
+  /usr/lib/postgresql/14/bin /usr/lib/postgresql/15/bin \
+  /usr/lib/postgresql/16/bin /usr/lib/postgresql/17/bin \
+  /usr/lib/postgresql/18/bin
+
+# Copy pre-downloaded PostgreSQL binaries based on architecture
+COPY assets/tools/x64/postgresql/ /tmp/pg-x64/
+COPY assets/tools/arm/postgresql/ /tmp/pg-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp -r /tmp/pg-x64/postgresql-12/bin/* /usr/lib/postgresql/12/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-13/bin/* /usr/lib/postgresql/13/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-14/bin/* /usr/lib/postgresql/14/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-15/bin/* /usr/lib/postgresql/15/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-16/bin/* /usr/lib/postgresql/16/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-17/bin/* /usr/lib/postgresql/17/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-18/bin/* /usr/lib/postgresql/18/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  cp -r /tmp/pg-arm/postgresql-12/bin/* /usr/lib/postgresql/12/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-13/bin/* /usr/lib/postgresql/13/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-14/bin/* /usr/lib/postgresql/14/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-15/bin/* /usr/lib/postgresql/15/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-16/bin/* /usr/lib/postgresql/16/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-17/bin/* /usr/lib/postgresql/17/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-18/bin/* /usr/lib/postgresql/18/bin/; \
+  fi && \
+  rm -rf /tmp/pg-x64 /tmp/pg-arm && \
+  chmod +x /usr/lib/postgresql/*/bin/*
+
+# Install PostgreSQL 17 server (needed for internal database)
+# Add PostgreSQL repository for server installation only
+RUN wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
   echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list && \
   apt-get update && \
-  # Install PostgreSQL
-  apt-get install -y --no-install-recommends \
-  postgresql-17 postgresql-18 postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
-  postgresql-client-16 postgresql-client-17 postgresql-client-18 rclone && \
-  # Create MySQL directories
-  mkdir -p /usr/local/mysql-5.7/bin /usr/local/mysql-8.0/bin /usr/local/mysql-8.4/bin && \
-  # Download and install MySQL client tools (architecture-aware)
-  # MySQL 5.7: Only available for x86_64
-  if [ "$TARGETARCH" = "amd64" ]; then \
-  wget -q https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz -O /tmp/mysql57.tar.gz && \
-  tar -xzf /tmp/mysql57.tar.gz -C /tmp && \
-  cp /tmp/mysql-5.7.*/bin/mysql /usr/local/mysql-5.7/bin/ && \
-  cp /tmp/mysql-5.7.*/bin/mysqldump /usr/local/mysql-5.7/bin/ && \
-  rm -rf /tmp/mysql-5.7.* /tmp/mysql57.tar.gz; \
-  else \
-  echo "MySQL 5.7 not available for $TARGETARCH, skipping..."; \
-  fi && \
-  # MySQL 8.0: Available for both x86_64 and ARM64
-  if [ "$TARGETARCH" = "amd64" ]; then \
-  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.40-linux-glibc2.17-x86_64-minimal.tar.xz -O /tmp/mysql80.tar.xz; \
-  elif [ "$TARGETARCH" = "arm64" ]; then \
-  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.40-linux-glibc2.17-aarch64-minimal.tar.xz -O /tmp/mysql80.tar.xz; \
-  fi && \
-  tar -xJf /tmp/mysql80.tar.xz -C /tmp && \
-  cp /tmp/mysql-8.0.*/bin/mysql /usr/local/mysql-8.0/bin/ && \
-  cp /tmp/mysql-8.0.*/bin/mysqldump /usr/local/mysql-8.0/bin/ && \
-  rm -rf /tmp/mysql-8.0.* /tmp/mysql80.tar.xz && \
-  # MySQL 8.4: Available for both x86_64 and ARM64
-  if [ "$TARGETARCH" = "amd64" ]; then \
-  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-linux-glibc2.17-x86_64-minimal.tar.xz -O /tmp/mysql84.tar.xz; \
-  elif [ "$TARGETARCH" = "arm64" ]; then \
-  wget -q https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-linux-glibc2.17-aarch64-minimal.tar.xz -O /tmp/mysql84.tar.xz; \
-  fi && \
-  tar -xJf /tmp/mysql84.tar.xz -C /tmp && \
-  cp /tmp/mysql-8.4.*/bin/mysql /usr/local/mysql-8.4/bin/ && \
-  cp /tmp/mysql-8.4.*/bin/mysqldump /usr/local/mysql-8.4/bin/ && \
-  rm -rf /tmp/mysql-8.4.* /tmp/mysql84.tar.xz && \
-  # Make MySQL binaries executable (ignore errors for empty dirs on ARM64)
-  chmod +x /usr/local/mysql-*/bin/* 2>/dev/null || true && \
-  # Create MariaDB directories for both versions
-  # MariaDB uses two client versions:
-  # - 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
-  # - 12.1 (modern): For newer servers (10.2+)
-  mkdir -p /usr/local/mariadb-10.6/bin /usr/local/mariadb-12.1/bin && \
-  # Download and install MariaDB 10.6 client tools (legacy - for older servers)
-  if [ "$TARGETARCH" = "amd64" ]; then \
-  wget -q https://archive.mariadb.org/mariadb-10.6.21/bintar-linux-systemd-x86_64/mariadb-10.6.21-linux-systemd-x86_64.tar.gz -O /tmp/mariadb106.tar.gz && \
-  tar -xzf /tmp/mariadb106.tar.gz -C /tmp && \
-  cp /tmp/mariadb-10.6.*/bin/mariadb /usr/local/mariadb-10.6/bin/ && \
-  cp /tmp/mariadb-10.6.*/bin/mariadb-dump /usr/local/mariadb-10.6/bin/ && \
-  rm -rf /tmp/mariadb-10.6.* /tmp/mariadb106.tar.gz; \
-  elif [ "$TARGETARCH" = "arm64" ]; then \
-  # For ARM64, install MariaDB 10.6 client from official repository
-  curl -fsSL https://mariadb.org/mariadb_release_signing_key.asc | gpg --dearmor -o /usr/share/keyrings/mariadb-keyring.gpg && \
-  echo "deb [signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://mirror.mariadb.org/repo/10.6/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/mariadb106.list && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends mariadb-client && \
-  cp /usr/bin/mariadb /usr/local/mariadb-10.6/bin/mariadb && \
-  cp /usr/bin/mariadb-dump /usr/local/mariadb-10.6/bin/mariadb-dump && \
-  apt-get remove -y mariadb-client && \
-  rm /etc/apt/sources.list.d/mariadb106.list; \
-  fi && \
-  # Download and install MariaDB 12.1 client tools (modern - for newer servers)
-  if [ "$TARGETARCH" = "amd64" ]; then \
-  wget -q https://archive.mariadb.org/mariadb-12.1.2/bintar-linux-systemd-x86_64/mariadb-12.1.2-linux-systemd-x86_64.tar.gz -O /tmp/mariadb121.tar.gz && \
-  tar -xzf /tmp/mariadb121.tar.gz -C /tmp && \
-  cp /tmp/mariadb-12.1.*/bin/mariadb /usr/local/mariadb-12.1/bin/ && \
-  cp /tmp/mariadb-12.1.*/bin/mariadb-dump /usr/local/mariadb-12.1/bin/ && \
-  rm -rf /tmp/mariadb-12.1.* /tmp/mariadb121.tar.gz; \
-  elif [ "$TARGETARCH" = "arm64" ]; then \
-  # For ARM64, install MariaDB 12.1 client from official repository
-  echo "deb [signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://mirror.mariadb.org/repo/12.1/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/mariadb121.list && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends mariadb-client && \
-  cp /usr/bin/mariadb /usr/local/mariadb-12.1/bin/mariadb && \
-  cp /usr/bin/mariadb-dump /usr/local/mariadb-12.1/bin/mariadb-dump; \
-  fi && \
-  # Make MariaDB binaries executable
-  chmod +x /usr/local/mariadb-*/bin/* 2>/dev/null || true && \
-  # Cleanup
+  apt-get install -y --no-install-recommends postgresql-17 && \
   rm -rf /var/lib/apt/lists/*
+
+# ========= Install rclone =========
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends rclone && \
+  rm -rf /var/lib/apt/lists/*
+
+# Create directories for all database clients
+RUN mkdir -p /usr/local/mysql-5.7/bin /usr/local/mysql-8.0/bin /usr/local/mysql-8.4/bin \
+  /usr/local/mariadb-10.6/bin /usr/local/mariadb-12.1/bin \
+  /usr/local/mongodb-database-tools/bin
+
+# ========= Install MySQL clients (5.7, 8.0, 8.4) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
+# Note: MySQL 5.7 is only available for x86_64
+# Note: MySQL binaries require libncurses5 for terminal handling
+COPY assets/tools/x64/mysql/ /tmp/mysql-x64/
+COPY assets/tools/arm/mysql/ /tmp/mysql-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp /tmp/mysql-x64/mysql-5.7/bin/* /usr/local/mysql-5.7/bin/ && \
+  cp /tmp/mysql-x64/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
+  cp /tmp/mysql-x64/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  echo "MySQL 5.7 not available for arm64, skipping..." && \
+  cp /tmp/mysql-arm/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
+  cp /tmp/mysql-arm/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/; \
+  fi && \
+  rm -rf /tmp/mysql-x64 /tmp/mysql-arm && \
+  chmod +x /usr/local/mysql-*/bin/*
+
+# ========= Install MariaDB clients (10.6, 12.1) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
+# 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
+# 12.1 (modern): For newer servers (10.2+)
+COPY assets/tools/x64/mariadb/ /tmp/mariadb-x64/
+COPY assets/tools/arm/mariadb/ /tmp/mariadb-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp /tmp/mariadb-x64/mariadb-10.6/bin/* /usr/local/mariadb-10.6/bin/ && \
+  cp /tmp/mariadb-x64/mariadb-12.1/bin/* /usr/local/mariadb-12.1/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  cp /tmp/mariadb-arm/mariadb-10.6/bin/* /usr/local/mariadb-10.6/bin/ && \
+  cp /tmp/mariadb-arm/mariadb-12.1/bin/* /usr/local/mariadb-12.1/bin/; \
+  fi && \
+  rm -rf /tmp/mariadb-x64 /tmp/mariadb-arm && \
+  chmod +x /usr/local/mariadb-*/bin/*
+
+# ========= Install MongoDB Database Tools =========
+# Note: MongoDB Database Tools are backward compatible - single version supports all server versions (4.0-8.0)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-aarch64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
+  fi && \
+  dpkg -i /tmp/mongodb-database-tools.deb && \
+  rm /tmp/mongodb-database-tools.deb && \
+  ln -sf /usr/bin/mongodump /usr/local/mongodb-database-tools/bin/mongodump && \
+  ln -sf /usr/bin/mongorestore /usr/local/mongodb-database-tools/bin/mongorestore
 
 # Create postgres user and set up directories
 RUN useradd -m -s /bin/bash postgres || true && \

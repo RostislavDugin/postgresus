@@ -12,6 +12,7 @@ backend/tools
 backend/mysqldata
 backend/pgdata
 backend/mariadbdata
+backend/mongodbdata
 backend/temp
 backend/images
 backend/bin
@@ -59,7 +60,10 @@ deploy
 LICENSE
 CITATION.cff
 *.md
-assets
+
+# Assets - exclude SVGs but keep tools
+assets/*.svg
+assets/tools/download_postgresql.sh
 
 # Python cache
 **/__pycache__

@@ -9,6 +9,7 @@ import (
 
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	"postgresus-backend/internal/features/databases/databases/mariadb"
+	"postgresus-backend/internal/features/databases/databases/mongodb"
 	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
@@ -434,6 +435,21 @@ func (s *DatabaseService) CopyDatabase(
 				IsHttps:    existingDatabase.Mariadb.IsHttps,
 			}
 		}
+	case DatabaseTypeMongodb:
+		if existingDatabase.Mongodb != nil {
+			newDatabase.Mongodb = &mongodb.MongodbDatabase{
+				ID:           uuid.Nil,
+				DatabaseID:   nil,
+				Version:      existingDatabase.Mongodb.Version,
+				Host:         existingDatabase.Mongodb.Host,
+				Port:         existingDatabase.Mongodb.Port,
+				Username:     existingDatabase.Mongodb.Username,
+				Password:     existingDatabase.Mongodb.Password,
+				Database:     existingDatabase.Mongodb.Database,
+				AuthDatabase: existingDatabase.Mongodb.AuthDatabase,
+				IsHttps:      existingDatabase.Mongodb.IsHttps,
+			}
+		}
 	}
 
 	if err := newDatabase.Validate(); err != nil {
@@ -573,6 +589,13 @@ func (s *DatabaseService) IsUserReadOnly(
 			s.fieldEncryptor,
 			usingDatabase.ID,
 		)
+	case DatabaseTypeMongodb:
+		return usingDatabase.Mongodb.IsUserReadOnly(
+			ctx,
+			s.logger,
+			s.fieldEncryptor,
+			usingDatabase.ID,
+		)
 	default:
 		return false, errors.New("read-only check not supported for this database type")
 	}
@@ -644,6 +667,10 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		)
 	case DatabaseTypeMariadb:
 		username, password, err = usingDatabase.Mariadb.CreateReadOnlyUser(
+			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+		)
+	case DatabaseTypeMongodb:
+		username, password, err = usingDatabase.Mongodb.CreateReadOnlyUser(
 			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
 		)
 	default:

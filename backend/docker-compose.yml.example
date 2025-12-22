@@ -422,3 +422,116 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Test MongoDB containers
+  test-mongodb-40:
+    image: mongo:4.0
+    container_name: test-mongodb-40
+    ports:
+      - "${TEST_MONGODB_40_PORT:-27040}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-42:
+    image: mongo:4.2
+    container_name: test-mongodb-42
+    ports:
+      - "${TEST_MONGODB_42_PORT:-27042}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-44:
+    image: mongo:4.4
+    container_name: test-mongodb-44
+    ports:
+      - "${TEST_MONGODB_44_PORT:-27044}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-50:
+    image: mongo:5.0
+    container_name: test-mongodb-50
+    ports:
+      - "${TEST_MONGODB_50_PORT:-27050}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-60:
+    image: mongo:6.0
+    container_name: test-mongodb-60
+    ports:
+      - "${TEST_MONGODB_60_PORT:-27060}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-70:
+    image: mongo:7.0
+    container_name: test-mongodb-70
+    ports:
+      - "${TEST_MONGODB_70_PORT:-27070}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  test-mongodb-80:
+    image: mongo:8.0
+    container_name: test-mongodb-80
+    ports:
+      - "${TEST_MONGODB_80_PORT:-27080}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

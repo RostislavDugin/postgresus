@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"postgresus-backend/internal/features/databases/databases/mariadb"
+	"postgresus-backend/internal/features/databases/databases/mongodb"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_testing "postgresus-backend/internal/features/users/testing"
@@ -941,6 +942,57 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 			verifyHiddenData: func(t *testing.T, database *Database) {
 				assert.Equal(t, "", database.Mariadb.Password)
+			},
+		},
+		{
+			name:         "MongoDB Database",
+			databaseType: DatabaseTypeMongodb,
+			createDatabase: func(workspaceID uuid.UUID) *Database {
+				return &Database{
+					WorkspaceID: &workspaceID,
+					Name:        "Test MongoDB Database",
+					Type:        DatabaseTypeMongodb,
+					Mongodb: &mongodb.MongodbDatabase{
+						Version:      tools.MongodbVersion70,
+						Host:         "localhost",
+						Port:         27017,
+						Username:     "root",
+						Password:     "original-password-secret",
+						Database:     "test_db",
+						AuthDatabase: "admin",
+						IsHttps:      false,
+					},
+				}
+			},
+			updateDatabase: func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database {
+				return &Database{
+					ID:          databaseID,
+					WorkspaceID: &workspaceID,
+					Name:        "Updated MongoDB Database",
+					Type:        DatabaseTypeMongodb,
+					Mongodb: &mongodb.MongodbDatabase{
+						Version:      tools.MongodbVersion80,
+						Host:         "updated-host",
+						Port:         27018,
+						Username:     "updated_user",
+						Password:     "",
+						Database:     "updated_test_db",
+						AuthDatabase: "admin",
+						IsHttps:      false,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.True(t, strings.HasPrefix(database.Mongodb.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.ID, database.Mongodb.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password-secret", decrypted)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.Mongodb.Password)
 			},
 		},
 	}

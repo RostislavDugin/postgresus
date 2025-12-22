@@ -27,6 +27,7 @@ type EnvVariables struct {
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
 	MysqlInstallDir      string            `env:"MYSQL_INSTALL_DIR"`
 	MariadbInstallDir    string            `env:"MARIADB_INSTALL_DIR"`
+	MongodbInstallDir    string            `env:"MONGODB_INSTALL_DIR"`
 
 	DataFolder    string
 	TempFolder    string
@@ -68,6 +69,14 @@ type EnvVariables struct {
 	TestMariadb114Port  string `env:"TEST_MARIADB_114_PORT"`
 	TestMariadb118Port  string `env:"TEST_MARIADB_118_PORT"`
 	TestMariadb120Port  string `env:"TEST_MARIADB_120_PORT"`
+
+	TestMongodb40Port string `env:"TEST_MONGODB_40_PORT"`
+	TestMongodb42Port string `env:"TEST_MONGODB_42_PORT"`
+	TestMongodb44Port string `env:"TEST_MONGODB_44_PORT"`
+	TestMongodb50Port string `env:"TEST_MONGODB_50_PORT"`
+	TestMongodb60Port string `env:"TEST_MONGODB_60_PORT"`
+	TestMongodb70Port string `env:"TEST_MONGODB_70_PORT"`
+	TestMongodb80Port string `env:"TEST_MONGODB_80_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -175,6 +184,9 @@ func loadEnvVariables() {
 
 	env.MariadbInstallDir = filepath.Join(backendRoot, "tools", "mariadb")
 	tools.VerifyMariadbInstallation(log, env.EnvMode, env.MariadbInstallDir)
+
+	env.MongodbInstallDir = filepath.Join(backendRoot, "tools", "mongodb")
+	tools.VerifyMongodbInstallation(log, env.EnvMode, env.MongodbInstallDir)
 
 	// Store the data and temp folders one level below the root
 	// (projectRoot/postgresus-data -> /postgresus-data)

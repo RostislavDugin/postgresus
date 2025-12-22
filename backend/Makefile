@@ -2,7 +2,7 @@ run:
 	go run cmd/main.go
 
 test:
-	go test -p=1 -count=1 -failfast .\internal\...
+	go test -p=1 -count=1 -failfast -timeout 10m .\internal\...
 
 lint:
 	golangci-lint fmt && golangci-lint run

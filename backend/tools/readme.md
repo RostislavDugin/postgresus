@@ -1,7 +1,7 @@
 This directory is needed only for development and CI\CD.
 
-We have to download and install all the PostgreSQL versions from 12 to 18, MySQL versions 5.7, 8.0, 8.4 and MariaDB client tools locally.
-This is needed so we can call pg_dump, pg_restore, mysqldump, mysql, mariadb-dump, mariadb, etc. on each version of the database.
+We have to download and install all the PostgreSQL versions from 12 to 18, MySQL versions 5.7, 8.0, 8.4, MariaDB client tools and MongoDB Database Tools locally.
+This is needed so we can call pg_dump, pg_restore, mysqldump, mysql, mariadb-dump, mariadb, mongodump, mongorestore, etc. on each version of the database.
 
 You do not need to install the databases fully with all the components.
 We only need the client tools for each version.
@@ -32,6 +32,14 @@ MariaDB uses two client versions to support all server versions:
 - MariaDB 12.1 (modern client - for servers 10.2+)
 
 The reason for two versions is that MariaDB 12.1 client uses SQL queries that reference the `generation_expression` column in `information_schema.columns`, which was only added in MariaDB 10.2. Older servers (5.5, 10.1) don't have this column and fail with newer clients.
+
+### MongoDB
+
+MongoDB Database Tools are backward compatible - a single version supports all server versions:
+
+- MongoDB Database Tools 100.10.0 (supports MongoDB servers 4.0-8.0)
+
+The MongoDB Database Tools (`mongodump`, `mongorestore`) are designed to be backward compatible with all MongoDB server versions, so only one client version is needed.
 
 ## Installation
 
@@ -134,6 +142,15 @@ For example:
 - `./tools/mariadb/mariadb-10.6/bin/mariadb-dump` (legacy - for servers 5.5, 10.1)
 - `./tools/mariadb/mariadb-12.1/bin/mariadb-dump` (modern - for servers 10.2+)
 
+### MongoDB
+
+MongoDB Database Tools use a single version that supports all server versions:
+
+```
+./tools/mongodb/bin/mongodump
+./tools/mongodb/bin/mongorestore
+```
+
 ## Usage
 
 After installation, you can use version-specific tools:
@@ -148,6 +165,9 @@ After installation, you can use version-specific tools:
 # Windows - MariaDB
 ./mariadb/mariadb-12.1/bin/mariadb-dump.exe --version
 
+# Windows - MongoDB
+./mongodb/bin/mongodump.exe --version
+
 # Linux/MacOS - PostgreSQL
 ./postgresql/postgresql-15/bin/pg_dump --version
 
@@ -156,6 +176,9 @@ After installation, you can use version-specific tools:
 
 # Linux/MacOS - MariaDB
 ./mariadb/mariadb-12.1/bin/mariadb-dump --version
+
+# Linux/MacOS - MongoDB
+./mongodb/bin/mongodump --version
 ```
 
 ## Environment Variables
@@ -172,6 +195,10 @@ MYSQL_INSTALL_DIR=C:\path\to\tools\mysql
 # MariaDB tools directory (default: ./tools/mariadb)
 # Contains subdirectories: mariadb-10.6 and mariadb-12.1
 MARIADB_INSTALL_DIR=C:\path\to\tools\mariadb
+
+# MongoDB tools directory (default: ./tools/mongodb)
+# Contains bin subdirectory with mongodump and mongorestore
+MONGODB_INSTALL_DIR=C:\path\to\tools\mongodb
 ```
 
 ## Troubleshooting
@@ -197,7 +224,8 @@ If downloads fail, you can manually download the files:
 
 - PostgreSQL: https://www.postgresql.org/ftp/source/
 - MySQL: https://dev.mysql.com/downloads/mysql/
-- MariaDB: https://mariadb.org/download/ or https://cdn.mysql.com/archives/mariadb-12.0/
+- MariaDB: https://mariadb.org/download/ or https://archive.mariadb.org/
+- MongoDB Database Tools: https://www.mongodb.com/try/download/database-tools
 
 ### MariaDB Client Compatibility
 
@@ -216,3 +244,17 @@ MariaDB client tools require different versions depending on the server:
 - MariaDB 12.0
 
 The reason is that MariaDB 12.1 client uses SQL queries referencing the `generation_expression` column in `information_schema.columns`, which was added in MariaDB 10.2. The application automatically selects the appropriate client version based on the target server version.
+
+### MongoDB Database Tools Compatibility
+
+MongoDB Database Tools are backward compatible - a single version supports all server versions:
+
+**Supported MongoDB server versions:**
+
+- MongoDB 4.0, 4.2, 4.4 (EOL but still supported)
+- MongoDB 5.0
+- MongoDB 6.0
+- MongoDB 7.0 (LTS)
+- MongoDB 8.0 (Current)
+
+The application uses MongoDB Database Tools version 100.10.0, which supports all the above server versions.

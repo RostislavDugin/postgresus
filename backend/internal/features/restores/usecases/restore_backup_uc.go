@@ -8,6 +8,7 @@ import (
 	"postgresus-backend/internal/features/databases"
 	"postgresus-backend/internal/features/restores/models"
 	usecases_mariadb "postgresus-backend/internal/features/restores/usecases/mariadb"
+	usecases_mongodb "postgresus-backend/internal/features/restores/usecases/mongodb"
 	usecases_mysql "postgresus-backend/internal/features/restores/usecases/mysql"
 	usecases_postgresql "postgresus-backend/internal/features/restores/usecases/postgresql"
 	"postgresus-backend/internal/features/storages"
@@ -17,6 +18,7 @@ type RestoreBackupUsecase struct {
 	restorePostgresqlBackupUsecase *usecases_postgresql.RestorePostgresqlBackupUsecase
 	restoreMysqlBackupUsecase      *usecases_mysql.RestoreMysqlBackupUsecase
 	restoreMariadbBackupUsecase    *usecases_mariadb.RestoreMariadbBackupUsecase
+	restoreMongodbBackupUsecase    *usecases_mongodb.RestoreMongodbBackupUsecase
 }
 
 func (uc *RestoreBackupUsecase) Execute(
@@ -50,6 +52,15 @@ func (uc *RestoreBackupUsecase) Execute(
 		)
 	case databases.DatabaseTypeMariadb:
 		return uc.restoreMariadbBackupUsecase.Execute(
+			originalDB,
+			restoringToDB,
+			backupConfig,
+			restore,
+			backup,
+			storage,
+		)
+	case databases.DatabaseTypeMongodb:
+		return uc.restoreMongodbBackupUsecase.Execute(
 			originalDB,
 			restoringToDB,
 			backupConfig,

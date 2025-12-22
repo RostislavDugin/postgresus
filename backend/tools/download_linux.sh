@@ -5,7 +5,7 @@ set -e  # Exit on any error
 # Ensure non-interactive mode for apt
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing PostgreSQL and MySQL client tools for Linux (Debian/Ubuntu)..."
+echo "Installing PostgreSQL, MySQL, MariaDB and MongoDB client tools for Linux (Debian/Ubuntu)..."
 echo
 
 # Check if running on supported system
@@ -225,6 +225,55 @@ for version in $mariadb_versions; do
     echo
 done
 
+# ========== MongoDB Installation ==========
+echo "========================================"
+echo "Installing MongoDB Database Tools (single latest version)..."
+echo "========================================"
+
+MONGODB_DIR="$(pwd)/mongodb"
+mkdir -p "$MONGODB_DIR/bin"
+
+echo "Installing MongoDB Database Tools to: $MONGODB_DIR"
+
+# MongoDB Database Tools are backward compatible - single version supports all servers (4.0-8.0)
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    MONGODB_TOOLS_URL="https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb"
+elif [ "$ARCH" = "aarch64" ]; then
+    MONGODB_TOOLS_URL="https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-aarch64-100.10.0.deb"
+else
+    echo "Warning: Unsupported architecture $ARCH for MongoDB Database Tools"
+    MONGODB_TOOLS_URL=""
+fi
+
+if [ -n "$MONGODB_TOOLS_URL" ]; then
+    TEMP_DIR="/tmp/mongodb_install"
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
+
+    echo "Downloading MongoDB Database Tools..."
+    wget -q "$MONGODB_TOOLS_URL" -O mongodb-database-tools.deb || {
+        echo "Warning: Could not download MongoDB Database Tools"
+        cd - >/dev/null
+        rm -rf "$TEMP_DIR"
+    }
+
+    if [ -f "mongodb-database-tools.deb" ]; then
+        echo "Installing MongoDB Database Tools..."
+        $SUDO dpkg -i mongodb-database-tools.deb 2>/dev/null || $SUDO apt-get install -f -y -qq
+
+        # Create symlinks to tools directory
+        ln -sf /usr/bin/mongodump "$MONGODB_DIR/bin/mongodump"
+        ln -sf /usr/bin/mongorestore "$MONGODB_DIR/bin/mongorestore"
+
+        echo "MongoDB Database Tools installed successfully"
+    fi
+
+    cd - >/dev/null
+    rm -rf "$TEMP_DIR"
+fi
+
 echo
 
 echo "========================================"
@@ -234,6 +283,7 @@ echo
 echo "PostgreSQL client tools are available in: $POSTGRES_DIR"
 echo "MySQL client tools are available in: $MYSQL_DIR"
 echo "MariaDB client tools are available in: $MARIADB_DIR"
+echo "MongoDB Database Tools are available in: $MONGODB_DIR"
 echo
 
 # List installed PostgreSQL versions
@@ -270,7 +320,16 @@ for version in $mariadb_versions; do
 done
 
 echo
+echo "Installed MongoDB Database Tools:"
+if [ -f "$MONGODB_DIR/bin/mongodump" ]; then
+    echo "  mongodb: $MONGODB_DIR/bin/"
+    version_output=$("$MONGODB_DIR/bin/mongodump" --version 2>/dev/null | head -1)
+    echo "    Version check: $version_output"
+fi
+
+echo
 echo "Usage examples:"
 echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
 echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version"
 echo "  $MARIADB_DIR/mariadb-12.1/bin/mariadb-dump --version"
+echo "  $MONGODB_DIR/bin/mongodump --version"

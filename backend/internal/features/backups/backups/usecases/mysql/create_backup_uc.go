@@ -34,7 +34,7 @@ const (
 	shutdownCheckInterval       = 1 * time.Second
 	copyBufferSize              = 8 * 1024 * 1024
 	progressReportIntervalMB    = 1.0
-	zstdStorageCompressionLevel = 3
+	zstdStorageCompressionLevel = 5
 	exitCodeGenericError        = 1
 	exitCodeConnectionError     = 2
 )
@@ -130,7 +130,7 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 }
 
 func (uc *CreateMysqlBackupUsecase) getNetworkCompressionArgs(version tools.MysqlVersion) []string {
-	const zstdCompressionLevel = 3
+	const zstdCompressionLevel = 5
 
 	switch version {
 	case tools.MysqlVersion80, tools.MysqlVersion84:

@@ -212,6 +212,14 @@ jobs:
           TEST_SUPABASE_USERNAME=${{ secrets.TEST_SUPABASE_USERNAME }}
           TEST_SUPABASE_PASSWORD=${{ secrets.TEST_SUPABASE_PASSWORD }}
           TEST_SUPABASE_DATABASE=${{ secrets.TEST_SUPABASE_DATABASE }}
+          # testing MongoDB
+          TEST_MONGODB_40_PORT=27040
+          TEST_MONGODB_42_PORT=27042
+          TEST_MONGODB_44_PORT=27044
+          TEST_MONGODB_50_PORT=27050
+          TEST_MONGODB_60_PORT=27060
+          TEST_MONGODB_70_PORT=27070
+          TEST_MONGODB_80_PORT=27080
           EOF
 
       - name: Start test containers
@@ -276,6 +284,22 @@ jobs:
           echo "Waiting for MariaDB 12.0..."
           timeout 120 bash -c 'until docker exec test-mariadb-120 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
 
+          # Wait for MongoDB containers
+          echo "Waiting for MongoDB 4.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-40 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 4.2..."
+          timeout 120 bash -c 'until docker exec test-mongodb-42 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 4.4..."
+          timeout 120 bash -c 'until docker exec test-mongodb-44 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 5.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-50 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 6.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-60 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 7.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-70 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 8.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-80 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+
       - name: Create data and temp directories
         run: |
           # Create directories that are used for backups and restore
@@ -304,6 +328,13 @@ jobs:
           path: backend/tools/mariadb
           key: mariadb-clients-106-121-v1
 
+      - name: Cache MongoDB Database Tools
+        id: cache-mongodb
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mongodb
+          key: mongodb-database-tools-100.10.0-v1
+
       - name: Install MySQL dependencies
         run: |
           sudo apt-get update -qq
@@ -311,8 +342,8 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
 
-      - name: Install PostgreSQL, MySQL and MariaDB client tools
-        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true' || steps.cache-mariadb.outputs.cache-hit != 'true'
+      - name: Install PostgreSQL, MySQL, MariaDB and MongoDB client tools
+        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true' || steps.cache-mariadb.outputs.cache-hit != 'true' || steps.cache-mongodb.outputs.cache-hit != 'true'
         run: |
           chmod +x backend/tools/download_linux.sh
           cd backend/tools
@@ -354,6 +385,18 @@ jobs:
             echo "MariaDB 12.1 client tools NOT found"
           fi
 
+      - name: Verify MongoDB Database Tools exist
+        run: |
+          cd backend/tools
+          echo "Checking MongoDB Database Tools..."
+          if [ -f "mongodb/bin/mongodump" ]; then
+            echo "MongoDB Database Tools found"
+            ls -la mongodb/bin/
+            mongodb/bin/mongodump --version || true
+          else
+            echo "MongoDB Database Tools NOT found"
+          fi
+
       - name: Run database migrations
         run: |
           cd backend
@@ -363,7 +406,7 @@ jobs:
       - name: Run Go tests
         run: |
           cd backend
-          go test -p=1 -count=1 -failfast ./internal/...
+          go test -p=1 -count=1 -failfast -timeout 10m ./internal/...
 
       - name: Stop test containers
         if: always()

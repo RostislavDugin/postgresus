@@ -6,6 +6,7 @@ import (
 
 	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
 	usecases_mariadb "postgresus-backend/internal/features/backups/backups/usecases/mariadb"
+	usecases_mongodb "postgresus-backend/internal/features/backups/backups/usecases/mongodb"
 	usecases_mysql "postgresus-backend/internal/features/backups/backups/usecases/mysql"
 	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
 	backups_config "postgresus-backend/internal/features/backups/config"
@@ -19,6 +20,7 @@ type CreateBackupUsecase struct {
 	CreatePostgresqlBackupUsecase *usecases_postgresql.CreatePostgresqlBackupUsecase
 	CreateMysqlBackupUsecase      *usecases_mysql.CreateMysqlBackupUsecase
 	CreateMariadbBackupUsecase    *usecases_mariadb.CreateMariadbBackupUsecase
+	CreateMongodbBackupUsecase    *usecases_mongodb.CreateMongodbBackupUsecase
 }
 
 func (uc *CreateBackupUsecase) Execute(
@@ -52,6 +54,16 @@ func (uc *CreateBackupUsecase) Execute(
 
 	case databases.DatabaseTypeMariadb:
 		return uc.CreateMariadbBackupUsecase.Execute(
+			ctx,
+			backupID,
+			backupConfig,
+			database,
+			storage,
+			backupProgressListener,
+		)
+
+	case databases.DatabaseTypeMongodb:
+		return uc.CreateMongodbBackupUsecase.Execute(
 			ctx,
 			backupID,
 			backupConfig,

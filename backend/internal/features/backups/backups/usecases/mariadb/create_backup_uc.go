@@ -34,7 +34,7 @@ const (
 	shutdownCheckInterval       = 1 * time.Second
 	copyBufferSize              = 8 * 1024 * 1024
 	progressReportIntervalMB    = 1.0
-	zstdStorageCompressionLevel = 3
+	zstdStorageCompressionLevel = 5
 	exitCodeGenericError        = 1
 	exitCodeConnectionError     = 2
 )

@@ -5,6 +5,7 @@ import {
   type Database,
   DatabaseType,
   type MariadbDatabase,
+  type MongodbDatabase,
   type MysqlDatabase,
   type PostgresqlDatabase,
   databaseApi,
@@ -28,6 +29,7 @@ const databaseTypeOptions = [
   { value: DatabaseType.POSTGRES, label: 'PostgreSQL' },
   { value: DatabaseType.MYSQL, label: 'MySQL' },
   { value: DatabaseType.MARIADB, label: 'MariaDB' },
+  { value: DatabaseType.MONGODB, label: 'MongoDB' },
 ];
 
 export const EditDatabaseBaseInfoComponent = ({
@@ -58,6 +60,7 @@ export const EditDatabaseBaseInfoComponent = ({
       postgresql: undefined,
       mysql: undefined,
       mariadb: undefined,
+      mongodb: undefined,
     };
 
     switch (newType) {
@@ -69,6 +72,9 @@ export const EditDatabaseBaseInfoComponent = ({
         break;
       case DatabaseType.MARIADB:
         updatedDatabase.mariadb = editingDatabase.mariadb ?? ({} as MariadbDatabase);
+        break;
+      case DatabaseType.MONGODB:
+        updatedDatabase.mongodb = editingDatabase.mongodb ?? ({} as MongodbDatabase);
         break;
     }
 

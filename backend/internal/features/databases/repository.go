@@ -3,6 +3,7 @@ package databases
 import (
 	"errors"
 	"postgresus-backend/internal/features/databases/databases/mariadb"
+	"postgresus-backend/internal/features/databases/databases/mongodb"
 	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/storage"
@@ -38,17 +39,22 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 				return errors.New("mariadb configuration is required for MariaDB database")
 			}
 			database.Mariadb.DatabaseID = &database.ID
+		case DatabaseTypeMongodb:
+			if database.Mongodb == nil {
+				return errors.New("mongodb configuration is required for MongoDB database")
+			}
+			database.Mongodb.DatabaseID = &database.ID
 		}
 
 		if isNew {
 			if err := tx.Create(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Notifiers").
+				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
 				Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Save(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Notifiers").
+				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
 				Error; err != nil {
 				return err
 			}
@@ -91,6 +97,18 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 					return err
 				}
 			}
+		case DatabaseTypeMongodb:
+			database.Mongodb.DatabaseID = &database.ID
+			if database.Mongodb.ID == uuid.Nil {
+				database.Mongodb.ID = uuid.New()
+				if err := tx.Create(database.Mongodb).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(database.Mongodb).Error; err != nil {
+					return err
+				}
+			}
 		}
 
 		if err := tx.
@@ -118,6 +136,7 @@ func (r *DatabaseRepository) FindByID(id uuid.UUID) (*Database, error) {
 		Preload("Postgresql").
 		Preload("Mysql").
 		Preload("Mariadb").
+		Preload("Mongodb").
 		Preload("Notifiers").
 		Where("id = ?", id).
 		First(&database).Error; err != nil {
@@ -135,6 +154,7 @@ func (r *DatabaseRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Databa
 		Preload("Postgresql").
 		Preload("Mysql").
 		Preload("Mariadb").
+		Preload("Mongodb").
 		Preload("Notifiers").
 		Where("workspace_id = ?", workspaceID).
 		Order("CASE WHEN health_status = 'UNAVAILABLE' THEN 1 WHEN health_status = 'AVAILABLE' THEN 2 WHEN health_status IS NULL THEN 3 ELSE 4 END, name ASC").
@@ -177,6 +197,12 @@ func (r *DatabaseRepository) Delete(id uuid.UUID) error {
 				Delete(&mariadb.MariadbDatabase{}).Error; err != nil {
 				return err
 			}
+		case DatabaseTypeMongodb:
+			if err := tx.
+				Where("database_id = ?", id).
+				Delete(&mongodb.MongodbDatabase{}).Error; err != nil {
+				return err
+			}
 		}
 
 		if err := tx.Delete(&Database{}, id).Error; err != nil {
@@ -209,6 +235,7 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 		Preload("Postgresql").
 		Preload("Mysql").
 		Preload("Mariadb").
+		Preload("Mongodb").
 		Preload("Notifiers").
 		Find(&databases).Error; err != nil {
 		return nil, err

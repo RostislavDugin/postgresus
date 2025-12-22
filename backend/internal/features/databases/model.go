@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"postgresus-backend/internal/features/databases/databases/mariadb"
+	"postgresus-backend/internal/features/databases/databases/mongodb"
 	"postgresus-backend/internal/features/databases/databases/mysql"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	"postgresus-backend/internal/features/notifiers"
@@ -25,6 +26,7 @@ type Database struct {
 	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:DatabaseID"`
 	Mysql      *mysql.MysqlDatabase           `json:"mysql,omitempty"      gorm:"foreignKey:DatabaseID"`
 	Mariadb    *mariadb.MariadbDatabase       `json:"mariadb,omitempty"    gorm:"foreignKey:DatabaseID"`
+	Mongodb    *mongodb.MongodbDatabase       `json:"mongodb,omitempty"    gorm:"foreignKey:DatabaseID"`
 
 	Notifiers []notifiers.Notifier `json:"notifiers" gorm:"many2many:database_notifiers;"`
 
@@ -57,6 +59,11 @@ func (d *Database) Validate() error {
 			return errors.New("mariadb database is required")
 		}
 		return d.Mariadb.Validate()
+	case DatabaseTypeMongodb:
+		if d.Mongodb == nil {
+			return errors.New("mongodb database is required")
+		}
+		return d.Mongodb.Validate()
 	default:
 		return errors.New("invalid database type: " + string(d.Type))
 	}
@@ -91,6 +98,9 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	if d.Mariadb != nil {
 		return d.Mariadb.EncryptSensitiveFields(d.ID, encryptor)
 	}
+	if d.Mongodb != nil {
+		return d.Mongodb.EncryptSensitiveFields(d.ID, encryptor)
+	}
 	return nil
 }
 
@@ -106,6 +116,9 @@ func (d *Database) PopulateVersionIfEmpty(
 	}
 	if d.Mariadb != nil {
 		return d.Mariadb.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mongodb != nil {
+		return d.Mongodb.PopulateVersionIfEmpty(logger, encryptor, d.ID)
 	}
 	return nil
 }
@@ -128,6 +141,10 @@ func (d *Database) Update(incoming *Database) {
 		if d.Mariadb != nil && incoming.Mariadb != nil {
 			d.Mariadb.Update(incoming.Mariadb)
 		}
+	case DatabaseTypeMongodb:
+		if d.Mongodb != nil && incoming.Mongodb != nil {
+			d.Mongodb.Update(incoming.Mongodb)
+		}
 	}
 }
 
@@ -139,6 +156,8 @@ func (d *Database) getSpecificDatabase() DatabaseConnector {
 		return d.Mysql
 	case DatabaseTypeMariadb:
 		return d.Mariadb
+	case DatabaseTypeMongodb:
+		return d.Mongodb
 	}
 
 	panic("invalid database type: " + string(d.Type))

@@ -1,5 +1,6 @@
 import { type Database, DatabaseType } from '../../../../entity/databases';
 import { EditMariaDbSpecificDataComponent } from './EditMariaDbSpecificDataComponent';
+import { EditMongoDbSpecificDataComponent } from './EditMongoDbSpecificDataComponent';
 import { EditMySqlSpecificDataComponent } from './EditMySqlSpecificDataComponent';
 import { EditPostgreSqlSpecificDataComponent } from './EditPostgreSqlSpecificDataComponent';
 
@@ -54,6 +55,8 @@ export const EditDatabaseSpecificDataComponent = ({
       return <EditMySqlSpecificDataComponent {...commonProps} />;
     case DatabaseType.MARIADB:
       return <EditMariaDbSpecificDataComponent {...commonProps} />;
+    case DatabaseType.MONGODB:
+      return <EditMongoDbSpecificDataComponent {...commonProps} />;
     default:
       return null;
   }

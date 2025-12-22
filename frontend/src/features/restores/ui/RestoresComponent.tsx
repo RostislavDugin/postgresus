@@ -38,6 +38,7 @@ const createInitialEditingDatabase = (database: Database): Database => ({
   postgresql: clearCredentials(database.postgresql),
   mysql: clearCredentials(database.mysql),
   mariadb: clearCredentials(database.mariadb),
+  mongodb: clearCredentials(database.mongodb),
 });
 
 const getRestorePayload = (database: Database, editingDatabase: Database) => {
@@ -48,6 +49,8 @@ const getRestorePayload = (database: Database, editingDatabase: Database) => {
       return { mysql: editingDatabase.mysql };
     case DatabaseType.MARIADB:
       return { mariadb: editingDatabase.mariadb };
+    case DatabaseType.MONGODB:
+      return { mongodb: editingDatabase.mongodb };
     default:
       return {};
   }

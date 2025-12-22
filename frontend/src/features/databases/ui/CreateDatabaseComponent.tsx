@@ -5,6 +5,7 @@ import {
   type Database,
   DatabaseType,
   type MariadbDatabase,
+  type MongodbDatabase,
   type MysqlDatabase,
   Period,
   type PostgresqlDatabase,
@@ -41,7 +42,13 @@ const createInitialDatabase = (workspaceId: string): Database =>
   }) as Database;
 
 const initializeDatabaseTypeData = (db: Database): Database => {
-  const base = { ...db, postgresql: undefined, mysql: undefined, mariadb: undefined };
+  const base = {
+    ...db,
+    postgresql: undefined,
+    mysql: undefined,
+    mariadb: undefined,
+    mongodb: undefined,
+  };
 
   switch (db.type) {
     case DatabaseType.POSTGRES:
@@ -50,6 +57,8 @@ const initializeDatabaseTypeData = (db: Database): Database => {
       return { ...base, mysql: db.mysql ?? ({} as MysqlDatabase) };
     case DatabaseType.MARIADB:
       return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
+    case DatabaseType.MONGODB:
+      return { ...base, mongodb: db.mongodb ?? ({} as MongodbDatabase) };
     default:
       return db;
   }

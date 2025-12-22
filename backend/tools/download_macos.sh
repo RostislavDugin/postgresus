@@ -2,7 +2,7 @@
 
 set -e  # Exit on any error
 
-echo "Installing PostgreSQL and MySQL client tools for MacOS..."
+echo "Installing PostgreSQL, MySQL, MariaDB and MongoDB client tools for MacOS..."
 echo
 
 # Check if Homebrew is installed
@@ -284,6 +284,43 @@ for version in $mariadb_versions; do
     echo
 done
 
+# ========== MongoDB Installation ==========
+echo "========================================"
+echo "Installing MongoDB Database Tools..."
+echo "========================================"
+
+MONGODB_DIR="$(pwd)/mongodb"
+mkdir -p "$MONGODB_DIR/bin"
+
+echo "Installing MongoDB Database Tools to: $MONGODB_DIR"
+
+# Install via Homebrew
+echo "  Installing MongoDB Database Tools via Homebrew..."
+brew tap mongodb/brew 2>/dev/null || true
+brew install mongodb-database-tools 2>/dev/null || {
+    echo "  Warning: Could not install mongodb-database-tools via Homebrew"
+}
+
+# Find Homebrew MongoDB tools path
+BREW_MONGODB=""
+if [ -f "/opt/homebrew/bin/mongodump" ]; then
+    BREW_MONGODB="/opt/homebrew/bin"
+elif [ -f "/usr/local/bin/mongodump" ]; then
+    BREW_MONGODB="/usr/local/bin"
+fi
+
+if [ -n "$BREW_MONGODB" ]; then
+    ln -sf "$BREW_MONGODB/mongodump" "$MONGODB_DIR/bin/mongodump"
+    ln -sf "$BREW_MONGODB/mongorestore" "$MONGODB_DIR/bin/mongorestore"
+    echo "  MongoDB Database Tools linked from Homebrew"
+
+    mongodump_ver=$("$MONGODB_DIR/bin/mongodump" --version 2>/dev/null | head -1)
+    echo "  Verified: $mongodump_ver"
+else
+    echo "  Warning: Could not find MongoDB Database Tools binaries"
+    echo "  Please install manually: brew tap mongodb/brew && brew install mongodb-database-tools"
+fi
+
 echo
 
 # Clean up build directory
@@ -297,6 +334,7 @@ echo
 echo "PostgreSQL client tools are available in: $POSTGRES_DIR"
 echo "MySQL client tools are available in: $MYSQL_DIR"
 echo "MariaDB client tools are available in: $MARIADB_DIR"
+echo "MongoDB Database Tools are available in: $MONGODB_DIR"
 echo
 
 # List installed PostgreSQL versions
@@ -332,12 +370,22 @@ for version in $mariadb_versions; do
 done
 
 echo
+echo "Installed MongoDB Database Tools:"
+if [ -f "$MONGODB_DIR/bin/mongodump" ]; then
+    mongodump_ver=$("$MONGODB_DIR/bin/mongodump" --version 2>/dev/null | head -1)
+    echo "  mongodb: $MONGODB_DIR/bin/"
+    echo "    $mongodump_ver"
+fi
+
+echo
 echo "Usage examples:"
 echo "  $POSTGRES_DIR/postgresql-15/bin/pg_dump --version"
 echo "  $MYSQL_DIR/mysql-8.0/bin/mysqldump --version"
 echo "  $MARIADB_DIR/mariadb-12.1/bin/mariadb-dump --version"
+echo "  $MONGODB_DIR/bin/mongodump --version"
 echo
 echo "To add specific versions to your PATH temporarily:"
 echo "  export PATH=\"$POSTGRES_DIR/postgresql-15/bin:\$PATH\""
 echo "  export PATH=\"$MYSQL_DIR/mysql-8.0/bin:\$PATH\""
-echo "  export PATH=\"$MARIADB_DIR/mariadb-12.1/bin:\$PATH\"" 
+echo "  export PATH=\"$MARIADB_DIR/mariadb-12.1/bin:\$PATH\""
+echo "  export PATH=\"$MONGODB_DIR/bin:\$PATH\"" 

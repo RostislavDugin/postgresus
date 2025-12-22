@@ -447,10 +447,13 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 
 func testSchemaSelectionAllSchemasForVersion(t *testing.T, pgVersion string, port string) {
 	container, err := connectToPostgresContainer(pgVersion, port)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to connect to PostgreSQL container: %v", err)
+	}
 	defer container.DB.Close()
 
 	_, err = container.DB.Exec(`
+		DROP TABLE IF EXISTS public.public_table;
 		DROP SCHEMA IF EXISTS schema_a CASCADE;
 		DROP SCHEMA IF EXISTS schema_b CASCADE;
 		CREATE SCHEMA schema_a;
@@ -569,7 +572,9 @@ func testSchemaSelectionAllSchemasForVersion(t *testing.T, pgVersion string, por
 
 func testBackupRestoreWithExcludeExtensionsForVersion(t *testing.T, pgVersion string, port string) {
 	container, err := connectToPostgresContainer(pgVersion, port)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to connect to PostgreSQL container: %v", err)
+	}
 	defer container.DB.Close()
 
 	// Create table with uuid-ossp extension and add a comment on the extension
@@ -696,7 +701,9 @@ func testBackupRestoreWithoutExcludeExtensionsForVersion(
 	port string,
 ) {
 	container, err := connectToPostgresContainer(pgVersion, port)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to connect to PostgreSQL container: %v", err)
+	}
 	defer container.DB.Close()
 
 	// Create table with uuid-ossp extension
@@ -935,10 +942,13 @@ func testSchemaSelectionOnlySpecifiedSchemasForVersion(
 	port string,
 ) {
 	container, err := connectToPostgresContainer(pgVersion, port)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to connect to PostgreSQL container: %v", err)
+	}
 	defer container.DB.Close()
 
 	_, err = container.DB.Exec(`
+		DROP TABLE IF EXISTS public.public_table;
 		DROP SCHEMA IF EXISTS schema_a CASCADE;
 		DROP SCHEMA IF EXISTS schema_b CASCADE;
 		CREATE SCHEMA schema_a;
