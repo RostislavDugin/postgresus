@@ -169,14 +169,15 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 
 # ========= Install MongoDB Database Tools =========
 # Note: MongoDB Database Tools are backward compatible - single version supports all server versions (4.0-8.0)
-# Use apt-get install instead of dpkg -i to automatically resolve dependencies
+# Use dpkg with apt-get -f install to handle dependencies
 RUN apt-get update && \
   if [ "$TARGETARCH" = "amd64" ]; then \
   wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
   elif [ "$TARGETARCH" = "arm64" ]; then \
   wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-aarch64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
   fi && \
-  apt-get install -y --no-install-recommends /tmp/mongodb-database-tools.deb && \
+  dpkg -i /tmp/mongodb-database-tools.deb || true && \
+  apt-get install -f -y --no-install-recommends && \
   rm /tmp/mongodb-database-tools.deb && \
   rm -rf /var/lib/apt/lists/* && \
   ln -sf /usr/bin/mongodump /usr/local/mongodb-database-tools/bin/mongodump && \
