@@ -107,18 +107,19 @@ for %%v in (%pg_versions%) do (
 
 :: ========== MySQL Installation ==========
 echo ========================================
-echo Installing MySQL client tools (versions 5.7, 8.0, 8.4)...
+echo Installing MySQL client tools (versions 5.7, 8.0, 8.4, 9)...
 echo ========================================
 echo.
 
 :: MySQL download URLs for Windows x64 (ZIP archives) - using CDN
-:: Note: 5.7 is in Downloads, 8.0 and 8.4 specific versions are in archives
+:: Note: 5.7 is in Downloads, 8.0, 8.4 specific versions are in archives, 9.5 is in MySQL-9.5
 set "MYSQL57_URL=https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-winx64.zip"
 set "MYSQL80_URL=https://cdn.mysql.com/archives/mysql-8.0/mysql-8.0.40-winx64.zip"
 set "MYSQL84_URL=https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.3-winx64.zip"
+set "MYSQL9_URL=https://dev.mysql.com/get/Downloads/MySQL-9.5/mysql-9.5.0-winx64.zip"
 
 :: MySQL versions
-set "mysql_versions=5.7 8.0 8.4"
+set "mysql_versions=5.7 8.0 8.4 9"
 
 :: Download and install each MySQL version
 for %%v in (%mysql_versions%) do (

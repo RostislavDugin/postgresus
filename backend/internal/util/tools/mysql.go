@@ -17,6 +17,7 @@ const (
 	MysqlVersion57 MysqlVersion = "5.7"
 	MysqlVersion80 MysqlVersion = "8.0"
 	MysqlVersion84 MysqlVersion = "8.4"
+	MysqlVersion9  MysqlVersion = "9"
 )
 
 type MysqlExecutable string
@@ -45,7 +46,7 @@ func GetMysqlExecutable(
 	return filepath.Join(basePath, executableName)
 }
 
-// VerifyMysqlInstallation verifies that MySQL versions 5.7, 8.0, 8.4 are installed
+// VerifyMysqlInstallation verifies that MySQL versions 5.7, 8.0, 8.4, 9 are installed
 // in the current environment. Each version should be installed with the required
 // client tools (mysqldump, mysql) available.
 // In development: ./tools/mysql/mysql-{VERSION}/bin
@@ -59,6 +60,7 @@ func VerifyMysqlInstallation(
 		MysqlVersion57,
 		MysqlVersion80,
 		MysqlVersion84,
+		MysqlVersion9,
 	}
 
 	requiredCommands := []MysqlExecutable{
@@ -171,6 +173,7 @@ func IsMysqlBackupVersionHigherThanRestoreVersion(
 		MysqlVersion57: 1,
 		MysqlVersion80: 2,
 		MysqlVersion84: 3,
+		MysqlVersion9:  4,
 	}
 	return versionOrder[backupVersion] > versionOrder[restoreVersion]
 }
@@ -193,6 +196,8 @@ func GetMysqlVersionEnum(version string) MysqlVersion {
 		return MysqlVersion80
 	case "8.4":
 		return MysqlVersion84
+	case "9":
+		return MysqlVersion9
 	default:
 		panic(fmt.Sprintf("invalid mysql version: %s", version))
 	}

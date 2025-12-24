@@ -80,7 +80,7 @@ ENV ENV_MODE=production
 # ========= STEP 1: Install base packages =========
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
-  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5
+  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5 libncurses6
 RUN rm -rf /var/lib/apt/lists/*
 
 # ========= Install PostgreSQL client binaries (versions 12-18) =========
@@ -130,10 +130,11 @@ RUN apt-get update && \
 
 # Create directories for all database clients
 RUN mkdir -p /usr/local/mysql-5.7/bin /usr/local/mysql-8.0/bin /usr/local/mysql-8.4/bin \
+  /usr/local/mysql-9/bin \
   /usr/local/mariadb-10.6/bin /usr/local/mariadb-12.1/bin \
   /usr/local/mongodb-database-tools/bin
 
-# ========= Install MySQL clients (5.7, 8.0, 8.4) =========
+# ========= Install MySQL clients (5.7, 8.0, 8.4, 9) =========
 # Pre-downloaded binaries from assets/tools/ - no network download needed
 # Note: MySQL 5.7 is only available for x86_64
 # Note: MySQL binaries require libncurses5 for terminal handling
@@ -142,11 +143,13 @@ COPY assets/tools/arm/mysql/ /tmp/mysql-arm/
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
   cp /tmp/mysql-x64/mysql-5.7/bin/* /usr/local/mysql-5.7/bin/ && \
   cp /tmp/mysql-x64/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
-  cp /tmp/mysql-x64/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/; \
+  cp /tmp/mysql-x64/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/ && \
+  cp /tmp/mysql-x64/mysql-9/bin/* /usr/local/mysql-9/bin/; \
   elif [ "$TARGETARCH" = "arm64" ]; then \
   echo "MySQL 5.7 not available for arm64, skipping..." && \
   cp /tmp/mysql-arm/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
-  cp /tmp/mysql-arm/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/; \
+  cp /tmp/mysql-arm/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/ && \
+  cp /tmp/mysql-arm/mysql-9/bin/* /usr/local/mysql-9/bin/; \
   fi && \
   rm -rf /tmp/mysql-x64 /tmp/mysql-arm && \
   chmod +x /usr/local/mysql-*/bin/*

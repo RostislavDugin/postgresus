@@ -133,7 +133,7 @@ func (uc *CreateMysqlBackupUsecase) getNetworkCompressionArgs(version tools.Mysq
 	const zstdCompressionLevel = 5
 
 	switch version {
-	case tools.MysqlVersion80, tools.MysqlVersion84:
+	case tools.MysqlVersion80, tools.MysqlVersion84, tools.MysqlVersion9:
 		return []string{
 			"--compression-algorithms=zstd",
 			fmt.Sprintf("--zstd-compression-level=%d", zstdCompressionLevel),

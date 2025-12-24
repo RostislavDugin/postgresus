@@ -213,6 +213,25 @@ services:
       timeout: 5s
       retries: 10
 
+  test-mysql-90:
+    image: mysql:9.5
+    ports:
+      - "${TEST_MYSQL_90_PORT:-33090}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpassword
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysqldata/mysql-90:/var/lib/mysql
+    container_name: test-mysql-90
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # Test MariaDB containers
   test-mariadb-55:
     image: mariadb:5.5

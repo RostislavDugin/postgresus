@@ -191,6 +191,7 @@ jobs:
           TEST_MYSQL_57_PORT=33057
           TEST_MYSQL_80_PORT=33080
           TEST_MYSQL_84_PORT=33084
+          TEST_MYSQL_90_PORT=33090
           # testing MariaDB
           TEST_MARIADB_55_PORT=33055
           TEST_MARIADB_101_PORT=33101
@@ -259,6 +260,8 @@ jobs:
           timeout 120 bash -c 'until docker exec test-mysql-80 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
           echo "Waiting for MySQL 8.4..."
           timeout 120 bash -c 'until docker exec test-mysql-84 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 9.0..."
+          timeout 120 bash -c 'until docker exec test-mysql-90 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
 
           # Wait for MariaDB containers
           echo "Waiting for MariaDB 5.5..."
@@ -319,7 +322,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: backend/tools/mysql
-          key: mysql-clients-57-80-84-v1
+          key: mysql-clients-57-80-84-9-v1
 
       - name: Cache MariaDB client tools
         id: cache-mariadb

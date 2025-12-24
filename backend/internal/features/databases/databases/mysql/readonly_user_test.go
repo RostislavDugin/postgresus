@@ -28,6 +28,7 @@ func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
 		{"MySQL 5.7", tools.MysqlVersion57, env.TestMysql57Port},
 		{"MySQL 8.0", tools.MysqlVersion80, env.TestMysql80Port},
 		{"MySQL 8.4", tools.MysqlVersion84, env.TestMysql84Port},
+		{"MySQL 9", tools.MysqlVersion9, env.TestMysql90Port},
 	}
 
 	for _, tc := range cases {
@@ -58,6 +59,7 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 		{"MySQL 5.7", tools.MysqlVersion57, env.TestMysql57Port},
 		{"MySQL 8.0", tools.MysqlVersion80, env.TestMysql80Port},
 		{"MySQL 8.4", tools.MysqlVersion84, env.TestMysql84Port},
+		{"MySQL 9", tools.MysqlVersion9, env.TestMysql90Port},
 	}
 
 	for _, tc := range cases {

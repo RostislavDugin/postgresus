@@ -57,6 +57,7 @@ type EnvVariables struct {
 	TestMysql57Port string `env:"TEST_MYSQL_57_PORT"`
 	TestMysql80Port string `env:"TEST_MYSQL_80_PORT"`
 	TestMysql84Port string `env:"TEST_MYSQL_84_PORT"`
+	TestMysql90Port string `env:"TEST_MYSQL_90_PORT"`
 
 	TestMariadb55Port   string `env:"TEST_MARIADB_55_PORT"`
 	TestMariadb101Port  string `env:"TEST_MARIADB_101_PORT"`

@@ -370,7 +370,7 @@ func mapMysqlVersion(major, minor string) (tools.MysqlVersion, error) {
 	case "8":
 		return mapMysql8xVersion(minor), nil
 	case "9":
-		return tools.MysqlVersion84, nil
+		return tools.MysqlVersion9, nil
 	default:
 		return "", fmt.Errorf(
 			"unsupported MySQL major version: %s (supported: 5.x, 8.x, 9.x)",

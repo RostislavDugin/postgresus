@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Postgresus Logo" width="250"/>
 
-  <h3>PostgreSQL backup</h3>
-  <p>Free, open source and self-hosted solution for automated PostgreSQL backups. With multiple storage options and notifications</p>
+  <h3>PostgreSQL Backup</h3>
+  <p>A free, open source and self-hosted solution for automated PostgreSQL backups with multiple storage options and notifications.</p>
   
   <!-- Badges -->
   [![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -63,9 +63,9 @@
 ### 🔒 **Enterprise-grade security** <a href="https://postgresus.com/security">(docs)</a>
 
 - **AES-256-GCM encryption**: Enterprise-grade protection for backup files
-- **Zero-trust storage**: Backups are encrypted and they are useless to attackers, so you can keep them in shared storages like S3, Azure Blob Storage, etc.
+- **Zero-trust storage**: Backups are encrypted and remain useless to attackers, so you can safely store them in shared storage like S3, Azure Blob Storage, etc.
 - **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
-- **Read-only user**: Postgresus uses by default a read-only user for backups and never stores anything that can change your data
+- **Read-only user**: Postgresus uses a read-only user by default for backups and never stores anything that can modify your data
 
 ### 👥 **Suitable for teams** <a href="https://postgresus.com/access-management">(docs)</a>
 
@@ -86,7 +86,7 @@ Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed d
 
 - **Cloud support**: AWS RDS, Google Cloud SQL, Azure Database for PostgreSQL
 - **Self-hosted**: Any PostgreSQL instance you manage yourself
-- **Why no PITR?**: Cloud providers already offer native PITR, and external PITR backups cannot be restored to managed cloud databases — making them impractical for cloud-hosted PostgreSQL
+- **Why no PITR support?**: Cloud providers already offer native PITR, and external PITR backups cannot be restored to managed cloud databases — making them impractical for cloud-hosted PostgreSQL
 - **Practical granularity**: Hourly and daily backups are sufficient for 99% of projects without the operational complexity of WAL archiving
 
 ### 🐳 **Self-hosted & secure**
@@ -97,11 +97,12 @@ Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed d
 
 ### 📦 Installation <a href="https://postgresus.com/installation">(docs)</a>
 
-You have several ways to install Postgresus:
+You have four ways to install Postgresus:
 
-- Script (recommended)
+- Automated script (recommended)
 - Simple Docker run
 - Docker Compose setup
+- Kubernetes with Helm
 
 <img src="assets/healthchecks.svg" alt="Postgresus Dashboard" width="800"/>
 
@@ -211,7 +212,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 ## 🚀 Usage
 
 1. **Access the dashboard**: Navigate to `http://localhost:4005`
-2. **Add first DB for backup**: Click "New Database" and follow the setup wizard
+2. **Add your first database for backup**: Click "New Database" and follow the setup wizard
 3. **Configure schedule**: Choose from hourly, daily, weekly, monthly or cron intervals
 4. **Set database connection**: Enter your PostgreSQL credentials and connection details
 5. **Choose storage**: Select where to store your backups (local, S3, Google Drive, etc.)
@@ -238,4 +239,4 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! Read <a href="https://postgresus.com/contribute">contributing guide</a> for more details, priorities and rules are specified there. If you want to contribute, but don't know what and how - message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+Contributions are welcome! Read the <a href="https://postgresus.com/contribute">contributing guide</a> for more details, priorities and rules. If you want to contribute but don't know where to start, message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)

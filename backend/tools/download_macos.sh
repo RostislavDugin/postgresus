@@ -129,7 +129,7 @@ done
 
 # ========== MySQL Installation ==========
 echo "========================================"
-echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4)..."
+echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4, 9)..."
 echo "========================================"
 
 # Detect architecture
@@ -141,11 +141,12 @@ else
 fi
 
 # MySQL download URLs for macOS (using CDN)
-# Note: 5.7 is in Downloads, 8.0 and 8.4 specific versions are in archives
+# Note: 5.7 is in Downloads, 8.0, 8.4 specific versions are in archives, 9.5 is in MySQL-9.5
 declare -A MYSQL_URLS=(
     ["5.7"]="https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-macos10.14-x86_64.tar.gz"
     ["8.0"]="https://cdn.mysql.com/archives/mysql-8.0/mysql-8.0.40-macos14-${MYSQL_ARCH}.tar.gz"
     ["8.4"]="https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.3-macos14-${MYSQL_ARCH}.tar.gz"
+    ["9"]="https://dev.mysql.com/get/Downloads/MySQL-9.5/mysql-9.5.0-macos14-${MYSQL_ARCH}.tar.gz"
 )
 
 # Function to install MySQL client tools
@@ -203,7 +204,7 @@ install_mysql_client() {
 }
 
 # Install each MySQL version
-mysql_versions="5.7 8.0 8.4"
+mysql_versions="5.7 8.0 8.4 9"
 
 for version in $mysql_versions; do
     url=${MYSQL_URLS[$version]}

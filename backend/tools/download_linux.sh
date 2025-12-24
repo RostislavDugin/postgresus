@@ -95,11 +95,11 @@ done
 
 # ========== MySQL Installation ==========
 echo "========================================"
-echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4)..."
+echo "Installing MySQL client tools (versions 5.7, 8.0, 8.4, 9)..."
 echo "========================================"
 
 # Download and extract MySQL client tools
-mysql_versions="5.7 8.0 8.4"
+mysql_versions="5.7 8.0 8.4 9"
 
 for version in $mysql_versions; do
     echo "Installing MySQL $version client tools..."
@@ -108,7 +108,7 @@ for version in $mysql_versions; do
     mkdir -p "$version_dir/bin"
     
     # Download MySQL client tools from official CDN
-    # Note: 5.7 is in Downloads, 8.0 and 8.4 specific versions are in archives
+    # Note: 5.7 is in Downloads, 8.0, 8.4 specific versions are in archives, 9.5 is in MySQL-9.5
     case $version in
         "5.7")
             MYSQL_URL="https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz"
@@ -118,6 +118,9 @@ for version in $mysql_versions; do
             ;;
         "8.4")
             MYSQL_URL="https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.3-linux-glibc2.17-x86_64-minimal.tar.xz"
+            ;;
+        "9")
+            MYSQL_URL="https://dev.mysql.com/get/Downloads/MySQL-9.5/mysql-9.5.0-linux-glibc2.28-x86_64.tar.xz"
             ;;
     esac
     

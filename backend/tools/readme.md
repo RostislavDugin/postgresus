@@ -1,6 +1,6 @@
 This directory is needed only for development and CI\CD.
 
-We have to download and install all the PostgreSQL versions from 12 to 18, MySQL versions 5.7, 8.0, 8.4, MariaDB client tools and MongoDB Database Tools locally.
+We have to download and install all the PostgreSQL versions from 12 to 18, MySQL versions 5.7, 8.0, 8.4, 9, MariaDB client tools and MongoDB Database Tools locally.
 This is needed so we can call pg_dump, pg_restore, mysqldump, mysql, mariadb-dump, mariadb, mongodump, mongorestore, etc. on each version of the database.
 
 You do not need to install the databases fully with all the components.
@@ -23,6 +23,7 @@ We only need the client tools for each version.
 - MySQL 5.7
 - MySQL 8.0
 - MySQL 8.4
+- MySQL 9
 
 ### MariaDB
 
@@ -127,6 +128,7 @@ For example:
 - `./tools/mysql/mysql-5.7/bin/mysqldump`
 - `./tools/mysql/mysql-8.0/bin/mysqldump`
 - `./tools/mysql/mysql-8.4/bin/mysqldump`
+- `./tools/mysql/mysql-9/bin/mysqldump`
 
 ### MariaDB
 
