@@ -381,35 +381,29 @@ func detectMongodbVersion(ctx context.Context, client *mongo.Client) (tools.Mong
 		return "", errors.New("could not parse MongoDB version from buildInfo")
 	}
 
-	re := regexp.MustCompile(`^(\d+)\.(\d+)`)
+	re := regexp.MustCompile(`^(\d+)\.`)
 	matches := re.FindStringSubmatch(versionStr)
-	if len(matches) < 3 {
+	if len(matches) < 2 {
 		return "", fmt.Errorf("could not parse MongoDB version: %s", versionStr)
 	}
 
 	major := matches[1]
-	minor := matches[2]
-	versionKey := fmt.Sprintf("%s.%s", major, minor)
 
-	switch versionKey {
-	case "4.0":
-		return tools.MongodbVersion40, nil
-	case "4.2":
-		return tools.MongodbVersion42, nil
-	case "4.4":
-		return tools.MongodbVersion44, nil
-	case "5.0":
-		return tools.MongodbVersion50, nil
-	case "6.0":
-		return tools.MongodbVersion60, nil
-	case "7.0":
-		return tools.MongodbVersion70, nil
-	case "8.0":
-		return tools.MongodbVersion80, nil
+	switch major {
+	case "4":
+		return tools.MongodbVersion4, nil
+	case "5":
+		return tools.MongodbVersion5, nil
+	case "6":
+		return tools.MongodbVersion6, nil
+	case "7":
+		return tools.MongodbVersion7, nil
+	case "8":
+		return tools.MongodbVersion8, nil
 	default:
 		return "", fmt.Errorf(
-			"unsupported MongoDB version: %s (supported: 4.0, 4.2, 4.4, 5.0, 6.0, 7.0, 8.0)",
-			versionKey,
+			"unsupported MongoDB major version: %s (supported: 4.x, 5.x, 6.x, 7.x, 8.x)",
+			major,
 		)
 	}
 }

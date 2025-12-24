@@ -26,13 +26,13 @@ func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion40, env.TestMongodb40Port},
-		{"MongoDB 4.2", tools.MongodbVersion42, env.TestMongodb42Port},
-		{"MongoDB 4.4", tools.MongodbVersion44, env.TestMongodb44Port},
-		{"MongoDB 5.0", tools.MongodbVersion50, env.TestMongodb50Port},
-		{"MongoDB 6.0", tools.MongodbVersion60, env.TestMongodb60Port},
-		{"MongoDB 7.0", tools.MongodbVersion70, env.TestMongodb70Port},
-		{"MongoDB 8.0", tools.MongodbVersion80, env.TestMongodb80Port},
+		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
+		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
+		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
+		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
+		{"MongoDB 6.0", tools.MongodbVersion6, env.TestMongodb60Port},
+		{"MongoDB 7.0", tools.MongodbVersion7, env.TestMongodb70Port},
+		{"MongoDB 8.2", tools.MongodbVersion8, env.TestMongodb82Port},
 	}
 
 	for _, tc := range cases {
@@ -60,13 +60,13 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion40, env.TestMongodb40Port},
-		{"MongoDB 4.2", tools.MongodbVersion42, env.TestMongodb42Port},
-		{"MongoDB 4.4", tools.MongodbVersion44, env.TestMongodb44Port},
-		{"MongoDB 5.0", tools.MongodbVersion50, env.TestMongodb50Port},
-		{"MongoDB 6.0", tools.MongodbVersion60, env.TestMongodb60Port},
-		{"MongoDB 7.0", tools.MongodbVersion70, env.TestMongodb70Port},
-		{"MongoDB 8.0", tools.MongodbVersion80, env.TestMongodb80Port},
+		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
+		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
+		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
+		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
+		{"MongoDB 6.0", tools.MongodbVersion6, env.TestMongodb60Port},
+		{"MongoDB 7.0", tools.MongodbVersion7, env.TestMongodb70Port},
+		{"MongoDB 8.2", tools.MongodbVersion8, env.TestMongodb82Port},
 	}
 
 	for _, tc := range cases {
@@ -139,7 +139,7 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 
 func Test_ReadOnlyUser_FutureCollections_CanSelect(t *testing.T) {
 	env := config.GetEnv()
-	container := connectToMongodbContainer(t, env.TestMongodb70Port, tools.MongodbVersion70)
+	container := connectToMongodbContainer(t, env.TestMongodb70Port, tools.MongodbVersion7)
 	defer container.Client.Disconnect(context.Background())
 
 	ctx := context.Background()
@@ -170,7 +170,7 @@ func Test_ReadOnlyUser_FutureCollections_CanSelect(t *testing.T) {
 
 func Test_ReadOnlyUser_CannotDropOrModifyCollections(t *testing.T) {
 	env := config.GetEnv()
-	container := connectToMongodbContainer(t, env.TestMongodb70Port, tools.MongodbVersion70)
+	container := connectToMongodbContainer(t, env.TestMongodb70Port, tools.MongodbVersion7)
 	defer container.Client.Disconnect(context.Background())
 
 	ctx := context.Background()

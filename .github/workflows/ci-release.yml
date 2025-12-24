@@ -220,7 +220,7 @@ jobs:
           TEST_MONGODB_50_PORT=27050
           TEST_MONGODB_60_PORT=27060
           TEST_MONGODB_70_PORT=27070
-          TEST_MONGODB_80_PORT=27080
+          TEST_MONGODB_82_PORT=27082
           EOF
 
       - name: Start test containers
@@ -300,8 +300,8 @@ jobs:
           timeout 120 bash -c 'until docker exec test-mongodb-60 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
           echo "Waiting for MongoDB 7.0..."
           timeout 120 bash -c 'until docker exec test-mongodb-70 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 8.0..."
-          timeout 120 bash -c 'until docker exec test-mongodb-80 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 8.2..."
+          timeout 120 bash -c 'until docker exec test-mongodb-82 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |

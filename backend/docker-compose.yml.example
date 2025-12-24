@@ -539,11 +539,11 @@ services:
       timeout: 5s
       retries: 10
 
-  test-mongodb-80:
-    image: mongo:8.0
-    container_name: test-mongodb-80
+  test-mongodb-82:
+    image: mongo:8.2.3-noble
+    container_name: test-mongodb-82
     ports:
-      - "${TEST_MONGODB_80_PORT:-27080}:27017"
+      - "${TEST_MONGODB_82_PORT:-27082}:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: rootpassword

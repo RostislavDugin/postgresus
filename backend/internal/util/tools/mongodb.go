@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 
 	env_utils "postgresus-backend/internal/util/env"
@@ -13,13 +14,11 @@ import (
 type MongodbVersion string
 
 const (
-	MongodbVersion40 MongodbVersion = "4.0"
-	MongodbVersion42 MongodbVersion = "4.2"
-	MongodbVersion44 MongodbVersion = "4.4"
-	MongodbVersion50 MongodbVersion = "5.0"
-	MongodbVersion60 MongodbVersion = "6.0"
-	MongodbVersion70 MongodbVersion = "7.0"
-	MongodbVersion80 MongodbVersion = "8.0"
+	MongodbVersion4 MongodbVersion = "4"
+	MongodbVersion5 MongodbVersion = "5"
+	MongodbVersion6 MongodbVersion = "6"
+	MongodbVersion7 MongodbVersion = "7"
+	MongodbVersion8 MongodbVersion = "8"
 )
 
 type MongodbExecutable string
@@ -123,36 +122,38 @@ func IsMongodbBackupVersionHigherThanRestoreVersion(
 	backupVersion, restoreVersion MongodbVersion,
 ) bool {
 	versionOrder := map[MongodbVersion]int{
-		MongodbVersion40: 1,
-		MongodbVersion42: 2,
-		MongodbVersion44: 3,
-		MongodbVersion50: 4,
-		MongodbVersion60: 5,
-		MongodbVersion70: 6,
-		MongodbVersion80: 7,
+		MongodbVersion4: 4,
+		MongodbVersion5: 5,
+		MongodbVersion6: 6,
+		MongodbVersion7: 7,
+		MongodbVersion8: 8,
 	}
 	return versionOrder[backupVersion] > versionOrder[restoreVersion]
 }
 
-// GetMongodbVersionEnum converts a version string to MongodbVersion enum
+// GetMongodbVersionEnum converts a version string to MongodbVersion enum.
+// Accepts full version strings (e.g., "8.2", "5.0.1") and extracts the major version.
 func GetMongodbVersionEnum(version string) MongodbVersion {
-	switch version {
-	case "4.0":
-		return MongodbVersion40
-	case "4.2":
-		return MongodbVersion42
-	case "4.4":
-		return MongodbVersion44
-	case "5.0":
-		return MongodbVersion50
-	case "6.0":
-		return MongodbVersion60
-	case "7.0":
-		return MongodbVersion70
-	case "8.0":
-		return MongodbVersion80
+	re := regexp.MustCompile(`^(\d+)`)
+	matches := re.FindStringSubmatch(version)
+	if len(matches) < 2 {
+		panic(fmt.Sprintf("invalid mongodb version format: %s", version))
+	}
+
+	major := matches[1]
+	switch major {
+	case "4":
+		return MongodbVersion4
+	case "5":
+		return MongodbVersion5
+	case "6":
+		return MongodbVersion6
+	case "7":
+		return MongodbVersion7
+	case "8":
+		return MongodbVersion8
 	default:
-		panic(fmt.Sprintf("invalid mongodb version: %s", version))
+		panic(fmt.Sprintf("unsupported mongodb major version: %s", major))
 	}
 }
 

@@ -953,7 +953,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 					Name:        "Test MongoDB Database",
 					Type:        DatabaseTypeMongodb,
 					Mongodb: &mongodb.MongodbDatabase{
-						Version:      tools.MongodbVersion70,
+						Version:      tools.MongodbVersion7,
 						Host:         "localhost",
 						Port:         27017,
 						Username:     "root",
@@ -971,7 +971,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 					Name:        "Updated MongoDB Database",
 					Type:        DatabaseTypeMongodb,
 					Mongodb: &mongodb.MongodbDatabase{
-						Version:      tools.MongodbVersion80,
+						Version:      tools.MongodbVersion8,
 						Host:         "updated-host",
 						Port:         27018,
 						Username:     "updated_user",

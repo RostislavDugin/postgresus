@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Postgresus Logo" width="250"/>
 
-  <h3>Databases backup tool</h3>
-  <p>Postgresus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). PostgreSQL, MySQL, MariaDB and MongoDB are supported.</p>
+  <h3>Databases backup tool for PostgreSQL, MySQL and MongoDB</h3>
+  <p>Postgresus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.)</p>
   
   <!-- Badges -->
    [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -43,9 +43,9 @@
 ### 💾 **Supported databases**
 
 - **PostgreSQL**: 12, 13, 14, 15, 16, 17 and 18
-- **MySQL**: 5.7, 8.0, 8.4 and 9.x
-- **MariaDB**: 10.3, 10.4, 10.5, 10.6, 10.11, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5 and 11.6
-- **MongoDB**: 4.0, 4.2, 4.4, 5.0, 6.0, 7.0 and 8.0
+- **MySQL**: 5.7, 8 and 9
+- **MariaDB**: 10 and 11
+- **MongoDB**: 4, 5, 6, 7 and 8
 
 ### 🔄 **Scheduled backups**
 

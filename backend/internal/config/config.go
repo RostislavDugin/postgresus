@@ -77,7 +77,7 @@ type EnvVariables struct {
 	TestMongodb50Port string `env:"TEST_MONGODB_50_PORT"`
 	TestMongodb60Port string `env:"TEST_MONGODB_60_PORT"`
 	TestMongodb70Port string `env:"TEST_MONGODB_70_PORT"`
-	TestMongodb80Port string `env:"TEST_MONGODB_80_PORT"`
+	TestMongodb82Port string `env:"TEST_MONGODB_82_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`

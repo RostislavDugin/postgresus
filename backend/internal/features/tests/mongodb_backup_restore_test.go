@@ -59,13 +59,13 @@ func Test_BackupAndRestoreMongodb_RestoreIsSuccessful(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion40, env.TestMongodb40Port},
-		{"MongoDB 4.2", tools.MongodbVersion42, env.TestMongodb42Port},
-		{"MongoDB 4.4", tools.MongodbVersion44, env.TestMongodb44Port},
-		{"MongoDB 5.0", tools.MongodbVersion50, env.TestMongodb50Port},
-		{"MongoDB 6.0", tools.MongodbVersion60, env.TestMongodb60Port},
-		{"MongoDB 7.0", tools.MongodbVersion70, env.TestMongodb70Port},
-		{"MongoDB 8.0", tools.MongodbVersion80, env.TestMongodb80Port},
+		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
+		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
+		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
+		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
+		{"MongoDB 6.0", tools.MongodbVersion6, env.TestMongodb60Port},
+		{"MongoDB 7.0", tools.MongodbVersion7, env.TestMongodb70Port},
+		{"MongoDB 8.2", tools.MongodbVersion8, env.TestMongodb82Port},
 	}
 
 	for _, tc := range cases {
@@ -83,13 +83,13 @@ func Test_BackupAndRestoreMongodbWithEncryption_RestoreIsSuccessful(t *testing.T
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion40, env.TestMongodb40Port},
-		{"MongoDB 4.2", tools.MongodbVersion42, env.TestMongodb42Port},
-		{"MongoDB 4.4", tools.MongodbVersion44, env.TestMongodb44Port},
-		{"MongoDB 5.0", tools.MongodbVersion50, env.TestMongodb50Port},
-		{"MongoDB 6.0", tools.MongodbVersion60, env.TestMongodb60Port},
-		{"MongoDB 7.0", tools.MongodbVersion70, env.TestMongodb70Port},
-		{"MongoDB 8.0", tools.MongodbVersion80, env.TestMongodb80Port},
+		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
+		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
+		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
+		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
+		{"MongoDB 6.0", tools.MongodbVersion6, env.TestMongodb60Port},
+		{"MongoDB 7.0", tools.MongodbVersion7, env.TestMongodb70Port},
+		{"MongoDB 8.2", tools.MongodbVersion8, env.TestMongodb82Port},
 	}
 
 	for _, tc := range cases {
@@ -107,13 +107,13 @@ func Test_BackupAndRestoreMongodb_WithReadOnlyUser_RestoreIsSuccessful(t *testin
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion40, env.TestMongodb40Port},
-		{"MongoDB 4.2", tools.MongodbVersion42, env.TestMongodb42Port},
-		{"MongoDB 4.4", tools.MongodbVersion44, env.TestMongodb44Port},
-		{"MongoDB 5.0", tools.MongodbVersion50, env.TestMongodb50Port},
-		{"MongoDB 6.0", tools.MongodbVersion60, env.TestMongodb60Port},
-		{"MongoDB 7.0", tools.MongodbVersion70, env.TestMongodb70Port},
-		{"MongoDB 8.0", tools.MongodbVersion80, env.TestMongodb80Port},
+		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
+		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
+		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
+		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
+		{"MongoDB 6.0", tools.MongodbVersion6, env.TestMongodb60Port},
+		{"MongoDB 7.0", tools.MongodbVersion7, env.TestMongodb70Port},
+		{"MongoDB 8.2", tools.MongodbVersion8, env.TestMongodb82Port},
 	}
 
 	for _, tc := range cases {
