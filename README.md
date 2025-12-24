@@ -1,18 +1,22 @@
 <div align="center">
   <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Postgresus Logo" width="250"/>
 
-  <h3>PostgreSQL Backup</h3>
-  <p>A free, open source and self-hosted solution for automated PostgreSQL backups with multiple storage options and notifications.</p>
+  <h3>Databases backup tool</h3>
+  <p>Postgresus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). PostgreSQL, MySQL, MariaDB and MongoDB are supported.</p>
   
   <!-- Badges -->
+   [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+  [![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+  [![MariaDB](https://img.shields.io/badge/MariaDB-003545?logo=mariadb&logoColor=white)](https://mariadb.org/)
+  [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+  <br />
   [![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Docker Pulls](https://img.shields.io/docker/pulls/rostislavdugin/postgresus?color=brightgreen)](https://hub.docker.com/r/rostislavdugin/postgresus)
   [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](https://github.com/RostislavDugin/postgresus)
-  
-  [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12%20%7C%2013%20%7C%2014%20%7C%2015%20%7C%2016%20%7C%2017%20%7C%2018-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
   [![Self Hosted](https://img.shields.io/badge/self--hosted-yes-brightgreen)](https://github.com/RostislavDugin/postgresus)
   [![Open Source](https://img.shields.io/badge/open%20source-❤️-red)](https://github.com/RostislavDugin/postgresus)
-  
+
+
   <p>
     <a href="#-features">Features</a> •
     <a href="#-installation">Installation</a> •
@@ -36,6 +40,13 @@
 
 ## ✨ Features
 
+### 💾 **Supported databases**
+
+- **PostgreSQL**: 12, 13, 14, 15, 16, 17 and 18
+- **MySQL**: 5.7, 8.0, 8.4 and 9.x
+- **MariaDB**: 10.3, 10.4, 10.5, 10.6, 10.11, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5 and 11.6
+- **MongoDB**: 4.0, 4.2, 4.4, 5.0, 6.0, 7.0 and 8.0
+
 ### 🔄 **Scheduled backups**
 
 - **Flexible scheduling**: hourly, daily, weekly, monthly or cron
@@ -53,12 +64,6 @@
 - **Multiple channels**: Email, Telegram, Slack, Discord, webhooks
 - **Real-time updates**: Success and failure notifications
 - **Team integration**: Perfect for DevOps workflows
-
-### 🐘 **PostgreSQL support**
-
-- **Multiple versions**: PostgreSQL 12, 13, 14, 15, 16, 17 and 18
-- **SSL support**: Secure connections available
-- **Easy restoration**: One-click restore from any backup
 
 ### 🔒 **Enterprise-grade security** <a href="https://postgresus.com/security">(docs)</a>
 
@@ -128,7 +133,7 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
 
 ### Option 2: Simple Docker run
 
-The easiest way to run Postgresus with embedded PostgreSQL:
+The easiest way to run Postgresus:
 
 ```bash
 docker run -d \
@@ -214,7 +219,7 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 1. **Access the dashboard**: Navigate to `http://localhost:4005`
 2. **Add your first database for backup**: Click "New Database" and follow the setup wizard
 3. **Configure schedule**: Choose from hourly, daily, weekly, monthly or cron intervals
-4. **Set database connection**: Enter your PostgreSQL credentials and connection details
+4. **Set database connection**: Enter your database credentials and connection details
 5. **Choose storage**: Select where to store your backups (local, S3, Google Drive, etc.)
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications
 7. **Save and start**: Postgresus will validate settings and begin the backup schedule
