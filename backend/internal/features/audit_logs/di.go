@@ -1,8 +1,8 @@
 package audit_logs
 
 import (
-	users_services "postgresus-backend/internal/features/users/services"
-	"postgresus-backend/internal/util/logger"
+	users_services "databasus-backend/internal/features/users/services"
+	"databasus-backend/internal/util/logger"
 )
 
 var auditLogRepository = &AuditLogRepository{}

@@ -1,7 +1,7 @@
 package users_services
 
 import (
-	users_dto "postgresus-backend/internal/features/users/dto"
+	users_dto "databasus-backend/internal/features/users/dto"
 
 	"golang.org/x/oauth2"
 )

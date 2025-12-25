@@ -1,12 +1,12 @@
 package databases
 
 import (
+	"databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/storage"
 	"errors"
-	"postgresus-backend/internal/features/databases/databases/mariadb"
-	"postgresus-backend/internal/features/databases/databases/mongodb"
-	"postgresus-backend/internal/features/databases/databases/mysql"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

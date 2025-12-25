@@ -1,14 +1,14 @@
 package databases
 
 import (
+	"databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"log/slog"
-	"postgresus-backend/internal/features/databases/databases/mariadb"
-	"postgresus-backend/internal/features/databases/databases/mongodb"
-	"postgresus-backend/internal/features/databases/databases/mysql"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/util/encryption"
 	"time"
 
 	"github.com/google/uuid"

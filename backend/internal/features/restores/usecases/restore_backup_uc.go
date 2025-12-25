@@ -3,15 +3,15 @@ package usecases
 import (
 	"errors"
 
-	"postgresus-backend/internal/features/backups/backups"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/restores/models"
-	usecases_mariadb "postgresus-backend/internal/features/restores/usecases/mariadb"
-	usecases_mongodb "postgresus-backend/internal/features/restores/usecases/mongodb"
-	usecases_mysql "postgresus-backend/internal/features/restores/usecases/mysql"
-	usecases_postgresql "postgresus-backend/internal/features/restores/usecases/postgresql"
-	"postgresus-backend/internal/features/storages"
+	"databasus-backend/internal/features/backups/backups"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/restores/models"
+	usecases_mariadb "databasus-backend/internal/features/restores/usecases/mariadb"
+	usecases_mongodb "databasus-backend/internal/features/restores/usecases/mongodb"
+	usecases_mysql "databasus-backend/internal/features/restores/usecases/mysql"
+	usecases_postgresql "databasus-backend/internal/features/restores/usecases/postgresql"
+	"databasus-backend/internal/features/storages"
 )
 
 type RestoreBackupUsecase struct {

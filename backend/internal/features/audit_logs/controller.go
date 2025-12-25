@@ -3,7 +3,7 @@ package audit_logs
 import (
 	"net/http"
 
-	user_models "postgresus-backend/internal/features/users/models"
+	user_models "databasus-backend/internal/features/users/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

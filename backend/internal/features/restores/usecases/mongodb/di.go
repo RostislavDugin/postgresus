@@ -1,8 +1,8 @@
 package usecases_mongodb
 
 import (
-	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/util/logger"
+	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/util/logger"
 )
 
 var restoreMongodbBackupUsecase = &RestoreMongodbBackupUsecase{

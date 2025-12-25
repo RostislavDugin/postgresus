@@ -1,10 +1,10 @@
 package users_repositories
 
 import (
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_models "databasus-backend/internal/features/users/models"
+	"databasus-backend/internal/storage"
 	"fmt"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_models "postgresus-backend/internal/features/users/models"
-	"postgresus-backend/internal/storage"
 	"time"
 
 	"github.com/google/uuid"

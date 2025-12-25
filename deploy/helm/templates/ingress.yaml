@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "postgresus.fullname" . }}-ingress
-  namespace: {{ include "postgresus.namespace" . }}
+  name: {{ include "databasus.fullname" . }}-ingress
+  namespace: {{ include "databasus.namespace" . }}
   labels:
-    {{- include "postgresus.labels" . | nindent 4 }}
+    {{- include "databasus.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,7 +34,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "postgresus.fullname" $ }}-service
+                name: {{ include "databasus.fullname" $ }}-service
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

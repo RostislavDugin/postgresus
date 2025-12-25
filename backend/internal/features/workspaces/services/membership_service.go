@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	users_dto "postgresus-backend/internal/features/users/dto"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_services "postgresus-backend/internal/features/users/services"
-	workspaces_dto "postgresus-backend/internal/features/workspaces/dto"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	workspaces_repositories "postgresus-backend/internal/features/workspaces/repositories"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	users_dto "databasus-backend/internal/features/users/dto"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_models "databasus-backend/internal/features/users/models"
+	users_services "databasus-backend/internal/features/users/services"
+	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	workspaces_repositories "databasus-backend/internal/features/workspaces/repositories"
 
 	"github.com/google/uuid"
 )

@@ -1,11 +1,11 @@
 package backups
 
 import (
+	"databasus-backend/internal/features/databases"
+	users_middleware "databasus-backend/internal/features/users/middleware"
 	"fmt"
 	"io"
 	"net/http"
-	"postgresus-backend/internal/features/databases"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

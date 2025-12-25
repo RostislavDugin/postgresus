@@ -1,7 +1,7 @@
 package users_testing
 
 import (
-	users_repositories "postgresus-backend/internal/features/users/repositories"
+	users_repositories "databasus-backend/internal/features/users/repositories"
 )
 
 func EnableMemberInvitations() {

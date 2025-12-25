@@ -1,7 +1,7 @@
 package backups
 
 import (
-	backups_config "postgresus-backend/internal/features/backups/config"
+	backups_config "databasus-backend/internal/features/backups/config"
 	"time"
 
 	"github.com/google/uuid"

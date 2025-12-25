@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "postgresus.fullname" . }}-service
-  namespace: {{ include "postgresus.namespace" . }}
+  name: {{ include "databasus.fullname" . }}-service
+  namespace: {{ include "databasus.namespace" . }}
   labels:
-    {{- include "postgresus.labels" . | nindent 4 }}
+    {{- include "databasus.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -13,16 +13,16 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "postgresus.selectorLabels" . | nindent 4 }}
+    {{- include "databasus.selectorLabels" . | nindent 4 }}
 ---
 {{- if .Values.service.headless.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "postgresus.fullname" . }}-headless
-  namespace: {{ include "postgresus.namespace" . }}
+  name: {{ include "databasus.fullname" . }}-headless
+  namespace: {{ include "databasus.namespace" . }}
   labels:
-    {{- include "postgresus.labels" . | nindent 4 }}
+    {{- include "databasus.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
   clusterIP: None
@@ -32,5 +32,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "postgresus.selectorLabels" . | nindent 4 }}
+    {{- include "databasus.selectorLabels" . | nindent 4 }}
 {{- end }}

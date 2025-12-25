@@ -2,18 +2,18 @@ package storages
 
 import (
 	"context"
+	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
+	google_drive_storage "databasus-backend/internal/features/storages/models/google_drive"
+	local_storage "databasus-backend/internal/features/storages/models/local"
+	nas_storage "databasus-backend/internal/features/storages/models/nas"
+	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
+	s3_storage "databasus-backend/internal/features/storages/models/s3"
+	sftp_storage "databasus-backend/internal/features/storages/models/sftp"
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"io"
 	"log/slog"
-	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
-	ftp_storage "postgresus-backend/internal/features/storages/models/ftp"
-	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
-	local_storage "postgresus-backend/internal/features/storages/models/local"
-	nas_storage "postgresus-backend/internal/features/storages/models/nas"
-	rclone_storage "postgresus-backend/internal/features/storages/models/rclone"
-	s3_storage "postgresus-backend/internal/features/storages/models/s3"
-	sftp_storage "postgresus-backend/internal/features/storages/models/sftp"
-	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

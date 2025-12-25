@@ -1,13 +1,13 @@
 cff-version: 1.2.0
-title: Postgresus
+title: Databasus
 message: "If you use this software, please cite it as below."
 type: software
 authors:
   - family-names: Dugin
     given-names: Rostislav
-repository-code: https://github.com/RostislavDugin/postgresus
-url: https://postgresus.com
-abstract: "Free, open source and self-hosted solution for automated PostgreSQL backups with multiple storage options and notifications."
+repository-code: https://github.com/databasus/databasus
+url: https://databasus.com
+abstract: "Free, open source and self-hosted solution for automated databases backups with multiple storage options and notifications."
 keywords:
   - docker
   - kubernetes
@@ -28,6 +28,9 @@ keywords:
   - pg
   - system-administration
   - database-backup
+  - mysql
+  - mongodb
+  - mariadb
 license: Apache-2.0
 version: 2.15.3
 date-released: "2025-12-25"

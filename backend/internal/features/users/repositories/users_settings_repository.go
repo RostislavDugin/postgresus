@@ -1,8 +1,8 @@
 package users_repositories
 
 import (
-	user_models "postgresus-backend/internal/features/users/models"
-	"postgresus-backend/internal/storage"
+	user_models "databasus-backend/internal/features/users/models"
+	"databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

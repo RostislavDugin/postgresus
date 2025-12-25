@@ -3,11 +3,11 @@ package backups
 import (
 	"context"
 
-	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/storages"
+	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
 
 	"github.com/google/uuid"
 )

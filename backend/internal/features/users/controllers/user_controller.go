@@ -3,10 +3,10 @@ package users_controllers
 import (
 	"net/http"
 
-	"postgresus-backend/internal/config"
-	user_dto "postgresus-backend/internal/features/users/dto"
-	user_middleware "postgresus-backend/internal/features/users/middleware"
-	users_services "postgresus-backend/internal/features/users/services"
+	"databasus-backend/internal/config"
+	user_dto "databasus-backend/internal/features/users/dto"
+	user_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"

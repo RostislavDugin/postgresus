@@ -15,8 +15,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/util/tools"
 )
 
 func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
@@ -95,7 +95,7 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotEmpty(t, username)
 			assert.NotEmpty(t, password)
-			assert.True(t, strings.HasPrefix(username, "postgresus-"))
+			assert.True(t, strings.HasPrefix(username, "databasus-"))
 
 			if err != nil {
 				return

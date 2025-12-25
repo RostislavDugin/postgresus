@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { ThemeContext } from './themeContext';
 import type { ResolvedTheme, ThemeMode } from './themeContext';
 
-const THEME_STORAGE_KEY = 'postgresus-theme';
+const THEME_STORAGE_KEY = 'databasus-theme';
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window !== 'undefined' && window.matchMedia) {

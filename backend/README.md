@@ -1,7 +1,7 @@
 # Before run
 
 Keep in mind: you need to use dev-db from docker-compose.yml in this folder
-instead of postgresus-db from docker-compose.yml in the root folder.
+instead of databasus-db from docker-compose.yml in the root folder.
 
 > Copy .env.example to .env
 > Copy docker-compose.yml.example to docker-compose.yml (for development only)

@@ -1,9 +1,9 @@
 package notifiers
 
 import (
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	"net/http"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

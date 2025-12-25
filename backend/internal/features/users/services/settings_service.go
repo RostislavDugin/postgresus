@@ -3,9 +3,9 @@ package users_services
 import (
 	"fmt"
 
-	users_interfaces "postgresus-backend/internal/features/users/interfaces"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
+	users_interfaces "databasus-backend/internal/features/users/interfaces"
+	users_models "databasus-backend/internal/features/users/models"
+	users_repositories "databasus-backend/internal/features/users/repositories"
 )
 
 type SettingsService struct {

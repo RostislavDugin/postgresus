@@ -1,9 +1,9 @@
 package usecases_postgresql
 
 import (
-	"postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/logger"
+	"databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 )
 
 var createPostgresqlBackupUsecase = &CreatePostgresqlBackupUsecase{

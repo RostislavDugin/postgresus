@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	users_models "postgresus-backend/internal/features/users/models"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	"postgresus-backend/internal/util/encryption"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	users_models "databasus-backend/internal/features/users/models"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

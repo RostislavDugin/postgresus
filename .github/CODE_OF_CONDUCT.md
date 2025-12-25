@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We as members, contributors and maintainers pledge to make participation in the Postgresus community a friendly and welcoming experience for everyone, regardless of background, experience level or personal circumstances.
+We as members, contributors and maintainers pledge to make participation in the Databasus community a friendly and welcoming experience for everyone, regardless of background, experience level or personal circumstances.
 
 We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive and healthy community.
 
@@ -31,10 +31,10 @@ We pledge to act and interact in ways that contribute to an open, welcoming, div
 This Code of Conduct applies within all community spaces, including:
 
 - GitHub repositories (issues, pull requests, discussions, comments)
-- Telegram channels and direct messages related to Postgresus
+- Telegram channels and direct messages related to Databasus
 - Social media interactions when representing the project
 - Community forums and online discussions
-- Any other spaces where Postgresus community members interact
+- Any other spaces where Databasus community members interact
 
 This Code of Conduct also applies when an individual is officially representing the community in public spaces, such as using an official email address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
 
@@ -42,7 +42,7 @@ This Code of Conduct also applies when an individual is officially representing 
 
 Instances of abusive or unacceptable behavior may be reported to the community leaders responsible for enforcement:
 
-- **Email**: [info@postgresus.com](mailto:info@postgresus.com)
+- **Email**: [info@databasus.com](mailto:info@databasus.com)
 - **Telegram**: [@rostislav_dugin](https://t.me/rostislav_dugin)
 
 All complaints will be reviewed and investigated promptly and fairly.
@@ -79,13 +79,13 @@ Community leaders will follow these Community Impact Guidelines in determining t
 
 ## Contributing with Respect
 
-When contributing to Postgresus, please:
+When contributing to Databasus, please:
 
 - Be patient with maintainers and other contributors
 - Understand that everyone has different levels of experience
 - Ask questions in a respectful manner
 - Accept that your contribution may not be accepted, and be open to feedback
-- Follow the [contribution guidelines](https://postgresus.com/contribute)
+- Follow the [contribution guidelines](https://databasus.com/contribute)
 
 For code contributions, remember to:
 

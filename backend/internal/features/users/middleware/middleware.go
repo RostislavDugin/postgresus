@@ -1,10 +1,10 @@
 package users_middleware
 
 import (
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_models "databasus-backend/internal/features/users/models"
+	users_services "databasus-backend/internal/features/users/services"
 	"net/http"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_services "postgresus-backend/internal/features/users/services"
 
 	"github.com/gin-gonic/gin"
 )

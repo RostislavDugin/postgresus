@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"time"
 
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -258,7 +258,7 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 
 	maxRetries := 3
 	for attempt := range maxRetries {
-		newUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+		newUsername := fmt.Sprintf("databasus-%s", uuid.New().String()[:8])
 		newPassword := uuid.New().String()
 
 		tx, err := db.BeginTx(ctx, nil)

@@ -3,6 +3,7 @@ package azure_blob_storage
 import (
 	"bytes"
 	"context"
+	"databasus-backend/internal/util/encryption"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 

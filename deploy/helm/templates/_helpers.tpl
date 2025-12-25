@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "postgresus.name" -}}
+{{- define "databasus.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "postgresus.fullname" -}}
+{{- define "databasus.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "postgresus.chart" -}}
+{{- define "databasus.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "postgresus.labels" -}}
-helm.sh/chart: {{ include "postgresus.chart" . }}
-{{ include "postgresus.selectorLabels" . }}
+{{- define "databasus.labels" -}}
+helm.sh/chart: {{ include "databasus.chart" . }}
+{{ include "databasus.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,18 +43,18 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "postgresus.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "postgresus.name" . }}
+{{- define "databasus.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "databasus.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app: postgresus
+app: databasus
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "postgresus.serviceAccountName" -}}
+{{- define "databasus.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "postgresus.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "databasus.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -63,6 +63,6 @@ Create the name of the service account to use
 {{/*
 Namespace - uses the release namespace from helm install -n <namespace>
 */}}
-{{- define "postgresus.namespace" -}}
+{{- define "databasus.namespace" -}}
 {{- .Release.Namespace }}
 {{- end }}

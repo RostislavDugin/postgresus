@@ -1,9 +1,9 @@
 package healthcheck_attempt
 
 import (
+	"databasus-backend/internal/config"
+	healthcheck_config "databasus-backend/internal/features/healthcheck/config"
 	"log/slog"
-	"postgresus-backend/internal/config"
-	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
 	"time"
 )
 

@@ -1,4 +1,4 @@
-module postgresus-backend
+module databasus-backend
 
 go 1.24.4
 

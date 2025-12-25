@@ -14,8 +14,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/util/tools"
 )
 
 func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {

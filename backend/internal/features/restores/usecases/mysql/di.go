@@ -1,8 +1,8 @@
 package usecases_mysql
 
 import (
-	"postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/util/logger"
+	"databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/util/logger"
 )
 
 var restoreMysqlBackupUsecase = &RestoreMysqlBackupUsecase{

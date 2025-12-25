@@ -1,22 +1,22 @@
-# Postgresus Helm Chart
+# Databasus Helm Chart
 
 ## Installation
 
 Install directly from the OCI registry (no need to clone the repository):
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace
 ```
 
-The `-n postgresus --create-namespace` flags control which namespace the chart is installed into. You can use any namespace name you prefer.
+The `-n databasus --create-namespace` flags control which namespace the chart is installed into. You can use any namespace name you prefer.
 
-## Accessing Postgresus
+## Accessing Databasus
 
 By default, the chart creates a ClusterIP service. Use port-forward to access:
 
 ```bash
-kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+kubectl port-forward svc/databasus-service 4005:4005 -n databasus
 ```
 
 Then open `http://localhost:4005` in your browser.
@@ -27,7 +27,7 @@ Then open `http://localhost:4005` in your browser.
 
 | Parameter          | Description        | Default Value               |
 | ------------------ | ------------------ | --------------------------- |
-| `image.repository` | Docker image       | `rostislavdugin/postgresus` |
+| `image.repository` | Docker image       | `databasus/databasus` |
 | `image.tag`        | Image tag          | `latest`                    |
 | `image.pullPolicy` | Image pull policy  | `Always`                    |
 | `replicaCount`     | Number of replicas | `1`                         |
@@ -72,7 +72,7 @@ The certificate will be mounted to `/etc/ssl/certs/custom-root-ca.crt` and the `
 | `persistence.storageClassName` | Storage class             | `""` (cluster default) |
 | `persistence.accessMode`       | Access mode               | `ReadWriteOnce`        |
 | `persistence.size`             | Storage size              | `10Gi`                 |
-| `persistence.mountPath`        | Mount path                | `/postgresus-data`     |
+| `persistence.mountPath`        | Mount path                | `/databasus-data`     |
 
 ### Resources
 
@@ -90,7 +90,7 @@ The certificate will be mounted to `/etc/ssl/certs/custom-root-ca.crt` and the `
 Best for development or quick access:
 
 ```bash
-kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+kubectl port-forward svc/databasus-service 4005:4005 -n databasus
 ```
 
 Access at `http://localhost:4005`
@@ -109,8 +109,8 @@ service:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   -f nodeport-values.yaml
 ```
 
@@ -129,15 +129,15 @@ service:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   -f loadbalancer-values.yaml
 ```
 
 Get the external IP:
 
 ```bash
-kubectl get svc -n postgresus
+kubectl get svc -n databasus
 ```
 
 Access at `http://<EXTERNAL-IP>`
@@ -166,8 +166,8 @@ ingress:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   -f ingress-values.yaml
 ```
 
@@ -187,8 +187,8 @@ route:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   -f httproute-values.yaml
 ```
 
@@ -198,7 +198,7 @@ helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
 | ----------------------- | ----------------- | ------------------------ |
 | `ingress.enabled`       | Enable Ingress    | `false`                  |
 | `ingress.className`     | Ingress class     | `nginx`                  |
-| `ingress.hosts[0].host` | Hostname          | `postgresus.example.com` |
+| `ingress.hosts[0].host` | Hostname          | `databasus.example.com` |
 | `ingress.tls`           | TLS configuration | `[]`                     |
 
 ## HTTPRoute Configuration
@@ -207,7 +207,7 @@ helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
 | ------------------ | ----------------------- | ------------------------------ |
 | `route.enabled`    | Enable HTTPRoute        | `false`                        |
 | `route.apiVersion` | Gateway API version     | `gateway.networking.k8s.io/v1` |
-| `route.hostnames`  | Hostnames for the route | `["postgresus.example.com"]`   |
+| `route.hostnames`  | Hostnames for the route | `["databasus.example.com"]`   |
 | `route.parentRefs` | Gateway references      | `[]`                           |
 
 ## Health Checks
@@ -227,19 +227,19 @@ persistence:
 ```
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   -f storage-values.yaml
 ```
 
 ## Upgrade
 
 ```bash
-helm upgrade postgresus oci://ghcr.io/rostislavdugin/charts/postgresus -n postgresus
+helm upgrade databasus oci://ghcr.io/databasus/charts/databasus -n databasus
 ```
 
 ## Uninstall
 
 ```bash
-helm uninstall postgresus -n postgresus
+helm uninstall databasus -n databasus
 ```

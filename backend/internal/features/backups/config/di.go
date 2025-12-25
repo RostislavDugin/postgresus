@@ -1,9 +1,9 @@
 package backups_config
 
 import (
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/storages"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/storages"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 )
 
 var backupConfigRepository = &BackupConfigRepository{}

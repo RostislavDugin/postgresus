@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	user_models "postgresus-backend/internal/features/users/models"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_models "databasus-backend/internal/features/users/models"
 
 	"github.com/google/uuid"
 )

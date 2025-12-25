@@ -1,8 +1,8 @@
 package databases
 
 import (
+	"databasus-backend/internal/util/encryption"
 	"log/slog"
-	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

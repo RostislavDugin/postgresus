@@ -4,10 +4,10 @@ import (
 	"errors"
 	"time"
 
-	users_enums "postgresus-backend/internal/features/users/enums"
-	workspaces_dto "postgresus-backend/internal/features/workspaces/dto"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	"postgresus-backend/internal/storage"
+	users_enums "databasus-backend/internal/features/users/enums"
+	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	"databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

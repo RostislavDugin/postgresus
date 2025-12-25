@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
-	usecases_mariadb "postgresus-backend/internal/features/backups/backups/usecases/mariadb"
-	usecases_mongodb "postgresus-backend/internal/features/backups/backups/usecases/mongodb"
-	usecases_mysql "postgresus-backend/internal/features/backups/backups/usecases/mysql"
-	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/storages"
+	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	usecases_mariadb "databasus-backend/internal/features/backups/backups/usecases/mariadb"
+	usecases_mongodb "databasus-backend/internal/features/backups/backups/usecases/mongodb"
+	usecases_mysql "databasus-backend/internal/features/backups/backups/usecases/mysql"
+	usecases_postgresql "databasus-backend/internal/features/backups/backups/usecases/postgresql"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/storages"
 
 	"github.com/google/uuid"
 )

@@ -2,14 +2,14 @@ package local_storage
 
 import (
 	"context"
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/util/encryption"
+	files_utils "databasus-backend/internal/util/files"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/util/encryption"
-	files_utils "postgresus-backend/internal/util/files"
 
 	"github.com/google/uuid"
 )
@@ -21,8 +21,8 @@ const (
 	localChunkSize = 8 * 1024 * 1024
 )
 
-// LocalStorage uses ./postgresus_local_backups folder as a
-// directory for backups and ./postgresus_local_temp folder as a
+// LocalStorage uses ./databasus_local_backups folder as a
+// directory for backups and ./databasus_local_temp folder as a
 // directory for temp files
 type LocalStorage struct {
 	StorageID uuid.UUID `json:"storageId" gorm:"primaryKey;type:uuid;column:storage_id"`

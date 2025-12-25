@@ -1,10 +1,10 @@
 package restores
 
 import (
-	"postgresus-backend/internal/features/databases/databases/mariadb"
-	"postgresus-backend/internal/features/databases/databases/mongodb"
-	"postgresus-backend/internal/features/databases/databases/mysql"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
+	"databasus-backend/internal/features/databases/databases/postgresql"
 )
 
 type RestoreBackupRequest struct {

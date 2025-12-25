@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	env_utils "postgresus-backend/internal/util/env"
+	env_utils "databasus-backend/internal/util/env"
 )
 
 type MariadbVersion string

@@ -1,10 +1,10 @@
 package workspaces_services
 
 import (
-	"postgresus-backend/internal/features/audit_logs"
-	users_services "postgresus-backend/internal/features/users/services"
-	workspaces_interfaces "postgresus-backend/internal/features/workspaces/interfaces"
-	workspaces_repositories "postgresus-backend/internal/features/workspaces/repositories"
+	"databasus-backend/internal/features/audit_logs"
+	users_services "databasus-backend/internal/features/users/services"
+	workspaces_interfaces "databasus-backend/internal/features/workspaces/interfaces"
+	workspaces_repositories "databasus-backend/internal/features/workspaces/repositories"
 )
 
 var workspaceRepository = &workspaces_repositories.WorkspaceRepository{}

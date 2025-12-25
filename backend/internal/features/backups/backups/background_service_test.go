@@ -1,15 +1,15 @@
 package backups
 
 import (
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/intervals"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/storages"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	"postgresus-backend/internal/util/period"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/period"
 	"testing"
 	"time"
 

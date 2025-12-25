@@ -2,6 +2,7 @@ package webhook_notifier
 
 import (
 	"bytes"
+	"databasus-backend/internal/util/encryption"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"postgresus-backend/internal/util/encryption"
 	"strings"
 
 	"github.com/google/uuid"

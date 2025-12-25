@@ -1,8 +1,8 @@
 package users_services
 
 import (
-	"postgresus-backend/internal/features/encryption/secrets"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
+	"databasus-backend/internal/features/encryption/secrets"
+	users_repositories "databasus-backend/internal/features/users/repositories"
 )
 
 var userService = &UserService{

@@ -1,9 +1,9 @@
 package storages
 
 import (
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	"postgresus-backend/internal/util/encryption"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/util/encryption"
 )
 
 var storageRepository = &StorageRepository{}

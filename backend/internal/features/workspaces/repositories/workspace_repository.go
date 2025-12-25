@@ -3,8 +3,8 @@ package workspaces_repositories
 import (
 	"time"
 
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	"postgresus-backend/internal/storage"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	"databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 )

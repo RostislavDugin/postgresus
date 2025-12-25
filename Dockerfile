@@ -188,8 +188,8 @@ RUN apt-get update && \
 
 # Create postgres user and set up directories
 RUN useradd -m -s /bin/bash postgres || true && \
-  mkdir -p /postgresus-data/pgdata && \
-  chown -R postgres:postgres /postgresus-data/pgdata
+  mkdir -p /databasus-data/pgdata && \
+  chown -R postgres:postgres /databasus-data/pgdata
 
 WORKDIR /app
 
@@ -223,26 +223,26 @@ PG_BIN="/usr/lib/postgresql/17/bin"
 
 # Ensure proper ownership of data directory
 echo "Setting up data directory permissions..."
-mkdir -p /postgresus-data/pgdata
-chown -R postgres:postgres /postgresus-data
+mkdir -p /databasus-data/pgdata
+chown -R postgres:postgres /databasus-data
 
 # Initialize PostgreSQL if not already initialized
-if [ ! -s "/postgresus-data/pgdata/PG_VERSION" ]; then
+if [ ! -s "/databasus-data/pgdata/PG_VERSION" ]; then
     echo "Initializing PostgreSQL database..."
-    gosu postgres \$PG_BIN/initdb -D /postgresus-data/pgdata --encoding=UTF8 --locale=C.UTF-8
+    gosu postgres \$PG_BIN/initdb -D /databasus-data/pgdata --encoding=UTF8 --locale=C.UTF-8
     
     # Configure PostgreSQL
-    echo "host all all 127.0.0.1/32 md5" >> /postgresus-data/pgdata/pg_hba.conf
-    echo "local all all trust" >> /postgresus-data/pgdata/pg_hba.conf
-    echo "port = 5437" >> /postgresus-data/pgdata/postgresql.conf
-    echo "listen_addresses = 'localhost'" >> /postgresus-data/pgdata/postgresql.conf
-    echo "shared_buffers = 256MB" >> /postgresus-data/pgdata/postgresql.conf
-    echo "max_connections = 100" >> /postgresus-data/pgdata/postgresql.conf
+    echo "host all all 127.0.0.1/32 md5" >> /databasus-data/pgdata/pg_hba.conf
+    echo "local all all trust" >> /databasus-data/pgdata/pg_hba.conf
+    echo "port = 5437" >> /databasus-data/pgdata/postgresql.conf
+    echo "listen_addresses = 'localhost'" >> /databasus-data/pgdata/postgresql.conf
+    echo "shared_buffers = 256MB" >> /databasus-data/pgdata/postgresql.conf
+    echo "max_connections = 100" >> /databasus-data/pgdata/postgresql.conf
 fi
 
 # Start PostgreSQL in background
 echo "Starting PostgreSQL..."
-gosu postgres \$PG_BIN/postgres -D /postgresus-data/pgdata -p 5437 &
+gosu postgres \$PG_BIN/postgres -D /databasus-data/pgdata -p 5437 &
 POSTGRES_PID=\$!
 
 # Wait for PostgreSQL to be ready
@@ -263,14 +263,14 @@ done
 echo "Setting up database and user..."
 gosu postgres \$PG_BIN/psql -p 5437 -h localhost -d postgres << 'SQL'
 ALTER USER postgres WITH PASSWORD 'Q1234567';
-SELECT 'CREATE DATABASE postgresus OWNER postgres'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'postgresus')
+SELECT 'CREATE DATABASE databasus OWNER postgres'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'databasus')
 \\gexec
 \\q
 SQL
 
 # Start the main application
-echo "Starting Postgresus application..."
+echo "Starting Databasus application..."
 exec ./main
 EOF
 
@@ -279,7 +279,7 @@ RUN chmod +x /app/start.sh
 EXPOSE 4005
 
 # Volume for PostgreSQL data
-VOLUME ["/postgresus-data"]
+VOLUME ["/databasus-data"]
 
 ENTRYPOINT ["/app/start.sh"]
 CMD []

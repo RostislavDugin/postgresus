@@ -1,20 +1,20 @@
 Cloud storages usually require OAuth (Google Drive, Dropbox, OneDrive)
 
-OAuth services usually need HTTPS domain for authorization. Self hosted Postgresus can be hosted via HTTP or even without static IP so this way does not work. To make OAuth works even on localhost, we proxy requests via postgresus.com domain
+OAuth services usually need HTTPS domain for authorization. Self hosted Databasus can be hosted via HTTP or even without static IP so this way does not work. To make OAuth works even on localhost, we proxy requests via databasus.com domain
 
-As permanent URL for authorization we use main Postgresus domain. It forward responses to the self hosted domain so it can get access to the cloud
+As permanent URL for authorization we use main Databasus domain. It forward responses to the self hosted domain so it can get access to the cloud
 
 This is the sequence of requests (example for Google Drive):
 
 ```mermaid
 sequenceDiagram
-    participant SelfHosted as http://localhost:4005<br/>Self-hosted Postgresus
-    participant Proxy as https://postgresus.com<br/>Proxy website
+    participant SelfHosted as http://localhost:4005<br/>Self-hosted Databasus
+    participant Proxy as https://databasus.com<br/>Proxy website
     participant Google as Google OAuth
 
     SelfHosted->>Google: Send auth request with DTO
 
-    Google->>Proxy: Redirect with auth code<br/>to postgresus.com/oauth
+    Google->>Proxy: Redirect with auth code<br/>to databasus.com/oauth
 
     Proxy->>SelfHosted: Redirect to self-hosted instance<br/>with DTO + auth code
 

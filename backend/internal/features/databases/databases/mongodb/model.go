@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"time"
 
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -284,7 +284,7 @@ func (m *MongodbDatabase) CreateReadOnlyUser(
 
 	maxRetries := 3
 	for attempt := range maxRetries {
-		newUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+		newUsername := fmt.Sprintf("databasus-%s", uuid.New().String()[:8])
 		newPassword := uuid.New().String()
 
 		adminDB := client.Database(authDB)

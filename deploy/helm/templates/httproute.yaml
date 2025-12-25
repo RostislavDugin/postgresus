@@ -2,11 +2,11 @@
 apiVersion: {{ .Values.route.apiVersion}}
 kind: {{ .Values.route.kind}}
 metadata:
-  name: {{ template "postgresus.fullname" . }}
+  name: {{ template "databasus.fullname" . }}
   annotations: {{ toYaml .Values.route.annotations | nindent 4 }}
   labels:
     app.kubernetes.io/component: "app"
-    {{- include "postgresus.labels" . | nindent 4 }}
+    {{- include "databasus.labels" . | nindent 4 }}
 spec:
   {{- with .Values.route.parentRefs }}
   parentRefs:
@@ -18,7 +18,7 @@ spec:
   {{- end }}
   rules:
     - backendRefs:
-        - name: {{ template "postgresus.fullname" . }}-service
+        - name: {{ template "databasus.fullname" . }}-service
           port: {{ .Values.service.port }}
       {{- with .Values.route.filters }}
       filters:

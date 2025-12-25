@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Postgresus Logo" width="250"/>
+  <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Databasus Logo" width="250"/>
 
-  <h3>Databases backup tool for PostgreSQL, MySQL and MongoDB</h3>
-  <p>Postgresus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.)</p>
+  <h1 style="font-size: 1.5em; border-bottom: none;">Backup tool for PostgreSQL, MySQL and MongoDB</h1>
+  <p>Databasus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). Previously known as Postgresus (see migration guide).</p>
   
   <!-- Badges -->
    [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -12,10 +12,9 @@
   <br />
   [![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Docker Pulls](https://img.shields.io/docker/pulls/rostislavdugin/postgresus?color=brightgreen)](https://hub.docker.com/r/rostislavdugin/postgresus)
-  [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](https://github.com/RostislavDugin/postgresus)
-  [![Self Hosted](https://img.shields.io/badge/self--hosted-yes-brightgreen)](https://github.com/RostislavDugin/postgresus)
-  [![Open Source](https://img.shields.io/badge/open%20source-❤️-red)](https://github.com/RostislavDugin/postgresus)
-
+  [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](https://github.com/databasus/databasus)
+  [![Self Hosted](https://img.shields.io/badge/self--hosted-yes-brightgreen)](https://github.com/databasus/databasus)
+  [![Open Source](https://img.shields.io/badge/open%20source-❤️-red)](https://github.com/databasus/databasus)
 
   <p>
     <a href="#-features">Features</a> •
@@ -26,12 +25,12 @@
   </p>
 
   <p style="margin-top: 20px; margin-bottom: 20px; font-size: 1.2em;">
-    <a href="https://postgresus.com" target="_blank"><strong>🌐 Postgresus website</strong></a>
+    <a href="https://databasus.com" target="_blank"><strong>🌐 Databasus website</strong></a>
   </p>
   
-  <img src="assets/dashboard-dark.svg" alt="Postgresus Dark Dashboard" width="800" style="margin-bottom: 10px;"/>
+  <img src="assets/dashboard-dark.svg" alt="Databasus Dark Dashboard" width="800" style="margin-bottom: 10px;"/>
 
-  <img src="assets/dashboard.svg" alt="Postgresus Dashboard" width="800"/>
+  <img src="assets/dashboard.svg" alt="Databasus Dashboard" width="800"/>
   
  
 </div>
@@ -53,26 +52,26 @@
 - **Precise timing**: run backups at specific times (e.g., 4 AM during low traffic)
 - **Smart compression**: 4-8x space savings with balanced compression (~20% overhead)
 
-### 🗄️ **Multiple storage destinations** <a href="https://postgresus.com/storages">(view supported)</a>
+### 🗄️ **Multiple storage destinations** <a href="https://databasus.com/storages">(view supported)</a>
 
 - **Local storage**: Keep backups on your VPS/server
 - **Cloud storage**: S3, Cloudflare R2, Google Drive, NAS, Dropbox, SFTP, Rclone and more
 - **Secure**: All data stays under your control
 
-### 📱 **Smart notifications** <a href="https://postgresus.com/notifiers">(view supported)</a>
+### 📱 **Smart notifications** <a href="https://databasus.com/notifiers">(view supported)</a>
 
 - **Multiple channels**: Email, Telegram, Slack, Discord, webhooks
 - **Real-time updates**: Success and failure notifications
 - **Team integration**: Perfect for DevOps workflows
 
-### 🔒 **Enterprise-grade security** <a href="https://postgresus.com/security">(docs)</a>
+### 🔒 **Enterprise-grade security** <a href="https://databasus.com/security">(docs)</a>
 
 - **AES-256-GCM encryption**: Enterprise-grade protection for backup files
 - **Zero-trust storage**: Backups are encrypted and remain useless to attackers, so you can safely store them in shared storage like S3, Azure Blob Storage, etc.
 - **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
-- **Read-only user**: Postgresus uses a read-only user by default for backups and never stores anything that can modify your data
+- **Read-only user**: Databasus uses a read-only user by default for backups and never stores anything that can modify your data
 
-### 👥 **Suitable for teams** <a href="https://postgresus.com/access-management">(docs)</a>
+### 👥 **Suitable for teams** <a href="https://databasus.com/access-management">(docs)</a>
 
 - **Workspaces**: Group databases, notifiers and storages for different projects or teams
 - **Access management**: Control who can view or manage specific databases with role-based permissions
@@ -87,7 +86,7 @@
 
 ### ☁️ **Works with self-hosted & cloud databases**
 
-Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed databases:
+Databasus works seamlessly with both self-hosted PostgreSQL and cloud-managed databases:
 
 - **Cloud support**: AWS RDS, Google Cloud SQL, Azure Database for PostgreSQL
 - **Self-hosted**: Any PostgreSQL instance you manage yourself
@@ -100,54 +99,54 @@ Postgresus works seamlessly with both self-hosted PostgreSQL and cloud-managed d
 - **Privacy-first**: All your data stays on your infrastructure
 - **Open source**: Apache 2.0 licensed, inspect every line of code
 
-### 📦 Installation <a href="https://postgresus.com/installation">(docs)</a>
+### 📦 Installation <a href="https://databasus.com/installation">(docs)</a>
 
-You have four ways to install Postgresus:
+You have four ways to install Databasus:
 
 - Automated script (recommended)
 - Simple Docker run
 - Docker Compose setup
 - Kubernetes with Helm
 
-<img src="assets/healthchecks.svg" alt="Postgresus Dashboard" width="800"/>
+<img src="assets/healthchecks.svg" alt="Databasus Dashboard" width="800"/>
 
 ---
 
 ## 📦 Installation
 
-You have three ways to install Postgresus: automated script (recommended), simple Docker run, or Docker Compose setup.
+You have three ways to install Databasus: automated script (recommended), simple Docker run, or Docker Compose setup.
 
 ### Option 1: Automated installation script (recommended, Linux only)
 
 The installation script will:
 
 - ✅ Install Docker with Docker Compose (if not already installed)
-- ✅ Set up Postgresus
+- ✅ Set up Databasus
 - ✅ Configure automatic startup on system reboot
 
 ```bash
 sudo apt-get install -y curl && \
-sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh \
+sudo curl -sSL https://raw.githubusercontent.com/databasus/databasus/refs/heads/main/install-databasus.sh \
 | sudo bash
 ```
 
 ### Option 2: Simple Docker run
 
-The easiest way to run Postgresus:
+The easiest way to run Databasus:
 
 ```bash
 docker run -d \
-  --name postgresus \
+  --name databasus \
   -p 4005:4005 \
-  -v ./postgresus-data:/postgresus-data \
+  -v ./databasus-data:/databasus-data \
   --restart unless-stopped \
-  rostislavdugin/postgresus:latest
+  databasus/databasus:latest
 ```
 
 This single command will:
 
-- ✅ Start Postgresus
-- ✅ Store all data in `./postgresus-data` directory
+- ✅ Start Databasus
+- ✅ Store all data in `./databasus-data` directory
 - ✅ Automatically restart on system reboot
 
 ### Option 3: Docker Compose setup
@@ -156,13 +155,13 @@ Create a `docker-compose.yml` file with the following configuration:
 
 ```yaml
 services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
+  databasus:
+    container_name: databasus
+    image: databasus/databasus:latest
     ports:
       - "4005:4005"
     volumes:
-      - ./postgresus-data:/postgresus-data
+      - ./databasus-data:/databasus-data
     restart: unless-stopped
 ```
 
@@ -179,33 +178,33 @@ For Kubernetes deployments, install directly from the OCI registry.
 **With ClusterIP + port-forward (development/testing):**
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace
 ```
 
 ```bash
-kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+kubectl port-forward svc/databasus-service 4005:4005 -n databasus
 # Access at http://localhost:4005
 ```
 
 **With LoadBalancer (cloud environments):**
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   --set service.type=LoadBalancer
 ```
 
 ```bash
-kubectl get svc postgresus-service -n postgresus
+kubectl get svc databasus-service -n databasus
 # Access at http://<EXTERNAL-IP>:4005
 ```
 
 **With Ingress (domain-based access):**
 
 ```bash
-helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \
-  -n postgresus --create-namespace \
+helm install databasus oci://ghcr.io/databasus/charts/databasus \
+  -n databasus --create-namespace \
   --set ingress.enabled=true \
   --set ingress.hosts[0].host=backup.example.com
 ```
@@ -222,14 +221,14 @@ For more options (NodePort, TLS, HTTPRoute for Gateway API), see the [Helm chart
 4. **Set database connection**: Enter your database credentials and connection details
 5. **Choose storage**: Select where to store your backups (local, S3, Google Drive, etc.)
 6. **Add notifications** (optional): Configure email, Telegram, Slack, or webhook notifications
-7. **Save and start**: Postgresus will validate settings and begin the backup schedule
+7. **Save and start**: Databasus will validate settings and begin the backup schedule
 
-### 🔑 Resetting password <a href="https://postgresus.com/password">(docs)</a>
+### 🔑 Resetting password <a href="https://databasus.com/password">(docs)</a>
 
 If you need to reset the password, you can use the built-in password reset command:
 
 ```bash
-docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"
+docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="admin"
 ```
 
 Replace `admin` with the actual email address of the user whose password you want to reset.
@@ -244,4 +243,38 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! Read the <a href="https://postgresus.com/contribute">contributing guide</a> for more details, priorities and rules. If you want to contribute but don't know where to start, message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+Contributions are welcome! Read the <a href="https://databasus.com/contribute">contributing guide</a> for more details, priorities and rules. If you want to contribute but don't know where to start, message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
+
+--
+
+## 📖 Migration guide
+
+Databasus is the new name for Postgresus. You can stay with latest version of Postgresus if you wish. If you want to migrate - follow installation steps for Databasus itself.
+
+Just renaming an image is not enough as Postgresus and Databasus use different data folders and internal database naming.
+
+You can put a new Databasus image with updated volume near the old Postgresus and run it (stop Postgresus before):
+
+```
+services:
+  databasus:
+    container_name: databasus
+    image: databasus/databasus:latest
+    ports:
+      - "4005:4005"
+    volumes:
+      - ./databasus-data:/databasus-data
+    restart: unless-stopped
+```
+
+Then manually move databases from Postgresus to Databasus.
+
+### Why was Postgresus renamed to Databasus?
+
+It was an important step for the project to grow. Actually, there are a couple of reasons:
+
+1. Postgresus is no longer a little tool that just adds UI for pg_dump for little projects. It became a tool both for individual users, DevOps, DBAs,teams, companies and even large enterprises. Tens of thousands of users use Postgresus every day. Postgresus grew into a reliable backup management tool. Initial positioning is no longer suitable: the project is not just a UI wrapper, it's a solid backup management system now (despite it's still easy to use).
+
+2. New databases are supported: although the primary focus is PostgreSQL (with 100% support in the most efficient way) and always will be, Databasus added support for MySQL, MariaDB and MongoDB. Later more databases will be supported.
+
+3. Trademark issue: "postgres" is a trademark of PostgreSQL Inc. and cannot be used in the project name. So for safety and legal reasons, we had to rename the project.

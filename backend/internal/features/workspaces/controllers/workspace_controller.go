@@ -3,11 +3,11 @@ package workspaces_controllers
 import (
 	"net/http"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	workspaces_dto "postgresus-backend/internal/features/workspaces/dto"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

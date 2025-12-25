@@ -21,6 +21,7 @@ backend/*.exe
 # Scripts and data directories
 scripts
 postgresus-data
+databasus-data
 
 # IDE and editor files
 .idea

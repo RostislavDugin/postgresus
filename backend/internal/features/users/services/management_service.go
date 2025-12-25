@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	user_interfaces "postgresus-backend/internal/features/users/interfaces"
-	user_models "postgresus-backend/internal/features/users/models"
-	user_repositories "postgresus-backend/internal/features/users/repositories"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_interfaces "databasus-backend/internal/features/users/interfaces"
+	user_models "databasus-backend/internal/features/users/models"
+	user_repositories "databasus-backend/internal/features/users/repositories"
 
 	"github.com/google/uuid"
 )

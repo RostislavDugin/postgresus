@@ -1,7 +1,7 @@
 package users_models
 
 import (
-	users_enums "postgresus-backend/internal/features/users/enums"
+	users_enums "databasus-backend/internal/features/users/enums"
 	"time"
 
 	"github.com/google/uuid"

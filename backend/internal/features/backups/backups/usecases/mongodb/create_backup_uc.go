@@ -14,16 +14,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"postgresus-backend/internal/config"
-	backup_encryption "postgresus-backend/internal/features/backups/backups/encryption"
-	usecases_common "postgresus-backend/internal/features/backups/backups/usecases/common"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	mongodbtypes "postgresus-backend/internal/features/databases/databases/mongodb"
-	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/config"
+	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
+	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	mongodbtypes "databasus-backend/internal/features/databases/databases/mongodb"
+	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 )
 
 const (

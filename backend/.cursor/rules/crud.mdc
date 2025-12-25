@@ -12,7 +12,7 @@ package audit_logs
 import (
 	"net/http"
 
-	user_models "postgresus/internal/features/users/models"
+	user_models "databasus-backend/internal/features/users/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -132,12 +132,12 @@ import (
 	"testing"
 	"time"
 
-	user_enums "postgresus/internal/features/users/enums"
-	users_middleware "postgresus/internal/features/users/middleware"
-	users_services "postgresus/internal/features/users/services"
-	users_testing "postgresus/internal/features/users/testing"
-	"postgresus/internal/storage"
-	test_utils "postgresus/internal/util/testing"
+	user_enums "databasus-backend/internal/features/users/enums"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
+	users_testing "databasus-backend/internal/features/users/testing"
+	"databasus-backend/internal/storage"
+	test_utils "databasus-backend/internal/util/testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -268,8 +268,8 @@ func createRouter() *gin.Engine {
 package audit_logs
 
 import (
-	users_services "postgresus/internal/features/users/services"
-	"postgresus/internal/util/logger"
+	users_services "databasus-backend/internal/features/users/services"
+	"databasus-backend/internal/util/logger"
 )
 
 var auditLogRepository = &AuditLogRepository{}
@@ -350,7 +350,7 @@ func (AuditLog) TableName() string {
 package audit_logs
 
 import (
-	"postgresus/internal/storage"
+	"databasus-backend/internal/storage"
 	"time"
 
 	"github.com/google/uuid"
@@ -453,8 +453,8 @@ import (
 	"log/slog"
 	"time"
 
-	user_enums "postgresus/internal/features/users/enums"
-	user_models "postgresus/internal/features/users/models"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_models "databasus-backend/internal/features/users/models"
 
 	"github.com/google/uuid"
 )
@@ -585,8 +585,8 @@ import (
 	"testing"
 	"time"
 
-	user_enums "postgresus/internal/features/users/enums"
-	users_testing "postgresus/internal/features/users/testing"
+	user_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

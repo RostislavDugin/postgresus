@@ -1,7 +1,7 @@
 package backups
 
 import (
-	"postgresus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/notifiers"
 
 	"github.com/stretchr/testify/mock"
 )

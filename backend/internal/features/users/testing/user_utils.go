@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	users_dto "postgresus-backend/internal/features/users/dto"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
-	users_services "postgresus-backend/internal/features/users/services"
+	users_dto "databasus-backend/internal/features/users/dto"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_models "databasus-backend/internal/features/users/models"
+	users_repositories "databasus-backend/internal/features/users/repositories"
+	users_services "databasus-backend/internal/features/users/services"
 
 	"github.com/google/uuid"
 )

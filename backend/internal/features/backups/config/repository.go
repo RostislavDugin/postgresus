@@ -1,8 +1,8 @@
 package backups_config
 
 import (
+	"databasus-backend/internal/storage"
 	"errors"
-	"postgresus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

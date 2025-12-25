@@ -224,7 +224,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
           <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
             Please{' '}
             <a
-              href="https://postgresus.com/faq/localhost"
+              href="https://databasus.com/faq/localhost"
               target="_blank"
               rel="noreferrer"
               className="!text-blue-600 dark:!text-blue-400"
@@ -242,7 +242,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
           <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
             Please{' '}
             <a
-              href="https://postgresus.com/faq/supabase"
+              href="https://databasus.com/faq/supabase"
               target="_blank"
               rel="noreferrer"
               className="!text-blue-600 dark:!text-blue-400"
@@ -467,7 +467,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
 
       {isConnectionFailed && (
         <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          If your database uses IP whitelist, make sure Postgresus server IP is added to the allowed
+          If your database uses IP whitelist, make sure Databasus server IP is added to the allowed
           list.
         </div>
       )}

@@ -3,12 +3,12 @@ package backups_config
 import (
 	"errors"
 
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/intervals"
-	"postgresus-backend/internal/features/storages"
-	users_models "postgresus-backend/internal/features/users/models"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	"postgresus-backend/internal/util/period"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/storages"
+	users_models "databasus-backend/internal/features/users/models"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/util/period"
 
 	"github.com/google/uuid"
 )

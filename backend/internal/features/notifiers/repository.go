@@ -1,7 +1,7 @@
 package notifiers
 
 import (
-	"postgresus-backend/internal/storage"
+	"databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	users_services "postgresus-backend/internal/features/users/services"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	test_utils "postgresus-backend/internal/util/testing"
+	user_enums "databasus-backend/internal/features/users/enums"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
+	users_testing "databasus-backend/internal/features/users/testing"
+	test_utils "databasus-backend/internal/util/testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

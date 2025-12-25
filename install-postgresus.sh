@@ -4,13 +4,13 @@ set -e  # Exit on any error
 
 # Check if script is run as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: This script must be run as root (sudo ./install-postgresus.sh)" >&2
+    echo "Error: This script must be run as root (sudo ./install-databasus.sh)" >&2
     exit 1
 fi
 
 # Set up logging
-LOG_FILE="/var/log/postgresus-install.log"
-INSTALL_DIR="/opt/postgresus"
+LOG_FILE="/var/log/databasus-install.log"
+INSTALL_DIR="/opt/databasus"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -18,7 +18,7 @@ log() {
 
 # Create log file if doesn't exist
 touch "$LOG_FILE"
-log "Starting PostgresUS installation..."
+log "Starting Databasus installation..."
 
 # Create installation directory
 log "Creating installation directory..."
@@ -112,29 +112,29 @@ fi
 log "Writing docker-compose.yml to $INSTALL_DIR"
 cat > "$INSTALL_DIR/docker-compose.yml" << 'EOF'
 services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
+  databasus:
+    container_name: databasus
+    image: databasus/databasus:latest
     ports:
       - "4005:4005"
     volumes:
-      - ./postgresus-data:/postgresus-data
+      - ./databasus-data:/databasus-data
     restart: unless-stopped
 EOF
 log "docker-compose.yml created successfully"
 
-# Start PostgresUS
-log "Starting PostgresUS..."
+# Start Databasus
+log "Starting Databasus..."
 cd "$INSTALL_DIR"
 if docker compose up -d; then
-    log "PostgresUS started successfully"
+    log "Databasus started successfully"
 else
-    log "ERROR: Failed to start PostgresUS!"
+    log "ERROR: Failed to start Databasus!"
     exit 1
 fi
 
-log "Postgresus installation completed successfully!"
+log "Databasus installation completed successfully!"
 log "-------------------------------------------"
 log "To launch:"
 log "> cd $INSTALL_DIR && docker compose up -d"
-log "Access Postgresus at: http://localhost:4005"
+log "Access Databasus at: http://localhost:4005"

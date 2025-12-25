@@ -1,10 +1,10 @@
 package backups_config
 
 import (
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/period"
 	"errors"
-	"postgresus-backend/internal/features/intervals"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/period"
 	"strings"
 
 	"github.com/google/uuid"

@@ -2,11 +2,11 @@ package postgresql
 
 import (
 	"context"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 	"errors"
 	"fmt"
 	"log/slog"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
 	"regexp"
 	"strings"
 	"time"
@@ -319,7 +319,7 @@ func (p *PostgresqlDatabase) IsUserReadOnly(
 // 5. Sets default privileges for future tables and sequences
 //
 // Security features:
-// - Username format: "postgresus-{8-char-uuid}" for uniqueness
+// - Username format: "databasus-{8-char-uuid}" for uniqueness
 // - Password: Full UUID (36 characters) for strong entropy
 // - Transaction safety: All operations rollback on any failure
 // - Retry logic: Up to 3 attempts if username collision occurs
@@ -365,7 +365,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 	maxRetries := 3
 	for attempt := range maxRetries {
 		// Generate base username for PostgreSQL user creation
-		baseUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+		baseUsername := fmt.Sprintf("databasus-%s", uuid.New().String()[:8])
 
 		// For Supabase session pooler, the username format for connection is "username.projectid"
 		// but the actual PostgreSQL user must be created with just the base name.

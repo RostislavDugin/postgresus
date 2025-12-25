@@ -9,14 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	test_utils "postgresus-backend/internal/util/testing"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/tools"
 )
 
 func createTestRouter() *gin.Engine {

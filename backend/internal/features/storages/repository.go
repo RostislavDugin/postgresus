@@ -1,7 +1,7 @@
 package storages
 
 import (
-	db "postgresus-backend/internal/storage"
+	db "databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

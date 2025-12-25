@@ -1,7 +1,7 @@
 package storages
 
 import (
-	local_storage "postgresus-backend/internal/features/storages/models/local"
+	local_storage "databasus-backend/internal/features/storages/models/local"
 
 	"github.com/google/uuid"
 )

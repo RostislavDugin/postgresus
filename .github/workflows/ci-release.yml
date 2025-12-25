@@ -151,17 +151,17 @@ jobs:
           cd backend
           cat > .env << EOF
           # docker-compose.yml
-          DEV_DB_NAME=postgresus
+          DEV_DB_NAME=databasus
           DEV_DB_USERNAME=postgres
           DEV_DB_PASSWORD=Q1234567
           #app
           ENV_MODE=development
           # db
-          DATABASE_DSN=host=localhost user=postgres password=Q1234567 dbname=postgresus port=5437 sslmode=disable
-          DATABASE_URL=postgres://postgres:Q1234567@localhost:5437/postgresus?sslmode=disable
+          DATABASE_DSN=host=localhost user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable
+          DATABASE_URL=postgres://postgres:Q1234567@localhost:5437/databasus?sslmode=disable
           # migrations
           GOOSE_DRIVER=postgres
-          GOOSE_DBSTRING=postgres://postgres:Q1234567@localhost:5437/postgresus?sslmode=disable
+          GOOSE_DBSTRING=postgres://postgres:Q1234567@localhost:5437/databasus?sslmode=disable
           GOOSE_MIGRATION_DIR=./migrations
           # testing
           # to get Google Drive env variables: add storage in UI and copy data from added storage here 
@@ -307,8 +307,8 @@ jobs:
         run: |
           # Create directories that are used for backups and restore
           # These paths match what's configured in config.go
-          mkdir -p postgresus-data/backups
-          mkdir -p postgresus-data/temp
+          mkdir -p databasus-data/backups
+          mkdir -p databasus-data/temp
 
       - name: Cache PostgreSQL client tools
         id: cache-postgres
@@ -539,8 +539,8 @@ jobs:
           build-args: |
             APP_VERSION=dev-${{ github.sha }}
           tags: |
-            rostislavdugin/postgresus:latest
-            rostislavdugin/postgresus:${{ github.sha }}
+            databasus/databasus:latest
+            databasus/databasus:${{ github.sha }}
 
   build-and-push:
     runs-on: ubuntu-latest
@@ -573,9 +573,9 @@ jobs:
           build-args: |
             APP_VERSION=${{ needs.determine-version.outputs.new_version }}
           tags: |
-            rostislavdugin/postgresus:latest
-            rostislavdugin/postgresus:v${{ needs.determine-version.outputs.new_version }}
-            rostislavdugin/postgresus:${{ github.sha }}
+            databasus/databasus:latest
+            databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
+            databasus/databasus:${{ github.sha }}
 
   release:
     runs-on: ubuntu-latest
@@ -662,7 +662,7 @@ jobs:
 
           # Add Docker image info
           CHANGELOG="${CHANGELOG}### 🐳 Docker\n"
-          CHANGELOG="${CHANGELOG}- **Image**: \`rostislavdugin/postgresus:v${NEW_VERSION}\`\n"
+          CHANGELOG="${CHANGELOG}- **Image**: \`databasus/databasus:v${NEW_VERSION}\`\n"
           CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64, linux/arm64\n\n"
 
           # Set output for GitHub release
@@ -726,4 +726,4 @@ jobs:
       - name: Push Helm chart to GHCR
         run: |
           VERSION="${{ needs.determine-version.outputs.new_version }}"
-          helm push postgresus-${VERSION}.tgz oci://ghcr.io/rostislavdugin/charts
+          helm push databasus-${VERSION}.tgz oci://ghcr.io/databasus/charts

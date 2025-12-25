@@ -1,12 +1,12 @@
 package healthcheck_attempt
 
 import (
+	"databasus-backend/internal/features/databases"
+	healthcheck_config "databasus-backend/internal/features/healthcheck/config"
+	"databasus-backend/internal/util/logger"
 	"errors"
 	"fmt"
 	"log/slog"
-	"postgresus-backend/internal/features/databases"
-	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
-	"postgresus-backend/internal/util/logger"
 	"time"
 
 	"github.com/google/uuid"
