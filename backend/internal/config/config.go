@@ -189,11 +189,10 @@ func loadEnvVariables() {
 	env.MongodbInstallDir = filepath.Join(backendRoot, "tools", "mongodb")
 	tools.VerifyMongodbInstallation(log, env.EnvMode, env.MongodbInstallDir)
 
-	// Store the data and temp folders one level below the root
-	// (projectRoot/postgresus-data -> /postgresus-data)
-	env.DataFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "backups")
-	env.TempFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "temp")
-	env.SecretKeyPath = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "secret.key")
+	dataRootFolder := detectDataFolder(filepath.Dir(backendRoot))
+	env.DataFolder = filepath.Join(dataRootFolder, "backups")
+	env.TempFolder = filepath.Join(dataRootFolder, "temp")
+	env.SecretKeyPath = filepath.Join(dataRootFolder, "secret.key")
 
 	if env.IsTesting {
 		if env.TestPostgres12Port == "" {
@@ -256,4 +255,13 @@ func loadEnvVariables() {
 	}
 
 	log.Info("Environment variables loaded successfully!")
+}
+
+func detectDataFolder(projectRoot string) string {
+	legacyFolder := filepath.Join(projectRoot, "postgresus-data")
+	if _, err := os.Stat(legacyFolder); err == nil {
+		return legacyFolder
+	}
+
+	return filepath.Join(projectRoot, "databasus-data")
 }
