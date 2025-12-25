@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Postgresus vs Barman - PostgreSQL Backup Tools Comparison",
+  title: "Databasus vs Barman - PostgreSQL Backup Tools Comparison",
   description:
-    "Compare Postgresus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
+    "Compare Databasus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
   keywords: [
-    "Postgresus vs Barman",
+    "Databasus vs Barman",
     "PostgreSQL backup comparison",
     "Barman alternative",
     "PostgreSQL backup tools",
@@ -21,25 +21,25 @@ export const metadata: Metadata = {
     "disaster recovery PostgreSQL",
   ],
   openGraph: {
-    title: "Postgresus vs Barman - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs Barman - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
+      "Compare Databasus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
     type: "article",
-    url: "https://postgresus.com/postgresus-vs-barman",
+    url: "https://databasus.com/databasus-vs-barman",
   },
   twitter: {
     card: "summary",
-    title: "Postgresus vs Barman - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs Barman - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
+      "Compare Databasus and Barman PostgreSQL backup tools. See differences in backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
   },
   alternates: {
-    canonical: "https://postgresus.com/postgresus-vs-barman",
+    canonical: "https://databasus.com/databasus-vs-barman",
   },
   robots: "index, follow",
 };
 
-export default function PostgresusVsBarmanPage() {
+export default function DatabasusVsBarmanPage() {
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -50,19 +50,19 @@ export default function PostgresusVsBarmanPage() {
             "@context": "https://schema.org",
             "@type": "TechArticle",
             headline:
-              "Postgresus vs Barman - PostgreSQL Backup Tools Comparison",
+              "Databasus vs Barman - PostgreSQL Backup Tools Comparison",
             description:
-              "A comprehensive comparison of Postgresus and Barman PostgreSQL backup tools, covering backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
+              "A comprehensive comparison of Databasus and Barman PostgreSQL backup tools, covering backup approach, PITR capabilities, ease of use, team features and when to choose each tool.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -79,11 +79,11 @@ export default function PostgresusVsBarmanPage() {
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
-              <h1 id="postgresus-vs-barman">Postgresus vs Barman</h1>
+              <h1 id="databasus-vs-barman">Databasus vs Barman</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus and Barman are both PostgreSQL backup tools, but they
-                take fundamentally different approaches. Postgresus provides an
+                Databasus and Barman are both PostgreSQL backup tools, but they
+                take fundamentally different approaches. Databasus provides an
                 intuitive web interface for logical backups with team
                 collaboration features, while Barman (Backup and Recovery
                 Manager) is a command-line tool focused on physical backups and
@@ -95,21 +95,21 @@ export default function PostgresusVsBarmanPage() {
 
               <p>
                 Here&apos;s a quick overview of the key differences between
-                Postgresus and Barman:
+                Databasus and Barman:
               </p>
 
               <table>
                 <thead>
                   <tr>
                     <th>Feature</th>
-                    <th>Postgresus</th>
+                    <th>Databasus</th>
                     <th>Barman</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>Target audience</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Individuals, teams, enterprises
                     </td>
                     <td data-label="Barman">
@@ -118,24 +118,24 @@ export default function PostgresusVsBarmanPage() {
                   </tr>
                   <tr>
                     <td>Support of other DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ PostgreSQL, MySQL, MariaDB, MongoDB
                     </td>
                     <td data-label="Barman">❌ PostgreSQL only</td>
                   </tr>
                   <tr>
                     <td>Interface</td>
-                    <td data-label="Postgresus">Web UI</td>
+                    <td data-label="Databasus">Web UI</td>
                     <td data-label="Barman">Command-line only</td>
                   </tr>
                   <tr>
                     <td>Backup type</td>
-                    <td data-label="Postgresus">Logical (pg_dump)</td>
+                    <td data-label="Databasus">Logical (pg_dump)</td>
                     <td data-label="Barman">Physical (file-level)</td>
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ❌ No PITR (restore to any hour or day)
                     </td>
                     <td data-label="Barman">
@@ -144,48 +144,53 @@ export default function PostgresusVsBarmanPage() {
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Full backups with compression
                     </td>
                     <td data-label="Barman">rsync-based incremental</td>
                   </tr>
                   <tr>
                     <td>Multi-server management</td>
-                    <td data-label="Postgresus">Per-database scheduling</td>
+                    <td data-label="Databasus">Per-database scheduling</td>
                     <td data-label="Barman">Centralized backup server</td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Workspaces, RBAC, audit logs
                     </td>
                     <td data-label="Barman">❌ OS-level permissions only</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Slack, Teams, Telegram, Email
                     </td>
                     <td data-label="Barman">❌ Requires custom scripting</td>
                   </tr>
                   <tr>
                     <td>Learning curve</td>
-                    <td data-label="Postgresus">Minimal</td>
+                    <td data-label="Databasus">Minimal</td>
                     <td data-label="Barman">DBA expertise required</td>
                   </tr>
                   <tr>
                     <td>Installation</td>
-                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="Databasus">One-line script or Docker</td>
                     <td data-label="Barman">Manual configuration required</td>
                   </tr>
                   <tr>
+                    <td>Backups management</td>
+                    <td data-label="Databasus">✅ Yes</td>
+                    <td data-label="Barman">❌ No</td>
+                  </tr>
+                  <tr>
                     <td>Suitable for self-hosted DBs</td>
-                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="Databasus">✅ Yes</td>
                     <td data-label="Barman">✅ Yes</td>
                   </tr>
                   <tr>
                     <td>Suitable for cloud DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Yes (RDS, Cloud SQL, Azure)
                     </td>
                     <td data-label="Barman">
@@ -202,10 +207,10 @@ export default function PostgresusVsBarmanPage() {
                 are designed for:
               </p>
 
-              <h3 id="audience-postgresus">Postgresus audience</h3>
+              <h3 id="audience-databasus">Databasus audience</h3>
 
               <p>
-                Postgresus is built for a broad audience, from individual
+                Databasus is built for a broad audience, from individual
                 developers to large enterprises:
               </p>
 
@@ -261,11 +266,11 @@ export default function PostgresusVsBarmanPage() {
                 with distinct advantages:
               </p>
 
-              <h3 id="backup-postgresus">Postgresus: Logical backups</h3>
+              <h3 id="backup-databasus">Databasus: Logical backups</h3>
 
               <p>
-                Postgresus uses <code>pg_dump</code> for logical backups,
-                creating SQL representations of your data:
+                Databasus uses <code>pg_dump</code> for logical backups,
+                creating SQL representations of your data (in parallel mode):
               </p>
 
               <ul>
@@ -320,7 +325,7 @@ export default function PostgresusVsBarmanPage() {
                 granularity:
               </p>
 
-              <h3 id="recovery-postgresus">Postgresus recovery</h3>
+              <h3 id="recovery-databasus">Databasus recovery</h3>
 
               <ul>
                 <li>
@@ -367,7 +372,7 @@ export default function PostgresusVsBarmanPage() {
                 <p className="text-gray-300 m-0">
                   <strong className="text-amber-400">Note:</strong> For most
                   applications, restoring to the nearest hour or day (as
-                  Postgresus provides) is sufficient. Second-precise PITR is
+                  Databasus provides) is sufficient. Second-precise PITR is
                   typically only required for mission-critical financial or
                   transactional systems where every transaction must be
                   recoverable.{" "}
@@ -375,7 +380,7 @@ export default function PostgresusVsBarmanPage() {
                     href="/faq#why-no-pitr"
                     className="text-blue-400 hover:text-blue-300"
                   >
-                    Learn why Postgresus doesn&apos;t support PITR →
+                    Learn why Databasus doesn&apos;t support PITR →
                   </Link>
                 </p>
               </div>
@@ -387,7 +392,7 @@ export default function PostgresusVsBarmanPage() {
                 experience:
               </p>
 
-              <h3 id="ease-postgresus">Postgresus user experience</h3>
+              <h3 id="ease-databasus">Databasus user experience</h3>
 
               <ul>
                 <li>
@@ -445,7 +450,7 @@ export default function PostgresusVsBarmanPage() {
                   href="/installation"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View Postgresus installation guide →
+                  View Databasus installation guide →
                 </Link>
               </p>
 
@@ -455,7 +460,7 @@ export default function PostgresusVsBarmanPage() {
                 For organizations with multiple team members managing backups:
               </p>
 
-              <h3 id="team-postgresus">Postgresus team capabilities</h3>
+              <h3 id="team-databasus">Databasus team capabilities</h3>
 
               <ul>
                 <li>
@@ -496,7 +501,7 @@ export default function PostgresusVsBarmanPage() {
                   href="/access-management"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus access management →
+                  Learn more about Databasus access management →
                 </Link>
               </p>
 
@@ -507,7 +512,7 @@ export default function PostgresusVsBarmanPage() {
                 approaches:
               </p>
 
-              <h3 id="security-postgresus">Postgresus security</h3>
+              <h3 id="security-databasus">Databasus security</h3>
 
               <ul>
                 <li>
@@ -554,7 +559,7 @@ export default function PostgresusVsBarmanPage() {
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus security →
+                  Learn more about Databasus security →
                 </Link>
               </p>
 
@@ -562,7 +567,7 @@ export default function PostgresusVsBarmanPage() {
 
               <p>The tools support different storage destinations:</p>
 
-              <h3 id="storage-postgresus">Postgresus storage</h3>
+              <h3 id="storage-databasus">Databasus storage</h3>
 
               <p>Consumer-friendly options for various use cases:</p>
 
@@ -593,7 +598,7 @@ export default function PostgresusVsBarmanPage() {
                   href="/storages"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus storage options →
+                  View all Databasus storage options →
                 </Link>
               </p>
 
@@ -601,7 +606,7 @@ export default function PostgresusVsBarmanPage() {
 
               <p>Staying informed about backup status:</p>
 
-              <h3 id="notifications-postgresus">Postgresus notifications</h3>
+              <h3 id="notifications-databasus">Databasus notifications</h3>
 
               <p>Built-in support for multiple notification channels:</p>
 
@@ -635,7 +640,7 @@ export default function PostgresusVsBarmanPage() {
                   href="/notifiers"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus notification channels →
+                  View all Databasus notification channels →
                 </Link>
               </p>
 
@@ -646,7 +651,7 @@ export default function PostgresusVsBarmanPage() {
                 but with different approaches:
               </p>
 
-              <h3 id="multi-postgresus">Postgresus approach</h3>
+              <h3 id="multi-databasus">Databasus approach</h3>
 
               <ul>
                 <li>
@@ -684,7 +689,7 @@ export default function PostgresusVsBarmanPage() {
               <h2 id="conclusion">Conclusion</h2>
 
               <p>
-                Postgresus and Barman serve different needs in the PostgreSQL
+                Databasus and Barman serve different needs in the PostgreSQL
                 backup ecosystem. The right choice depends on your recovery
                 requirements, team structure and technical expertise.
               </p>
@@ -692,7 +697,7 @@ export default function PostgresusVsBarmanPage() {
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
                   <strong className="text-blue-400">
-                    Choose Postgresus if:
+                    Choose Databasus if:
                   </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
@@ -758,13 +763,14 @@ export default function PostgresusVsBarmanPage() {
 
               <p>
                 For most use cases, from individual projects to enterprise
-                deployments, Postgresus provides the right balance of power and
+                deployments, Databasus provides the right balance of power and
                 usability — and works seamlessly with both self-hosted and
-                cloud-managed databases. Barman remains the specialized choice
-                for organizations with strict PITR requirements on self-hosted
-                infrastructure and dedicated DBA teams, or for teams building
-                database platforms that need to provide PITR capabilities to
-                their customers.
+                cloud-managed databases. Databasus is suitable for comprehensive
+                backup management, not just backups. Barman remains the
+                specialized choice for organizations with strict PITR
+                requirements on self-hosted infrastructure and dedicated DBA
+                teams, or for teams building database platforms that need to
+                provide PITR capabilities to their customers.
               </p>
             </article>
           </div>

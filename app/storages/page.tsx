@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Storages - Postgresus Documentation",
+  title: "Storages - Databasus Documentation",
   description:
-    "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
+    "List of supported storage destinations for Databasus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
   keywords: [
-    "Postgresus storages",
+    "Databasus storages",
     "backup storage",
     "S3 storage",
     "Google Drive backup",
@@ -23,20 +23,20 @@ export const metadata: Metadata = {
     "rclone backup",
   ],
   openGraph: {
-    title: "Storages - Postgresus Documentation",
+    title: "Storages - Databasus Documentation",
     description:
-      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
+      "List of supported storage destinations for Databasus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
     type: "article",
-    url: "https://postgresus.com/storages",
+    url: "https://databasus.com/storages",
   },
   twitter: {
     card: "summary",
-    title: "Storages - Postgresus Documentation",
+    title: "Storages - Databasus Documentation",
     description:
-      "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
+      "List of supported storage destinations for Databasus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
   },
   alternates: {
-    canonical: "https://postgresus.com/storages",
+    canonical: "https://databasus.com/storages",
   },
   robots: "index, follow",
 };
@@ -51,19 +51,19 @@ export default function StoragesPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Storages - Postgresus Documentation",
+            headline: "Storages - Databasus Documentation",
             description:
-              "List of supported storage destinations for Postgresus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
+              "List of supported storage destinations for Databasus backups including local storage, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone and Dropbox.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -83,7 +83,7 @@ export default function StoragesPage() {
               <h1 id="storages">Storages</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus supports multiple storage destinations for your
+                Databasus supports multiple storage destinations for your
                 PostgreSQL backups. Choose where to store your backup files
                 based on your infrastructure and requirements.
               </p>

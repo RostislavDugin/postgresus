@@ -5,11 +5,11 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 import { CopyButton } from "../components/CopyButton";
 
 export const metadata: Metadata = {
-  title: "Security - How Postgresus Protects Your Data | Postgresus",
+  title: "Security - How Databasus Protects Your Data | Databasus",
   description:
-    "Learn how Postgresus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
+    "Learn how Databasus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
   keywords: [
-    "Postgresus security",
+    "Databasus security",
     "PostgreSQL backup security",
     "AES-256-GCM encryption",
     "database encryption",
@@ -20,20 +20,20 @@ export const metadata: Metadata = {
     "secure backups",
   ],
   openGraph: {
-    title: "Security - How Postgresus Protects Your Data | Postgresus",
+    title: "Security - How Databasus Protects Your Data | Databasus",
     description:
-      "Learn how Postgresus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
+      "Learn how Databasus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
     type: "article",
-    url: "https://postgresus.com/security",
+    url: "https://databasus.com/security",
   },
   twitter: {
     card: "summary",
-    title: "Security - How Postgresus Protects Your Data | Postgresus",
+    title: "Security - How Databasus Protects Your Data | Databasus",
     description:
-      "Learn how Postgresus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
+      "Learn how Databasus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
   },
   alternates: {
-    canonical: "https://postgresus.com/security",
+    canonical: "https://databasus.com/security",
   },
   robots: "index, follow",
 };
@@ -50,19 +50,19 @@ export default function SecurityPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Security - How Postgresus Protects Your Data",
+            headline: "Security - How Databasus Protects Your Data",
             description:
-              "Learn how Postgresus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
+              "Learn how Databasus ensures enterprise-level security with AES-256-GCM encryption for sensitive data and backups, read-only database access, and comprehensive audit logging.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -79,10 +79,10 @@ export default function SecurityPage() {
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
-              <h1 id="security">How Postgresus enforces security?</h1>
+              <h1 id="security">How Databasus enforces security?</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus is responsible for sensitive data:
+                Databasus is responsible for sensitive data:
               </p>
 
               <ul>
@@ -100,7 +100,7 @@ export default function SecurityPage() {
               <p>
                 Therefore,{" "}
                 <strong>
-                  there is a main priority for Postgresus to be enterprise-level
+                  there is a main priority for Databasus to be enterprise-level
                   secure and reliable
                 </strong>
                 .
@@ -115,7 +115,7 @@ export default function SecurityPage() {
                   the cloud storage;
                 </li>
                 <li>
-                  Postgresus doesn&apos;t even receive access to DB with write
+                  Databasus doesn&apos;t even receive access to DB with write
                   or update access;
                 </li>
                 <li>all actions are logged and can be audited;</li>
@@ -128,7 +128,7 @@ export default function SecurityPage() {
                 corrupt your data.
               </p>
 
-              <p>Postgresus enforces security on three levels:</p>
+              <p>Databasus enforces security on three levels:</p>
 
               <ol>
                 <li>Sensitive data encryption;</li>
@@ -141,7 +141,7 @@ export default function SecurityPage() {
               </h2>
 
               <p>
-                Internally, Postgresus uses PostgreSQL DB to store connection
+                Internally, Databasus uses PostgreSQL DB to store connection
                 details, configs, settings of notifiers and storages (S3, Google
                 Drive, Dropbox, etc.).
               </p>
@@ -155,7 +155,7 @@ export default function SecurityPage() {
               </ul>
 
               <p>
-                So in DB Postgresus keeps only hashes or encoded values. For
+                So in DB Databasus keeps only hashes or encoded values. For
                 encryption is used <strong>AES-256-GCM</strong> algorithm. Also,
                 despite the encryption, those values are never exposed via API
                 or UI.
@@ -163,7 +163,7 @@ export default function SecurityPage() {
 
               <p>
                 The secret key used for encryption is stored on local storage (
-                <code>./postgresus-data/secret.key</code> by default) and is not
+                <code>./databasus-data/secret.key</code> by default) and is not
                 present in the DB itself. So DB compromise doesn&apos;t give
                 access to sensitive data.
               </p>
@@ -174,7 +174,7 @@ export default function SecurityPage() {
 
               <p>
                 Each backup file is encrypted on the fly during backup creation.
-                Postgresus uses <strong>AES-256-GCM</strong> encryption
+                Databasus uses <strong>AES-256-GCM</strong> encryption
                 algorithm, which ensures that backup data cannot be read without
                 the encryption key and any tampering is detected during
                 decryption.
@@ -198,7 +198,7 @@ export default function SecurityPage() {
               <ul>
                 <li>
                   Master key (stored in{" "}
-                  <code>./postgresus-data/secret.key</code>)
+                  <code>./databasus-data/secret.key</code>)
                 </li>
                 <li>Backup ID</li>
                 <li>Random salt (unique per backup)</li>
@@ -215,14 +215,14 @@ export default function SecurityPage() {
               </h2>
 
               <p>
-                Postgresus enforces the principle of least privilege - it only
+                Databasus enforces the principle of least privilege - it only
                 needs read access to create backups, never write access. This
                 protects your database from accidental or malicious data
                 corruption through the backup tool.
               </p>
 
               <p>
-                Before accepting database credentials, Postgresus performs
+                Before accepting database credentials, Databasus performs
                 checks across three levels:
               </p>
 
@@ -243,12 +243,12 @@ export default function SecurityPage() {
 
               <p>
                 The database user must pass all three checks to be considered
-                read-only. If any write privilege is detected, Postgresus will
+                read-only. If any write privilege is detected, Databasus will
                 warn you.
               </p>
 
               <p>
-                Postgresus suggests creating read-only users for you with proper
+                Databasus suggests creating read-only users for you with proper
                 permissions:
               </p>
 
@@ -259,7 +259,7 @@ export default function SecurityPage() {
               </ul>
 
               <p>
-                <strong>Result</strong>: Even if Postgresus is compromised,
+                <strong>Result</strong>: Even if Databasus is compromised,
                 server is hacked, secret key is stolen and credentials are
                 decrypted, attackers cannot corrupt your database.
               </p>

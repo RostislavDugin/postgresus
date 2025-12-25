@@ -9,21 +9,21 @@ export default function DocsNavbarComponent() {
         <Link href="/" className="flex items-center">
           <img
             src="/logo.svg"
-            alt="Postgresus logo"
+            alt="Databasus logo"
             className="shrink-0 sm:h-[35px] sm:w-[35px] md:h-[35px] md:w-[35px]"
             fetchPriority="high"
             loading="eager"
           />
 
           <div className="ml-4 select-none text-lg font-bold text-white sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
-            Postgresus
+            Databasus
           </div>
         </Link>
 
         <div className="ml-auto mr-4 hidden gap-3 sm:mr-6 md:mr-10 lg:flex lg:gap-5">
           <a
             className="text-gray-300 hover:text-white transition-colors"
-            href="https://t.me/postgresus_community"
+            href="https://t.me/databasus_community"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -32,7 +32,7 @@ export default function DocsNavbarComponent() {
         </div>
 
         <a
-          href="https://github.com/RostislavDugin/postgresus"
+          href="https://github.com/databasus/databasus"
           target="_blank"
           rel="noopener noreferrer"
           className="ml-auto lg:ml-0 flex items-center gap-2 hover:opacity-70 rounded-lg px-2 md:px-3 py-2 text-[14px] border border-[#ffffff20] bg-[#0C0E13] transition-opacity"

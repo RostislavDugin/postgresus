@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Notifiers - Postgresus Documentation",
+  title: "Notifiers - Databasus Documentation",
   description:
-    "List of supported notification channels for Postgresus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
+    "List of supported notification channels for Databasus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
   keywords: [
-    "Postgresus notifiers",
+    "Databasus notifiers",
     "backup notifications",
     "Slack notifications",
     "Discord alerts",
@@ -19,20 +19,20 @@ export const metadata: Metadata = {
     "Webhook notifications",
   ],
   openGraph: {
-    title: "Notifiers - Postgresus Documentation",
+    title: "Notifiers - Databasus Documentation",
     description:
-      "List of supported notification channels for Postgresus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
+      "List of supported notification channels for Databasus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
     type: "article",
-    url: "https://postgresus.com/notifiers",
+    url: "https://databasus.com/notifiers",
   },
   twitter: {
     card: "summary",
-    title: "Notifiers - Postgresus Documentation",
+    title: "Notifiers - Databasus Documentation",
     description:
-      "List of supported notification channels for Postgresus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
+      "List of supported notification channels for Databasus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
   },
   alternates: {
-    canonical: "https://postgresus.com/notifiers",
+    canonical: "https://databasus.com/notifiers",
   },
   robots: "index, follow",
 };
@@ -47,19 +47,19 @@ export default function NotifiersPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Notifiers - Postgresus Documentation",
+            headline: "Notifiers - Databasus Documentation",
             description:
-              "List of supported notification channels for Postgresus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
+              "List of supported notification channels for Databasus backup alerts including Slack, Discord, Telegram, Microsoft Teams, Email and Webhooks.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -79,7 +79,7 @@ export default function NotifiersPage() {
               <h1 id="notifiers">Notifiers</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus supports multiple notification channels to keep you
+                Databasus supports multiple notification channels to keep you
                 informed about your PostgreSQL backup status. Get instant alerts
                 when backups succeed, fail or encounter issues.
               </p>

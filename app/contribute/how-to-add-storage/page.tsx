@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "How to add new storage to Postgresus | Contribution Guide",
+  title: "How to add new storage to Databasus | Contribution Guide",
   description:
-    "Developer guide for contributing new storage integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
+    "Developer guide for contributing new storage integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
   keywords: [
-    "Postgresus contribution",
+    "Databasus contribution",
     "add storage",
     "developer guide",
     "storage integration",
@@ -19,20 +19,20 @@ export const metadata: Metadata = {
     "storage backend",
   ],
   openGraph: {
-    title: "How to add new storage to Postgresus | Contribution Guide",
+    title: "How to add new storage to Databasus | Contribution Guide",
     description:
-      "Developer guide for contributing new storage integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
+      "Developer guide for contributing new storage integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
     type: "article",
-    url: "https://postgresus.com/contribute/how-to-add-storage",
+    url: "https://databasus.com/contribute/how-to-add-storage",
   },
   twitter: {
     card: "summary",
-    title: "How to add new storage to Postgresus | Contribution Guide",
+    title: "How to add new storage to Databasus | Contribution Guide",
     description:
-      "Developer guide for contributing new storage integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
+      "Developer guide for contributing new storage integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components for storage providers.",
   },
   alternates: {
-    canonical: "https://postgresus.com/contribute/how-to-add-storage",
+    canonical: "https://databasus.com/contribute/how-to-add-storage",
   },
   robots: "index, follow",
 };
@@ -47,19 +47,19 @@ export default function HowToAddStoragePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "How to add new storage to Postgresus",
+            headline: "How to add new storage to Databasus",
             description:
-              "Developer guide for contributing new storage integrations to Postgresus",
+              "Developer guide for contributing new storage integrations to Databasus",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -77,12 +77,12 @@ export default function HowToAddStoragePage() {
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="how-to-add-storage">
-                How to add new storage to Postgresus
+                How to add new storage to Databasus
               </h1>
 
               <p className="text-lg text-gray-400">
                 This guide will walk you through the process of contributing a
-                new storage integration to Postgresus. You&apos;ll learn how to
+                new storage integration to Databasus. You&apos;ll learn how to
                 implement the backend logic, create database migrations and
                 build the frontend UI components for managing storage providers.
               </p>
@@ -91,7 +91,7 @@ export default function HowToAddStoragePage() {
                 <p className="text-sm text-gray-300 m-0">
                   <strong className="text-amber-400">💡 Note:</strong> This is a
                   contribution guide for developers who want to add new storage
-                  integrations to the Postgresus project. If you only want to
+                  integrations to the Databasus project. If you only want to
                   use existing storage providers, check out the{" "}
                   <a
                     href="/storages"
@@ -560,11 +560,11 @@ export default function HowToAddStoragePage() {
                 <li>
                   Fork the{" "}
                   <a
-                    href="https://github.com/RostislavDugin/postgresus"
+                    href="https://github.com/databasus/databasus"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Postgresus repository
+                    Databasus repository
                   </a>
                 </li>
                 <li>Create a feature branch with a descriptive name</li>
@@ -582,7 +582,7 @@ export default function HowToAddStoragePage() {
               <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
                 <p className="text-sm text-gray-300 m-0">
                   <strong className="text-green-400">🎉 Thank you!</strong> Your
-                  contributions help make Postgresus more versatile and valuable
+                  contributions help make Databasus more versatile and valuable
                   for the community. We appreciate your effort in expanding the
                   storage capabilities!
                 </p>

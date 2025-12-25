@@ -8,6 +8,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://postgresus.com/sitemap.xml",
+    sitemap: "https://databasus.com/sitemap.xml",
   };
 }

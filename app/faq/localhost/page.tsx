@@ -5,11 +5,11 @@ import DocTableOfContentComponent from "../../components/DocTableOfContentCompon
 import { CopyButton } from "../../components/CopyButton";
 
 export const metadata: Metadata = {
-  title: "How to backup localhost databases | Postgresus",
+  title: "How to backup localhost databases | Databasus",
   description:
-    "Learn how to backup PostgreSQL databases running on localhost using Postgresus. Configure Docker host network mode for local database backups.",
+    "Learn how to backup PostgreSQL databases running on localhost using Databasus. Configure Docker host network mode for local database backups.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "localhost backup",
     "local PostgreSQL backup",
     "backup local database",
@@ -19,40 +19,40 @@ export const metadata: Metadata = {
     "localhost database",
   ],
   openGraph: {
-    title: "How to backup localhost databases | Postgresus",
+    title: "How to backup localhost databases | Databasus",
     description:
-      "Learn how to backup PostgreSQL databases running on localhost using Postgresus. Configure Docker host network mode for local database backups.",
+      "Learn how to backup PostgreSQL databases running on localhost using Databasus. Configure Docker host network mode for local database backups.",
     type: "article",
-    url: "https://postgresus.com/faq/localhost",
+    url: "https://databasus.com/faq/localhost",
   },
   twitter: {
     card: "summary",
-    title: "How to backup localhost databases | Postgresus",
+    title: "How to backup localhost databases | Databasus",
     description:
-      "Learn how to backup PostgreSQL databases running on localhost using Postgresus. Configure Docker host network mode for local database backups.",
+      "Learn how to backup PostgreSQL databases running on localhost using Databasus. Configure Docker host network mode for local database backups.",
   },
   alternates: {
-    canonical: "https://postgresus.com/faq/localhost",
+    canonical: "https://databasus.com/faq/localhost",
   },
   robots: "index, follow",
 };
 
 export default function LocalhostPage() {
   const dockerComposeHost = `services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
+  databasus:
+    container_name: databasus
+    image: databasus/databasus:latest
     network_mode: host
     volumes:
-      - ./postgresus-data:/postgresus-data
+      - ./databasus-data:/databasus-data
     restart: unless-stopped`;
 
   const dockerRunHost = `docker run -d \\
-  --name postgresus \\
+  --name databasus \\
   --network host \\
-  -v ./postgresus-data:/postgresus-data \\
+  -v ./databasus-data:/databasus-data \\
   --restart unless-stopped \\
-  rostislavdugin/postgresus:latest`;
+  databasus/databasus:latest`;
 
   return (
     <>
@@ -63,9 +63,9 @@ export default function LocalhostPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to backup localhost databases with Postgresus",
+            name: "How to backup localhost databases with Databasus",
             description:
-              "Step-by-step guide to backup PostgreSQL databases running on localhost using Postgresus",
+              "Step-by-step guide to backup PostgreSQL databases running on localhost using Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -80,7 +80,7 @@ export default function LocalhostPage() {
               {
                 "@type": "HowToStep",
                 name: "Connect to localhost database",
-                text: "Use 127.0.0.1 or localhost as the database host in your Postgresus backup configuration.",
+                text: "Use 127.0.0.1 or localhost as the database host in your Databasus backup configuration.",
               },
             ],
           }),
@@ -100,14 +100,14 @@ export default function LocalhostPage() {
               <h1 id="localhost-backup">How to backup localhost databases</h1>
 
               <p className="text-lg text-gray-400">
-                Learn how to configure Postgresus to backup PostgreSQL databases
+                Learn how to configure Databasus to backup PostgreSQL databases
                 running on your host machine (localhost) when using Docker.
               </p>
 
               <h2 id="the-problem">The problem</h2>
 
               <p>
-                If you&apos;re running Postgresus in Docker and want to back up
+                If you&apos;re running Databasus in Docker and want to back up
                 databases running on your host machine (localhost), you need to
                 configure Docker to use <strong>host network mode</strong>.
               </p>
@@ -158,8 +158,8 @@ export default function LocalhostPage() {
                   <code className="bg-[#374151] text-gray-200">127.0.0.1</code>{" "}
                   or{" "}
                   <code className="bg-[#374151] text-gray-200">localhost</code>{" "}
-                  as the host in your Postgresus backup configuration.
-                  You&apos;ll also access the Postgresus UI directly at{" "}
+                  as the host in your Databasus backup configuration.
+                  You&apos;ll also access the Databasus UI directly at{" "}
                   <code className="bg-[#374151] text-gray-200">
                     http://localhost:4005
                   </code>{" "}

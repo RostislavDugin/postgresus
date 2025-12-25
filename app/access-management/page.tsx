@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Access Management - Postgresus Documentation",
+  title: "Access Management - Databasus Documentation",
   description:
-    "Learn how to manage access, roles, and permissions in Postgresus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
+    "Learn how to manage access, roles, and permissions in Databasus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
   keywords: [
-    "Postgresus access management",
+    "Databasus access management",
     "user roles",
     "workspace permissions",
     "audit logs",
@@ -18,20 +18,20 @@ export const metadata: Metadata = {
     "workspace management",
   ],
   openGraph: {
-    title: "Access Management - Postgresus Documentation",
+    title: "Access Management - Databasus Documentation",
     description:
-      "Learn how to manage access, roles, and permissions in Postgresus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
+      "Learn how to manage access, roles, and permissions in Databasus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
     type: "article",
-    url: "https://postgresus.com/access-management",
+    url: "https://databasus.com/access-management",
   },
   twitter: {
     card: "summary",
-    title: "Access Management - Postgresus Documentation",
+    title: "Access Management - Databasus Documentation",
     description:
-      "Learn how to manage access, roles, and permissions in Postgresus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
+      "Learn how to manage access, roles, and permissions in Databasus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
   },
   alternates: {
-    canonical: "https://postgresus.com/access-management",
+    canonical: "https://databasus.com/access-management",
   },
   robots: "index, follow",
 };
@@ -46,19 +46,19 @@ export default function AccessManagementPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Access Management - Postgresus Documentation",
+            headline: "Access Management - Databasus Documentation",
             description:
-              "Learn how to manage access, roles, and permissions in Postgresus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
+              "Learn how to manage access, roles, and permissions in Databasus. Control who can sign up, create workspaces, and manage databases with workspace-level and system-level roles.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -78,21 +78,21 @@ export default function AccessManagementPage() {
               <h1 id="settings">Settings</h1>
 
               <p>
-                Postgresus is suitable both for single users and teams. This
+                Databasus is suitable both for single users and teams. This
                 section is dedicated to the access management for teams.{" "}
                 <strong>
-                  So if you are the only user in your Postgresus instance
+                  So if you are the only user in your Databasus instance
                 </strong>
                 , you can skip this section.
               </p>
 
               <p>
-                Postgresus does not have a lot of settings. Actually, it only
+                Databasus does not have a lot of settings. Actually, it only
                 allows you to control:
               </p>
 
               <ul>
-                <li>Who can sign up in your Postgresus instance</li>
+                <li>Who can sign up in your Databasus instance</li>
                 <li>Who can create workspaces</li>
                 <li>
                   Who can manage databases, notifiers and storages within
@@ -137,7 +137,7 @@ export default function AccessManagementPage() {
               />
 
               <p>
-                If you allow users to sign up for your Postgresus and create
+                If you allow users to sign up for your Databasus and create
                 their own workspaces (see{" "}
                 <a href="#global-settings">global settings</a>), they will be
                 able to create their own workspaces.
@@ -189,7 +189,7 @@ export default function AccessManagementPage() {
               <h2 id="user-roles">User roles</h2>
 
               <p>
-                All users in Postgresus have roles <u>within the system</u>:
+                All users in Databasus have roles <u>within the system</u>:
               </p>
 
               <table>
@@ -216,7 +216,7 @@ export default function AccessManagementPage() {
 
               <p>
                 Usually, there is only one <code>admin</code> user in the system
-                which you create when you first launch Postgresus.
+                which you create when you first launch Databasus.
               </p>
 
               <p>
@@ -286,7 +286,7 @@ export default function AccessManagementPage() {
               <ol>
                 <li>
                   <strong>Allow external registrations</strong> - by default,
-                  all users can sign up for your Postgresus (but they still do
+                  all users can sign up for your Databasus (but they still do
                   not have access to any workspaces until they are invited or
                   create their own workspaces).
                   <br />
@@ -307,7 +307,7 @@ export default function AccessManagementPage() {
                   <br />
                   Imagine you already have some users and you know they are
                   reliable (for example, your team). You want to allow them to
-                  invite other users to join Postgresus. In this case, you can
+                  invite other users to join Databasus. In this case, you can
                   enable this option and they will be able to invite other users
                   to join workspaces via invitations.
                   <br />

@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "FAQ - Frequently Asked Questions | Postgresus",
+  title: "FAQ - Frequently Asked Questions | Databasus",
   description:
-    "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+    "Frequently asked questions about Databasus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
   keywords: [
-    "Postgresus FAQ",
+    "Databasus FAQ",
     "PostgreSQL backup questions",
     "localhost database backup",
     "backup formats",
@@ -18,20 +18,20 @@ export const metadata: Metadata = {
     "database backup guide",
   ],
   openGraph: {
-    title: "FAQ - Frequently Asked Questions | Postgresus",
+    title: "FAQ - Frequently Asked Questions | Databasus",
     description:
-      "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+      "Frequently asked questions about Databasus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
     type: "article",
-    url: "https://postgresus.com/faq",
+    url: "https://databasus.com/faq",
   },
   twitter: {
     card: "summary",
-    title: "FAQ - Frequently Asked Questions | Postgresus",
+    title: "FAQ - Frequently Asked Questions | Databasus",
     description:
-      "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+      "Frequently asked questions about Databasus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
   },
   alternates: {
-    canonical: "https://postgresus.com/faq",
+    canonical: "https://databasus.com/faq",
   },
   robots: "index, follow",
 };
@@ -49,26 +49,26 @@ export default function FAQPage() {
             mainEntity: [
               {
                 "@type": "Question",
-                name: "Why does Postgresus not use raw SQL dump format for PostgreSQL?",
+                name: "Why does Databasus not use raw SQL dump format for PostgreSQL?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus uses the directory format with zstd compression because it provides the most efficient backup and restore speed after extensive testing. The directory format with zstd compression level 5 offers the optimal balance between backup creation speed, restore speed and file size.",
+                  text: "Databasus uses the directory format with zstd compression because it provides the most efficient backup and restore speed after extensive testing. The directory format with zstd compression level 5 offers the optimal balance between backup creation speed, restore speed and file size.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Where is Postgresus installed?",
+                name: "Where is Databasus installed?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is installed in /opt/postgresus/",
+                  text: "Databasus is installed in /opt/databasus/",
                 },
               },
               {
                 "@type": "Question",
-                name: "Why doesn't Postgresus support PITR (Point-in-Time Recovery)?",
+                name: "Why doesn't Databasus support PITR (Point-in-Time Recovery)?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus intentionally focuses on logical backups rather than PITR for several practical reasons: PITR tools typically need to be installed on the same server as your database; incremental backups cannot be restored without direct access to the database storage drive; managed cloud databases don't allow restoring external PITR backups; cloud providers already offer native PITR capabilities; and for 99% of projects, hourly or daily logical backups provide adequate recovery points without the operational complexity of WAL archiving.",
+                  text: "Databasus intentionally focuses on logical backups rather than PITR for several practical reasons: PITR tools typically need to be installed on the same server as your database; incremental backups cannot be restored without direct access to the database storage drive; managed cloud databases don't allow restoring external PITR backups; cloud providers already offer native PITR capabilities; and for 99% of projects, hourly or daily logical backups provide adequate recovery points without the operational complexity of WAL archiving.",
                 },
               },
             ],
@@ -89,16 +89,16 @@ export default function FAQPage() {
               <h1 id="faq">Frequently Asked Questions</h1>
 
               <p className="text-lg text-gray-400">
-                Find answers to the most common questions about Postgresus,
+                Find answers to the most common questions about Databasus,
                 including installation, configuration and backup strategies.
               </p>
 
               <h2 id="why-no-raw-sql-dump">
-                Why does Postgresus not use raw SQL dump format for PostgreSQL?
+                Why does Databasus not use raw SQL dump format for PostgreSQL?
               </h2>
 
               <p>
-                Postgresus uses the <code>pg_dump</code>&apos;s{" "}
+                Databasus uses the <code>pg_dump</code>&apos;s{" "}
                 <strong>directory format</strong> with{" "}
                 <strong>zstd compression at level 5</strong> instead of the
                 plain SQL format because it provides the most efficient balance
@@ -129,7 +129,7 @@ export default function FAQPage() {
                 .
               </p>
 
-              <p>Postgresus will not include raw SQL dump format, because:</p>
+              <p>Databasus will not include raw SQL dump format, because:</p>
 
               <ul>
                 <li>extra variety is bad for UX;</li>
@@ -138,21 +138,21 @@ export default function FAQPage() {
               </ul>
 
               <h2 id="installation-directory">
-                Where is Postgresus installed if installed via .sh script?
+                Where is Databasus installed if installed via .sh script?
               </h2>
 
               <p>
-                Postgresus is installed in <code>/opt/postgresus/</code>{" "}
+                Databasus is installed in <code>/opt/databasus/</code>{" "}
                 directory.
               </p>
 
               <h2 id="why-no-pitr">
-                Why doesn&apos;t Postgresus support PITR (Point-in-Time
+                Why doesn&apos;t Databasus support PITR (Point-in-Time
                 Recovery)?
               </h2>
 
               <p>
-                Postgresus intentionally focuses on logical backups rather than
+                Databasus intentionally focuses on logical backups rather than
                 PITR for several practical reasons:
               </p>
 
@@ -188,7 +188,7 @@ export default function FAQPage() {
 
               <p>
                 So instead of second-by-second restoration complexity,
-                Postgresus prioritizes an intuitive UX for individuals and
+                Databasus prioritizes an intuitive UX for individuals and
                 teams, making it the most reliable tool for managing multiple
                 databases and day to day use.
               </p>

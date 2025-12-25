@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "How to configure Slack notifications for Postgresus | Postgresus",
+  title: "How to configure Slack notifications for Databasus | Databasus",
   description:
-    "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
+    "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Databasus. Learn how to create a Slack bot app and configure notifications.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "Slack notifications",
     "PostgreSQL backup",
     "Slack bot token",
@@ -17,20 +17,20 @@ export const metadata: Metadata = {
     "database notifications",
   ],
   openGraph: {
-    title: "How to configure Slack notifications for Postgresus | Postgresus",
+    title: "How to configure Slack notifications for Databasus | Databasus",
     description:
-      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
+      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Databasus. Learn how to create a Slack bot app and configure notifications.",
     type: "article",
-    url: "https://postgresus.com/notifiers/slack",
+    url: "https://databasus.com/notifiers/slack",
   },
   twitter: {
     card: "summary",
-    title: "How to configure Slack notifications for Postgresus | Postgresus",
+    title: "How to configure Slack notifications for Databasus | Databasus",
     description:
-      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus. Learn how to create a Slack bot app and configure notifications.",
+      "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Databasus. Learn how to create a Slack bot app and configure notifications.",
   },
   alternates: {
-    canonical: "https://postgresus.com/notifiers/slack",
+    canonical: "https://databasus.com/notifiers/slack",
   },
   robots: "index, follow",
 };
@@ -45,9 +45,9 @@ export default function SlackPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to configure Slack notifications for Postgresus",
+            name: "How to configure Slack notifications for Databasus",
             description:
-              "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Postgresus",
+              "Step-by-step guide to set up Slack notifications for PostgreSQL backup alerts with Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -86,8 +86,8 @@ export default function SlackPage() {
               },
               {
                 "@type": "HowToStep",
-                name: "Configure in Postgresus",
-                text: "In Postgresus, add the Bot Token and Channel ID to the Slack notifier configuration.",
+                name: "Configure in Databasus",
+                text: "In Databasus, add the Bot Token and Channel ID to the Slack notifier configuration.",
               },
               {
                 "@type": "HowToStep",
@@ -151,7 +151,7 @@ export default function SlackPage() {
               <h3 id="name-your-app">4. Name your app</h3>
 
               <p>
-                Enter a name for your app (e.g., &quot;Postgresus
+                Enter a name for your app (e.g., &quot;Databasus
                 Notifications&quot;) and select the workspace where you want to
                 install it. Click <strong>&quot;Create App&quot;</strong>.
               </p>
@@ -241,7 +241,7 @@ export default function SlackPage() {
                 After installation, you&apos;ll see the{" "}
                 <strong>&quot;Bot User OAuth Token&quot;</strong>. It starts
                 with <code>xoxb-</code>. Copy this token - you&apos;ll need it
-                for Postgresus configuration.
+                for Databasus configuration.
               </p>
 
               <h2 id="get-channel-id">Get Channel ID</h2>
@@ -286,7 +286,7 @@ export default function SlackPage() {
               <ol>
                 <li>
                   In the private channel, type{" "}
-                  <code>@Postgresus Notifications</code> (or whatever name you
+                  <code>@Databasus Notifications</code> (or whatever name you
                   gave your app)
                 </li>
                 <li>
@@ -303,12 +303,12 @@ export default function SlackPage() {
                 necessary.
               </p>
 
-              <h2 id="configure-postgresus">Configure in Postgresus</h2>
+              <h2 id="configure-databasus">Configure in Databasus</h2>
 
               <h3 id="add-slack-notifier">13. Add Slack notifier</h3>
 
               <p>
-                In Postgresus, navigate to the notifiers settings and add a new
+                In Databasus, navigate to the notifiers settings and add a new
                 Slack notifier:
               </p>
 
@@ -341,7 +341,7 @@ export default function SlackPage() {
 
               <p>
                 That&apos;s it! Your Slack workspace is now configured to
-                receive PostgreSQL backup notifications from Postgresus.
+                receive PostgreSQL backup notifications from Databasus.
               </p>
 
               {/* Navigation */}

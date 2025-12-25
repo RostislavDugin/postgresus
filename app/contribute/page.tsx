@@ -4,33 +4,33 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Contribute to Postgresus | Contribution Guide",
+  title: "Contribute to Databasus | Contribution Guide",
   description:
-    "Learn how to contribute to Postgresus through promotion, documentation, social sharing or code development. Add new storages, notifiers or fix bugs.",
+    "Learn how to contribute to Databasus through promotion, documentation, social sharing or code development. Add new storages, notifiers or fix bugs.",
   keywords: [
-    "Postgresus contribution",
+    "Databasus contribution",
     "open source contribution",
-    "contribute to Postgresus",
+    "contribute to Databasus",
     "add storage",
     "add notifier",
     "PostgreSQL backup contribution",
     "developer guide",
   ],
   openGraph: {
-    title: "Contribute to Postgresus | Contribution Guide",
+    title: "Contribute to Databasus | Contribution Guide",
     description:
-      "Learn how to contribute to Postgresus through promotion, documentation, social sharing or code development.",
+      "Learn how to contribute to Databasus through promotion, documentation, social sharing or code development.",
     type: "article",
-    url: "https://postgresus.com/contribute",
+    url: "https://databasus.com/contribute",
   },
   twitter: {
     card: "summary",
-    title: "Contribute to Postgresus | Contribution Guide",
+    title: "Contribute to Databasus | Contribution Guide",
     description:
-      "Learn how to contribute to Postgresus through promotion, documentation, social sharing or code development.",
+      "Learn how to contribute to Databasus through promotion, documentation, social sharing or code development.",
   },
   alternates: {
-    canonical: "https://postgresus.com/contribute",
+    canonical: "https://databasus.com/contribute",
   },
   robots: "index, follow",
 };
@@ -45,19 +45,19 @@ export default function ContributePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Contribute to Postgresus",
+            headline: "Contribute to Databasus",
             description:
-              "Learn how to contribute to Postgresus through promotion, documentation, social sharing or code development",
+              "Learn how to contribute to Databasus through promotion, documentation, social sharing or code development",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -77,7 +77,7 @@ export default function ContributePage() {
               <h1 id="contribute">Contribute</h1>
 
               <p className="text-lg text-gray-400">
-                Contribution to Postgresus is welcome! I would appreciate any
+                Contribution to Databasus is welcome! I would appreciate any
                 help with the project.
               </p>
 
@@ -95,15 +95,15 @@ export default function ContributePage() {
               </h3>
 
               <p>
-                The most of users of Postgresus are developers, DevOps engineers
+                The most of users of Databasus are developers, DevOps engineers
                 or DBAs. Meaning we are technical people. As well as I -
-                developer of Postgresus.
+                developer of Databasus.
               </p>
 
               <p>
                 I know how to develop and build IT projects. But I&apos;m not a
                 marketing expert. It&apos;s really hard for me to promote the
-                project and get more users. That is vital for Postgresus.
+                project and get more users. That is vital for Databasus.
               </p>
 
               <p>So I would appreciate any help with:</p>
@@ -113,7 +113,7 @@ export default function ContributePage() {
                   writing tutorials and guides to Medium, Dev.to, Hackernoon and
                   other platforms
                 </li>
-                <li>writing articles and blog posts about Postgresus</li>
+                <li>writing articles and blog posts about Databasus</li>
                 <li>creating videos and tutorials</li>
                 <li>
                   posting social media posts on LinkedIn, X, Telegram, etc.
@@ -126,7 +126,7 @@ export default function ContributePage() {
                   - it&apos;s already a big help!
                 </li>
                 <li>
-                  share answers to questions about Postgresus on Stack Overflow,
+                  share answers to questions about Databasus on Stack Overflow,
                   Reddit, etc.
                 </li>
               </ul>
@@ -134,7 +134,7 @@ export default function ContributePage() {
               <p>
                 Feel free to share your publications with our community in{" "}
                 <a
-                  href="https://t.me/postgresus_community"
+                  href="https://t.me/databasus_community"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -335,7 +335,7 @@ export default function ContributePage() {
                   with back compatibility
                 </li>
                 <li>Add SSH tunneling</li>
-                <li>Add HTTPS for Postgresus</li>
+                <li>Add HTTPS for Databasus</li>
                 <li>Add support of other languages</li>
               </ul>
             </article>

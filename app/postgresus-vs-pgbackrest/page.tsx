@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Postgresus vs pgBackRest - PostgreSQL Backup Tools Comparison",
+  title: "Databasus vs pgBackRest - PostgreSQL Backup Tools Comparison",
   description:
-    "Compare Postgresus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
+    "Compare Databasus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
   keywords: [
-    "Postgresus vs pgBackRest",
+    "Databasus vs pgBackRest",
     "PostgreSQL backup comparison",
     "pgBackRest alternative",
     "PostgreSQL backup tools",
@@ -21,25 +21,25 @@ export const metadata: Metadata = {
     "DBA backup tools",
   ],
   openGraph: {
-    title: "Postgresus vs pgBackRest - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs pgBackRest - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
+      "Compare Databasus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
     type: "article",
-    url: "https://postgresus.com/postgresus-vs-pgbackrest",
+    url: "https://databasus.com/databasus-vs-pgbackrest",
   },
   twitter: {
     card: "summary",
-    title: "Postgresus vs pgBackRest - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs pgBackRest - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
+      "Compare Databasus and pgBackRest PostgreSQL backup tools. See differences in backup approach, target audience, ease of use, recovery options and when to choose each tool.",
   },
   alternates: {
-    canonical: "https://postgresus.com/postgresus-vs-pgbackrest",
+    canonical: "https://databasus.com/databasus-vs-pgbackrest",
   },
   robots: "index, follow",
 };
 
-export default function PostgresusVsPgBackRestPage() {
+export default function DatabasusVsPgBackRestPage() {
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -50,19 +50,19 @@ export default function PostgresusVsPgBackRestPage() {
             "@context": "https://schema.org",
             "@type": "TechArticle",
             headline:
-              "Postgresus vs pgBackRest - PostgreSQL Backup Tools Comparison",
+              "Databasus vs pgBackRest - PostgreSQL Backup Tools Comparison",
             description:
-              "A comprehensive comparison of Postgresus and pgBackRest PostgreSQL backup tools, covering backup approach, target audience, ease of use, recovery options and when to choose each tool.",
+              "A comprehensive comparison of Databasus and pgBackRest PostgreSQL backup tools, covering backup approach, target audience, ease of use, recovery options and when to choose each tool.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -79,12 +79,12 @@ export default function PostgresusVsPgBackRestPage() {
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
-              <h1 id="postgresus-vs-pgbackrest">Postgresus vs pgBackRest</h1>
+              <h1 id="databasus-vs-pgbackrest">Databasus vs pgBackRest</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus and pgBackRest are both powerful PostgreSQL backup
+                Databasus and pgBackRest are both powerful PostgreSQL backup
                 tools, but they serve fundamentally different purposes and
-                audiences. While Postgresus provides an intuitive web interface
+                audiences. While Databasus provides an intuitive web interface
                 for individuals, teams and enterprises of all sizes, pgBackRest
                 is a specialized command-line tool designed primarily for DBAs
                 managing very large databases (500GB+).
@@ -94,21 +94,21 @@ export default function PostgresusVsPgBackRestPage() {
 
               <p>
                 Here&apos;s a quick overview of the key differences between
-                Postgresus and pgBackRest:
+                Databasus and pgBackRest:
               </p>
 
               <table>
                 <thead>
                   <tr>
                     <th>Feature</th>
-                    <th>Postgresus</th>
+                    <th>Databasus</th>
                     <th>pgBackRest</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>Target audience</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Individuals, teams, enterprises
                     </td>
                     <td data-label="pgBackRest">
@@ -117,29 +117,29 @@ export default function PostgresusVsPgBackRestPage() {
                   </tr>
                   <tr>
                     <td>Backups management</td>
-                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="Databasus">✅ Multiple DBs</td>
                     <td data-label="pgBackRest">❌ Single DB only</td>
                   </tr>
                   <tr>
                     <td>Support of other DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ PostgreSQL, MySQL, MariaDB, MongoDB
                     </td>
                     <td data-label="pgBackRest">❌ PostgreSQL only</td>
                   </tr>
                   <tr>
                     <td>Interface</td>
-                    <td data-label="Postgresus">Web UI</td>
+                    <td data-label="Databasus">Web UI</td>
                     <td data-label="pgBackRest">Command-line, config files</td>
                   </tr>
                   <tr>
                     <td>Backup type</td>
-                    <td data-label="Postgresus">Logical (full backup)</td>
+                    <td data-label="Databasus">Logical (full backup)</td>
                     <td data-label="pgBackRest">Physical (file-level)</td>
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ❌ No PITR (restore to any hour or day)
                     </td>
                     <td data-label="pgBackRest">
@@ -148,45 +148,45 @@ export default function PostgresusVsPgBackRestPage() {
                   </tr>
                   <tr>
                     <td>Parallel operations</td>
-                    <td data-label="Postgresus">✅ Parallel restores</td>
+                    <td data-label="Databasus">✅ Parallel restores</td>
                     <td data-label="pgBackRest">
                       ✅ Parallel backup & restore
                     </td>
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Full backups with compression
                     </td>
                     <td data-label="pgBackRest">Block-level incremental</td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Workspaces, RBAC, audit logs
                     </td>
                     <td data-label="pgBackRest">❌ Single user</td>
                   </tr>
                   <tr>
                     <td>Learning curve</td>
-                    <td data-label="Postgresus">Minimal</td>
+                    <td data-label="Databasus">Minimal</td>
                     <td data-label="pgBackRest">DBA expertise required</td>
                   </tr>
                   <tr>
                     <td>Installation</td>
-                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="Databasus">One-line script or Docker</td>
                     <td data-label="pgBackRest">
                       Manual configuration required
                     </td>
                   </tr>
                   <tr>
                     <td>Suitable for self-hosted DBs</td>
-                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="Databasus">✅ Yes</td>
                     <td data-label="pgBackRest">✅ Yes</td>
                   </tr>
                   <tr>
                     <td>Suitable for cloud DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Yes (RDS, Cloud SQL, Azure)
                     </td>
                     <td data-label="pgBackRest">
@@ -203,10 +203,10 @@ export default function PostgresusVsPgBackRestPage() {
                 are designed for:
               </p>
 
-              <h3 id="audience-postgresus">Postgresus audience</h3>
+              <h3 id="audience-databasus">Databasus audience</h3>
 
               <p>
-                Postgresus is built for a broad audience, from individual
+                Databasus is built for a broad audience, from individual
                 developers to large enterprises:
               </p>
 
@@ -259,11 +259,11 @@ export default function PostgresusVsPgBackRestPage() {
                 with distinct advantages:
               </p>
 
-              <h3 id="backup-postgresus">Postgresus: Logical backups</h3>
+              <h3 id="backup-databasus">Databasus: Logical backups</h3>
 
               <p>
-                Postgresus uses <code>pg_dump</code> for logical backups,
-                creating SQL representations of your data:
+                Databasus uses <code>pg_dump</code> for logical backups,
+                creating SQL representations of your data (in parallel mode):
               </p>
 
               <ul>
@@ -320,7 +320,7 @@ export default function PostgresusVsPgBackRestPage() {
                 granularity:
               </p>
 
-              <h3 id="recovery-postgresus">Postgresus recovery</h3>
+              <h3 id="recovery-databasus">Databasus recovery</h3>
 
               <ul>
                 <li>
@@ -367,7 +367,7 @@ export default function PostgresusVsPgBackRestPage() {
                 <p className="text-gray-300 m-0">
                   <strong className="text-amber-400">Note:</strong> For most
                   applications, restoring to the nearest hour or day (as
-                  Postgresus provides) is sufficient. Second-precise PITR is
+                  Databasus provides) is sufficient. Second-precise PITR is
                   typically only required for mission-critical financial or
                   transactional systems where every transaction must be
                   recoverable.{" "}
@@ -375,7 +375,7 @@ export default function PostgresusVsPgBackRestPage() {
                     href="/faq#why-no-pitr"
                     className="text-blue-400 hover:text-blue-300"
                   >
-                    Learn why Postgresus doesn&apos;t support PITR →
+                    Learn why Databasus doesn&apos;t support PITR →
                   </Link>
                 </p>
               </div>
@@ -387,7 +387,7 @@ export default function PostgresusVsPgBackRestPage() {
                 experience:
               </p>
 
-              <h3 id="ease-postgresus">Postgresus user experience</h3>
+              <h3 id="ease-databasus">Databasus user experience</h3>
 
               <ul>
                 <li>
@@ -444,7 +444,7 @@ export default function PostgresusVsPgBackRestPage() {
                   href="/installation"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View Postgresus installation guide →
+                  View Databasus installation guide →
                 </Link>
               </p>
 
@@ -454,7 +454,7 @@ export default function PostgresusVsPgBackRestPage() {
                 For organizations with multiple team members managing backups:
               </p>
 
-              <h3 id="team-postgresus">Postgresus team capabilities</h3>
+              <h3 id="team-databasus">Databasus team capabilities</h3>
 
               <ul>
                 <li>
@@ -499,7 +499,7 @@ export default function PostgresusVsPgBackRestPage() {
                   href="/access-management"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus access management →
+                  Learn more about Databasus access management →
                 </Link>
               </p>
 
@@ -507,7 +507,7 @@ export default function PostgresusVsPgBackRestPage() {
 
               <p>Both tools provide robust security features:</p>
 
-              <h3 id="security-postgresus">Postgresus security</h3>
+              <h3 id="security-databasus">Databasus security</h3>
 
               <ul>
                 <li>
@@ -549,18 +549,18 @@ export default function PostgresusVsPgBackRestPage() {
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus security →
+                  Learn more about Databasus security →
                 </Link>
               </p>
 
               <h2 id="storage-options">Storage options</h2>
 
               <p>
-                Both tools support multiple storage destinations, with
-                Postgresus offering more consumer-friendly options:
+                Both tools support multiple storage destinations, with Databasus
+                offering more consumer-friendly options:
               </p>
 
-              <h3 id="storage-postgresus">Postgresus storage</h3>
+              <h3 id="storage-databasus">Databasus storage</h3>
 
               <ul>
                 <li>Local storage</li>
@@ -589,7 +589,7 @@ export default function PostgresusVsPgBackRestPage() {
                   href="/storages"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus storage options →
+                  View all Databasus storage options →
                 </Link>
               </p>
 
@@ -597,7 +597,7 @@ export default function PostgresusVsPgBackRestPage() {
 
               <p>Staying informed about backup status:</p>
 
-              <h3 id="notifications-postgresus">Postgresus notifications</h3>
+              <h3 id="notifications-databasus">Databasus notifications</h3>
 
               <p>Built-in support for multiple notification channels:</p>
 
@@ -628,22 +628,22 @@ export default function PostgresusVsPgBackRestPage() {
                   href="/notifiers"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus notification channels →
+                  View all Databasus notification channels →
                 </Link>
               </p>
 
               <h2 id="conclusion">Conclusion</h2>
 
               <p>
-                Postgresus and pgBackRest serve different needs in the
-                PostgreSQL backup ecosystem. The right choice depends on your
-                database size, team structure and technical requirements.
+                Databasus and pgBackRest serve different needs in the PostgreSQL
+                backup ecosystem. The right choice depends on your database
+                size, team structure and technical requirements.
               </p>
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
                   <strong className="text-blue-400">
-                    Choose Postgresus if:
+                    Choose Databasus if:
                   </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
@@ -705,9 +705,10 @@ export default function PostgresusVsPgBackRestPage() {
 
               <p>
                 For most use cases, from individual projects to enterprise
-                deployments, Postgresus provides the right balance of power and
+                deployments, Databasus provides the right balance of power and
                 usability — and works seamlessly with both self-hosted and
-                cloud-managed databases.
+                cloud-managed databases. Databasus is suitable for comprehensive
+                backup management, not just backups.
                 <br />
                 <br />
                 pgBackRest remains the specialized choice for DBAs managing very

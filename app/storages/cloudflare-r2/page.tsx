@@ -5,11 +5,11 @@ import DocTableOfContentComponent from "../../components/DocTableOfContentCompon
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "How to use Postgresus with Cloudflare R2 | Postgresus",
+  title: "How to use Databasus with Cloudflare R2 | Databasus",
   description:
-    "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Postgresus. Learn how to set up S3-compatible storage with R2.",
+    "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Databasus. Learn how to set up S3-compatible storage with R2.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "Cloudflare R2",
     "PostgreSQL backup",
     "S3 storage",
@@ -17,20 +17,20 @@ export const metadata: Metadata = {
     "database backup",
   ],
   openGraph: {
-    title: "How to use Postgresus with Cloudflare R2 | Postgresus",
+    title: "How to use Databasus with Cloudflare R2 | Databasus",
     description:
-      "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Postgresus. Learn how to set up S3-compatible storage with R2.",
+      "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Databasus. Learn how to set up S3-compatible storage with R2.",
     type: "article",
-    url: "https://postgresus.com/storages/cloudflare-r2",
+    url: "https://databasus.com/storages/cloudflare-r2",
   },
   twitter: {
     card: "summary",
-    title: "How to use Postgresus with Cloudflare R2 | Postgresus",
+    title: "How to use Databasus with Cloudflare R2 | Databasus",
     description:
-      "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Postgresus. Learn how to set up S3-compatible storage with R2.",
+      "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Databasus. Learn how to set up S3-compatible storage with R2.",
   },
   alternates: {
-    canonical: "https://postgresus.com/storages/cloudflare-r2",
+    canonical: "https://databasus.com/storages/cloudflare-r2",
   },
   robots: "index, follow",
 };
@@ -45,9 +45,9 @@ export default function CloudflareR2Page() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to use Postgresus with Cloudflare R2",
+            name: "How to use Databasus with Cloudflare R2",
             description:
-              "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Postgresus",
+              "Step-by-step guide to configure Cloudflare R2 storage for PostgreSQL backups with Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -141,7 +141,7 @@ export default function CloudflareR2Page() {
                 </li>
               </ul>
 
-              <p>Copy both values to Postgresus:</p>
+              <p>Copy both values to Databasus:</p>
 
               <Image
                 src="/images/cloudflare-r2-storage/image-2.gif"
@@ -178,7 +178,7 @@ export default function CloudflareR2Page() {
 
               <p>
                 Replace <code>&lt;ACCOUNT_ID&gt;</code> with the value from your
-                dashboard and enter it in Postgresus.
+                dashboard and enter it in Databasus.
               </p>
 
               <p>
@@ -195,7 +195,7 @@ export default function CloudflareR2Page() {
               />
 
               <p>
-                Your Postgresus is now ready to use Cloudflare R2 as storage for
+                Your Databasus is now ready to use Cloudflare R2 as storage for
                 your PostgreSQL backups.
               </p>
 

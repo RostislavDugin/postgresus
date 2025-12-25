@@ -3,7 +3,7 @@ import { MetadataRoute } from "next";
 export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://postgresus.com";
+  const baseUrl = "https://databasus.com";
   const currentDate = new Date().toISOString();
 
   return [
@@ -116,25 +116,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/postgresus-vs-pgbackweb`,
+      url: `${baseUrl}/databasus-vs-pgbackweb`,
       lastModified: currentDate,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/postgresus-vs-pgbackrest`,
+      url: `${baseUrl}/databasus-vs-pgbackrest`,
       lastModified: currentDate,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/postgresus-vs-barman`,
+      url: `${baseUrl}/databasus-vs-barman`,
       lastModified: currentDate,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/postgresus-vs-wal-g`,
+      url: `${baseUrl}/databasus-vs-wal-g`,
       lastModified: currentDate,
       changeFrequency: "monthly",
       priority: 0.8,

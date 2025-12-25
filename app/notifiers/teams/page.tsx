@@ -6,11 +6,11 @@ import Image from "next/image";
 
 export const metadata: Metadata = {
   title:
-    "How to configure Microsoft Teams notifications for Postgresus | Postgresus",
+    "How to configure Microsoft Teams notifications for Databasus | Databasus",
   description:
-    "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Teams webhook and configure notifications.",
+    "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Databasus. Learn how to create Teams webhook and configure notifications.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "Microsoft Teams notifications",
     "PostgreSQL backup",
     "Teams webhook",
@@ -19,21 +19,21 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title:
-      "How to configure Microsoft Teams notifications for Postgresus | Postgresus",
+      "How to configure Microsoft Teams notifications for Databasus | Databasus",
     description:
-      "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Teams webhook and configure notifications.",
+      "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Databasus. Learn how to create Teams webhook and configure notifications.",
     type: "article",
-    url: "https://postgresus.com/notifiers/teams",
+    url: "https://databasus.com/notifiers/teams",
   },
   twitter: {
     card: "summary",
     title:
-      "How to configure Microsoft Teams notifications for Postgresus | Postgresus",
+      "How to configure Microsoft Teams notifications for Databasus | Databasus",
     description:
-      "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Postgresus. Learn how to create Teams webhook and configure notifications.",
+      "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Databasus. Learn how to create Teams webhook and configure notifications.",
   },
   alternates: {
-    canonical: "https://postgresus.com/notifiers/teams",
+    canonical: "https://databasus.com/notifiers/teams",
   },
   robots: "index, follow",
 };
@@ -48,9 +48,9 @@ export default function TeamsPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to configure Microsoft Teams notifications for Postgresus",
+            name: "How to configure Microsoft Teams notifications for Databasus",
             description:
-              "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Postgresus",
+              "Step-by-step guide to set up Microsoft Teams notifications for PostgreSQL backup alerts with Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -84,8 +84,8 @@ export default function TeamsPage() {
               },
               {
                 "@type": "HowToStep",
-                name: "Configure in Postgresus",
-                text: "Paste the webhook URL into Postgresus notifier configuration.",
+                name: "Configure in Databasus",
+                text: "Paste the webhook URL into Databasus notifier configuration.",
               },
             ],
           }),
@@ -191,7 +191,7 @@ export default function TeamsPage() {
 
               <p>
                 Set up the webhook by providing a name (e.g.,{" "}
-                <strong>&quot;Postgresus Backup Notifications&quot;</strong>)
+                <strong>&quot;Databasus Backup Notifications&quot;</strong>)
                 and confirm the channel where notifications will be posted.
               </p>
 
@@ -209,7 +209,7 @@ export default function TeamsPage() {
               <p>
                 After creating the workflow, you&apos;ll see the{" "}
                 <strong>HTTP POST URL</strong>. Copy this URL - you&apos;ll need
-                it for Postgresus configuration.
+                it for Databasus configuration.
               </p>
 
               <Image
@@ -221,19 +221,19 @@ export default function TeamsPage() {
                 loading="lazy"
               />
 
-              <h2 id="configure-postgresus">Configure in Postgresus</h2>
+              <h2 id="configure-databasus">Configure in Databasus</h2>
 
               <h3 id="add-teams-notifier">1. Add Teams notifier</h3>
 
               <p>
-                In Postgresus, navigate to the notifiers settings and add a new
+                In Databasus, navigate to the notifiers settings and add a new
                 Microsoft Teams notifier. Paste the webhook URL you copied from
                 Teams.
               </p>
 
               <Image
                 src="/images/notifier-teams/image-07.png"
-                alt="Configure Teams in Postgresus"
+                alt="Configure Teams in Databasus"
                 width={500}
                 height={400}
                 className="my-6 rounded-lg border border-gray-200"
@@ -250,7 +250,7 @@ export default function TeamsPage() {
 
               <p>
                 That&apos;s it! Your Microsoft Teams channel is now configured
-                to receive PostgreSQL backup notifications from Postgresus.
+                to receive PostgreSQL backup notifications from Databasus.
               </p>
 
               {/* Navigation */}

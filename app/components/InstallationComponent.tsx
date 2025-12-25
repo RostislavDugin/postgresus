@@ -34,17 +34,17 @@ const installationMethods: Record<InstallMethod, Installation> = {
     title: "Automated script (recommended)",
     language: "bash",
     description:
-      "The installation script will install Docker with Docker Compose (if not already installed), set up Postgresus and configure automatic startup on system reboot.",
+      "The installation script will install Docker with Docker Compose (if not already installed), set up Databasus and configure automatic startup on system reboot.",
     code: [
       {
         label: "with sudo",
         code: `sudo apt-get install -y curl && \\
-sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh | sudo bash`,
+sudo curl -sSL https://raw.githubusercontent.com/databasus/databasus/refs/heads/main/install-databasus.sh | sudo bash`,
       },
       {
         label: "without sudo",
         code: `apt-get install -y curl && \\
-curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads/main/install-postgresus.sh | bash`,
+curl -sSL https://raw.githubusercontent.com/databasus/databasus/refs/heads/main/install-databasus.sh | bash`,
       },
     ],
   },
@@ -53,13 +53,13 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     title: "Docker",
     language: "bash",
     description:
-      "The easiest way to run Postgresus. This single command will start Postgresus, store all data in ./postgresus-data directory and automatically restart on system reboot.",
+      "The easiest way to run Databasus. This single command will start Databasus, store all data in ./databasus-data directory and automatically restart on system reboot.",
     code: `docker run -d \\
-  --name postgresus \\
+  --name databasus \\
   -p 4005:4005 \\
-  -v ./postgresus-data:/postgresus-data \\
+  -v ./databasus-data:/databasus-data \\
   --restart unless-stopped \\
-  rostislavdugin/postgresus:latest`,
+  databasus/databasus:latest`,
   },
   "Docker Compose": {
     label: "Docker Compose",
@@ -68,13 +68,13 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     description:
       "Create a docker-compose.yml file with the following configuration, then run: docker compose up -d",
     code: `services:
-  postgresus:
-    container_name: postgresus
-    image: rostislavdugin/postgresus:latest
+  databasus:
+    container_name: databasus
+    image: databasus/databasus:latest
     ports:
       - "4005:4005"
     volumes:
-      - ./postgresus-data:/postgresus-data
+      - ./databasus-data:/databasus-data
     restart: unless-stopped`,
   },
   Helm: {
@@ -87,25 +87,25 @@ curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/heads
     codeBlocks: [
       {
         label: "With ClusterIP + port-forward (development)",
-        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
-  -n postgresus --create-namespace
+        code: `helm install databasus oci://ghcr.io/databasus/charts/databasus \\
+  -n databasus --create-namespace
 
-kubectl port-forward svc/postgresus-service 4005:4005 -n postgresus
+kubectl port-forward svc/databasus-service 4005:4005 -n databasus
 # Access at http://localhost:4005`,
       },
       {
         label: "With LoadBalancer (cloud environments)",
-        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
-  -n postgresus --create-namespace \\
+        code: `helm install databasus oci://ghcr.io/databasus/charts/databasus \\
+  -n databasus --create-namespace \\
   --set service.type=LoadBalancer
 
-kubectl get svc postgresus-service -n postgresus
+kubectl get svc databasus-service -n databasus
 # Access at http://<EXTERNAL-IP>:4005`,
       },
       {
         label: "With Ingress (domain-based access)",
-        code: `helm install postgresus oci://ghcr.io/rostislavdugin/charts/postgresus \\
-  -n postgresus --create-namespace \\
+        code: `helm install databasus oci://ghcr.io/databasus/charts/databasus \\
+  -n databasus --create-namespace \\
   --set ingress.enabled=true \\
   --set ingress.hosts[0].host=backup.example.com`,
       },
@@ -297,7 +297,7 @@ export default function InstallationComponent() {
           <div className="flex-1 relative rounded-lg overflow-hidden shadow-lg border border-[#ffffff20]">
             <LiteYouTubeEmbed
               videoId="KaNLPkuu03M"
-              title="How to install Postgresus"
+              title="How to install Databasus"
               thumbnailSrc="/images/index/how-to-install-preview.svg"
             />
           </div>

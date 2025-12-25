@@ -5,9 +5,9 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
+  title: "pg_dump Alternative - Databasus PostgreSQL Backup Tool",
   description:
-    "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+    "Databasus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
   keywords: [
     "pg_dump alternative",
     "pg_dump GUI",
@@ -21,20 +21,20 @@ export const metadata: Metadata = {
     "pg_dump wrapper",
   ],
   openGraph: {
-    title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
+    title: "pg_dump Alternative - Databasus PostgreSQL Backup Tool",
     description:
-      "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+      "Databasus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
     type: "article",
-    url: "https://postgresus.com/pgdump-alternative",
+    url: "https://databasus.com/pgdump-alternative",
   },
   twitter: {
     card: "summary",
-    title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
+    title: "pg_dump Alternative - Databasus PostgreSQL Backup Tool",
     description:
-      "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+      "Databasus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
   },
   alternates: {
-    canonical: "https://postgresus.com/pgdump-alternative",
+    canonical: "https://databasus.com/pgdump-alternative",
   },
   robots: "index, follow",
 };
@@ -49,19 +49,19 @@ export default function PgDumpAlternativePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
+            headline: "pg_dump Alternative - Databasus PostgreSQL Backup Tool",
             description:
-              "A comprehensive guide to Postgresus as a pg_dump alternative, explaining how it builds on pg_dump and extends its capabilities with automation, cloud storage, notificationsand team features.",
+              "A comprehensive guide to Databasus as a pg_dump alternative, explaining how it builds on pg_dump and extends its capabilities with automation, cloud storage, notificationsand team features.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -81,9 +81,9 @@ export default function PgDumpAlternativePage() {
               <h1 id="pgdump-alternative">pg_dump Alternative</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus is a PostgreSQL backup tool built on top of{" "}
+                Databasus is a PostgreSQL backup tool built on top of{" "}
                 <code>pg_dump</code>. Rather than replacing <code>pg_dump</code>
-                , Postgresus extends its capabilities with backups management, a
+                , Databasus extends its capabilities with backups management, a
                 web interface, automated scheduling, cloud storage integration,
                 notifications, team collaboration featuresand built-in
                 encryption.
@@ -92,7 +92,7 @@ export default function PgDumpAlternativePage() {
               <h2 id="quick-comparison">Quick comparison</h2>
 
               <p>
-                Here&apos;s an overview of how Postgresus extends the core{" "}
+                Here&apos;s an overview of how Databasus extends the core{" "}
                 <code>pg_dump</code> functionality:
               </p>
 
@@ -101,77 +101,77 @@ export default function PgDumpAlternativePage() {
                   <tr>
                     <th>Feature</th>
                     <th>pg_dump</th>
-                    <th>Postgresus</th>
+                    <th>Databasus</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>Backup engine</td>
                     <td data-label="pg_dump">pg_dump</td>
-                    <td data-label="Postgresus">Built on pg_dump</td>
+                    <td data-label="Databasus">Built on pg_dump</td>
                   </tr>
                   <tr>
                     <td>Backups management</td>
-                    <td data-label="pg_dump">❌ Single DB only</td>
-                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="pg_dump">❌ No</td>
+                    <td data-label="Databasus">✅ Yes</td>
                   </tr>
                   <tr>
                     <td>Support of other DBs</td>
                     <td data-label="pg_dump">PostgreSQL only</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       PostgreSQL, MySQL, MariaDB, MongoDB
                     </td>
                   </tr>
                   <tr>
                     <td>Interface</td>
                     <td data-label="pg_dump">Command-line</td>
-                    <td data-label="Postgresus">Web UI + API</td>
+                    <td data-label="Databasus">Web UI + API</td>
                   </tr>
                   <tr>
                     <td>Scheduling</td>
                     <td data-label="pg_dump">Manual or cron scripts</td>
-                    <td data-label="Postgresus">✅ Built-in scheduler</td>
+                    <td data-label="Databasus">✅ Built-in scheduler</td>
                   </tr>
                   <tr>
                     <td>Storage destinations</td>
                     <td data-label="pg_dump">Local filesystem</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Local, S3, Google Drive, R2, Azure, NAS, Dropbox
                     </td>
                   </tr>
                   <tr>
                     <td>Compression</td>
                     <td data-label="pg_dump">gzip, LZ4, zstd (manual)</td>
-                    <td data-label="Postgresus">zstd (automatic, optimized)</td>
+                    <td data-label="Databasus">zstd (automatic, optimized)</td>
                   </tr>
                   <tr>
                     <td>Encryption</td>
                     <td data-label="pg_dump">External tools required</td>
-                    <td data-label="Postgresus">✅ AES-256-GCM built-in</td>
+                    <td data-label="Databasus">✅ AES-256-GCM built-in</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
                     <td data-label="pg_dump">❌ None</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Slack, Teams, Telegram, Email, Webhooks
                     </td>
                   </tr>
                   <tr>
                     <td>Team features</td>
                     <td data-label="pg_dump">❌ None</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Workspaces, RBAC, audit logs
                     </td>
                   </tr>
                   <tr>
                     <td>Retention policies</td>
                     <td data-label="pg_dump">Manual cleanup scripts</td>
-                    <td data-label="Postgresus">✅ Automatic retention</td>
+                    <td data-label="Databasus">✅ Automatic retention</td>
                   </tr>
                   <tr>
                     <td>Health monitoring</td>
                     <td data-label="pg_dump">❌ None</td>
-                    <td data-label="Postgresus">✅ Built-in health checks</td>
+                    <td data-label="Databasus">✅ Built-in health checks</td>
                   </tr>
                 </tbody>
               </table>
@@ -245,12 +245,10 @@ export default function PgDumpAlternativePage() {
                 </li>
               </ul>
 
-              <h2 id="how-postgresus-extends">
-                How Postgresus extends pg_dump
-              </h2>
+              <h2 id="how-databasus-extends">How Databasus extends pg_dump</h2>
 
               <p>
-                Postgresus uses <code>pg_dump</code> as its backup engine,
+                Databasus uses <code>pg_dump</code> as its backup engine,
                 preserving all the benefits of logical backups while adding
                 enterprise features on top.
               </p>
@@ -258,7 +256,7 @@ export default function PgDumpAlternativePage() {
               <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
                 <p className="text-gray-300 m-0">
                   <strong className="text-amber-400">Under the hood:</strong>{" "}
-                  When you trigger a backup in Postgresus, it executes{" "}
+                  When you trigger a backup in Databasus, it executes{" "}
                   <code className="bg-[#374151] text-gray-200">pg_dump</code>{" "}
                   with optimized parameters, then handles compression,
                   encryptionand upload to your configured storage destination.
@@ -269,7 +267,7 @@ export default function PgDumpAlternativePage() {
 
               <p>
                 Instead of remembering <code>pg_dump</code> command-line
-                options, Postgresus provides a web UI where you can:
+                options, Databasus provides a web UI where you can:
               </p>
 
               <ul>
@@ -283,7 +281,7 @@ export default function PgDumpAlternativePage() {
               <h3 id="optimized-compression">Optimized compression</h3>
 
               <p>
-                Postgresus uses zstd compression (level 5) by default, which
+                Databasus uses zstd compression (level 5) by default, which
                 provides:
               </p>
 
@@ -350,9 +348,9 @@ fi`}</code>
                 database requires its own cron entry.
               </p>
 
-              <h3 id="automation-postgresus">Postgresus automation</h3>
+              <h3 id="automation-databasus">Databasus automation</h3>
 
-              <p>With Postgresus, the same functionality is built-in:</p>
+              <p>With Databasus, the same functionality is built-in:</p>
 
               <ul>
                 <li>
@@ -388,11 +386,10 @@ fi`}</code>
                 backups to cloud storage requires additional tools and scripts.
               </p>
 
-              <h3 id="storage-postgresus">Postgresus storage destinations</h3>
+              <h3 id="storage-databasus">Databasus storage destinations</h3>
 
               <p>
-                Postgresus supports multiple storage destinations out of the
-                box:
+                Databasus supports multiple storage destinations out of the box:
               </p>
 
               <ul>
@@ -438,9 +435,9 @@ fi`}</code>
                 <li>Set up custom alerting pipelines</li>
               </ul>
 
-              <h3 id="notifications-postgresus">Postgresus notifications</h3>
+              <h3 id="notifications-databasus">Databasus notifications</h3>
 
-              <p>Postgresus includes built-in notifications to:</p>
+              <p>Databasus includes built-in notifications to:</p>
 
               <ul>
                 <li>Slack</li>
@@ -469,10 +466,10 @@ fi`}</code>
 
               <p>
                 <code>pg_dump</code> is a single-user command-line tool.
-                Postgresus adds collaboration features for teams:
+                Databasus adds collaboration features for teams:
               </p>
 
-              <h3 id="team-postgresus">Postgresus team capabilities</h3>
+              <h3 id="team-databasus">Databasus team capabilities</h3>
 
               <ul>
                 <li>
@@ -507,7 +504,7 @@ fi`}</code>
               <h2 id="security">Security</h2>
 
               <p>
-                Security is where Postgresus adds significant value over raw{" "}
+                Security is where Databasus adds significant value over raw{" "}
                 <code>pg_dump</code> usage.
               </p>
 
@@ -525,9 +522,9 @@ fi`}</code>
                 <li>Setting up proper file permissions</li>
               </ul>
 
-              <h3 id="security-postgresus">Postgresus security</h3>
+              <h3 id="security-databasus">Databasus security</h3>
 
-              <p>Postgresus implements security at multiple levels:</p>
+              <p>Databasus implements security at multiple levels:</p>
 
               <ul>
                 <li>
@@ -552,7 +549,7 @@ fi`}</code>
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus security →
+                  Learn more about Databasus security →
                 </Link>
               </p>
 
@@ -579,9 +576,9 @@ fi`}</code>
                 </li>
               </ol>
 
-              <h3 id="restore-postgresus">Restoring Postgresus backups</h3>
+              <h3 id="restore-databasus">Restoring Databasus backups</h3>
 
-              <p>Postgresus simplifies restoration:</p>
+              <p>Databasus simplifies restoration:</p>
 
               <ul>
                 <li>
@@ -593,7 +590,7 @@ fi`}</code>
                   automatically when downloaded.
                 </li>
                 <li>
-                  <strong>Restore commands provided</strong>: Postgresus shows
+                  <strong>Restore commands provided</strong>: Databasus shows
                   the exact <code>pg_restore</code> command for each backup.
                 </li>
                 <li>
@@ -611,14 +608,14 @@ fi`}</code>
                 PostgreSQL installed, you have <code>pg_dump</code>.
               </p>
 
-              <h3 id="install-postgresus">Postgresus installation</h3>
+              <h3 id="install-databasus">Databasus installation</h3>
 
-              <p>Postgresus offers multiple installation methods:</p>
+              <p>Databasus offers multiple installation methods:</p>
 
               <ul>
                 <li>
                   <strong>One-line script</strong>: Installs Docker (if needed),
-                  sets up Postgresusand configures automatic startup.
+                  sets up Databasusand configures automatic startup.
                 </li>
                 <li>
                   <strong>Docker run</strong>: Single command to start with
@@ -643,9 +640,9 @@ fi`}</code>
 
               <p>
                 <code>pg_dump</code> is PostgreSQL&apos;s proven backup utility,
-                and Postgresus builds directly on top of it. The choice between
-                using <code>pg_dump</code> directly or through Postgresus
-                depends on your needs.
+                and Databasus builds directly on top of it. The choice between
+                using <code>pg_dump</code> directly or through Databasus depends
+                on your needs.
               </p>
 
               <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
@@ -669,7 +666,7 @@ fi`}</code>
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
-                  <strong className="text-blue-400">Use Postgresus if:</strong>
+                  <strong className="text-blue-400">Use Databasus if:</strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>
@@ -694,8 +691,8 @@ fi`}</code>
               </div>
 
               <p>
-                Postgresus doesn&apos;t replace <code>pg_dump</code> — it wraps
-                it with the features needed for production backup workflows.
+                Databasus doesn&apos;t replace <code>pg_dump</code> — it wraps
+                it with the features needed for production backup management.
                 You&apos;re still getting <code>pg_dump</code>&apos;s reliable,
                 portable logical backups, with automation, securityand team
                 features built on top.

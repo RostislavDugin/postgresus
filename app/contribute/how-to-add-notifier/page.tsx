@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "How to add new notifier to Postgresus | Contribution Guide",
+  title: "How to add new notifier to Databasus | Contribution Guide",
   description:
-    "Developer guide for contributing new notification integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components.",
+    "Developer guide for contributing new notification integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components.",
   keywords: [
-    "Postgresus contribution",
+    "Databasus contribution",
     "add notifier",
     "developer guide",
     "notification integration",
@@ -18,20 +18,20 @@ export const metadata: Metadata = {
     "React components",
   ],
   openGraph: {
-    title: "How to add new notifier to Postgresus | Contribution Guide",
+    title: "How to add new notifier to Databasus | Contribution Guide",
     description:
-      "Developer guide for contributing new notification integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components.",
+      "Developer guide for contributing new notification integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components.",
     type: "article",
-    url: "https://postgresus.com/contribute/how-to-add-notifier",
+    url: "https://databasus.com/contribute/how-to-add-notifier",
   },
   twitter: {
     card: "summary",
-    title: "How to add new notifier to Postgresus | Contribution Guide",
+    title: "How to add new notifier to Databasus | Contribution Guide",
     description:
-      "Developer guide for contributing new notification integrations to Postgresus. Learn how to implement backend models, create migrations and build frontend UI components.",
+      "Developer guide for contributing new notification integrations to Databasus. Learn how to implement backend models, create migrations and build frontend UI components.",
   },
   alternates: {
-    canonical: "https://postgresus.com/contribute/how-to-add-notifier",
+    canonical: "https://databasus.com/contribute/how-to-add-notifier",
   },
   robots: "index, follow",
 };
@@ -46,19 +46,19 @@ export default function HowToAddNotifierPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "How to add new notifier to Postgresus",
+            headline: "How to add new notifier to Databasus",
             description:
-              "Developer guide for contributing new notification integrations to Postgresus",
+              "Developer guide for contributing new notification integrations to Databasus",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -76,12 +76,12 @@ export default function HowToAddNotifierPage() {
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
               <h1 id="how-to-add-notifier">
-                How to add new notifier to Postgresus
+                How to add new notifier to Databasus
               </h1>
 
               <p className="text-lg text-gray-400">
                 This guide will walk you through the process of contributing a
-                new notification integration to Postgresus. You&apos;ll learn
+                new notification integration to Databasus. You&apos;ll learn
                 how to implement the backend logic, create database migrations
                 and build the frontend UI components.
               </p>
@@ -90,7 +90,7 @@ export default function HowToAddNotifierPage() {
                 <p className="text-sm text-gray-300 m-0">
                   <strong className="text-amber-400">💡 Note:</strong> This is a
                   contribution guide for developers who want to add new
-                  notification integrations to the Postgresus project. If you
+                  notification integrations to the Databasus project. If you
                   only want to use existing notifiers, check out the{" "}
                   <a
                     href="/notifiers"
@@ -452,11 +452,11 @@ export default function HowToAddNotifierPage() {
                 <li>
                   Fork the{" "}
                   <a
-                    href="https://github.com/RostislavDugin/postgresus"
+                    href="https://github.com/databasus/databasus"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Postgresus repository
+                    Databasus repository
                   </a>
                 </li>
                 <li>Create a feature branch with a descriptive name</li>
@@ -470,7 +470,7 @@ export default function HowToAddNotifierPage() {
               <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] p-4 my-6">
                 <p className="text-sm text-gray-300 m-0">
                   <strong className="text-green-400">🎉 Thank you!</strong> Your
-                  contributions help make Postgresus more versatile and valuable
+                  contributions help make Databasus more versatile and valuable
                   for the community. We appreciate your effort in expanding the
                   notification capabilities!
                 </p>

@@ -5,11 +5,11 @@ import DocTableOfContentComponent from "../../components/DocTableOfContentCompon
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "How to connect Google Drive to Postgresus | Postgresus",
+  title: "How to connect Google Drive to Databasus | Databasus",
   description:
-    "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Postgresus. Learn how to set up Google Cloud project and OAuth.",
+    "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Databasus. Learn how to set up Google Cloud project and OAuth.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "Google Drive",
     "PostgreSQL backup",
     "Google Cloud",
@@ -18,20 +18,20 @@ export const metadata: Metadata = {
     "database backup",
   ],
   openGraph: {
-    title: "How to connect Google Drive to Postgresus | Postgresus",
+    title: "How to connect Google Drive to Databasus | Databasus",
     description:
-      "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Postgresus. Learn how to set up Google Cloud project and OAuth.",
+      "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Databasus. Learn how to set up Google Cloud project and OAuth.",
     type: "article",
-    url: "https://postgresus.com/storages/google-drive",
+    url: "https://databasus.com/storages/google-drive",
   },
   twitter: {
     card: "summary",
-    title: "How to connect Google Drive to Postgresus | Postgresus",
+    title: "How to connect Google Drive to Databasus | Databasus",
     description:
-      "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Postgresus. Learn how to set up Google Cloud project and OAuth.",
+      "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Databasus. Learn how to set up Google Cloud project and OAuth.",
   },
   alternates: {
-    canonical: "https://postgresus.com/storages/google-drive",
+    canonical: "https://databasus.com/storages/google-drive",
   },
   robots: "index, follow",
 };
@@ -46,9 +46,9 @@ export default function GoogleDrivePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to connect Google Drive to Postgresus",
+            name: "How to connect Google Drive to Databasus",
             description:
-              "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Postgresus",
+              "Step-by-step guide to configure Google Drive storage for PostgreSQL backups with Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -195,11 +195,11 @@ export default function GoogleDrivePage() {
                 </li>
                 <li>
                   <strong>Authorized JavaScript origins:</strong>{" "}
-                  <code>https://postgresus.com</code>
+                  <code>https://databasus.com</code>
                 </li>
                 <li>
                   <strong>Authorized redirect URIs:</strong>{" "}
-                  <code>https://postgresus.com/storages/google-oauth</code>
+                  <code>https://databasus.com/storages/google-oauth</code>
                 </li>
               </ul>
 
@@ -258,7 +258,7 @@ export default function GoogleDrivePage() {
 
               <h3 id="fill-credentials">1. Fill credentials data</h3>
 
-              <p>Fill the credentials from the previous steps in Postgresus:</p>
+              <p>Fill the credentials from the previous steps in Databasus:</p>
 
               <Image
                 src="/images/google-drive-storage/image-8.png"
@@ -288,7 +288,7 @@ export default function GoogleDrivePage() {
               </p>
 
               <p>
-                That&apos;s it! Your Google Drive is now connected to Postgresus
+                That&apos;s it! Your Google Drive is now connected to Databasus
                 and ready to store your PostgreSQL backups.
               </p>
 

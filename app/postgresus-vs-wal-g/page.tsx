@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Postgresus vs WAL-G - PostgreSQL Backup Tools Comparison",
+  title: "Databasus vs WAL-G - PostgreSQL Backup Tools Comparison",
   description:
-    "Compare Postgresus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
+    "Compare Databasus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
   keywords: [
-    "Postgresus vs WAL-G",
+    "Databasus vs WAL-G",
     "PostgreSQL backup comparison",
     "WAL-G alternative",
     "PostgreSQL backup tools",
@@ -21,25 +21,25 @@ export const metadata: Metadata = {
     "multi-database backup",
   ],
   openGraph: {
-    title: "Postgresus vs WAL-G - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs WAL-G - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
+      "Compare Databasus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
     type: "article",
-    url: "https://postgresus.com/postgresus-vs-wal-g",
+    url: "https://databasus.com/databasus-vs-wal-g",
   },
   twitter: {
     card: "summary",
-    title: "Postgresus vs WAL-G - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs WAL-G - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
+      "Compare Databasus and WAL-G PostgreSQL backup tools. See differences in backup approach, multi-database support, ease of use, team features and when to choose each tool.",
   },
   alternates: {
-    canonical: "https://postgresus.com/postgresus-vs-wal-g",
+    canonical: "https://databasus.com/databasus-vs-wal-g",
   },
   robots: "index, follow",
 };
 
-export default function PostgresusVsWalGPage() {
+export default function DatabasusVsWalGPage() {
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -49,20 +49,19 @@ export default function PostgresusVsWalGPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline:
-              "Postgresus vs WAL-G - PostgreSQL Backup Tools Comparison",
+            headline: "Databasus vs WAL-G - PostgreSQL Backup Tools Comparison",
             description:
-              "A comprehensive comparison of Postgresus and WAL-G PostgreSQL backup tools, covering backup approach, multi-database support, ease of use, team features and when to choose each tool.",
+              "A comprehensive comparison of Databasus and WAL-G PostgreSQL backup tools, covering backup approach, multi-database support, ease of use, team features and when to choose each tool.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -79,72 +78,65 @@ export default function PostgresusVsWalGPage() {
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
-              <h1 id="postgresus-vs-wal-g">Postgresus vs WAL-G</h1>
+              <h1 id="databasus-vs-wal-g">Databasus vs WAL-G</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus and WAL-G are both capable backup tools that support
+                Databasus and WAL-G are both capable backup tools that support
                 PostgreSQL, but they take fundamentally different approaches.
-                Postgresus focuses on comprehensive backup management with an
+                Databasus focuses on comprehensive backup management with an
                 intuitive web interface, while WAL-G is a command-line tool that
                 supports multiple database systems including PostgreSQL, MySQL,
                 MS SQL, MongoDB and others. If you need a user-friendly solution
-                for managing backups across multiple databases, Postgresus
-                offers a more streamlined experience.
+                for managing backups across multiple databases, Databasus offers
+                a more streamlined experience.
               </p>
 
               <h2 id="quick-comparison">Quick comparison</h2>
 
               <p>
                 Here&apos;s a quick overview of the key differences between
-                Postgresus and WAL-G:
+                Databasus and WAL-G:
               </p>
 
               <table>
                 <thead>
                   <tr>
                     <th>Feature</th>
-                    <th>Postgresus</th>
+                    <th>Databasus</th>
                     <th>WAL-G</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Database focus</td>
-                    <td data-label="Postgresus">PostgreSQL only</td>
-                    <td data-label="WAL-G">
-                      Multi-database (PostgreSQL, MySQL, MS SQL, etc.)
-                    </td>
-                  </tr>
-                  <tr>
                     <td>Backups management</td>
-                    <td data-label="Postgresus">✅ Multiple DBs</td>
-                    <td data-label="WAL-G">❌ Single DB only</td>
+                    <td data-label="Databasus">✅ Yes (Multiple DBs)</td>
+                    <td data-label="WAL-G">❌ No (single DB only)</td>
                   </tr>
                   <tr>
                     <td>Support of other DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ PostgreSQL, MySQL, MariaDB, MongoDB
                     </td>
                     <td data-label="WAL-G">✅ PostgreSQL, MySQL, MS SQL</td>
                   </tr>
                   <tr>
                     <td>Interface</td>
-                    <td data-label="Postgresus">Web UI</td>
+                    <td data-label="Databasus">Web UI</td>
                     <td data-label="WAL-G">Command-line only</td>
                   </tr>
                   <tr>
                     <td>Backup type</td>
-                    <td data-label="Postgresus">Logical (pg_dump)</td>
+                    <td data-label="Databasus">Logical (pg_dump)</td>
                     <td data-label="WAL-G">Physical (WAL archiving)</td>
                   </tr>
                   <tr>
                     <td>Backup scheduling</td>
-                    <td data-label="Postgresus">✅ Built-in scheduler</td>
+                    <td data-label="Databasus">✅ Built-in scheduler</td>
                     <td data-label="WAL-G">Requires external (cron)</td>
                   </tr>
                   <tr>
                     <td>Recovery options</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ❌ No PITR (restore to any hour or day)
                     </td>
                     <td data-label="WAL-G">
@@ -153,7 +145,7 @@ export default function PostgresusVsWalGPage() {
                   </tr>
                   <tr>
                     <td>Incremental backups</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Full backups with compression
                     </td>
                     <td data-label="WAL-G">
@@ -162,41 +154,41 @@ export default function PostgresusVsWalGPage() {
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Workspaces, RBAC, audit logs
                     </td>
                     <td data-label="WAL-G">❌ OS-level permissions only</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Slack, Teams, Telegram, Email
                     </td>
                     <td data-label="WAL-G">❌ Requires custom scripting</td>
                   </tr>
                   <tr>
                     <td>Encryption</td>
-                    <td data-label="Postgresus">Built-in AES-256-GCM</td>
+                    <td data-label="Databasus">Built-in AES-256-GCM</td>
                     <td data-label="WAL-G">GPG or libsodium</td>
                   </tr>
                   <tr>
                     <td>Learning curve</td>
-                    <td data-label="Postgresus">Minimal</td>
+                    <td data-label="Databasus">Minimal</td>
                     <td data-label="WAL-G">CLI proficiency required</td>
                   </tr>
                   <tr>
                     <td>Installation</td>
-                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="Databasus">One-line script or Docker</td>
                     <td data-label="WAL-G">Binary download + configuration</td>
                   </tr>
                   <tr>
                     <td>Suitable for self-hosted DBs</td>
-                    <td data-label="Postgresus">✅ Yes</td>
+                    <td data-label="Databasus">✅ Yes</td>
                     <td data-label="WAL-G">✅ Yes</td>
                   </tr>
                   <tr>
                     <td>Suitable for cloud DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Yes (RDS, Cloud SQL, Azure)
                     </td>
                     <td data-label="WAL-G">
@@ -213,12 +205,12 @@ export default function PostgresusVsWalGPage() {
                 their database scope:
               </p>
 
-              <h3 id="focus-postgresus">
-                Postgresus: Comprehensive backup management
+              <h3 id="focus-databasus">
+                Databasus: Comprehensive backup management
               </h3>
 
               <p>
-                Postgresus is built for comprehensive backup management across
+                Databasus is built for comprehensive backup management across
                 multiple database systems with a focus on ease of use:
               </p>
 
@@ -278,7 +270,7 @@ export default function PostgresusVsWalGPage() {
                     When comprehensive management matters:
                   </strong>{" "}
                   If you need to manage backups for multiple databases with a
-                  unified interface, Postgresus offers a streamlined experience.
+                  unified interface, Databasus offers a streamlined experience.
                   You get centralized backup management without the complexity
                   of juggling different tools for different databases and with
                   team features.
@@ -292,10 +284,10 @@ export default function PostgresusVsWalGPage() {
                 philosophy:
               </p>
 
-              <h3 id="audience-postgresus">Postgresus audience</h3>
+              <h3 id="audience-databasus">Databasus audience</h3>
 
               <p>
-                Postgresus is built for a broad audience, from individual
+                Databasus is built for a broad audience, from individual
                 developers to large enterprises:
               </p>
 
@@ -357,10 +349,10 @@ export default function PostgresusVsWalGPage() {
                 with distinct advantages:
               </p>
 
-              <h3 id="backup-postgresus">Postgresus: Logical backups</h3>
+              <h3 id="backup-databasus">Databasus: Logical backups</h3>
 
               <p>
-                Postgresus uses <code>pg_dump</code> for logical backups,
+                Databasus uses <code>pg_dump</code> for logical backups,
                 creating SQL representations of your data:
               </p>
 
@@ -415,7 +407,7 @@ export default function PostgresusVsWalGPage() {
                 granularity:
               </p>
 
-              <h3 id="recovery-postgresus">Postgresus recovery</h3>
+              <h3 id="recovery-databasus">Databasus recovery</h3>
 
               <ul>
                 <li>
@@ -462,7 +454,7 @@ export default function PostgresusVsWalGPage() {
                 <p className="text-gray-300 m-0">
                   <strong className="text-amber-400">Note:</strong> For most
                   applications, restoring to the nearest hour or day (as
-                  Postgresus provides) is sufficient. Second-precise PITR is
+                  Databasus provides) is sufficient. Second-precise PITR is
                   typically only required for mission-critical financial or
                   transactional systems where every transaction must be
                   recoverable.{" "}
@@ -470,7 +462,7 @@ export default function PostgresusVsWalGPage() {
                     href="/faq#why-no-pitr"
                     className="text-blue-400 hover:text-blue-300"
                   >
-                    Learn why Postgresus doesn&apos;t support PITR →
+                    Learn why Databasus doesn&apos;t support PITR →
                   </Link>
                 </p>
               </div>
@@ -482,7 +474,7 @@ export default function PostgresusVsWalGPage() {
                 experience:
               </p>
 
-              <h3 id="ease-postgresus">Postgresus user experience</h3>
+              <h3 id="ease-databasus">Databasus user experience</h3>
 
               <ul>
                 <li>
@@ -543,7 +535,7 @@ export default function PostgresusVsWalGPage() {
                   href="/installation"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View Postgresus installation guide →
+                  View Databasus installation guide →
                 </Link>
               </p>
 
@@ -553,7 +545,7 @@ export default function PostgresusVsWalGPage() {
                 For organizations with multiple team members managing backups:
               </p>
 
-              <h3 id="team-postgresus">Postgresus team capabilities</h3>
+              <h3 id="team-databasus">Databasus team capabilities</h3>
 
               <ul>
                 <li>
@@ -597,7 +589,7 @@ export default function PostgresusVsWalGPage() {
                   href="/access-management"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus access management →
+                  Learn more about Databasus access management →
                 </Link>
               </p>
 
@@ -608,7 +600,7 @@ export default function PostgresusVsWalGPage() {
                 approaches:
               </p>
 
-              <h3 id="security-postgresus">Postgresus security</h3>
+              <h3 id="security-databasus">Databasus security</h3>
 
               <ul>
                 <li>
@@ -654,7 +646,7 @@ export default function PostgresusVsWalGPage() {
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus security →
+                  Learn more about Databasus security →
                 </Link>
               </p>
 
@@ -664,7 +656,7 @@ export default function PostgresusVsWalGPage() {
                 Both tools support cloud storage, with different focus areas:
               </p>
 
-              <h3 id="storage-postgresus">Postgresus storage</h3>
+              <h3 id="storage-databasus">Databasus storage</h3>
 
               <p>Consumer-friendly options for various use cases:</p>
 
@@ -696,7 +688,7 @@ export default function PostgresusVsWalGPage() {
                   href="/storages"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus storage options →
+                  View all Databasus storage options →
                 </Link>
               </p>
 
@@ -704,7 +696,7 @@ export default function PostgresusVsWalGPage() {
 
               <p>Staying informed about backup status:</p>
 
-              <h3 id="notifications-postgresus">Postgresus notifications</h3>
+              <h3 id="notifications-databasus">Databasus notifications</h3>
 
               <p>Built-in support for multiple notification channels:</p>
 
@@ -739,7 +731,7 @@ export default function PostgresusVsWalGPage() {
                   href="/notifiers"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus notification channels →
+                  View all Databasus notification channels →
                 </Link>
               </p>
 
@@ -747,7 +739,7 @@ export default function PostgresusVsWalGPage() {
 
               <p>Both tools offer compression to reduce backup sizes:</p>
 
-              <h3 id="compression-postgresus">Postgresus compression</h3>
+              <h3 id="compression-databasus">Databasus compression</h3>
 
               <ul>
                 <li>
@@ -784,7 +776,7 @@ export default function PostgresusVsWalGPage() {
               <h2 id="conclusion">Conclusion</h2>
 
               <p>
-                Postgresus and WAL-G serve different needs in the PostgreSQL
+                Databasus and WAL-G serve different needs in the PostgreSQL
                 backup ecosystem. The right choice depends on your database
                 environment, team structure and operational preferences.
               </p>
@@ -792,7 +784,7 @@ export default function PostgresusVsWalGPage() {
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
                   <strong className="text-blue-400">
-                    Choose Postgresus if:
+                    Choose Databasus if:
                   </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
@@ -861,11 +853,11 @@ export default function PostgresusVsWalGPage() {
               </div>
 
               <p>
-                For comprehensive backup management for PostgeSQL, Postgresus
-                offers a more streamlined experience with its unified interface
-                and built-in features — and works seamlessly with both
-                self-hosted and cloud-managed databases. Also it is suitable for
-                teams.
+                For comprehensive backup management, Databasus offers a more
+                streamlined experience with its unified interface and built-in
+                features — and works seamlessly with both self-hosted and
+                cloud-managed databases. Databasus is suitable for comprehensive
+                backup management, not just backups.
                 <br />
                 <br />
                 WAL-G remains an excellent choice for organizations with

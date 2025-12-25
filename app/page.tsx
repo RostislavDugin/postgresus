@@ -11,23 +11,23 @@ export const metadata: Metadata = {
     "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, encryption, AES-256, backup encryption",
   robots: "index, follow",
   alternates: {
-    canonical: "https://postgresus.com",
+    canonical: "https://databasus.com",
   },
   openGraph: {
     type: "website",
-    url: "https://postgresus.com",
+    url: "https://databasus.com",
     title: "PostgreSQL backup",
     description:
       "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
     images: [
       {
-        url: "https://postgresus.com/images/index/dashboard.png",
-        alt: "Postgresus dashboard interface showing backup management",
-        width: 1700,
-        height: 1078,
+        url: "https://databasus.com/images/index/dashboard.png",
+        alt: "Databasus dashboard interface showing backup management",
+        width: 980,
+        height: 573,
       },
     ],
-    siteName: "Postgresus",
+    siteName: "Databasus",
     locale: "en_US",
   },
   twitter: {
@@ -35,11 +35,11 @@ export const metadata: Metadata = {
     title: "PostgreSQL backup",
     description:
       "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
-    images: ["https://postgresus.com/images/index/dashboard.png"],
+    images: ["https://databasus.com/images/index/dashboard.png"],
   },
-  applicationName: "Postgresus",
+  applicationName: "Databasus",
   appleWebApp: {
-    title: "Postgresus",
+    title: "Databasus",
     capable: true,
   },
   icons: {
@@ -62,18 +62,18 @@ export default function Index() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "Postgresus",
+            name: "Databasus",
             description:
               "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
-            url: "https://postgresus.com",
-            image: "https://postgresus.com/images/index/dashboard.png",
-            logo: "https://postgresus.com/logo.svg",
+            url: "https://databasus.com",
+            image: "https://databasus.com/images/index/dashboard.png",
+            logo: "https://databasus.com/logo.svg",
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
             featureList: [
@@ -87,7 +87,7 @@ export default function Index() {
               "Backup compression and AES-256-GCM encryption",
               "Support for PostgreSQL, MySQL, MariaDB and MongoDB",
             ],
-            screenshot: "https://postgresus.com/images/index/dashboard.png",
+            screenshot: "https://databasus.com/images/index/dashboard.png",
             softwareVersion: "latest",
           }),
         }}
@@ -98,11 +98,11 @@ export default function Index() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Organization",
-            name: "Postgresus",
-            url: "https://postgresus.com/",
-            alternateName: ["postgresus", "Postgresus"],
-            logo: "https://postgresus.com/logo.svg",
-            sameAs: ["https://github.com/RostislavDugin/postgresus"],
+            name: "Databasus",
+            url: "https://databasus.com/",
+            alternateName: ["databasus", "Databasus"],
+            logo: "https://databasus.com/logo.svg",
+            sameAs: ["https://github.com/databasus/databasus"],
           }),
         }}
       />
@@ -112,11 +112,11 @@ export default function Index() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebSite",
-            name: "Postgresus",
-            alternateName: ["postgresus", "Postgresus"],
-            url: "https://postgresus.com/",
+            name: "Databasus",
+            alternateName: ["databasus", "Databasus"],
+            url: "https://databasus.com/",
             description: "PostgreSQL backup tool",
-            publisher: { "@type": "Organization", name: "Postgresus" },
+            publisher: { "@type": "Organization", name: "Databasus" },
           }),
         }}
       />
@@ -129,15 +129,15 @@ export default function Index() {
             mainEntity: [
               {
                 "@type": "Question",
-                name: "What is Postgresus and why should I use it instead of hand-rolled scripts?",
+                name: "What is Databasus and why should I use it instead of hand-rolled scripts?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
+                  text: "Databasus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v13 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code",
                 },
               },
               {
                 "@type": "Question",
-                name: "How do I install Postgresus in the quickest manner?",
+                name: "How do I install Databasus in the quickest manner?",
                 acceptedAnswer: {
                   "@type": "Answer",
                   text: "The most direct route is to run the one-line cURL installer. It fetches the current Docker image, spins up a single PostgreSQL container. Then creates a docker-compose.yml and boots up the service so it will automatically start again when reboots occur. Overall time is usually less than two minutes on a typical VPS.",
@@ -156,7 +156,7 @@ export default function Index() {
                 name: "Where do my backups live and how much space will they occupy?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings.",
+                  text: "Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Databasus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings.",
                 },
               },
               {
@@ -164,39 +164,39 @@ export default function Index() {
                 name: "How will I know a backup succeeded — or worse, failed?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus can notify with real-time emails, Slack, Telegram, webhooks, Mattermost, Discord and more. You have the choice of what channels to ping so that your DevOps team hears about successes and failures in real time, making recovery routines and compliance audits easier.",
+                  text: "Databasus can notify with real-time emails, Slack, Telegram, webhooks, Mattermost, Discord and more. You have the choice of what channels to ping so that your DevOps team hears about successes and failures in real time, making recovery routines and compliance audits easier.",
                 },
               },
               {
                 "@type": "Question",
-                name: "How does Postgresus ensure security?",
+                name: "How does Databasus ensure security?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised. All operations run in containers you control on servers you own, and because it's open source, your security team can audit every line of code before deployment.",
+                  text: "Databasus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Databasus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised. All operations run in containers you control on servers you own, and because it's open source, your security team can audit every line of code before deployment.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Who is Postgresus suitable for?",
+                name: "Who is Databasus suitable for?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface.",
+                  text: "Databasus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Databasus provides enterprise-grade backup capabilities with a simple, intuitive interface.",
                 },
               },
               {
                 "@type": "Question",
-                name: "How is Postgresus different from PgBackRest, Barman or pg_dump?",
+                name: "How is Databasus different from PgBackRest, Barman or pg_dump?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI.",
+                  text: "Databasus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Databasus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Which databases are supported by Postgresus?",
+                name: "Which databases are supported by Databasus?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. You can backup and restore all of them with the same tool.",
+                  text: "Databasus supports PostgreSQL, MySQL, MariaDB and MongoDB. You can backup and restore all of them with the same tool.",
                 },
               },
             ],
@@ -211,7 +211,7 @@ export default function Index() {
             <Link href="/" className="flex items-center gap-2.5">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
@@ -220,7 +220,7 @@ export default function Index() {
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -253,7 +253,7 @@ export default function Index() {
                 Contribute
               </a>
               <a
-                href="https://t.me/postgresus_community"
+                href="https://t.me/databasus_community"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="py-2 hover:text-gray-300 transition-colors"
@@ -264,7 +264,7 @@ export default function Index() {
 
             {/* GitHub Button */}
             <a
-              href="https://github.com/RostislavDugin/postgresus"
+              href="https://github.com/databasus/databasus"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:opacity-70 rounded-lg px-2 md:px-3 py-2 text-[14px] border border-[#ffffff20] bg-[#0C0E13] transition-colors"
@@ -311,7 +311,7 @@ export default function Index() {
           {/* Content */}
           <div className="text-center mb-8 md:mb-16">
             <div className="inline-flex items-center justify-center px-3 md:px-4 py-1 md:py-1.5 rounded-lg border border-[#ffffff20] mb-4 md:mb-6">
-              <span className="text-sm font-medium">Postgresus</span>
+              <span className="text-sm font-medium">Databasus</span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl sm:max-w-[300px] md:text-4xl leading-tight font-bold mb-4 md:mb-6 mx-auto md:max-w-[600px]">
@@ -319,7 +319,7 @@ export default function Index() {
             </h1>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[720px] mx-auto mb-6 md:mb-10 px-2">
-              Postgresus is a free, open source and self-hosted tool to backup
+              Databasus is a free, open source and self-hosted tool to backup
               PostgreSQL. Make backups with different storages (S3, Google
               Drive, FTP, etc.) and notifications about progress (Slack,
               Discord, Telegram, etc.). MySQL, MariaDB and MongoDB are supported
@@ -348,7 +348,7 @@ export default function Index() {
               </a>
 
               <a
-                href="https://github.com/RostislavDugin/postgresus"
+                href="https://github.com/databasus/databasus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium border border-[#ffffff20] bg-[#0C0E13] hover:opacity-70 transition-opacity"
@@ -386,7 +386,7 @@ export default function Index() {
             <div>
               <img
                 src="/images/index/dashboard.svg"
-                alt="Postgresus dashboard interface"
+                alt="Databasus dashboard interface"
                 width={980}
                 height={620}
                 className="w-full h-auto"
@@ -411,7 +411,7 @@ export default function Index() {
             </h2>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-8 md:mb-10">
-              Postgresus provides everything you need for reliable database
+              Databasus provides everything you need for reliable database
               backup management. From automated scheduling to backups
               encryption. Suitable well for both individual developers with
               personal projects, DevOps teams and enterprises
@@ -550,7 +550,7 @@ export default function Index() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base mb-4">
-                Postgresus runs on your PC or VPS. Therefore, all your data is
+                Databasus runs on your PC or VPS. Therefore, all your data is
                 owned by you and secured. Deploy takes about 2 minutes via
                 script, Docker or k8s
               </p>
@@ -770,9 +770,9 @@ export default function Index() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base">
-                  Postgresus works seamlessly with cloud-hosted databases
+                  Databasus works seamlessly with cloud-hosted databases
                   including AWS RDS, Google Cloud SQL, Azure Database. This is
-                  why Postgresus does not support incremental backups: clouds
+                  why Databasus does not support incremental backups: clouds
                   already have them, but usually you cannot restore external
                   PITR backup back to the cloud. Hourly and daily granularity
                   are enough for 99% of even large enterprise projects
@@ -794,7 +794,7 @@ export default function Index() {
               </div>
 
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 md:mb-6">
-                How to use Postgresus?
+                How to use Databasus?
               </h2>
 
               <p className="text-gray-200 max-w-[450px] leading-relaxed mb-6 md:mb-8 text-sm sm:text-base">
@@ -820,7 +820,7 @@ export default function Index() {
                     Rostislav Dugin
                   </p>
                   <p className="text-sm text-gray-400">
-                    Developer of Postgresus
+                    Developer of Databasus
                   </p>
                 </div>
               </a>
@@ -831,7 +831,7 @@ export default function Index() {
               <div className="rounded-lg overflow-hidden shadow-lg border border-[#ffffff20]">
                 <LiteYouTubeEmbed
                   videoId="1qsAnijJfJE"
-                  title="How to use Postgresus (overview)?"
+                  title="How to use Databasus (overview)?"
                   thumbnailSrc="/images/index/how-to-use-preview.svg"
                 />
               </div>
@@ -855,10 +855,9 @@ export default function Index() {
             </h2>
 
             <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
-              Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. You
-              can backup and restore all of them with the same tool. Primary
-              focus is on PostgreSQL, but MySQL, MariaDB and MongoDB are
-              supported too
+              Databasus supports PostgreSQL, MySQL, MariaDB and MongoDB. You can
+              backup and restore all of them with the same tool. Primary focus
+              is on PostgreSQL, but MySQL, MariaDB and MongoDB are supported too
             </p>
           </div>
 
@@ -882,7 +881,7 @@ export default function Index() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base text-center mb-4">
-                PostgreSQL is the primary database supported by Postgresus. All
+                PostgreSQL is the primary database supported by Databasus. All
                 versions from 12 to 18 are supported
               </p>
             </div>
@@ -1000,7 +999,7 @@ export default function Index() {
             </h2>
 
             <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
-              The main priority for Postgresus is simplicity, right now this is
+              The main priority for Databasus is simplicity, right now this is
               the easiest tool to backup PostgreSQL in the world. To make
               backups, you need to follow 4 steps. After that, you will be able
               to restore in one click
@@ -1063,7 +1062,7 @@ export default function Index() {
                     version and target DB. Also choose whether SSL is required
                   </p>
                   <p>
-                    Postgresus, by default, compress backups at balance level to
+                    Databasus, by default, compress backups at balance level to
                     not slow down backup process (~20% slower) and save x4-x8 of
                     the space (that decreasing network traffic)
                   </p>
@@ -1126,8 +1125,8 @@ export default function Index() {
 
                 <div className="space-y-3 max-w-[370px] text-gray-400 text-sm md:text-base">
                   <p>
-                    When backup succeed or failed, Postgresus is able to send
-                    you notification. It can be chat with DevOps, your emails or
+                    When backup succeed or failed, Databasus is able to send you
+                    notification. It can be chat with DevOps, your emails or
                     even webhook of your team
                   </p>
                   <p>
@@ -1187,7 +1186,7 @@ export default function Index() {
               </h2>
 
               <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
-                Postgresus support many ways of installation. Both local and
+                Databasus support many ways of installation. Both local and
                 cloud are supported. Both ways are extremely simple and easy to
                 use even for those who has no experience in administration or
                 DevOps
@@ -1212,7 +1211,7 @@ export default function Index() {
             </h2>
 
             <p className="text-base md:text-lg text-gray-200 max-w-[600px] mx-auto">
-              The goal of Postgresus — make backing up as simple as possible for
+              The goal of Databasus — make backing up as simple as possible for
               single developers (as well as DevOps) and teams. UI makes it easy
               to create backups and visualizes the progress and restores
               anything in couple of clicks
@@ -1224,13 +1223,13 @@ export default function Index() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <FaqItem
               number="1"
-              question="What is Postgresus and why should I use it instead of hand-rolled scripts?"
-              answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up databases. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
+              question="What is Databasus and why should I use it instead of hand-rolled scripts?"
+              answer="Databasus is an Apache 2.0 licensed, self-hosted service backing up databases. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
             />
             <FaqItem
               number="2"
-              question="How do I install Postgresus in the quickest manner?"
-              answer="Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. The quickest route is to run the one-line cURL installer, which fetches the current Docker image, creates a docker-compose.yml and boots up the service so it will automatically restart on reboots. For Kubernetes environments, use the official Helm chart for production-ready deployments. Overall time is usually less than two minutes on a typical VPS."
+              question="How do I install Databasus in the quickest manner?"
+              answer="Databasus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. The quickest route is to run the one-line cURL installer, which fetches the current Docker image, creates a docker-compose.yml and boots up the service so it will automatically restart on reboots. For Kubernetes environments, use the official Helm chart for production-ready deployments. Overall time is usually less than two minutes on a typical VPS."
             />
             <FaqItem
               number="3"
@@ -1239,15 +1238,15 @@ export default function Index() {
             />
             <FaqItem
               number="4"
-              question="How does Postgresus ensure security?"
-              answer="Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised."
+              question="How does Databasus ensure security?"
+              answer="Databasus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Databasus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised."
             />
             <FaqItem
               number="5"
-              question="How do I set up and run my first backup job in Postgresus?"
+              question="How do I set up and run my first backup job in Databasus?"
               answer={
                 <>
-                  To start your very first Postgresus backup, simply log in to
+                  To start your very first Databasus backup, simply log in to
                   the dashboard, click on New Backup, select an interval —
                   hourly, daily, weekly, monthly or cron. Then specify the exact
                   run time (e.g., 02:30 for off-peak hours).
@@ -1259,7 +1258,7 @@ export default function Index() {
                   Dropbox, etc.). <br />
                   <br />
                   If you need, add notification channels such as email, Slack,
-                  Telegram or a webhook and click Save. Postgresus instantly
+                  Telegram or a webhook and click Save. Databasus instantly
                   validates the info, starts the schedule, runs the initial job
                   and sends live status. So you may restore with one touch when
                   the backup is complete.
@@ -1269,24 +1268,24 @@ export default function Index() {
             <FaqItem
               number="6"
               question="How does PostgreSQL monitoring work?"
-              answer="Postgresus monitors your databases instantly. This optional feature helps avoid extra costs for edge DBs. Health checks are performed once a specific period (minute, 5 minutes, etc.). To enable the feature, choose your DB and select 'enable' monitoring. Then configure health checks period and number of failed attempts to consider the DB as unavailable."
+              answer="Databasus monitors your databases instantly. This optional feature helps avoid extra costs for edge DBs. Health checks are performed once a specific period (minute, 5 minutes, etc.). To enable the feature, choose your DB and select 'enable' monitoring. Then configure health checks period and number of failed attempts to consider the DB as unavailable."
             />
             <FaqItem
               number="7"
-              question="Who is Postgresus suitable for?"
-              answer="Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface."
+              question="Who is Databasus suitable for?"
+              answer="Databasus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Databasus provides enterprise-grade backup capabilities with a simple, intuitive interface."
             />
             <FaqItem
               number="8"
-              question="How is Postgresus different from PgBackRest, Barman or pg_dump? Where can I read comparisons?"
+              question="How is Databasus different from PgBackRest, Barman or pg_dump? Where can I read comparisons?"
               answer={
                 <>
-                  Unlike other tools, Postgresus provides a way to manage many
+                  Unlike other tools, Databasus provides a way to manage many
                   databases for teams in a modern, user-friendly web interface
                   (instead of complex configuration files and command-line
                   tools). While PgBackRest and Barman just backups single
                   database, require extensive configuration and command-line
-                  expertise — Postgresus offers way to setup full backup
+                  expertise — Databasus offers way to setup full backup
                   management for many databases. Unlike raw pg_dump scripts, it
                   includes built-in scheduling, compression, multiple storage
                   destinations, health monitoring and real-time notifications —
@@ -1298,35 +1297,35 @@ export default function Index() {
                     href="/pgdump-alternative"
                     className="text-blue-400 hover:text-blue-600"
                   >
-                    Postgresus vs pg_dump
+                    Databasus vs pg_dump
                   </a>
                   ,{" "}
                   <a
-                    href="/postgresus-vs-pgbackrest"
+                    href="/databasus-vs-pgbackrest"
                     className="text-blue-400 hover:text-blue-600"
                   >
-                    Postgresus vs pgBackRest
+                    Databasus vs pgBackRest
                   </a>
                   ,{" "}
                   <a
-                    href="/postgresus-vs-barman"
+                    href="/databasus-vs-barman"
                     className="text-blue-400 hover:text-blue-600"
                   >
-                    Postgresus vs Barman
+                    Databasus vs Barman
                   </a>
                   ,{" "}
                   <a
-                    href="/postgresus-vs-wal-g"
+                    href="/databasus-vs-wal-g"
                     className="text-blue-400 hover:text-blue-600"
                   >
-                    Postgresus vs WAL-G
+                    Databasus vs WAL-G
                   </a>{" "}
                   and{" "}
                   <a
-                    href="/postgresus-vs-pgbackweb"
+                    href="/databasus-vs-pgbackweb"
                     className="text-blue-400 hover:text-blue-600"
                   >
-                    Postgresus vs pgBackWeb
+                    Databasus vs pgBackWeb
                   </a>
                   . Each comparison explains the key differences, pros and cons,
                   and helps you choose the right tool for your needs.
@@ -1335,12 +1334,12 @@ export default function Index() {
             />
             <FaqItem
               number="9"
-              question="Can I use Postgresus as an individual and as a team?"
+              question="Can I use Databasus as an individual and as a team?"
               answer={
                 <>
-                  Yes, Postgresus works perfectly for both individual developers
+                  Yes, Databasus works perfectly for both individual developers
                   and teams. For individuals, you can manage all your databases
-                  with a simple, secure interface. For teams, Postgresus offers
+                  with a simple, secure interface. For teams, Databasus offers
                   access management features that let you create multiple users
                   with different permission levels (viewer, editor, admin).
                   <br />
@@ -1355,28 +1354,28 @@ export default function Index() {
             />
             <FaqItem
               number="10"
-              question="Is Postgresus an alternative to pg_dump?"
-              answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus extends pg_dump features, adds user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus optimizations and enterprise features without writing shell scripts."
+              question="Is Databasus an alternative to pg_dump?"
+              answer="Yes, Databasus is a modern alternative to pg_dump. Under the hood, Databasus extends pg_dump features, adds user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Databasus as pg_dump with superpowers — you get all the reliability of pg_dump plus optimizations and enterprise features without writing shell scripts."
             />
             <FaqItem
               number="11"
-              question="Which databases does Postgresus support?"
-              answer="Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Postgresus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development."
+              question="Which databases does Databasus support?"
+              answer="Databasus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Databasus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development."
             />
             <FaqItem
               number="12"
-              question="Why doesn't Postgresus support PITR (Point-in-Time Recovery)?"
+              question="Why doesn't Databasus support PITR (Point-in-Time Recovery)?"
               answer={
                 <>
-                  Postgresus intentionally focuses on logical backups rather
-                  than PITR for several practical reasons:
+                  Databasus intentionally focuses on logical backups rather than
+                  PITR for several practical reasons:
                   <ol className="list-decimal list-inside mt-3 space-y-2">
                     <li>
                       <strong>Complex setup requirements</strong> — PITR tools
                       typically need to be installed on the same server as your
                       database, requiring direct filesystem access and careful
                       configuration. You can backup only single database
-                      (Postgresus allows many)
+                      (Databasus allows many)
                     </li>
                     <li>
                       <strong>Restoration limitations</strong> — incremental
@@ -1403,9 +1402,49 @@ export default function Index() {
                   </ol>
                   <br />
                   So instead of second-by-second restoration complexity,
-                  Postgresus prioritizes an intuitive UX for individuals and
+                  Databasus prioritizes an intuitive UX for individuals and
                   teams, making it the most reliable tool for managing multiple
                   databases and day to day use
+                </>
+              }
+            />
+            <FaqItem
+              number="13"
+              question="Why was Postgresus renamed to Databasus?"
+              answer={
+                <>
+                  The renaming from Postgresus to Databasus was an important
+                  step for the project&apos;s growth. There are several reasons:
+                  <ol className="list-decimal list-inside mt-3 space-y-2">
+                    <li>
+                      <strong>Project evolution</strong> — Postgresus is no
+                      longer a small tool that just adds UI for pg_dump. It
+                      became a reliable backup management system for individual
+                      users, DevOps, DBAs, teams and enterprises. Tens of
+                      thousands of users use it daily. The initial positioning
+                      is no longer suitable — it&apos;s not just a UI wrapper,
+                      it&apos;s a solid backup management system now
+                    </li>
+                    <li>
+                      <strong>Multiple databases support</strong> — while the
+                      primary focus remains PostgreSQL (with 100% support in the
+                      most efficient way), the project now supports MySQL,
+                      MariaDB and MongoDB. More databases will be supported in
+                      the future
+                    </li>
+                    <li>
+                      <strong>Trademark compliance</strong> —
+                      &quot;postgres&quot; is a trademark of PostgreSQL Inc. and
+                      cannot be used in project names. For legal safety and
+                      compliance, renaming was necessary
+                    </li>
+                  </ol>
+                  <br />
+                  If you&apos;re currently using Postgresus, you can continue
+                  using it or migrate to Databasus following the installation
+                  steps. Note that simply renaming the image isn&apos;t enough,
+                  as they use different data folders and internal database
+                  naming.
                 </>
               }
             />
@@ -1420,14 +1459,14 @@ export default function Index() {
             <Link href="/" className="flex items-center gap-2.5 mb-6">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -1460,7 +1499,7 @@ export default function Index() {
                   Documentation
                 </a>
                 <a
-                  href="https://github.com/RostislavDugin/postgresus"
+                  href="https://github.com/databasus/databasus"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1468,7 +1507,7 @@ export default function Index() {
                   GitHub
                 </a>
                 <a
-                  href="https://t.me/postgresus_community"
+                  href="https://t.me/databasus_community"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1487,14 +1526,14 @@ export default function Index() {
             </div>
 
             <a
-              href="mailto:info@postgresus.com"
+              href="mailto:info@databasus.com"
               className="hover:text-gray-200 transition-colors text-sm md:text-base mb-4"
             >
-              info@postgresus.com
+              info@databasus.com
             </a>
 
             <p className="text-gray-400 text-sm md:text-base text-center">
-              © 2025 Postgresus. All rights reserved.
+              © 2025 Databasus. All rights reserved.
             </p>
           </div>
         </div>

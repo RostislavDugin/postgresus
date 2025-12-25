@@ -5,11 +5,11 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Postgresus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
+  title: "Databasus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
   description:
-    "Compare Postgresus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
+    "Compare Databasus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
   keywords: [
-    "Postgresus vs PgBackWeb",
+    "Databasus vs PgBackWeb",
     "PostgreSQL backup comparison",
     "PgBackWeb alternative",
     "PostgreSQL backup tools",
@@ -19,25 +19,25 @@ export const metadata: Metadata = {
     "PostgreSQL backup security",
   ],
   openGraph: {
-    title: "Postgresus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
+      "Compare Databasus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
     type: "article",
-    url: "https://postgresus.com/postgresus-vs-pgbackweb",
+    url: "https://databasus.com/databasus-vs-pgbackweb",
   },
   twitter: {
     card: "summary",
-    title: "Postgresus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
+    title: "Databasus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
     description:
-      "Compare Postgresus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
+      "Compare Databasus and PgBackWeb PostgreSQL backup tools. See differences in features, security, team support, storage options, notifications and ease of use.",
   },
   alternates: {
-    canonical: "https://postgresus.com/postgresus-vs-pgbackweb",
+    canonical: "https://databasus.com/databasus-vs-pgbackweb",
   },
   robots: "index, follow",
 };
 
-export default function PostgresusVsPgBackWebPage() {
+export default function DatabasusVsPgBackWebPage() {
   return (
     <>
       {/* JSON-LD Structured Data */}
@@ -48,19 +48,19 @@ export default function PostgresusVsPgBackWebPage() {
             "@context": "https://schema.org",
             "@type": "TechArticle",
             headline:
-              "Postgresus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
+              "Databasus vs PgBackWeb - PostgreSQL Backup Tools Comparison",
             description:
-              "A comprehensive comparison of Postgresus and PgBackWeb PostgreSQL backup tools, covering features, security, team support, storage options and ease of use.",
+              "A comprehensive comparison of Databasus and PgBackWeb PostgreSQL backup tools, covering features, security, team support, storage options and ease of use.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -77,10 +77,10 @@ export default function PostgresusVsPgBackWebPage() {
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
           <div className="mx-auto max-w-4xl">
             <article className="prose prose-blue max-w-none">
-              <h1 id="postgresus-vs-pgbackweb">Postgresus vs PgBackWeb</h1>
+              <h1 id="databasus-vs-pgbackweb">Databasus vs PgBackWeb</h1>
 
               <p className="text-lg text-gray-400">
-                Both Postgresus and PgBackWeb are open-source tools designed to
+                Both Databasus and PgBackWeb are open-source tools designed to
                 simplify PostgreSQL backup management through web interfaces.
                 While they share the common goal of making backups more
                 accessible, they differ significantly in features, security,
@@ -91,38 +91,38 @@ export default function PostgresusVsPgBackWebPage() {
 
               <p>
                 Here&apos;s a quick overview of the key differences between
-                Postgresus and PgBackWeb:
+                Databasus and PgBackWeb:
               </p>
 
               <table>
                 <thead>
                   <tr>
                     <th>Feature</th>
-                    <th>Postgresus</th>
+                    <th>Databasus</th>
                     <th>PgBackWeb</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>License</td>
-                    <td data-label="Postgresus">Apache 2.0</td>
+                    <td data-label="Databasus">Apache 2.0</td>
                     <td data-label="PgBackWeb">AGPL-3.0</td>
                   </tr>
                   <tr>
                     <td>Backups management</td>
-                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="Databasus">✅ Multiple DBs</td>
                     <td data-label="PgBackWeb">✅ Multiple DBs</td>
                   </tr>
                   <tr>
                     <td>Support of other DBs</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ PostgreSQL, MySQL, MariaDB, MongoDB
                     </td>
                     <td data-label="PgBackWeb">❌ PostgreSQL only</td>
                   </tr>
                   <tr>
                     <td>Storage options</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Local, S3, Google Drive, Cloudflare R2, Azure, NAS,
                       Dropbox
                     </td>
@@ -130,33 +130,33 @@ export default function PostgresusVsPgBackWebPage() {
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       Slack, Discord, Telegram, Teams, Email, Webhooks
                     </td>
                     <td data-label="PgBackWeb">Webhooks only</td>
                   </tr>
                   <tr>
                     <td>Security</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ AES-256-GCM, unique backup keys, read-only enforcement
                     </td>
                     <td data-label="PgBackWeb">✅ PGP encryption</td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       ✅ Workspaces, role-based access, audit logs
                     </td>
                     <td data-label="PgBackWeb">❌ Not available</td>
                   </tr>
                   <tr>
                     <td>Health monitoring</td>
-                    <td data-label="Postgresus">✅ Built-in</td>
+                    <td data-label="Databasus">✅ Built-in</td>
                     <td data-label="PgBackWeb">❌ Not available</td>
                   </tr>
                   <tr>
                     <td>Installation</td>
-                    <td data-label="Postgresus">
+                    <td data-label="Databasus">
                       One-line script, Docker or Helm
                     </td>
                     <td data-label="PgBackWeb">Manual Docker setup</td>
@@ -170,7 +170,7 @@ export default function PostgresusVsPgBackWebPage() {
 
               <ul>
                 <li>
-                  <strong>Postgresus</strong>: Supports hourly, daily, weekly
+                  <strong>Databasus</strong>: Supports hourly, daily, weekly
                   monthly or cron schedules with precise timing (e.g. 4 AM).
                   Implements{" "}
                   <strong>balanced compression using zstd (level 5)</strong>,
@@ -193,7 +193,7 @@ export default function PostgresusVsPgBackWebPage() {
 
               <ul>
                 <li>
-                  <strong>Postgresus</strong>: Supports a wide range of storage
+                  <strong>Databasus</strong>: Supports a wide range of storage
                   destinations:
                   <ul>
                     <li>Local storage</li>
@@ -215,18 +215,18 @@ export default function PostgresusVsPgBackWebPage() {
                   href="/storages"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus storage options →
+                  View all Databasus storage options →
                 </Link>
               </p>
 
               <h2 id="security">Security</h2>
 
               <p>
-                Security is a critical aspect of backup management. Postgresus
+                Security is a critical aspect of backup management. Databasus
                 implements enterprise-grade security on three levels:
               </p>
 
-              <h3 id="security-postgresus">Postgresus security model</h3>
+              <h3 id="security-databasus">Databasus security model</h3>
 
               <ol>
                 <li>
@@ -244,11 +244,11 @@ export default function PostgresusVsPgBackWebPage() {
                   encryption key.
                 </li>
                 <li>
-                  <strong>Read-only database access</strong>: Postgresus
+                  <strong>Read-only database access</strong>: Databasus
                   enforces read-only access by checking role-level,
                   database-level and table-level permissions. It only requires
                   SELECT permissions and will warn you if write privileges are
-                  detected. This prevents data corruption even if Postgresus is
+                  detected. This prevents data corruption even if Databasus is
                   compromised.
                 </li>
               </ol>
@@ -272,7 +272,7 @@ export default function PostgresusVsPgBackWebPage() {
                   href="/security"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus security →
+                  Learn more about Databasus security →
                 </Link>
               </p>
 
@@ -285,7 +285,7 @@ export default function PostgresusVsPgBackWebPage() {
 
               <ul>
                 <li>
-                  <strong>Postgresus</strong>: Provides real-time notifications
+                  <strong>Databasus</strong>: Provides real-time notifications
                   through multiple channels:
                   <ul>
                     <li>Slack</li>
@@ -309,7 +309,7 @@ export default function PostgresusVsPgBackWebPage() {
                   href="/notifiers"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all Postgresus notification channels →
+                  View all Databasus notification channels →
                 </Link>
               </p>
 
@@ -317,11 +317,11 @@ export default function PostgresusVsPgBackWebPage() {
 
               <p>
                 For organizations and DevOps teams, collaboration features are
-                essential. This is where Postgresus significantly outshines
+                essential. This is where Databasus significantly outshines
                 PgBackWeb:
               </p>
 
-              <h3 id="team-postgresus">Postgresus team capabilities</h3>
+              <h3 id="team-databasus">Databasus team capabilities</h3>
 
               <ul>
                 <li>
@@ -353,7 +353,7 @@ export default function PostgresusVsPgBackWebPage() {
                   href="/access-management"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  Learn more about Postgresus access management →
+                  Learn more about Databasus access management →
                 </Link>
               </p>
 
@@ -361,19 +361,19 @@ export default function PostgresusVsPgBackWebPage() {
 
               <p>
                 <strong>
-                  Postgresus is designed to be significantly easier to use
+                  Databasus is designed to be significantly easier to use
                 </strong>{" "}
                 than PgBackWeb, with a focus on intuitive UX and minimal setup
                 time:
               </p>
 
-              <h3 id="ease-postgresus">Postgresus user experience</h3>
+              <h3 id="ease-databasus">Databasus user experience</h3>
 
               <ul>
                 <li>
                   <strong>Easy installation</strong>: Use Docker directly or run
                   a one-line script that installs Docker (if needed), sets up
-                  Postgresus and configures automatic startup. Total time: ~2
+                  Databasus and configures automatic startup. Total time: ~2
                   minutes.
                 </li>
                 <li>
@@ -409,7 +409,7 @@ export default function PostgresusVsPgBackWebPage() {
                 </li>
                 <li>
                   <strong>Basic web interface</strong>: Functional but less
-                  polished UI compared to Postgresus. Dark theme available.
+                  polished UI compared to Databasus. Dark theme available.
                 </li>
                 <li>
                   <strong>No health monitoring</strong>: Database availability
@@ -419,22 +419,22 @@ export default function PostgresusVsPgBackWebPage() {
 
               <h2 id="installation">Installation and deployment</h2>
 
-              <h3 id="install-postgresus">Installing Postgresus</h3>
+              <h3 id="install-databasus">Installing Databasus</h3>
 
               <p>
-                Postgresus offers three installation methods, with the automated
+                Databasus offers three installation methods, with the automated
                 script being the quickest:
               </p>
 
               <ul>
                 <li>
                   <strong>Automated script (recommended)</strong>: One-line cURL
-                  command that installs Docker, sets up Postgresus and
+                  command that installs Docker, sets up Databasus and
                   configures automatic startup.
                 </li>
                 <li>
                   <strong>Docker run</strong>: Single command to start
-                  Postgresus with embedded PostgreSQL.
+                  Databasus with embedded PostgreSQL.
                 </li>
                 <li>
                   <strong>Docker Compose</strong>: For more control over the
@@ -447,7 +447,7 @@ export default function PostgresusVsPgBackWebPage() {
                   href="/installation"
                   className="font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View Postgresus installation guide →
+                  View Databasus installation guide →
                 </Link>
               </p>
 
@@ -468,9 +468,9 @@ export default function PostgresusVsPgBackWebPage() {
 
               <ul>
                 <li>
-                  <strong>Postgresus (Apache 2.0)</strong>: Permissive license
+                  <strong>Databasus (Apache 2.0)</strong>: Permissive license
                   that allows unrestricted commercial use, modification and
-                  distribution. You can use Postgresus in proprietary projects
+                  distribution. You can use Databasus in proprietary projects
                   without any licensing concerns.
                 </li>
                 <li>
@@ -484,14 +484,14 @@ export default function PostgresusVsPgBackWebPage() {
               <h2 id="conclusion">Conclusion</h2>
 
               <p>
-                Both Postgresus and PgBackWeb are capable PostgreSQL backup
+                Both Databasus and PgBackWeb are capable PostgreSQL backup
                 tools, but they serve different needs:
               </p>
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
                   <strong className="text-blue-400">
-                    Choose Postgresus if you need:
+                    Choose Databasus if you need:
                   </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
@@ -523,7 +523,7 @@ export default function PostgresusVsPgBackWebPage() {
                 For most users, especially teams and organizations requiring
                 robust security, multiple storage options and comprehensive
                 notification channels,{" "}
-                <strong>Postgresus is the recommended choice</strong>.
+                <strong>Databasus is the recommended choice</strong>.
               </p>
             </article>
           </div>

@@ -10,23 +10,23 @@ export const metadata: Metadata = {
     "MongoDB backup, mongodump alternative, MongoDB backup automation, MongoDB backup tool, MongoDB scheduled backup, MongoDB cloud backup, MongoDB S3 backup, MongoDB Docker backup, MongoDB backup encryption, MongoDB Atlas backup, replica set backup, document database backup, BSON backup, NoSQL backup",
   robots: "index, follow",
   alternates: {
-    canonical: "https://postgresus.com/mongodb-backup",
+    canonical: "https://databasus.com/mongodb-backup",
   },
   openGraph: {
     type: "website",
-    url: "https://postgresus.com/mongodb-backup",
+    url: "https://databasus.com/mongodb-backup",
     title: "MongoDB backup",
     description:
       "Free and open source tool for MongoDB scheduled backups. Automate mongodump with web UI, cloud storage, notifications and encryption.",
     images: [
       {
-        url: "https://postgresus.com/images/index/dashboard.png",
-        alt: "Postgresus dashboard interface showing MongoDB backup management",
-        width: 1700,
-        height: 1078,
+        url: "https://databasus.com/images/index/dashboard.png",
+        alt: "Databasus dashboard interface showing MongoDB backup management",
+        width: 980,
+        height: 573,
       },
     ],
-    siteName: "Postgresus",
+    siteName: "Databasus",
     locale: "en_US",
   },
   twitter: {
@@ -34,11 +34,11 @@ export const metadata: Metadata = {
     title: "MongoDB backup",
     description:
       "Free and open source tool for MongoDB scheduled backups. Automate mongodump with web UI, cloud storage, notifications and encryption.",
-    images: ["https://postgresus.com/images/index/dashboard.png"],
+    images: ["https://databasus.com/images/index/dashboard.png"],
   },
-  applicationName: "Postgresus",
+  applicationName: "Databasus",
   appleWebApp: {
-    title: "Postgresus",
+    title: "Databasus",
     capable: true,
   },
   icons: {
@@ -61,18 +61,18 @@ export default function MongodbBackupPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "Postgresus",
+            name: "Databasus",
             description:
               "Free and open source tool for MongoDB scheduled backups. Automate mongodump with web UI, cloud storage, notifications and encryption.",
-            url: "https://postgresus.com/mongodb-backup",
-            image: "https://postgresus.com/images/index/dashboard.png",
-            logo: "https://postgresus.com/logo.svg",
+            url: "https://databasus.com/mongodb-backup",
+            image: "https://databasus.com/images/index/dashboard.png",
+            logo: "https://databasus.com/logo.svg",
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
             featureList: [
@@ -87,7 +87,7 @@ export default function MongodbBackupPage() {
               "AES-256-GCM encryption for backup files",
               "MongoDB Atlas and replica set support",
             ],
-            screenshot: "https://postgresus.com/images/index/dashboard.png",
+            screenshot: "https://databasus.com/images/index/dashboard.png",
             softwareVersion: "latest",
           }),
         }}
@@ -101,50 +101,50 @@ export default function MongodbBackupPage() {
             mainEntity: [
               {
                 "@type": "Question",
-                name: "What is Postgresus and how does it backup MongoDB databases?",
+                name: "What is Databasus and how does it backup MongoDB databases?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted backup tool that uses mongodump under the hood to create consistent MongoDB backups. It wraps mongodump with a modern web interface, automated scheduling, cloud storage integration, real-time notifications and AES-256-GCM encryption — eliminating the need for custom shell scripts.",
+                  text: "Databasus is an Apache 2.0 licensed, self-hosted backup tool that uses mongodump under the hood to create consistent MongoDB backups. It wraps mongodump with a modern web interface, automated scheduling, cloud storage integration, real-time notifications and AES-256-GCM encryption — eliminating the need for custom shell scripts.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Does Postgresus support MongoDB replica sets?",
+                name: "Does Databasus support MongoDB replica sets?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Yes, Postgresus fully supports MongoDB replica sets. You can connect to any member of a replica set using the standard MongoDB connection URI format. Postgresus will read from the specified node, allowing you to backup from secondary nodes to reduce load on your primary.",
+                  text: "Yes, Databasus fully supports MongoDB replica sets. You can connect to any member of a replica set using the standard MongoDB connection URI format. Databasus will read from the specified node, allowing you to backup from secondary nodes to reduce load on your primary.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Can I backup MongoDB Atlas databases with Postgresus?",
+                name: "Can I backup MongoDB Atlas databases with Databasus?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Yes, Postgresus works seamlessly with MongoDB Atlas. Since Postgresus uses logical backups via mongodump, it only requires standard MongoDB connection credentials — no special Atlas permissions or roles needed. Just provide your Atlas connection string and Postgresus handles the rest.",
+                  text: "Yes, Databasus works seamlessly with MongoDB Atlas. Since Databasus uses logical backups via mongodump, it only requires standard MongoDB connection credentials — no special Atlas permissions or roles needed. Just provide your Atlas connection string and Databasus handles the rest.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Which MongoDB versions does Postgresus support?",
+                name: "Which MongoDB versions does Databasus support?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives that can be restored with mongorestore.",
+                  text: "Databasus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives that can be restored with mongorestore.",
                 },
               },
               {
                 "@type": "Question",
-                name: "How does Postgresus secure MongoDB credentials and backups?",
+                name: "How does Databasus secure MongoDB credentials and backups?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus implements multi-layer security: (1) All MongoDB passwords and connection strings are encrypted with AES-256-GCM before storage; (2) Each backup file is encrypted with a unique key derived from master key, backup ID and random salt; (3) Connection URIs are passed securely to mongodump, never exposed in logs or command line output.",
+                  text: "Databasus implements multi-layer security: (1) All MongoDB passwords and connection strings are encrypted with AES-256-GCM before storage; (2) Each backup file is encrypted with a unique key derived from master key, backup ID and random salt; (3) Connection URIs are passed securely to mongodump, never exposed in logs or command line output.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Does Postgresus support incremental MongoDB backups?",
+                name: "Does Databasus support incremental MongoDB backups?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus focuses on full logical backups using mongodump rather than incremental backups. For most use cases, scheduled full backups (hourly, daily, weekly) provide sufficient recovery points. MongoDB Atlas already offers native point-in-time recovery, and external incremental backups cannot be easily restored to Atlas clusters.",
+                  text: "Databasus focuses on full logical backups using mongodump rather than incremental backups. For most use cases, scheduled full backups (hourly, daily, weekly) provide sufficient recovery points. MongoDB Atlas already offers native point-in-time recovery, and external incremental backups cannot be easily restored to Atlas clusters.",
                 },
               },
             ],
@@ -159,7 +159,7 @@ export default function MongodbBackupPage() {
             <Link href="/" className="flex items-center gap-2.5">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
@@ -168,7 +168,7 @@ export default function MongodbBackupPage() {
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -194,7 +194,7 @@ export default function MongodbBackupPage() {
                 Contribute
               </a>
               <a
-                href="https://t.me/postgresus_community"
+                href="https://t.me/databasus_community"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="py-2 hover:text-gray-300 transition-colors"
@@ -205,7 +205,7 @@ export default function MongodbBackupPage() {
 
             {/* GitHub Button */}
             <a
-              href="https://github.com/RostislavDugin/postgresus"
+              href="https://github.com/databasus/databasus"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:opacity-70 rounded-lg px-2 md:px-3 py-2 text-[14px] border border-[#ffffff20] bg-[#0C0E13] transition-colors"
@@ -252,7 +252,7 @@ export default function MongodbBackupPage() {
           {/* Content */}
           <div className="text-center mb-8 md:mb-16">
             <div className="inline-flex items-center justify-center px-3 md:px-4 py-1 md:py-1.5 rounded-lg border border-[#ffffff20] mb-4 md:mb-6">
-              <span className="text-sm font-medium">Postgresus</span>
+              <span className="text-sm font-medium">Databasus</span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl sm:max-w-[400px] md:text-4xl leading-tight font-bold mb-4 md:mb-6 mx-auto md:max-w-[500px]">
@@ -260,7 +260,7 @@ export default function MongodbBackupPage() {
             </h1>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[720px] mx-auto mb-6 md:mb-10 px-2">
-              Postgresus is a free, open source and self-hosted tool to backup
+              Databasus is a free, open source and self-hosted tool to backup
               MongoDB document databases. Automate mongodump with scheduling,
               store BSON archives in S3, Google Drive or locally. Get notified
               via Slack, Discord or Telegram when backups complete
@@ -288,7 +288,7 @@ export default function MongodbBackupPage() {
               </a>
 
               <a
-                href="https://github.com/RostislavDugin/postgresus"
+                href="https://github.com/databasus/databasus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium border border-[#ffffff20] bg-[#0C0E13] hover:opacity-70 transition-opacity"
@@ -326,7 +326,7 @@ export default function MongodbBackupPage() {
             <div>
               <img
                 src="/images/index/dashboard.svg"
-                alt="Postgresus dashboard interface for MongoDB backup management"
+                alt="Databasus dashboard interface for MongoDB backup management"
                 width={980}
                 height={620}
                 className="w-full h-auto"
@@ -351,7 +351,7 @@ export default function MongodbBackupPage() {
             </h2>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-8 md:mb-10">
-              Postgresus wraps mongodump with enterprise features: automated
+              Databasus wraps mongodump with enterprise features: automated
               scheduling, cloud storage integration, real-time notifications and
               AES-256-GCM encryption. Ideal for developers and DevOps teams
               managing MongoDB document databases and collections
@@ -492,7 +492,7 @@ export default function MongodbBackupPage() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base mb-4">
-                Run Postgresus on your own infrastructure. All MongoDB
+                Run Databasus on your own infrastructure. All MongoDB
                 connection strings and backup data stay on servers you control.
                 Deploy in about 2 minutes via script, Docker or Kubernetes
               </p>
@@ -517,7 +517,7 @@ export default function MongodbBackupPage() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base mb-4">
-                Postgresus is fully open source with Apache 2.0 license. Inspect
+                Databasus is fully open source with Apache 2.0 license. Inspect
                 every line of code, fork it, contribute to it. Free for personal
                 and enterprise use
               </p>
@@ -543,7 +543,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  MongoDB 4, 5, 6, 7 and 8 are supported. Postgresus uses the
+                  MongoDB 4, 5, 6, 7 and 8 are supported. Databasus uses the
                   native mongodump tool for each version to ensure full
                   compatibility with your document database
                 </p>
@@ -715,7 +715,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base">
-                  Postgresus connects to cloud-hosted MongoDB databases
+                  Databasus connects to cloud-hosted MongoDB databases
                   including MongoDB Atlas, AWS DocumentDB and self-hosted
                   deployments. Since it uses logical backups via mongodump, you
                   only need standard connection credentials — no special cloud
@@ -743,9 +743,9 @@ export default function MongodbBackupPage() {
 
               <div className="space-y-4 text-gray-200 text-sm sm:text-base">
                 <p>
-                  Postgresus uses <strong>mongodump</strong> under the hood —
+                  Databasus uses <strong>mongodump</strong> under the hood —
                   the official MongoDB backup utility. When you trigger a
-                  backup, Postgresus executes mongodump with optimized
+                  backup, Databasus executes mongodump with optimized
                   parameters:
                 </p>
 
@@ -841,7 +841,7 @@ export default function MongodbBackupPage() {
               </h2>
 
               <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
-                Postgresus supports multiple installation methods. Deploy on
+                Databasus supports multiple installation methods. Deploy on
                 your VPS, local machine or Kubernetes cluster in about 2
                 minutes. Same installation works for MongoDB, PostgreSQL, MySQL
                 and MariaDB backups
@@ -867,7 +867,7 @@ export default function MongodbBackupPage() {
 
             <p className="text-base md:text-lg text-gray-200 max-w-[600px] mx-auto">
               Common questions about backing up MongoDB document databases with
-              Postgresus. If you have other questions, join our community on
+              Databasus. If you have other questions, join our community on
               Telegram
             </p>
           </div>
@@ -877,35 +877,35 @@ export default function MongodbBackupPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <FaqItem
               number="1"
-              question="What is Postgresus and how does it backup MongoDB databases?"
-              answer="Postgresus is an Apache 2.0 licensed, self-hosted backup tool that uses mongodump under the hood to create consistent MongoDB backups. It wraps mongodump with a modern web interface, automated scheduling, cloud storage integration (S3, Google Drive, Dropbox), real-time notifications (Slack, Discord, Telegram) and AES-256-GCM encryption — eliminating the need for custom shell scripts and cron jobs."
+              question="What is Databasus and how does it backup MongoDB databases?"
+              answer="Databasus is an Apache 2.0 licensed, self-hosted backup tool that uses mongodump under the hood to create consistent MongoDB backups. It wraps mongodump with a modern web interface, automated scheduling, cloud storage integration (S3, Google Drive, Dropbox), real-time notifications (Slack, Discord, Telegram) and AES-256-GCM encryption — eliminating the need for custom shell scripts and cron jobs."
             />
             <FaqItem
               number="2"
-              question="Does Postgresus support MongoDB replica sets?"
-              answer="Yes, Postgresus fully supports MongoDB replica sets. You can connect to any member of a replica set using the standard MongoDB connection URI format with replica set options. Postgresus will read from the specified node, allowing you to backup from secondary nodes to reduce load on your primary. This is particularly useful for production environments where you want to avoid impacting primary node performance."
+              question="Does Databasus support MongoDB replica sets?"
+              answer="Yes, Databasus fully supports MongoDB replica sets. You can connect to any member of a replica set using the standard MongoDB connection URI format with replica set options. Databasus will read from the specified node, allowing you to backup from secondary nodes to reduce load on your primary. This is particularly useful for production environments where you want to avoid impacting primary node performance."
             />
             <FaqItem
               number="3"
-              question="Can I backup MongoDB Atlas databases with Postgresus?"
-              answer="Yes, Postgresus works seamlessly with MongoDB Atlas. Since Postgresus uses logical backups via mongodump, it only requires standard MongoDB connection credentials — no special Atlas permissions, IP whitelisting beyond your Postgresus server, or administrative roles needed. Just provide your Atlas connection string (available in the Atlas dashboard) and Postgresus handles the rest."
+              question="Can I backup MongoDB Atlas databases with Databasus?"
+              answer="Yes, Databasus works seamlessly with MongoDB Atlas. Since Databasus uses logical backups via mongodump, it only requires standard MongoDB connection credentials — no special Atlas permissions, IP whitelisting beyond your Databasus server, or administrative roles needed. Just provide your Atlas connection string (available in the Atlas dashboard) and Databasus handles the rest."
             />
             <FaqItem
               number="4"
-              question="Which MongoDB versions does Postgresus support?"
-              answer="Postgresus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives. The archives can be restored using mongorestore to any compatible MongoDB version, making migrations between versions straightforward."
+              question="Which MongoDB versions does Databasus support?"
+              answer="Databasus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives. The archives can be restored using mongorestore to any compatible MongoDB version, making migrations between versions straightforward."
             />
             <FaqItem
               number="5"
-              question="How does Postgresus handle large MongoDB collections?"
-              answer="Postgresus streams mongodump output directly to your storage destination, optionally encrypting the stream in transit. This approach avoids writing temporary files to disk, making it efficient for databases with large collections. The --archive flag creates a single compressed file rather than a directory structure, reducing I/O overhead and simplifying storage management."
+              question="How does Databasus handle large MongoDB collections?"
+              answer="Databasus streams mongodump output directly to your storage destination, optionally encrypting the stream in transit. This approach avoids writing temporary files to disk, making it efficient for databases with large collections. The --archive flag creates a single compressed file rather than a directory structure, reducing I/O overhead and simplifying storage management."
             />
             <FaqItem
               number="6"
-              question="Can I backup sharded MongoDB clusters with Postgresus?"
+              question="Can I backup sharded MongoDB clusters with Databasus?"
               answer={
                 <>
-                  Postgresus currently focuses on backing up individual MongoDB
+                  Databasus currently focuses on backing up individual MongoDB
                   databases rather than coordinated sharded cluster backups.
                   <br />
                   <br />
@@ -927,10 +927,10 @@ export default function MongodbBackupPage() {
             />
             <FaqItem
               number="7"
-              question="How does Postgresus secure MongoDB credentials and backups?"
+              question="How does Databasus secure MongoDB credentials and backups?"
               answer={
                 <>
-                  Postgresus implements multi-layer security:
+                  Databasus implements multi-layer security:
                   <br />
                   <br />
                   <strong>1. Credential encryption:</strong> All MongoDB
@@ -951,28 +951,28 @@ export default function MongodbBackupPage() {
             />
             <FaqItem
               number="8"
-              question="Does Postgresus support incremental MongoDB backups or oplog tailing?"
-              answer="Postgresus focuses on full logical backups using mongodump rather than incremental backups or oplog-based point-in-time recovery. For most use cases, scheduled full backups (hourly, daily, weekly) provide sufficient recovery points without the complexity of oplog management. MongoDB Atlas already offers native continuous backups with point-in-time recovery, and external incremental backups cannot be easily restored to Atlas clusters."
+              question="Does Databasus support incremental MongoDB backups or oplog tailing?"
+              answer="Databasus focuses on full logical backups using mongodump rather than incremental backups or oplog-based point-in-time recovery. For most use cases, scheduled full backups (hourly, daily, weekly) provide sufficient recovery points without the complexity of oplog management. MongoDB Atlas already offers native continuous backups with point-in-time recovery, and external incremental backups cannot be easily restored to Atlas clusters."
             />
             <FaqItem
               number="9"
               question="Can I restore MongoDB backups to a different version or cluster?"
-              answer="Yes, since Postgresus creates standard mongodump archives in BSON format, you can restore them to any compatible MongoDB server — different version, different cloud provider or local development machine. Download the backup from Postgresus (automatically decrypted), then use mongorestore with --archive and --gzip flags. Postgresus shows the exact restore command for each backup."
+              answer="Yes, since Databasus creates standard mongodump archives in BSON format, you can restore them to any compatible MongoDB server — different version, different cloud provider or local development machine. Download the backup from Databasus (automatically decrypted), then use mongorestore with --archive and --gzip flags. Databasus shows the exact restore command for each backup."
             />
             <FaqItem
               number="10"
-              question="How does mongodump compression work in Postgresus?"
-              answer="Postgresus uses mongodump's built-in --gzip flag which compresses BSON data during the dump process. This typically reduces archive size by 60-80% compared to uncompressed BSON. The compression happens in the mongodump stream before optional encryption, so both compressed and encrypted archives remain efficient. Decompression is automatic when using mongorestore with the --gzip flag."
+              question="How does mongodump compression work in Databasus?"
+              answer="Databasus uses mongodump's built-in --gzip flag which compresses BSON data during the dump process. This typically reduces archive size by 60-80% compared to uncompressed BSON. The compression happens in the mongodump stream before optional encryption, so both compressed and encrypted archives remain efficient. Decompression is automatic when using mongorestore with the --gzip flag."
             />
             <FaqItem
               number="11"
               question="Can I backup specific MongoDB collections instead of entire databases?"
-              answer="Currently, Postgresus backs up entire MongoDB databases rather than individual collections. This ensures you have complete, consistent backups including all collections, indexes and metadata. If you need collection-level backups, you can create separate databases for different data domains, each with its own backup schedule in Postgresus."
+              answer="Currently, Databasus backs up entire MongoDB databases rather than individual collections. This ensures you have complete, consistent backups including all collections, indexes and metadata. If you need collection-level backups, you can create separate databases for different data domains, each with its own backup schedule in Databasus."
             />
             <FaqItem
               number="12"
-              question="Does Postgresus work with MongoDB running in Docker or Kubernetes?"
-              answer="Yes, Postgresus connects to MongoDB over the network using standard connection URIs, so it works with MongoDB regardless of where it's deployed — Docker containers, Kubernetes pods, VMs or bare metal. Just ensure network connectivity between Postgresus and your MongoDB instance. For Kubernetes deployments, you can use internal service DNS names or external load balancer endpoints."
+              question="Does Databasus work with MongoDB running in Docker or Kubernetes?"
+              answer="Yes, Databasus connects to MongoDB over the network using standard connection URIs, so it works with MongoDB regardless of where it's deployed — Docker containers, Kubernetes pods, VMs or bare metal. Just ensure network connectivity between Databasus and your MongoDB instance. For Kubernetes deployments, you can use internal service DNS names or external load balancer endpoints."
             />
           </div>
         </div>
@@ -985,14 +985,14 @@ export default function MongodbBackupPage() {
             <Link href="/" className="flex items-center gap-2.5 mb-6">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -1025,7 +1025,7 @@ export default function MongodbBackupPage() {
                   Documentation
                 </a>
                 <a
-                  href="https://github.com/RostislavDugin/postgresus"
+                  href="https://github.com/databasus/databasus"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1033,7 +1033,7 @@ export default function MongodbBackupPage() {
                   GitHub
                 </a>
                 <a
-                  href="https://t.me/postgresus_community"
+                  href="https://t.me/databasus_community"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1052,14 +1052,14 @@ export default function MongodbBackupPage() {
             </div>
 
             <a
-              href="mailto:info@postgresus.com"
+              href="mailto:info@databasus.com"
               className="hover:text-gray-200 transition-colors text-sm md:text-base mb-4"
             >
-              info@postgresus.com
+              info@databasus.com
             </a>
 
             <p className="text-gray-400 text-sm md:text-base text-center">
-              © 2025 Postgresus. All rights reserved.
+              © 2025 Databasus. All rights reserved.
             </p>
           </div>
         </div>

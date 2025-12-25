@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "404 - Page Not Found | Postgresus",
+  title: "404 - Page Not Found | Databasus",
   description: "The page you're looking for doesn't exist.",
   robots: "noindex, nofollow",
 };
@@ -17,7 +17,7 @@ export default function NotFound() {
           <Link href="/" className="flex items-center">
             <Image
               src="/logo.svg"
-              alt="Postgresus logo"
+              alt="Databasus logo"
               width={30}
               height={30}
               className="shrink-0 sm:h-[40px] sm:w-[40px] md:h-[50px] md:w-[50px]"
@@ -25,7 +25,7 @@ export default function NotFound() {
             />
 
             <div className="ml-2 select-none text-lg font-bold text-white sm:ml-3 sm:text-xl md:ml-4 md:text-2xl">
-              Postgresus
+              Databasus
             </div>
           </Link>
 
@@ -38,7 +38,7 @@ export default function NotFound() {
             </a>
             <a
               className="text-gray-300 hover:text-white transition-colors"
-              href="https://t.me/postgresus_community"
+              href="https://t.me/databasus_community"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -48,7 +48,7 @@ export default function NotFound() {
 
           <a
             className="ml-auto lg:ml-0"
-            href="https://github.com/RostislavDugin/postgresus"
+            href="https://github.com/databasus/databasus"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -121,7 +121,7 @@ export default function NotFound() {
       {/* Footer */}
       <footer className="border-t border-[#ffffff20] py-8 text-center text-sm text-gray-400">
         <p>
-          © {new Date().getFullYear()} Postgresus. Open source PostgreSQL backup
+          © {new Date().getFullYear()} Databasus. Open source PostgreSQL backup
           tool.
         </p>
       </footer>

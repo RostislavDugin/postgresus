@@ -1,15 +1,15 @@
-# Postgresus - PostgreSQL backup tool with with MySQL, MariaDB and MongoDB support
+# Databasus - PostgreSQL backup tool with with MySQL, MariaDB and MongoDB support
 
 > Free and open source tool for databases scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.
 
 ## Project Information
 
-- Name: Postgresus
+- Name: Databasus
 - Type: Self-hosted databases backup tool
 - License: Apache 2.0
-- Repository: https://github.com/RostislavDugin/postgresus
-- Website: https://postgresus.com
-- Community: https://t.me/postgresus_community
+- Repository: https://github.com/databasus/databasus
+- Website: https://databasus.com
+- Community: https://t.me/databasus_community
 
 ## Key Features
 
@@ -37,11 +37,11 @@
 
 ### Installation
 URL: /installation
-Content: Four installation methods - automated script, Docker run, Docker Compose and Helm for Kubernetes. Here you can read how to install Postgresus
+Content: Four installation methods - automated script, Docker run, Docker Compose and Helm for Kubernetes. Here you can read how to install Databasus
 
 ### Access Management
 URL: /access-management
-Content: Workspaces, user roles, audit logs and global settings for managing access control. Here you can read how to manage access to Postgresus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
+Content: Workspaces, user roles, audit logs and global settings for managing access control. Here you can read how to manage access to Databasus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
 
 ### Password Reset
 URL: /password
@@ -49,19 +49,19 @@ Content: How to reset user passwords using command-line tool
 
 ### Security
 URL: /security
-Content: Information about how Postgresus ensures enterprise-level security through three layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption.
+Content: Information about how Databasus ensures enterprise-level security through three layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption.
 
 ### FAQ - Frequently Asked Questions
 URL: /faq
-Content: Frequently asked questions about Postgresus
+Content: Frequently asked questions about Databasus
 
 #### How to backup localhost databases
 URL: /faq/localhost
-Content: Step-by-step guide on how to backup localhost databases running on localhost using Postgresus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
+Content: Step-by-step guide on how to backup localhost databases running on localhost using Databasus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
 
 #### How to backup Supabase
 URL: /faq/supabase
-Content: Step-by-step guide on how to backup Supabase PostgreSQL databases using Postgresus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
+Content: Step-by-step guide on how to backup Supabase PostgreSQL databases using Databasus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
 
 ### Storage Configuration
 URL: /storages
@@ -89,11 +89,11 @@ Content: How to configure Teams webhook notifications
 
 ### MySQL and MariaDB Backup
 URL: /mysql-backup
-Content: Comprehensive guide on using Postgresus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10 and 11 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
+Content: Comprehensive guide on using Databasus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10 and 11 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
 
 ### MongoDB Backup
 URL: /mongodb-backup
-Content: Complete guide on using Postgresus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
+Content: Complete guide on using Databasus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
 
 ## Technical Details
 
@@ -108,12 +108,12 @@ Content: Complete guide on using Postgresus for MongoDB backups. Explains how to
 
 1. **Automated Script (Recommended for Linux)**
    - Installs Docker and Docker Compose automatically
-   - Sets up Postgresus with auto-restart
-   - Installation directory: /opt/postgresus
+   - Sets up Databasus with auto-restart
+   - Installation directory: /opt/databasus
 
 2. **Docker Run**
    - Quick single-command deployment
-   - Data stored in ./postgresus-data
+   - Data stored in ./databasus-data
    - Port: 4005
 
 3. **Docker Compose**
@@ -160,7 +160,7 @@ Content: Complete guide on using Postgresus for MongoDB backups. Explains how to
 
 ## Target Audience
 
-Postgresus is suitable for:
+Databasus is suitable for:
 - **Single Developers**: Managing personal projects and side projects
 - **DevOps Teams**: Maintaining production databases and infrastructure
 - **Organizations**: Requiring compliance, audit trails and enterprise backup solutions
@@ -189,29 +189,29 @@ Postgresus is suitable for:
 
 ## FAQ
 
-### How is Postgresus different from PgBackRest, Barman or pg_dump?
-Postgresus is a tool to manage backups of multiple databases. It not only dump DB like other tools, but also provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise suitable for single DB only. Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
+### How is Databasus different from PgBackRest, Barman or pg_dump?
+Databasus is a tool to manage backups of multiple databases. It not only dump DB like other tools, but also provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise suitable for single DB only. Databasus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
 
-### Which databases does Postgresus support?
-Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Postgresus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development.
+### Which databases does Databasus support?
+Databasus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Databasus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development.
 
 ### Where can I read comparisons with other PostgreSQL backup tools?
 We have detailed comparison pages for popular backup tools:
-- Postgresus vs pg_dump: /pgdump-alternative
-- Postgresus vs pgBackRest: /postgresus-vs-pgbackrest
-- Postgresus vs Barman: /postgresus-vs-barman
-- Postgresus vs WAL-G: /postgresus-vs-wal-g
-- Postgresus vs pgBackWeb: /postgresus-vs-pgbackweb
+- Databasus vs pg_dump: /pgdump-alternative
+- Databasus vs pgBackRest: /databasus-vs-pgbackrest
+- Databasus vs Barman: /databasus-vs-barman
+- Databasus vs WAL-G: /databasus-vs-wal-g
+- Databasus vs pgBackWeb: /databasus-vs-pgbackweb
 Each comparison explains the key differences, pros and cons and helps you choose the right tool for your needs.
 
-### Why doesn't Postgresus support PITR (Point-in-Time Recovery)?
-Postgresus intentionally focuses on logical backups rather than PITR for several practical reasons:
+### Why doesn't Databasus support PITR (Point-in-Time Recovery)?
+Databasus intentionally focuses on logical backups rather than PITR for several practical reasons:
 1. Complex setup requirements — PITR tools typically need to be installed on the same server as your database, requiring direct filesystem access and careful configuration
 2. Restoration limitations — incremental backups cannot be restored without direct access to the database storage drive
 3. Cloud incompatibility — managed cloud databases (AWS RDS, Google Cloud SQL, Azure) don't allow restoring external PITR backups, making them useless for cloud-hosted PostgreSQL
 4. Built-in cloud PITR — cloud providers already offer native PITR capabilities, and even they typically default to hourly or daily granularity
 5. Practical sufficiency — for 99% of projects, hourly or daily logical backups provide adequate recovery points without the operational complexity of WAL archiving
-So instead of second-by-second restoration complexity, Postgresus prioritizes an intuitive UX for individuals and teams, making it the most reliable tool for day to day use
+So instead of second-by-second restoration complexity, Databasus prioritizes an intuitive UX for individuals and teams, making it the most reliable tool for day to day use
 
 ### Backup Schedules
 Hourly, daily, weekly, monthly or cron cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
@@ -227,9 +227,9 @@ All data executes within containers you control on servers you own. Credentials 
 
 ## Developer Information
 
-- Docker Image: rostislavdugin/postgresus:latest
+- Docker Image: databasus/databasus:latest
 - Default Port: 4005
-- Data Directory: ./postgresus-data or /postgresus-data
+- Data Directory: ./databasus-data
 - Configuration: Web-based UI
 - API: Internal backend API
 

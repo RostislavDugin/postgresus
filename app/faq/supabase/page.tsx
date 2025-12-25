@@ -4,11 +4,11 @@ import DocsSidebarComponent from "../../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "How to backup Supabase with Postgresus | Postgresus",
+  title: "How to backup Supabase with Databasus | Databasus",
   description:
-    "Learn how to backup your Supabase PostgreSQL database using Postgresus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
+    "Learn how to backup your Supabase PostgreSQL database using Databasus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
   keywords: [
-    "Postgresus",
+    "Databasus",
     "Supabase backup",
     "Supabase PostgreSQL backup",
     "backup Supabase database",
@@ -18,20 +18,20 @@ export const metadata: Metadata = {
     "database backup",
   ],
   openGraph: {
-    title: "How to backup Supabase with Postgresus | Postgresus",
+    title: "How to backup Supabase with Databasus | Databasus",
     description:
-      "Learn how to backup your Supabase PostgreSQL database using Postgresus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
+      "Learn how to backup your Supabase PostgreSQL database using Databasus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
     type: "article",
-    url: "https://postgresus.com/faq/supabase",
+    url: "https://databasus.com/faq/supabase",
   },
   twitter: {
     card: "summary",
-    title: "How to backup Supabase with Postgresus | Postgresus",
+    title: "How to backup Supabase with Databasus | Databasus",
     description:
-      "Learn how to backup your Supabase PostgreSQL database using Postgresus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
+      "Learn how to backup your Supabase PostgreSQL database using Databasus. Step-by-step guide for configuring session pooler or IPv4 address for Supabase backups.",
   },
   alternates: {
-    canonical: "https://postgresus.com/faq/supabase",
+    canonical: "https://databasus.com/faq/supabase",
   },
   robots: "index, follow",
 };
@@ -46,9 +46,9 @@ export default function SupabasePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to backup Supabase with Postgresus",
+            name: "How to backup Supabase with Databasus",
             description:
-              "Step-by-step guide to backup your Supabase PostgreSQL database using Postgresus",
+              "Step-by-step guide to backup your Supabase PostgreSQL database using Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -62,8 +62,8 @@ export default function SupabasePage() {
               },
               {
                 "@type": "HowToStep",
-                name: "Configure Postgresus",
-                text: "Enter the Supabase connection details in Postgresus to start backing up your database.",
+                name: "Configure Databasus",
+                text: "Enter the Supabase connection details in Databasus to start backing up your database.",
               },
               {
                 "@type": "HowToStep",
@@ -88,7 +88,7 @@ export default function SupabasePage() {
               <h1 id="supabase-backup">How to backup Supabase</h1>
 
               <p className="text-lg text-gray-400">
-                Postgresus supports backups for Supabase PostgreSQL databases.
+                Databasus supports backups for Supabase PostgreSQL databases.
                 The main requirement is to use an IPv4 address to connect to
                 your Supabase instance.
               </p>
@@ -96,7 +96,7 @@ export default function SupabasePage() {
               <h2 id="connection-options">Connection options</h2>
 
               <p>
-                There are two ways to connect Postgresus to your Supabase
+                There are two ways to connect Databasus to your Supabase
                 database:
               </p>
 
@@ -140,7 +140,7 @@ export default function SupabasePage() {
               <h3 id="step-2">2. Copy connection details</h3>
 
               <p>
-                Copy connection details and use them in Postgresus when adding
+                Copy connection details and use them in Databasus when adding
                 your database. See screenshot to differ connection details.
               </p>
 
@@ -171,7 +171,7 @@ export default function SupabasePage() {
                   Enable the <strong>IPv4</strong> add-on
                 </li>
                 <li>
-                  Use the direct database connection details in Postgresus
+                  Use the direct database connection details in Databasus
                 </li>
               </ol>
 
@@ -187,7 +187,7 @@ export default function SupabasePage() {
               <h2 id="default-schema">Default schema limitation</h2>
 
               <p>
-                By default, Postgresus backs up only the <code>public</code>{" "}
+                By default, Databasus backs up only the <code>public</code>{" "}
                 schema when working with Supabase databases. This is because
                 Supabase restricts access to other schemas (such as{" "}
                 <code>auth</code>, <code>storage</code>, and{" "}

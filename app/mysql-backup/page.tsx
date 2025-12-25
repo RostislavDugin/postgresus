@@ -10,23 +10,23 @@ export const metadata: Metadata = {
     "MySQL backup, MariaDB backup, mysqldump alternative, mysqldump GUI, MySQL backup automation, MySQL backup tool, MariaDB backup tool, MySQL scheduled backup, MySQL cloud backup, MySQL S3 backup, MySQL Docker backup, MySQL backup encryption",
   robots: "index, follow",
   alternates: {
-    canonical: "https://postgresus.com/mysql-backup",
+    canonical: "https://databasus.com/mysql-backup",
   },
   openGraph: {
     type: "website",
-    url: "https://postgresus.com/mysql-backup",
+    url: "https://databasus.com/mysql-backup",
     title: "MySQL backup with MariaDB support",
     description:
       "Free and open source tool for MySQL and MariaDB scheduled backups. Alternative to mysqldump with web UI, cloud storage, notifications and encryption.",
     images: [
       {
-        url: "https://postgresus.com/images/index/dashboard.png",
-        alt: "Postgresus dashboard interface showing MySQL backup management",
-        width: 1700,
-        height: 1078,
+        url: "https://databasus.com/images/index/dashboard.png",
+        alt: "Databasus dashboard interface showing MySQL backup management",
+        width: 980,
+        height: 573,
       },
     ],
-    siteName: "Postgresus",
+    siteName: "Databasus",
     locale: "en_US",
   },
   twitter: {
@@ -34,11 +34,11 @@ export const metadata: Metadata = {
     title: "MySQL backup with MariaDB support",
     description:
       "Free and open source tool for MySQL and MariaDB scheduled backups. Alternative to mysqldump with web UI, cloud storage, notifications and encryption.",
-    images: ["https://postgresus.com/images/index/dashboard.png"],
+    images: ["https://databasus.com/images/index/dashboard.png"],
   },
-  applicationName: "Postgresus",
+  applicationName: "Databasus",
   appleWebApp: {
-    title: "Postgresus",
+    title: "Databasus",
     capable: true,
   },
   icons: {
@@ -61,18 +61,18 @@ export default function MysqlBackupPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "Postgresus",
+            name: "Databasus",
             description:
               "Free and open source tool for MySQL and MariaDB scheduled backups. Alternative to mysqldump with web UI, cloud storage, notifications and encryption.",
-            url: "https://postgresus.com/mysql-backup",
-            image: "https://postgresus.com/images/index/dashboard.png",
-            logo: "https://postgresus.com/logo.svg",
+            url: "https://databasus.com/mysql-backup",
+            image: "https://databasus.com/images/index/dashboard.png",
+            logo: "https://databasus.com/logo.svg",
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
             featureList: [
@@ -87,7 +87,7 @@ export default function MysqlBackupPage() {
               "Backup compression and AES-256-GCM encryption",
               "mysqldump alternative with web UI",
             ],
-            screenshot: "https://postgresus.com/images/index/dashboard.png",
+            screenshot: "https://databasus.com/images/index/dashboard.png",
             softwareVersion: "latest",
           }),
         }}
@@ -101,34 +101,34 @@ export default function MysqlBackupPage() {
             mainEntity: [
               {
                 "@type": "Question",
-                name: "What is Postgresus and how does it backup MySQL databases?",
+                name: "What is Databasus and how does it backup MySQL databases?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is an Apache 2.0 licensed, self-hosted backup tool that uses mysqldump under the hood to create consistent MySQL backups. It wraps mysqldump with a modern web interface, automated scheduling, cloud storage integration, real-time notifications and AES-256-GCM encryption — eliminating the need for custom shell scripts.",
+                  text: "Databasus is an Apache 2.0 licensed, self-hosted backup tool that uses mysqldump under the hood to create consistent MySQL backups. It wraps mysqldump with a modern web interface, automated scheduling, cloud storage integration, real-time notifications and AES-256-GCM encryption — eliminating the need for custom shell scripts.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Is Postgresus a mysqldump alternative or replacement?",
+                name: "Is Databasus a mysqldump alternative or replacement?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus extends mysqldump rather than replacing it. Under the hood, it executes mysqldump with optimized parameters (--single-transaction, --routines, --triggers, --events) then handles compression, encryption and upload to your configured storage. You get all mysqldump reliability plus scheduling, cloud storage, notifications and team features.",
+                  text: "Databasus extends mysqldump rather than replacing it. Under the hood, it executes mysqldump with optimized parameters (--single-transaction, --routines, --triggers, --events) then handles compression, encryption and upload to your configured storage. You get all mysqldump reliability plus scheduling, cloud storage, notifications and team features.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Which MySQL versions does Postgresus support?",
+                name: "Which MySQL versions does Databasus support?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus supports MySQL 5.7, 8.0, 8.4 and 9. For MySQL 8.0 and newer, Postgresus uses zstd network compression for faster transfers. For MySQL 5.7, legacy compression is used automatically.",
+                  text: "Databasus supports MySQL 5.7, 8.0, 8.4 and 9. For MySQL 8.0 and newer, Databasus uses zstd network compression for faster transfers. For MySQL 5.7, legacy compression is used automatically.",
                 },
               },
               {
                 "@type": "Question",
-                name: "Which MariaDB versions does Postgresus support?",
+                name: "Which MariaDB versions does Databasus support?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus supports MariaDB 10 and 11. For MariaDB backups, Postgresus uses the native mariadb-dump tool instead of mysqldump, ensuring full compatibility with MariaDB-specific features and optimizations.",
+                  text: "Databasus supports MariaDB 10 and 11. For MariaDB backups, Databasus uses the native mariadb-dump tool instead of mysqldump, ensuring full compatibility with MariaDB-specific features and optimizations.",
                 },
               },
               {
@@ -136,15 +136,15 @@ export default function MysqlBackupPage() {
                 name: "Can I backup MySQL databases hosted on AWS RDS, Google Cloud SQL or Azure?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Yes, Postgresus works seamlessly with cloud-hosted MySQL databases including AWS RDS for MySQL, Google Cloud SQL, Azure Database for MySQL and PlanetScale. Since Postgresus uses logical backups via mysqldump, it only requires standard MySQL connection credentials — no special cloud permissions needed.",
+                  text: "Yes, Databasus works seamlessly with cloud-hosted MySQL databases including AWS RDS for MySQL, Google Cloud SQL, Azure Database for MySQL and PlanetScale. Since Databasus uses logical backups via mysqldump, it only requires standard MySQL connection credentials — no special cloud permissions needed.",
                 },
               },
               {
                 "@type": "Question",
-                name: "How does Postgresus secure MySQL database credentials and backups?",
+                name: "How does Databasus secure MySQL database credentials and backups?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus implements multi-layer security: (1) All MySQL passwords and credentials are encrypted with AES-256-GCM before storage; (2) Each backup file is encrypted with a unique key derived from master key, backup ID and random salt; (3) Credentials are passed via temporary .my.cnf files with 0600 permissions, never exposed in command line or logs.",
+                  text: "Databasus implements multi-layer security: (1) All MySQL passwords and credentials are encrypted with AES-256-GCM before storage; (2) Each backup file is encrypted with a unique key derived from master key, backup ID and random salt; (3) Credentials are passed via temporary .my.cnf files with 0600 permissions, never exposed in command line or logs.",
                 },
               },
             ],
@@ -159,7 +159,7 @@ export default function MysqlBackupPage() {
             <Link href="/" className="flex items-center gap-2.5">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
@@ -168,7 +168,7 @@ export default function MysqlBackupPage() {
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -208,7 +208,7 @@ export default function MysqlBackupPage() {
                 Contribute
               </a>
               <a
-                href="https://t.me/postgresus_community"
+                href="https://t.me/databasus_community"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="py-2 hover:text-gray-300 transition-colors"
@@ -219,7 +219,7 @@ export default function MysqlBackupPage() {
 
             {/* GitHub Button */}
             <a
-              href="https://github.com/RostislavDugin/postgresus"
+              href="https://github.com/databasus/databasus"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:opacity-70 rounded-lg px-2 md:px-3 py-2 text-[14px] border border-[#ffffff20] bg-[#0C0E13] transition-colors"
@@ -266,7 +266,7 @@ export default function MysqlBackupPage() {
           {/* Content */}
           <div className="text-center mb-8 md:mb-16">
             <div className="inline-flex items-center justify-center px-3 md:px-4 py-1 md:py-1.5 rounded-lg border border-[#ffffff20] mb-4 md:mb-6">
-              <span className="text-sm font-medium">Postgresus</span>
+              <span className="text-sm font-medium">Databasus</span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl sm:max-w-[400px] md:text-4xl leading-tight font-bold mb-4 md:mb-6 mx-auto md:max-w-[500px]">
@@ -274,7 +274,7 @@ export default function MysqlBackupPage() {
             </h1>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[720px] mx-auto mb-6 md:mb-10 px-2">
-              Postgresus is a free, open source and self-hosted tool to backup
+              Databasus is a free, open source and self-hosted tool to backup
               MySQL and MariaDB databases. Schedule automated dumps, store them
               in S3, Google Drive or locally. Receive notifications via Slack,
               Discord or Telegram when backups complete
@@ -302,7 +302,7 @@ export default function MysqlBackupPage() {
               </a>
 
               <a
-                href="https://github.com/RostislavDugin/postgresus"
+                href="https://github.com/databasus/databasus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium border border-[#ffffff20] bg-[#0C0E13] hover:opacity-70 transition-opacity"
@@ -340,7 +340,7 @@ export default function MysqlBackupPage() {
             <div>
               <img
                 src="/images/index/dashboard.svg"
-                alt="Postgresus dashboard interface for MySQL backup management"
+                alt="Databasus dashboard interface for MySQL backup management"
                 width={980}
                 height={620}
                 className="w-full h-auto"
@@ -365,7 +365,7 @@ export default function MysqlBackupPage() {
             </h2>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-8 md:mb-10">
-              Postgresus wraps mysqldump with enterprise features: automated
+              Databasus wraps mysqldump with enterprise features: automated
               scheduling, cloud storage integration, real-time notifications and
               AES-256-GCM encryption. Perfect for developers, DevOps teams and
               organizations managing MySQL databases
@@ -506,7 +506,7 @@ export default function MysqlBackupPage() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base mb-4">
-                Run Postgresus on your own infrastructure. All MySQL credentials
+                Run Databasus on your own infrastructure. All MySQL credentials
                 and backup data stay on servers you control. Deploy in about 2
                 minutes via script, Docker or Kubernetes
               </p>
@@ -531,7 +531,7 @@ export default function MysqlBackupPage() {
               </h3>
 
               <p className="text-gray-400 text-sm md:text-base mb-4">
-                Postgresus is fully open source with Apache 2.0 license. Inspect
+                Databasus is fully open source with Apache 2.0 license. Inspect
                 every line of code, fork it, contribute to it. Free for personal
                 and enterprise use
               </p>
@@ -728,7 +728,7 @@ export default function MysqlBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base">
-                  Postgresus connects to cloud-hosted MySQL databases including
+                  Databasus connects to cloud-hosted MySQL databases including
                   AWS RDS for MySQL, Google Cloud SQL, Azure Database for MySQL
                   and PlanetScale. Since it uses logical backups via mysqldump,
                   you only need standard connection credentials — no special
@@ -759,9 +759,9 @@ export default function MysqlBackupPage() {
 
               <div className="space-y-4 text-gray-200 text-sm sm:text-base">
                 <p>
-                  Postgresus uses <strong>mysqldump</strong> under the hood —
-                  the official MySQL backup utility. When you trigger a backup,
-                  Postgresus executes mysqldump with optimized parameters:
+                  Databasus uses <strong>mysqldump</strong> under the hood — the
+                  official MySQL backup utility. When you trigger a backup,
+                  Databasus executes mysqldump with optimized parameters:
                 </p>
 
                 <ul className="list-disc list-inside space-y-2 text-gray-400">
@@ -792,7 +792,7 @@ export default function MysqlBackupPage() {
                 </ul>
 
                 <p className="text-gray-400">
-                  For MySQL 8.0 and newer, Postgresus enables{" "}
+                  For MySQL 8.0 and newer, Databasus enables{" "}
                   <strong>zstd network compression</strong> for faster transfers
                   over slow connections. MySQL 5.7 uses legacy compression
                   automatically.
@@ -862,7 +862,7 @@ export default function MysqlBackupPage() {
 
               <div className="space-y-4 text-gray-200 text-sm sm:text-base">
                 <p>
-                  For MariaDB databases, Postgresus uses the native{" "}
+                  For MariaDB databases, Databasus uses the native{" "}
                   <strong>mariadb-dump</strong> tool instead of mysqldump. This
                   ensures full compatibility with MariaDB-specific features and
                   optimizations.
@@ -930,10 +930,10 @@ export default function MysqlBackupPage() {
               </h2>
 
               <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
-                Postgresus supports multiple installation methods. Deploy on
-                your VPS, local machine or Kubernetes cluster in about 2
-                minutes. Same installation works for MySQL, MariaDB, PostgreSQL
-                and MongoDB backups
+                Databasus supports multiple installation methods. Deploy on your
+                VPS, local machine or Kubernetes cluster in about 2 minutes.
+                Same installation works for MySQL, MariaDB, PostgreSQL and
+                MongoDB backups
               </p>
             </div>
 
@@ -956,7 +956,7 @@ export default function MysqlBackupPage() {
 
             <p className="text-base md:text-lg text-gray-200 max-w-[600px] mx-auto">
               Common questions about backing up MySQL and MariaDB databases with
-              Postgresus. If you have other questions, join our community on
+              Databasus. If you have other questions, join our community on
               Telegram
             </p>
           </div>
@@ -966,33 +966,33 @@ export default function MysqlBackupPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
             <FaqItem
               number="1"
-              question="What is Postgresus and how does it backup MySQL databases?"
-              answer="Postgresus is an Apache 2.0 licensed, self-hosted backup tool that uses mysqldump under the hood to create consistent MySQL backups. It wraps mysqldump with a modern web interface, automated scheduling, cloud storage integration (S3, Google Drive, Dropbox), real-time notifications (Slack, Discord, Telegram) and AES-256-GCM encryption — eliminating the need for custom shell scripts and cron jobs."
+              question="What is Databasus and how does it backup MySQL databases?"
+              answer="Databasus is an Apache 2.0 licensed, self-hosted backup tool that uses mysqldump under the hood to create consistent MySQL backups. It wraps mysqldump with a modern web interface, automated scheduling, cloud storage integration (S3, Google Drive, Dropbox), real-time notifications (Slack, Discord, Telegram) and AES-256-GCM encryption — eliminating the need for custom shell scripts and cron jobs."
             />
             <FaqItem
               number="2"
-              question="Is Postgresus a mysqldump alternative or replacement?"
-              answer="Postgresus extends mysqldump rather than replacing it. Under the hood, it executes mysqldump with optimized parameters (--single-transaction, --routines, --triggers, --events) then handles compression, encryption and upload to your configured storage. You get all mysqldump reliability plus scheduling, cloud storage, notifications and team collaboration features through a web UI."
+              question="Is Databasus a mysqldump alternative or replacement?"
+              answer="Databasus extends mysqldump rather than replacing it. Under the hood, it executes mysqldump with optimized parameters (--single-transaction, --routines, --triggers, --events) then handles compression, encryption and upload to your configured storage. You get all mysqldump reliability plus scheduling, cloud storage, notifications and team collaboration features through a web UI."
             />
             <FaqItem
               number="3"
-              question="Which MySQL versions does Postgresus support?"
-              answer="Postgresus supports MySQL 5.7, 8.0, 8.4 and 9. For MySQL 8.0 and newer, Postgresus uses zstd network compression for faster transfers over slow connections. For MySQL 5.7, legacy compression is used automatically. All versions get the same features: scheduling, encryption, cloud storage and notifications."
+              question="Which MySQL versions does Databasus support?"
+              answer="Databasus supports MySQL 5.7, 8.0, 8.4 and 9. For MySQL 8.0 and newer, Databasus uses zstd network compression for faster transfers over slow connections. For MySQL 5.7, legacy compression is used automatically. All versions get the same features: scheduling, encryption, cloud storage and notifications."
             />
             <FaqItem
               number="4"
-              question="Which MariaDB versions does Postgresus support?"
-              answer="Postgresus supports MariaDB 10 and 11. For MariaDB backups, Postgresus uses the native mariadb-dump tool instead of mysqldump, ensuring full compatibility with MariaDB-specific features and optimizations. The same web UI, scheduling, storage and notification features work for both MySQL and MariaDB."
+              question="Which MariaDB versions does Databasus support?"
+              answer="Databasus supports MariaDB 10 and 11. For MariaDB backups, Databasus uses the native mariadb-dump tool instead of mysqldump, ensuring full compatibility with MariaDB-specific features and optimizations. The same web UI, scheduling, storage and notification features work for both MySQL and MariaDB."
             />
             <FaqItem
               number="5"
               question="Can I backup MySQL databases hosted on AWS RDS, Google Cloud SQL or Azure?"
-              answer="Yes, Postgresus works seamlessly with cloud-hosted MySQL databases including AWS RDS for MySQL, Google Cloud SQL, Azure Database for MySQL and PlanetScale. Since Postgresus uses logical backups via mysqldump, it only requires standard MySQL connection credentials (host, port, username, password) — no special cloud permissions, IAM roles or filesystem access needed."
+              answer="Yes, Databasus works seamlessly with cloud-hosted MySQL databases including AWS RDS for MySQL, Google Cloud SQL, Azure Database for MySQL and PlanetScale. Since Databasus uses logical backups via mysqldump, it only requires standard MySQL connection credentials (host, port, username, password) — no special cloud permissions, IAM roles or filesystem access needed."
             />
             <FaqItem
               number="6"
-              question="How does MySQL backup scheduling work in Postgresus?"
-              answer="You can schedule MySQL backups at hourly, daily, weekly or monthly intervals, or use cron expressions for precise control. Choose specific times (like 3 AM when traffic is low) and days. Postgresus handles the rest: connecting to MySQL, running mysqldump, compressing the output, encrypting it and uploading to your storage destination."
+              question="How does MySQL backup scheduling work in Databasus?"
+              answer="You can schedule MySQL backups at hourly, daily, weekly or monthly intervals, or use cron expressions for precise control. Choose specific times (like 3 AM when traffic is low) and days. Databasus handles the rest: connecting to MySQL, running mysqldump, compressing the output, encrypting it and uploading to your storage destination."
             />
             <FaqItem
               number="7"
@@ -1001,10 +1001,10 @@ export default function MysqlBackupPage() {
             />
             <FaqItem
               number="8"
-              question="How does Postgresus secure MySQL database credentials and backups?"
+              question="How does Databasus secure MySQL database credentials and backups?"
               answer={
                 <>
-                  Postgresus implements multi-layer security:
+                  Databasus implements multi-layer security:
                   <br />
                   <br />
                   <strong>1. Credential encryption:</strong> All MySQL
@@ -1027,16 +1027,16 @@ export default function MysqlBackupPage() {
             <FaqItem
               number="9"
               question="Can I restore MySQL backups to a different server or cloud provider?"
-              answer="Yes, since Postgresus creates standard mysqldump logical backups, you can restore them to any MySQL server — different version, different cloud provider or local development machine. Download the backup from Postgresus (automatically decrypted), then use mysql command to restore. Postgresus shows the exact restore command for each backup."
+              answer="Yes, since Databasus creates standard mysqldump logical backups, you can restore them to any MySQL server — different version, different cloud provider or local development machine. Download the backup from Databasus (automatically decrypted), then use mysql command to restore. Databasus shows the exact restore command for each backup."
             />
             <FaqItem
               number="10"
-              question="Does Postgresus support backing up MySQL replication slaves?"
-              answer="Yes, you can backup MySQL replica (slave) servers. Postgresus uses --single-transaction which creates a consistent snapshot without stopping replication. This is useful for offloading backup load from your primary server. Just point Postgresus to your replica's connection details."
+              question="Does Databasus support backing up MySQL replication slaves?"
+              answer="Yes, you can backup MySQL replica (slave) servers. Databasus uses --single-transaction which creates a consistent snapshot without stopping replication. This is useful for offloading backup load from your primary server. Just point Databasus to your replica's connection details."
             />
             <FaqItem
               number="11"
-              question="How is Postgresus different from MySQL Enterprise Backup or Percona XtraBackup?"
+              question="How is Databasus different from MySQL Enterprise Backup or Percona XtraBackup?"
               answer={
                 <>
                   MySQL Enterprise Backup and Percona XtraBackup create physical
@@ -1052,8 +1052,8 @@ export default function MysqlBackupPage() {
                   • More complex setup and restore process
                   <br />
                   <br />
-                  Postgresus uses logical backups (mysqldump) which work with
-                  any MySQL server you can connect to, including all cloud
+                  Databasus uses logical backups (mysqldump) which work with any
+                  MySQL server you can connect to, including all cloud
                   providers. For most databases under 100GB, logical backups are
                   practical and much simpler to manage.
                 </>
@@ -1061,8 +1061,8 @@ export default function MysqlBackupPage() {
             />
             <FaqItem
               number="12"
-              question="Can I backup both MySQL and PostgreSQL databases with the same Postgresus instance?"
-              answer="Yes, Postgresus supports MySQL, MariaDB, PostgreSQL and MongoDB in a single installation. You can manage backups for all your databases from one web interface, with different schedules, storage destinations and notification channels for each. This is useful for teams managing diverse database infrastructure."
+              question="Can I backup both MySQL and PostgreSQL databases with the same Databasus instance?"
+              answer="Yes, Databasus supports MySQL, MariaDB, PostgreSQL and MongoDB in a single installation. You can manage backups for all your databases from one web interface, with different schedules, storage destinations and notification channels for each. This is useful for teams managing diverse database infrastructure."
             />
           </div>
         </div>
@@ -1075,14 +1075,14 @@ export default function MysqlBackupPage() {
             <Link href="/" className="flex items-center gap-2.5 mb-6">
               <img
                 src="/logo.svg"
-                alt="Postgresus logo"
+                alt="Databasus logo"
                 width={32}
                 height={32}
                 className="h-7 w-7 md:h-8 md:w-8"
               />
 
               <span className="text-base md:text-lg font-semibold">
-                Postgresus
+                Databasus
               </span>
             </Link>
 
@@ -1115,7 +1115,7 @@ export default function MysqlBackupPage() {
                   Documentation
                 </a>
                 <a
-                  href="https://github.com/RostislavDugin/postgresus"
+                  href="https://github.com/databasus/databasus"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1123,7 +1123,7 @@ export default function MysqlBackupPage() {
                   GitHub
                 </a>
                 <a
-                  href="https://t.me/postgresus_community"
+                  href="https://t.me/databasus_community"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-gray-200 transition-colors"
@@ -1142,14 +1142,14 @@ export default function MysqlBackupPage() {
             </div>
 
             <a
-              href="mailto:info@postgresus.com"
+              href="mailto:info@databasus.com"
               className="hover:text-gray-200 transition-colors text-sm md:text-base mb-4"
             >
-              info@postgresus.com
+              info@databasus.com
             </a>
 
             <p className="text-gray-400 text-sm md:text-base text-center">
-              © 2025 Postgresus. All rights reserved.
+              © 2026 Databasus. All rights reserved.
             </p>
           </div>
         </div>

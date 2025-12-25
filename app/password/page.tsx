@@ -5,38 +5,38 @@ import DocsSidebarComponent from "../components/DocsSidebarComponent";
 import DocTableOfContentComponent from "../components/DocTableOfContentComponent";
 
 export const metadata: Metadata = {
-  title: "Reset password - Postgresus Documentation",
+  title: "Reset password - Databasus Documentation",
   description:
-    "Learn how to reset user passwords in Postgresus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+    "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
   keywords: [
-    "Postgresus password reset",
+    "Databasus password reset",
     "reset user password",
     "PostgreSQL backup password",
     "Docker password recovery",
     "password recovery",
-    "Postgresus authentication",
+    "Databasus authentication",
   ],
   openGraph: {
-    title: "Reset Password - Postgresus Documentation",
+    title: "Reset Password - Databasus Documentation",
     description:
-      "Learn how to reset user passwords in Postgresus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+      "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
     type: "article",
-    url: "https://postgresus.com/password",
+    url: "https://databasus.com/password",
   },
   twitter: {
     card: "summary",
-    title: "Reset Password - Postgresus Documentation",
+    title: "Reset Password - Databasus Documentation",
     description:
-      "Learn how to reset user passwords in Postgresus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+      "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
   },
   alternates: {
-    canonical: "https://postgresus.com/password",
+    canonical: "https://databasus.com/password",
   },
   robots: "index, follow",
 };
 
 export default function PasswordResetPage() {
-  const resetPasswordCommand = `docker exec -it postgresus ./main --new-password="YourNewSecurePassword123" --email="admin"`;
+  const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="admin"`;
 
   return (
     <>
@@ -47,19 +47,19 @@ export default function PasswordResetPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "TechArticle",
-            headline: "Reset Password - Postgresus Documentation",
+            headline: "Reset Password - Databasus Documentation",
             description:
-              "Learn how to reset user passwords in Postgresus using the built-in command-line tool.",
+              "Learn how to reset user passwords in Databasus using the built-in command-line tool.",
             author: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
             },
             publisher: {
               "@type": "Organization",
-              name: "Postgresus",
+              name: "Databasus",
               logo: {
                 "@type": "ImageObject",
-                url: "https://postgresus.com/logo.svg",
+                url: "https://databasus.com/logo.svg",
               },
             },
           }),
@@ -71,9 +71,9 @@ export default function PasswordResetPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "HowTo",
-            name: "How to reset Postgresus user password",
+            name: "How to reset Databasus user password",
             description:
-              "Step-by-step guide to reset user passwords in Postgresus",
+              "Step-by-step guide to reset user passwords in Databasus",
             step: [
               {
                 "@type": "HowToStep",
@@ -82,14 +82,14 @@ export default function PasswordResetPage() {
                 itemListElement: [
                   {
                     "@type": "HowToDirection",
-                    text: "Use docker exec to run the password reset command inside the Postgresus container",
+                    text: "Use docker exec to run the password reset command inside the Databasus container",
                   },
                 ],
               },
               {
                 "@type": "HowToStep",
                 name: "Verify password change",
-                text: "Log in to Postgresus with your new password to confirm the change was successful.",
+                text: "Log in to Databasus with your new password to confirm the change was successful.",
               },
             ],
           }),
@@ -112,7 +112,7 @@ export default function PasswordResetPage() {
 
               <p>
                 To reset a user&apos;s password, use the following command on
-                the server where Postgresus is running:
+                the server where Databasus is running:
               </p>
 
               <div className="relative my-6">
