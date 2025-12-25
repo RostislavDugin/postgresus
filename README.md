@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="assets/logo.svg" style="margin-bottom: 20px;" alt="Databasus Logo" width="250"/>
+  <img src="assets/logo.svg" alt="Databasus Logo" width="250"/>
 
-  <h1 style="font-size: 1.5em; border-bottom: none;">Backup tool for PostgreSQL, MySQL and MongoDB</h1>
+  <h3>Backup tool for PostgreSQL, MySQL and MongoDB</h3>
   <p>Databasus is a free, open source and self-hosted tool to backup databases. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). Previously known as Postgresus (see migration guide).</p>
   
   <!-- Badges -->
