@@ -394,7 +394,19 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
                   />
                 </Tooltip>
 
-                <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
+                <Tooltip
+                  title={
+                    database.type === DatabaseType.POSTGRES
+                      ? 'Download backup file. It can be restored manually via pg_restore (from custom format)'
+                      : database.type === DatabaseType.MYSQL
+                        ? 'Download backup file. It can be restored manually via mysql client (from SQL dump)'
+                        : database.type === DatabaseType.MARIADB
+                          ? 'Download backup file. It can be restored manually via mariadb client (from SQL dump)'
+                          : database.type === DatabaseType.MONGODB
+                            ? 'Download backup file. It can be restored manually via mongorestore (from archive)'
+                            : 'Download backup file'
+                  }
+                >
                   {downloadingBackupId === record.id ? (
                     <SyncOutlined spin style={{ color: '#155dfc' }} />
                   ) : (
