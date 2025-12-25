@@ -6,7 +6,7 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 export const metadata: Metadata = {
   title: "FAQ - Frequently Asked Questions | Postgresus",
   description:
-    "Frequently asked questions about Postgresus PostgreSQL backup tool. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+    "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
   keywords: [
     "Postgresus FAQ",
     "PostgreSQL backup questions",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "FAQ - Frequently Asked Questions | Postgresus",
     description:
-      "Frequently asked questions about Postgresus PostgreSQL backup tool. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+      "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
     type: "article",
     url: "https://postgresus.com/faq",
   },
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "FAQ - Frequently Asked Questions | Postgresus",
     description:
-      "Frequently asked questions about Postgresus PostgreSQL backup tool. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
+      "Frequently asked questions about Postgresus PostgreSQL backup tool with MySQL, MariaDB and MongoDB support. Learn how to backup localhost databases, understand backup formats, compression methods and more.",
   },
   alternates: {
     canonical: "https://postgresus.com/faq",
@@ -49,7 +49,7 @@ export default function FAQPage() {
             mainEntity: [
               {
                 "@type": "Question",
-                name: "Why does Postgresus not use raw SQL dump format?",
+                name: "Why does Postgresus not use raw SQL dump format for PostgreSQL?",
                 acceptedAnswer: {
                   "@type": "Answer",
                   text: "Postgresus uses the directory format with zstd compression because it provides the most efficient backup and restore speed after extensive testing. The directory format with zstd compression level 5 offers the optimal balance between backup creation speed, restore speed and file size.",
@@ -94,7 +94,7 @@ export default function FAQPage() {
               </p>
 
               <h2 id="why-no-raw-sql-dump">
-                Why does Postgresus not use raw SQL dump format?
+                Why does Postgresus not use raw SQL dump format for PostgreSQL?
               </h2>
 
               <p>

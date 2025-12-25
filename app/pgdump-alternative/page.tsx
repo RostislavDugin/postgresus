@@ -7,7 +7,7 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 export const metadata: Metadata = {
   title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
   description:
-    "Postgresus is built on pg_dump and extends its features with a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+    "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
   keywords: [
     "pg_dump alternative",
     "pg_dump GUI",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
     description:
-      "Postgresus is built on pg_dump and extends its features with a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+      "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
     type: "article",
     url: "https://postgresus.com/pgdump-alternative",
   },
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "pg_dump Alternative - Postgresus PostgreSQL Backup Tool",
     description:
-      "Postgresus is built on pg_dump and extends its features with a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
+      "Postgresus is built on pg_dump and extends its features with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaborationand encryption.",
   },
   alternates: {
     canonical: "https://postgresus.com/pgdump-alternative",
@@ -83,9 +83,10 @@ export default function PgDumpAlternativePage() {
               <p className="text-lg text-gray-400">
                 Postgresus is a PostgreSQL backup tool built on top of{" "}
                 <code>pg_dump</code>. Rather than replacing <code>pg_dump</code>
-                , Postgresus extends its capabilities with a web interface,
-                automated scheduling, cloud storage integration, notifications,
-                team collaboration featuresand built-in encryption.
+                , Postgresus extends its capabilities with backups management, a
+                web interface, automated scheduling, cloud storage integration,
+                notifications, team collaboration featuresand built-in
+                encryption.
               </p>
 
               <h2 id="quick-comparison">Quick comparison</h2>
@@ -108,6 +109,18 @@ export default function PgDumpAlternativePage() {
                     <td>Backup engine</td>
                     <td data-label="pg_dump">pg_dump</td>
                     <td data-label="Postgresus">Built on pg_dump</td>
+                  </tr>
+                  <tr>
+                    <td>Backups management</td>
+                    <td data-label="pg_dump">❌ Single DB only</td>
+                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                  </tr>
+                  <tr>
+                    <td>Support of other DBs</td>
+                    <td data-label="pg_dump">PostgreSQL only</td>
+                    <td data-label="Postgresus">
+                      PostgreSQL, MySQL, MariaDB, MongoDB
+                    </td>
                   </tr>
                   <tr>
                     <td>Interface</td>

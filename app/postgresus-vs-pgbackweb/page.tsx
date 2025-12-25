@@ -109,23 +109,44 @@ export default function PostgresusVsPgBackWebPage() {
                     <td data-label="PgBackWeb">AGPL-3.0</td>
                   </tr>
                   <tr>
+                    <td>Backups management</td>
+                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="PgBackWeb">✅ Multiple DBs</td>
+                  </tr>
+                  <tr>
+                    <td>Support of other DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ PostgreSQL, MySQL, MariaDB, MongoDB
+                    </td>
+                    <td data-label="PgBackWeb">❌ PostgreSQL only</td>
+                  </tr>
+                  <tr>
                     <td>Storage options</td>
-                    <td data-label="Postgresus">Local, S3, Google Drive, Cloudflare R2, Azure, NAS, Dropbox</td>
+                    <td data-label="Postgresus">
+                      Local, S3, Google Drive, Cloudflare R2, Azure, NAS,
+                      Dropbox
+                    </td>
                     <td data-label="PgBackWeb">Local, S3-compatible only</td>
                   </tr>
                   <tr>
                     <td>Notifications</td>
-                    <td data-label="Postgresus">Slack, Discord, Telegram, Teams, Email, Webhooks</td>
+                    <td data-label="Postgresus">
+                      Slack, Discord, Telegram, Teams, Email, Webhooks
+                    </td>
                     <td data-label="PgBackWeb">Webhooks only</td>
                   </tr>
                   <tr>
                     <td>Security</td>
-                    <td data-label="Postgresus">✅ AES-256-GCM, unique backup keys, read-only enforcement</td>
+                    <td data-label="Postgresus">
+                      ✅ AES-256-GCM, unique backup keys, read-only enforcement
+                    </td>
                     <td data-label="PgBackWeb">✅ PGP encryption</td>
                   </tr>
                   <tr>
                     <td>Team features</td>
-                    <td data-label="Postgresus">✅ Workspaces, role-based access, audit logs</td>
+                    <td data-label="Postgresus">
+                      ✅ Workspaces, role-based access, audit logs
+                    </td>
                     <td data-label="PgBackWeb">❌ Not available</td>
                   </tr>
                   <tr>
@@ -135,7 +156,9 @@ export default function PostgresusVsPgBackWebPage() {
                   </tr>
                   <tr>
                     <td>Installation</td>
-                    <td data-label="Postgresus">One-line script or Docker</td>
+                    <td data-label="Postgresus">
+                      One-line script, Docker or Helm
+                    </td>
                     <td data-label="PgBackWeb">Manual Docker setup</td>
                   </tr>
                 </tbody>
@@ -467,7 +490,9 @@ export default function PostgresusVsPgBackWebPage() {
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 my-6">
                 <p className="text-blue-300 m-0">
-                  <strong className="text-blue-400">Choose Postgresus if you need:</strong>
+                  <strong className="text-blue-400">
+                    Choose Postgresus if you need:
+                  </strong>
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>Enterprise-grade security with 3-level protection</li>

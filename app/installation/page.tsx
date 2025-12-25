@@ -175,7 +175,7 @@ sudo curl -sSL https://raw.githubusercontent.com/RostislavDugin/postgresus/refs/
 
               <ul>
                 <li>
-                  <strong>CPU</strong>: At least 1 CPU cores
+                  <strong>CPU</strong>: At least 1 CPU core
                 </li>
                 <li>
                   <strong>RAM</strong>: Minimum 500 MB RAM

@@ -1,11 +1,11 @@
-# Postgresus - PostgreSQL Backup Tool
+# Postgresus - PostgreSQL backup tool with with MySQL, MariaDB and MongoDB support
 
-> Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.
+> Free and open source tool for databases scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.
 
 ## Project Information
 
 - Name: Postgresus
-- Type: Self-hosted PostgreSQL backup tool
+- Type: Self-hosted databases backup tool
 - License: Apache 2.0
 - Repository: https://github.com/RostislavDugin/postgresus
 - Website: https://postgresus.com
@@ -13,7 +13,7 @@
 
 ## Key Features
 
-- Scheduled PostgreSQL backups (hourly, daily, weekly, monthly, cron)
+- Scheduled databases backups (hourly, daily, weekly, monthly, cron)
 - Multiple storage destinations: Local, S3, Cloudflare R2, Google Drive, Dropbox, NAS, SFTP, rclone and more
 - Real-time notifications: Slack, Telegram, Discord, Microsoft Teams, Email, Webhooks and more
 - Database health monitoring with configurable health checks
@@ -24,6 +24,14 @@
 - Open source and free
 - Access management for workspaces and users
 - Suitable for single developers, DevOps teams, organizations, startups, system administrators and IT departments
+- Supports multiple databases: PostgreSQL, MySQL, MariaDB and MongoDB
+
+## Supported Databases
+
+- PostgreSQL
+- MySQL
+- MariaDB
+- MongoDB
 
 ## Documentation
 
@@ -45,11 +53,11 @@ Content: Information about how Postgresus ensures enterprise-level security thro
 
 ### FAQ - Frequently Asked Questions
 URL: /faq
-Content: Frequently asked questions about Postgresus, including why Postgresus uses directory format with zstd compression instead of raw SQL dumps and other common questions about installation, configuration and backup strategies.
+Content: Frequently asked questions about Postgresus
 
 #### How to backup localhost databases
 URL: /faq/localhost
-Content: Step-by-step guide on how to backup PostgreSQL databases running on localhost using Postgresus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
+Content: Step-by-step guide on how to backup localhost databases running on localhost using Postgresus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
 
 #### How to backup Supabase
 URL: /faq/supabase
@@ -173,11 +181,8 @@ Postgresus is suitable for:
 
 ## FAQ
 
-### What is Postgresus?
-Apache 2.0 licensed, self-hosted service for backing up PostgreSQL v13-v18. Features frontend for scheduling, compression, multiple storage targets and team notifications. Designed to be more UX-friendly alternative to PgBackRest, Barman, pg_dump scripts and other traditional backup tools.
-
 ### How is Postgresus different from PgBackRest, Barman or pg_dump?
-Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
+Postgresus is a tool to manage backups of multiple databases. It not only dump DB like other tools, but also provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise suitable for single DB only. Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
 
 ### Where can I read comparisons with other PostgreSQL backup tools?
 We have detailed comparison pages for popular backup tools:
@@ -188,9 +193,6 @@ We have detailed comparison pages for popular backup tools:
 - Postgresus vs pgBackWeb: /postgresus-vs-pgbackweb
 Each comparison explains the key differences, pros and cons and helps you choose the right tool for your needs.
 
-### Is Postgresus an alternative to pg_dump?
-Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts.
-
 ### Why doesn't Postgresus support PITR (Point-in-Time Recovery)?
 Postgresus intentionally focuses on logical backups rather than PITR for several practical reasons:
 1. Complex setup requirements — PITR tools typically need to be installed on the same server as your database, requiring direct filesystem access and careful configuration
@@ -199,9 +201,6 @@ Postgresus intentionally focuses on logical backups rather than PITR for several
 4. Built-in cloud PITR — cloud providers already offer native PITR capabilities, and even they typically default to hourly or daily granularity
 5. Practical sufficiency — for 99% of projects, hourly or daily logical backups provide adequate recovery points without the operational complexity of WAL archiving
 So instead of second-by-second restoration complexity, Postgresus prioritizes an intuitive UX for individuals and teams, making it the most reliable tool for day to day use
-
-### Installation Time
-Postgresus supports multiple installation methods: automated script, Docker, Docker Compose and Kubernetes with Helm. Typically less than 2 minutes on a standard VPS using the automated installer. For Kubernetes environments, use the official Helm chart for production-ready deployments.
 
 ### Backup Schedules
 Hourly, daily, weekly, monthly or cron cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
@@ -231,8 +230,11 @@ All data executes within containers you control on servers you own. Credentials 
 - S3 API: Storage protocol compatibility
 - OAuth 2.0: Google Drive authentication
 - Webhook: Notification integration protocol
+- MySQL
+- MariaDB
+- MongoDB
 
 ## Keywords
 
-PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation, encryption, AES-256-GCM, backup encryption, enterprise security, read-only database access, data protection, secure backups, sensitive data encryption, security audit, least privilege, Kubernetes, Helm, K8s, StatefulSet, ingress
+PostgreSQL, MySQL, MariaDB, MongoDB, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, Cloudflare R2, Microsoft Teams, health checks, compression, automation, encryption, AES-256-GCM, backup encryption, enterprise security, read-only database access, data protection, secure backups, sensitive data encryption, security audit, least privilege, Kubernetes, Helm, K8s, StatefulSet, ingress
 

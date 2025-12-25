@@ -84,12 +84,12 @@ export default function PostgresusVsWalGPage() {
               <p className="text-lg text-gray-400">
                 Postgresus and WAL-G are both capable backup tools that support
                 PostgreSQL, but they take fundamentally different approaches.
-                Postgresus is designed exclusively for PostgreSQL with an
+                Postgresus focuses on comprehensive backup management with an
                 intuitive web interface, while WAL-G is a command-line tool that
                 supports multiple database systems including PostgreSQL, MySQL,
-                MS SQL, MongoDB and others. If your infrastructure runs
-                PostgreSQL only, Postgresus offers a more focused and
-                streamlined experience.
+                MS SQL, MongoDB and others. If you need a user-friendly solution
+                for managing backups across multiple databases, Postgresus
+                offers a more streamlined experience.
               </p>
 
               <h2 id="quick-comparison">Quick comparison</h2>
@@ -114,6 +114,18 @@ export default function PostgresusVsWalGPage() {
                     <td data-label="WAL-G">
                       Multi-database (PostgreSQL, MySQL, MS SQL, etc.)
                     </td>
+                  </tr>
+                  <tr>
+                    <td>Backups management</td>
+                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="WAL-G">❌ Single DB only</td>
+                  </tr>
+                  <tr>
+                    <td>Support of other DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ PostgreSQL, MySQL, MariaDB, MongoDB
+                    </td>
+                    <td data-label="WAL-G">✅ PostgreSQL, MySQL, MS SQL</td>
                   </tr>
                   <tr>
                     <td>Interface</td>
@@ -201,30 +213,32 @@ export default function PostgresusVsWalGPage() {
                 their database scope:
               </p>
 
-              <h3 id="focus-postgresus">Postgresus: PostgreSQL-exclusive</h3>
+              <h3 id="focus-postgresus">
+                Postgresus: Comprehensive backup management
+              </h3>
 
               <p>
-                Postgresus is built exclusively for PostgreSQL, which means
-                every feature is designed specifically for PostgreSQL users:
+                Postgresus is built for comprehensive backup management across
+                multiple database systems with a focus on ease of use:
               </p>
 
               <ul>
                 <li>
-                  <strong>Tailored experience</strong>: The interface, workflows
-                  and features are optimized for PostgreSQL backup scenarios.
+                  <strong>Multi-database support</strong>: Manage backups for
+                  PostgreSQL, MySQL, MariaDB and MongoDB from a single
+                  interface.
+                </li>
+                <li>
+                  <strong>Unified experience</strong>: The interface, workflows
+                  and features work consistently across all supported databases.
                 </li>
                 <li>
                   <strong>Version support</strong>: Supports PostgreSQL versions
                   12 through 18, with version-specific optimizations.
                 </li>
                 <li>
-                  <strong>No complexity from other databases</strong>: You
-                  won&apos;t encounter configuration options or documentation
-                  for databases you don&apos;t use.
-                </li>
-                <li>
-                  <strong>Focused development</strong>: All development effort
-                  goes into improving the PostgreSQL experience.
+                  <strong>Streamlined management</strong>: All development
+                  effort goes into improving the backup management experience.
                 </li>
               </ul>
 
@@ -261,13 +275,13 @@ export default function PostgresusVsWalGPage() {
               <div className="rounded-lg border border-[#ffffff20] bg-[#1f2937] px-4 pt-4 my-6">
                 <p className="text-gray-300 m-0">
                   <strong className="text-amber-400">
-                    When PostgreSQL focus matters:
+                    When comprehensive management matters:
                   </strong>{" "}
-                  If your infrastructure runs PostgreSQL exclusively, a
-                  specialized tool like Postgresus can offer a more streamlined
-                  experience. You get features designed specifically for
-                  PostgreSQL without the overhead of supporting other database
-                  systems.
+                  If you need to manage backups for multiple databases with a
+                  unified interface, Postgresus offers a streamlined experience.
+                  You get centralized backup management without the complexity
+                  of juggling different tools for different databases and with
+                  team features.
                 </p>
               </div>
 
@@ -302,9 +316,9 @@ export default function PostgresusVsWalGPage() {
                   notification channels.
                 </li>
                 <li>
-                  <strong>PostgreSQL-only environments</strong>: Organizations
-                  that have standardized on PostgreSQL benefit from the focused
-                  feature set.
+                  <strong>Multi-database environments</strong>: Organizations
+                  running PostgreSQL, MySQL, MariaDB or MongoDB benefit from
+                  centralized backup management.
                 </li>
               </ul>
 
@@ -406,8 +420,8 @@ export default function PostgresusVsWalGPage() {
               <ul>
                 <li>
                   <strong>Restore to any hour or day</strong>: With hourly,
-                  daily, weekly, monthly or cron backup schedules, you can restore to
-                  any backup point you&apos;ve configured.
+                  daily, weekly, monthly or cron backup schedules, you can
+                  restore to any backup point you&apos;ve configured.
                 </li>
                 <li>
                   <strong>One-click restore</strong>: Download and restore
@@ -783,8 +797,8 @@ export default function PostgresusVsWalGPage() {
                 </p>
                 <ul className="text-blue-200 mb-0">
                   <li>
-                    Your infrastructure runs PostgreSQL exclusively and you want
-                    a focused, specialized tool
+                    You need comprehensive backup management for PostgreSQL from
+                    a single interface
                   </li>
                   <li>You prefer a web interface over command-line tools</li>
                   <li>
@@ -802,13 +816,11 @@ export default function PostgresusVsWalGPage() {
                     Restoring to any hour or day meets your recovery
                     requirements
                   </li>
-                  <li>
-                    You want quick setup with minimal PostgreSQL expertise
-                  </li>
+                  <li>You want quick setup with minimal database expertise</li>
                   <li>Built-in backup encryption is important to you</li>
                   <li>
                     You use cloud-managed databases (AWS RDS, Google Cloud SQL,
-                    Azure) or self-hosted PostgreSQL
+                    Azure) or self-hosted databases
                   </li>
                 </ul>
               </div>
@@ -849,12 +861,15 @@ export default function PostgresusVsWalGPage() {
               </div>
 
               <p>
-                For PostgreSQL-only environments, Postgresus offers a more
-                streamlined experience with its dedicated focus, intuitive
-                interface and built-in features — and works seamlessly with both
-                self-hosted and cloud-managed databases. WAL-G remains an
-                excellent choice for organizations managing diverse self-hosted
-                database systems, those who prefer CLI-based workflows and need
+                For comprehensive backup management for PostgeSQL, Postgresus
+                offers a more streamlined experience with its unified interface
+                and built-in features — and works seamlessly with both
+                self-hosted and cloud-managed databases. Also it is suitable for
+                teams.
+                <br />
+                <br />
+                WAL-G remains an excellent choice for organizations with
+                self-hosted databases who prefer CLI-based workflows and need
                 advanced features like delta backups and precise PITR, or for
                 teams building database platforms that need to provide PITR
                 capabilities to their customers.

@@ -116,7 +116,13 @@ export default function PostgresusVsBarmanPage() {
                       DBAs, enterprises requiring PITR
                     </td>
                   </tr>
-
+                  <tr>
+                    <td>Support of other DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ PostgreSQL, MySQL, MariaDB, MongoDB
+                    </td>
+                    <td data-label="Barman">❌ PostgreSQL only</td>
+                  </tr>
                   <tr>
                     <td>Interface</td>
                     <td data-label="Postgresus">Web UI</td>
@@ -319,8 +325,8 @@ export default function PostgresusVsBarmanPage() {
               <ul>
                 <li>
                   <strong>Restore to any hour or day</strong>: With hourly,
-                  daily, weekly, monthly or cron backup schedules, you can restore to
-                  any backup point you&apos;ve configured.
+                  daily, weekly, monthly or cron backup schedules, you can
+                  restore to any backup point you&apos;ve configured.
                 </li>
                 <li>
                   <strong>One-click restore</strong>: Download and restore

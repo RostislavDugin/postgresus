@@ -6,7 +6,7 @@ import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 export const metadata: Metadata = {
   title: "Postgresus | PostgreSQL backup",
   description:
-    "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
+    "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
   keywords:
     "PostgreSQL, backup, monitoring, database, scheduled backups, Docker, self-hosted, open source, S3, Google Drive, Slack notifications, Discord, DevOps, database monitoring, pg_dump, database restore, encryption, AES-256, backup encryption",
   robots: "index, follow",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     url: "https://postgresus.com",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+      "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
     images: [
       {
         url: "https://postgresus.com/images/index/dashboard.png",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Postgresus | PostgreSQL backup",
     description:
-      "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+      "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
     images: ["https://postgresus.com/images/index/dashboard.png"],
   },
   applicationName: "Postgresus",
@@ -64,7 +64,7 @@ export default function Index() {
             "@type": "SoftwareApplication",
             name: "Postgresus",
             description:
-              "Free and open source tool for PostgreSQL scheduled backups. Save them locally and to clouds. Notifications to Slack, Discord, etc.",
+              "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
             url: "https://postgresus.com",
             image: "https://postgresus.com/images/index/dashboard.png",
             logo: "https://postgresus.com/logo.svg",
@@ -85,6 +85,7 @@ export default function Index() {
               "Open source and free",
               "Support for PostgreSQL 12-18",
               "Backup compression and AES-256-GCM encryption",
+              "Support for PostgreSQL, MySQL, MariaDB and MongoDB",
             ],
             screenshot: "https://postgresus.com/images/index/dashboard.png",
             softwareVersion: "latest",
@@ -112,7 +113,7 @@ export default function Index() {
             "@context": "https://schema.org",
             "@type": "WebSite",
             name: "Postgresus",
-            alternateName: ["postgresus", "PostgresUS"],
+            alternateName: ["postgresus", "Postgresus"],
             url: "https://postgresus.com/",
             description: "PostgreSQL backup tool",
             publisher: { "@type": "Organization", name: "Postgresus" },
@@ -155,7 +156,7 @@ export default function Index() {
                 name: "Where do my backups live and how much space will they occupy?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8× with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings.",
+                  text: "Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings.",
                 },
               },
               {
@@ -179,7 +180,7 @@ export default function Index() {
                 name: "Who is Postgresus suitable for?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable PostgreSQL backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface.",
+                  text: "Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface.",
                 },
               },
               {
@@ -188,6 +189,14 @@ export default function Index() {
                 acceptedAnswer: {
                   "@type": "Answer",
                   text: "Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI.",
+                },
+              },
+              {
+                "@type": "Question",
+                name: "Which databases are supported by Postgresus?",
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: "Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. You can backup and restore all of them with the same tool.",
                 },
               },
             ],
@@ -305,15 +314,16 @@ export default function Index() {
               <span className="text-sm font-medium">Postgresus</span>
             </div>
 
-            <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 mx-auto sm:max-w-none">
-              PostgreSQL backup tool
+            <h1 className="text-2xl sm:text-4xl sm:max-w-[300px] md:text-4xl leading-tight font-bold mb-4 md:mb-6 mx-auto md:max-w-[600px]">
+              PostgreSQL backup tool with MySQL and MongoDB support
             </h1>
 
-            <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-6 md:mb-10 px-2">
+            <p className="text-sm sm:text-lg text-gray-200 max-w-[720px] mx-auto mb-6 md:mb-10 px-2">
               Postgresus is a free, open source and self-hosted tool to backup
               PostgreSQL. Make backups with different storages (S3, Google
               Drive, FTP, etc.) and notifications about progress (Slack,
-              Discord, Telegram, etc.)
+              Discord, Telegram, etc.). MySQL, MariaDB and MongoDB are supported
+              too
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-2">
@@ -401,7 +411,7 @@ export default function Index() {
             </h2>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-8 md:mb-10">
-              Postgresus provides everything you need for reliable PostgreSQL
+              Postgresus provides everything you need for reliable database
               backup management. From automated scheduling to backups
               encryption. Suitable well for both individual developers with
               personal projects, DevOps teams and enterprises
@@ -760,13 +770,12 @@ export default function Index() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base">
-                  Postgresus works seamlessly with cloud-hosted PostgreSQL
-                  databases including AWS RDS, Google Cloud SQL, Azure Database.
-                  This is why Postgresus does not support incremental backups:
-                  clouds already have them, but usually you cannot restore
-                  external PITR backup back to the cloud. Hourly and daily
-                  granularity are enough for 99% of even large enterprise
-                  projects
+                  Postgresus works seamlessly with cloud-hosted databases
+                  including AWS RDS, Google Cloud SQL, Azure Database. This is
+                  why Postgresus does not support incremental backups: clouds
+                  already have them, but usually you cannot restore external
+                  PITR backup back to the cloud. Hourly and daily granularity
+                  are enough for 99% of even large enterprise projects
                 </p>
               </div>
             </div>
@@ -832,6 +841,124 @@ export default function Index() {
       </section>
 
       <div className="border-b border-[#ffffff20] max-w-[calc(100%-2rem)] md:max-w-[calc(100%-3rem)] lg:max-w-[1000px] 2xl:max-w-[1200px] mx-auto" />
+
+      {/* Databases section */}
+      <section className="pt-12 md:pt-20 px-4 md:px-6 lg:px-0">
+        <div className="mx-auto w-full max-w-[1000px] 2xl:max-w-[1200px]">
+          <div className="text-center mb-10 md:mb-16">
+            <div className="inline-flex items-center justify-center px-3 md:px-4 py-1 md:py-1.5 rounded-lg border border-[#ffffff20] mb-4 md:mb-6">
+              <span className="text-sm font-medium">Databases</span>
+            </div>
+
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6">
+              Supported databases
+            </h2>
+
+            <p className="text-sm sm:text-base md:text-lg text-gray-200 max-w-[550px] mx-auto">
+              Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. You
+              can backup and restore all of them with the same tool. Primary
+              focus is on PostgreSQL, but MySQL, MariaDB and MongoDB are
+              supported too
+            </p>
+          </div>
+
+          {/* Databases list */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 border border-[#ffffff20] rounded-xl">
+            {/* PostgreSQL */}
+            <div className="border-b md:border-r lg:border-b-0 border-[#ffffff20] p-5 md:py-6 md:px-5 flex flex-col">
+              <div className="flex items-center justify-center mb-4 md:mb-6">
+                <div className="text-5xl md:text-6xl">
+                  <img
+                    src="/images/index/database-postgresql.svg"
+                    alt="PostgreSQL"
+                    className="w-[75px] h-[75px]"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+
+              <h3 className="text-lg md:text-xl 2xl:text-2xl font-bold mb-3 md:mb-4 text-center">
+                PostgreSQL
+              </h3>
+
+              <p className="text-gray-400 text-sm md:text-base text-center">
+                PostgreSQL is the primary database supported by Postgresus. All
+                versions from 12 to 18 are supported
+              </p>
+            </div>
+
+            {/* MySQL */}
+            <div className="border-b lg:border-r lg:border-b-0 border-[#ffffff20] p-5 md:py-6 md:px-5 flex flex-col">
+              <div className="flex items-center justify-center mb-4 md:mb-6">
+                <div className="text-5xl md:text-6xl">
+                  <img
+                    src="/images/index/database-mysql.svg"
+                    alt="MySQL"
+                    className="w-[75px] h-[75px]"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+
+              <h3 className="text-lg md:text-xl 2xl:text-2xl font-bold mb-3 md:mb-4 text-center">
+                MySQL
+              </h3>
+
+              <p className="text-gray-400 text-sm md:text-base text-center">
+                MySQL is the second most popular database in the world. You can
+                backup and restore your MySQL databases with the same simplicity
+              </p>
+            </div>
+
+            {/* MariaDB */}
+            <div className="border-b md:border-r lg:border-r lg:border-b-0 border-[#ffffff20] p-5 md:py-6 md:px-5 flex flex-col">
+              <div className="flex items-center justify-center mb-4 md:mb-6">
+                <div className="text-5xl md:text-6xl">
+                  <img
+                    src="/images/index/database-mariadb.svg"
+                    alt="MariaDB"
+                    className="w-[75px] h-[75px]"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+
+              <h3 className="text-lg md:text-xl 2xl:text-2xl font-bold mb-3 md:mb-4 text-center">
+                MariaDB
+              </h3>
+
+              <p className="text-gray-400 text-sm md:text-base text-center">
+                MariaDB is supported with the same features as MySQL. You can
+                backup and restore your MariaDB databases seamlessly
+              </p>
+            </div>
+
+            {/* MongoDB */}
+            <div className="p-5 md:py-6 md:px-5 flex flex-col">
+              <div className="flex items-center justify-center mb-4 md:mb-6">
+                <div className="text-5xl md:text-6xl">
+                  <img
+                    src="/images/index/database-mongodb.svg"
+                    alt="MongoDB"
+                    className="w-[75px] h-[75px]"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+
+              <h3 className="text-lg md:text-xl 2xl:text-2xl font-bold mb-3 md:mb-4 text-center">
+                MongoDB
+              </h3>
+
+              <p className="text-gray-400 text-sm md:text-base text-center">
+                MongoDB is the most popular NoSQL database. You can backup and
+                restore your MongoDB databases with the same easy-to-use
+                interface.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* PROCESS SECTION */}
       <section className="py-12 md:py-20 px-4 md:px-6 lg:px-0">
@@ -1071,7 +1198,7 @@ export default function Index() {
             <FaqItem
               number="1"
               question="What is Postgresus and why should I use it instead of hand-rolled scripts?"
-              answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up PostgreSQL, v12 to v18. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
+              answer="Postgresus is an Apache 2.0 licensed, self-hosted service backing up databases. It differs from shell scripts in that it has a frontend for scheduling tasks, compressing and storing archives on multiple targets (local disk, S3, Google Drive, NAS, Dropbox, SFTP, rclone, etc.) and notifying your team when tasks finish or fail — all without hand-rolled code"
             />
             <FaqItem
               number="2"
@@ -1085,34 +1212,24 @@ export default function Index() {
             />
             <FaqItem
               number="4"
-              question="Where do my backups live and how much space will they occupy?"
-              answer="Archives can be saved to local volumes, S3-compatible buckets, Google Drive, Dropbox and other cloud targets. Postgresus implements balanced compression, which typically shrinks dump size by 4-8x with incremental only about 20% of runtime overhead, so you have storage and bandwidth savings."
-            />
-            <FaqItem
-              number="5"
-              question="How will I know a backup succeeded — or worse, failed?"
-              answer="Postgresus can notify with real-time emails, Slack, Telegram, webhooks, Mattermost, Discord and more. You have the choice of what channels to ping so that your DevOps team hears about successes and failures in real time, making recovery routines and compliance audits easier."
-            />
-            <FaqItem
-              number="6"
               question="How does Postgresus ensure security?"
               answer="Postgresus enforces security on three levels: (1) Sensitive data encryption — all passwords, tokens and credentials are encrypted with AES-256-GCM and stored separately from the database; (2) Backup encryption — each backup file is encrypted with a unique key derived from a master key, backup ID and random salt, making backups useless without your encryption key even if someone gains storage access; (3) Read-only database access — Postgresus only requires SELECT permissions and performs comprehensive checks to ensure no write privileges exist, preventing data corruption even if the tool is compromised."
             />
             <FaqItem
-              number="7"
+              number="5"
               question="How do I set up and run my first backup job in Postgresus?"
               answer={
                 <>
                   To start your very first Postgresus backup, simply log in to
                   the dashboard, click on New Backup, select an interval —
-                  hourly, daily, weekly, monthly or cron. Then specify the exact run
-                  time (e.g., 02:30 for off-peak hours).
+                  hourly, daily, weekly, monthly or cron. Then specify the exact
+                  run time (e.g., 02:30 for off-peak hours).
                   <br />
                   <br />
                   Then input your PostgreSQL host, port number, database name,
-                  credentials, version and SSL preference. Choose where the
-                  archive should be sent (local path, S3 bucket, Google Drive
-                  folder, Dropbox, etc.). <br />
+                  credentials and SSL preference. Choose where the archive
+                  should be sent (local path, S3 bucket, Google Drive folder,
+                  Dropbox, etc.). <br />
                   <br />
                   If you need, add notification channels such as email, Slack,
                   Telegram or a webhook and click Save. Postgresus instantly
@@ -1123,45 +1240,32 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="8"
+              number="6"
               question="How does PostgreSQL monitoring work?"
               answer="Postgresus monitors your databases instantly. This optional feature helps avoid extra costs for edge DBs. Health checks are performed once a specific period (minute, 5 minutes, etc.). To enable the feature, choose your DB and select 'enable' monitoring. Then configure health checks period and number of failed attempts to consider the DB as unavailable."
             />
             <FaqItem
-              number="9"
+              number="7"
               question="Who is Postgresus suitable for?"
-              answer="Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable PostgreSQL backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface."
+              answer="Postgresus is designed for single developers, DevOps teams, organizations, startups, system administrators and IT departments who need reliable databases backups. Whether you're managing personal projects or production databases, Postgresus provides enterprise-grade backup capabilities with a simple, intuitive interface."
             />
             <FaqItem
-              number="10"
-              question="How is Postgresus different from PgBackRest, Barman or pg_dump?"
-              answer="Postgresus provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise, Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications — all managed through a simple web UI."
-            />
-            <FaqItem
-              number="11"
-              question="Can I use Postgresus as an individual and as a team?"
+              number="8"
+              question="How is Postgresus different from PgBackRest, Barman or pg_dump? Where can I read comparisons?"
               answer={
                 <>
-                  Yes, Postgresus works perfectly for both individual developers
-                  and teams. For individuals, you can manage all your databases
-                  with a simple, secure interface. For teams, Postgresus offers
-                  access management features that let you create multiple users
-                  with different permission levels (viewer, editor, admin).
+                  Unlike other tools, Postgresus provides a way to manage many
+                  databases for teams in a modern, user-friendly web interface
+                  (instead of complex configuration files and command-line
+                  tools). While PgBackRest and Barman just backups single
+                  database, require extensive configuration and command-line
+                  expertise — Postgresus offers way to setup full backup
+                  management for many databases. Unlike raw pg_dump scripts, it
+                  includes built-in scheduling, compression, multiple storage
+                  destinations, health monitoring and real-time notifications —
+                  all managed through a simple web UI.
                   <br />
                   <br />
-                  You can control who can view or manage specific databases,
-                  making it ideal for DevOps teams and development
-                  organizations. Additionally, audit logs track all system
-                  activities, showing who accessed what and when, which is
-                  essential for security compliance and team accountability.
-                </>
-              }
-            />
-            <FaqItem
-              number="12"
-              question="Where can I read comparisons with other PostgreSQL backup tools?"
-              answer={
-                <>
                   We have detailed comparison pages for popular backup tools:{" "}
                   <a
                     href="/pgdump-alternative"
@@ -1203,12 +1307,32 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="13"
-              question="Is Postgresus an alternative to pg_dump?"
-              answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus uses pg_dump for creating backups, but extends it with a user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus enterprise features without writing shell scripts."
+              number="9"
+              question="Can I use Postgresus as an individual and as a team?"
+              answer={
+                <>
+                  Yes, Postgresus works perfectly for both individual developers
+                  and teams. For individuals, you can manage all your databases
+                  with a simple, secure interface. For teams, Postgresus offers
+                  access management features that let you create multiple users
+                  with different permission levels (viewer, editor, admin).
+                  <br />
+                  <br />
+                  You can control who can view or manage specific databases,
+                  making it ideal for DevOps teams and development
+                  organizations. Additionally, audit logs track all system
+                  activities, showing who accessed what and when, which is
+                  essential for security compliance and team accountability.
+                </>
+              }
             />
             <FaqItem
-              number="14"
+              number="10"
+              question="Is Postgresus an alternative to pg_dump?"
+              answer="Yes, Postgresus is a modern alternative to pg_dump. Under the hood, Postgresus extends pg_dump features, adds user-friendly web interface, automated scheduling, multiple storage destinations, real-time notifications, health monitoring and backup encryption. Think of Postgresus as pg_dump with superpowers — you get all the reliability of pg_dump plus optimizations and enterprise features without writing shell scripts."
+            />
+            <FaqItem
+              number="11"
               question="Why doesn't Postgresus support PITR (Point-in-Time Recovery)?"
               answer={
                 <>
@@ -1219,7 +1343,7 @@ export default function Index() {
                       <strong>Complex setup requirements</strong> — PITR tools
                       typically need to be installed on the same server as your
                       database, requiring direct filesystem access and careful
-                      configuration
+                      configuration. You can backup only single database (Postgresus allows many)
                     </li>
                     <li>
                       <strong>Restoration limitations</strong> — incremental

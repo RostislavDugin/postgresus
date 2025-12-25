@@ -116,6 +116,18 @@ export default function PostgresusVsPgBackRestPage() {
                     </td>
                   </tr>
                   <tr>
+                    <td>Backups management</td>
+                    <td data-label="Postgresus">✅ Multiple DBs</td>
+                    <td data-label="pgBackRest">❌ Single DB only</td>
+                  </tr>
+                  <tr>
+                    <td>Support of other DBs</td>
+                    <td data-label="Postgresus">
+                      ✅ PostgreSQL, MySQL, MariaDB, MongoDB
+                    </td>
+                    <td data-label="pgBackRest">❌ PostgreSQL only</td>
+                  </tr>
+                  <tr>
                     <td>Interface</td>
                     <td data-label="Postgresus">Web UI</td>
                     <td data-label="pgBackRest">Command-line, config files</td>
@@ -313,8 +325,8 @@ export default function PostgresusVsPgBackRestPage() {
               <ul>
                 <li>
                   <strong>Restore to any hour or day</strong>: With hourly,
-                  daily, weekly, monthly or cron backup schedules, you can restore to
-                  any backup point you&apos;ve configured.
+                  daily, weekly, monthly or cron backup schedules, you can
+                  restore to any backup point you&apos;ve configured.
                 </li>
                 <li>
                   <strong>One-click restore</strong>: Download and restore
