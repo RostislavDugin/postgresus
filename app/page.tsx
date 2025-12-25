@@ -219,7 +219,7 @@ export default function Index() {
                 loading="eager"
               />
 
-              <span className="text-base md:text-lg font-semibold">
+              <span className="text-base md:text-lg font-semibold pl-1">
                 Databasus
               </span>
             </Link>
