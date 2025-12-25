@@ -87,6 +87,14 @@ Content: How to set up Slack webhook notifications
 URL: /notifiers/teams
 Content: How to configure Teams webhook notifications
 
+### MySQL and MariaDB Backup
+URL: /mysql-backup
+Content: Comprehensive guide on using Postgresus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10 and 11 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
+
+### MongoDB Backup
+URL: /mongodb-backup
+Content: Complete guide on using Postgresus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
+
 ## Technical Details
 
 ### System Requirements

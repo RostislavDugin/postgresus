@@ -23,8 +23,8 @@ export const metadata: Metadata = {
       {
         url: "https://postgresus.com/images/index/dashboard.png",
         alt: "Postgresus dashboard interface showing backup management",
-        width: 1735,
-        height: 850,
+        width: 1700,
+        height: 1078,
       },
     ],
     siteName: "Postgresus",
@@ -881,7 +881,7 @@ export default function Index() {
                 PostgreSQL
               </h3>
 
-              <p className="text-gray-400 text-sm md:text-base text-center">
+              <p className="text-gray-400 text-sm md:text-base text-center mb-4">
                 PostgreSQL is the primary database supported by Postgresus. All
                 versions from 12 to 18 are supported
               </p>
@@ -904,10 +904,19 @@ export default function Index() {
                 MySQL
               </h3>
 
-              <p className="text-gray-400 text-sm md:text-base text-center">
+              <p className="text-gray-400 text-sm md:text-base text-center mb-4">
                 MySQL is the second most popular database in the world. You can
                 backup and restore your MySQL databases with the same simplicity
               </p>
+
+              <div className="text-center mt-auto">
+                <a
+                  href="/mysql-backup"
+                  className="text-blue-500 hover:text-blue-600 font-medium text-sm md:text-base"
+                >
+                  Read more →
+                </a>
+              </div>
             </div>
 
             {/* MariaDB */}
@@ -927,10 +936,19 @@ export default function Index() {
                 MariaDB
               </h3>
 
-              <p className="text-gray-400 text-sm md:text-base text-center">
+              <p className="text-gray-400 text-sm md:text-base text-center mb-4">
                 MariaDB is supported with the same features as MySQL. You can
                 backup and restore your MariaDB databases seamlessly
               </p>
+
+              <div className="text-center mt-auto">
+                <a
+                  href="/mysql-backup"
+                  className="text-blue-500 hover:text-blue-600 font-medium text-sm md:text-base"
+                >
+                  Read more →
+                </a>
+              </div>
             </div>
 
             {/* MongoDB */}
@@ -950,11 +968,20 @@ export default function Index() {
                 MongoDB
               </h3>
 
-              <p className="text-gray-400 text-sm md:text-base text-center">
+              <p className="text-gray-400 text-sm md:text-base text-center mb-4">
                 MongoDB is the most popular NoSQL database. You can backup and
                 restore your MongoDB databases with the same easy-to-use
-                interface.
+                interface
               </p>
+
+              <div className="text-center mt-auto">
+                <a
+                  href="/mongodb-backup"
+                  className="text-blue-500 hover:text-blue-600 font-medium text-sm md:text-base"
+                >
+                  Read more →
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -1404,37 +1431,59 @@ export default function Index() {
               </span>
             </Link>
 
-            <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 mb-4 text-sm md:text-base">
-              <a
-                href="/installation"
-                className="hover:text-gray-200 transition-colors"
-              >
-                Documentation
-              </a>
-              <a
-                href="https://github.com/RostislavDugin/postgresus"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-gray-200 transition-colors"
-              >
-                GitHub
-              </a>
-              <a
-                href="https://t.me/postgresus_community"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-gray-200 transition-colors"
-              >
-                Community
-              </a>
-              <a
-                href="https://rostislav-dugin.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-gray-200 transition-colors"
-              >
-                Developer
-              </a>
+            <div className="flex flex-col gap-3 mb-4 text-sm md:text-base">
+              {/* First row - Database backup links */}
+              <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6">
+                <a href="/" className="hover:text-gray-200 transition-colors">
+                  PostgreSQL backup
+                </a>
+                <a
+                  href="/mysql-backup"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  MySQL and MariaDB backup
+                </a>
+                <a
+                  href="/mongodb-backup"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  MongoDB backup
+                </a>
+              </div>
+
+              {/* Second row - General links */}
+              <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6">
+                <a
+                  href="/installation"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  Documentation
+                </a>
+                <a
+                  href="https://github.com/RostislavDugin/postgresus"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  GitHub
+                </a>
+                <a
+                  href="https://t.me/postgresus_community"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  Community
+                </a>
+                <a
+                  href="https://rostislav-dugin.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  Developer
+                </a>
+              </div>
             </div>
 
             <a
