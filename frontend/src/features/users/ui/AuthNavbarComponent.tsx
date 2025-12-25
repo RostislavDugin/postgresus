@@ -7,7 +7,7 @@ export function AuthNavbarComponent() {
     <div className="flex h-[65px] items-center justify-center px-5 pt-5 sm:justify-start">
       <div className="flex items-center gap-3 hover:opacity-80">
         <a href="https://databasus.com" target="_blank" rel="noreferrer">
-          <img className="h-[45px] w-[45px]" src="/logo.svg" />
+          <img className="padding-[2.5px] h-[45px] w-[45px]" src="/logo.svg" />
         </a>
 
         <div className="text-xl font-bold">

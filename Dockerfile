@@ -218,6 +218,23 @@ COPY <<EOF /app/start.sh
 #!/bin/bash
 set -e
 
+# Check for legacy postgresus-data volume mount
+if [ -d "/postgresus-data" ] && [ "\$(ls -A /postgresus-data 2>/dev/null)" ]; then
+    echo ""
+    echo "=========================================="
+    echo "ERROR: Legacy volume detected!"
+    echo "=========================================="
+    echo ""
+    echo "You are using the \`postgresus-data\` folder. It seems you changed the image name from Postgresus to Databasus without changing the volume."
+    echo ""
+    echo "Please either:"
+    echo "  1. Switch back to image rostislavdugin/postgresus:latest (supported until ~Dec 2026)"
+    echo "  2. Read the migration guide: https://databasus.com/installation/#postgresus-migration"
+    echo ""
+    echo "=========================================="
+    exit 1
+fi
+
 # PostgreSQL 17 binary paths
 PG_BIN="/usr/lib/postgresql/17/bin"
 
