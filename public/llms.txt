@@ -184,6 +184,9 @@ Postgresus is suitable for:
 ### How is Postgresus different from PgBackRest, Barman or pg_dump?
 Postgresus is a tool to manage backups of multiple databases. It not only dump DB like other tools, but also provides a modern, user-friendly web interface instead of complex configuration files and command-line tools. While PgBackRest and Barman require extensive configuration and command-line expertise suitable for single DB only. Postgresus offers intuitive point-and-click setup. Unlike raw pg_dump scripts, it includes built-in scheduling, compression, multiple storage destinations, health monitoring and real-time notifications - all managed through a simple web UI. It's the UX-friendly alternative for developers and DevOps teams who want powerful backup capabilities without the complexity.
 
+### Which databases does Postgresus support?
+Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Postgresus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development.
+
 ### Where can I read comparisons with other PostgreSQL backup tools?
 We have detailed comparison pages for popular backup tools:
 - Postgresus vs pg_dump: /pgdump-alternative

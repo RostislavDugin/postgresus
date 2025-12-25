@@ -1333,6 +1333,11 @@ export default function Index() {
             />
             <FaqItem
               number="11"
+              question="Which databases does Postgresus support?"
+              answer="Postgresus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Postgresus was originally created specifically for PostgreSQL and maintains its primary focus on it — providing 100% excellent support and maximum efficiency for PostgreSQL backups. While MySQL, MariaDB and MongoDB are fully supported, PostgreSQL remains the core priority with the most optimized features and ongoing development."
+            />
+            <FaqItem
+              number="12"
               question="Why doesn't Postgresus support PITR (Point-in-Time Recovery)?"
               answer={
                 <>
@@ -1343,7 +1348,8 @@ export default function Index() {
                       <strong>Complex setup requirements</strong> — PITR tools
                       typically need to be installed on the same server as your
                       database, requiring direct filesystem access and careful
-                      configuration. You can backup only single database (Postgresus allows many)
+                      configuration. You can backup only single database
+                      (Postgresus allows many)
                     </li>
                     <li>
                       <strong>Restoration limitations</strong> — incremental
