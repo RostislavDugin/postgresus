@@ -32,5 +32,5 @@ keywords:
   - mongodb
   - mariadb
 license: Apache-2.0
-version: 2.15.3
+version: 2.16.0
 date-released: "2025-12-25"
