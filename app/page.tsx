@@ -1499,6 +1499,12 @@ export default function Index() {
                   Documentation
                 </a>
                 <a
+                  href="/privacy"
+                  className="hover:text-gray-200 transition-colors"
+                >
+                  Privacy
+                </a>
+                <a
                   href="https://github.com/databasus/databasus"
                   target="_blank"
                   rel="noopener noreferrer"

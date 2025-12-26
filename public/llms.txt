@@ -51,6 +51,10 @@ Content: How to reset user passwords using command-line tool
 URL: /security
 Content: Information about how Databasus ensures enterprise-level security through three layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption.
 
+### Privacy Policy
+URL: /privacy
+Content: Detailed privacy policy explaining how Databasus respects user privacy with anonymous analytics only. Uses Rybbit.io analytics service that collects no personal information, no IP addresses and uses randomly generated salted user IDs. Fully GDPR and CCPA compliant with no tracking cookies. All analytics data is stored on own server.
+
 ### FAQ - Frequently Asked Questions
 URL: /faq
 Content: Frequently asked questions about Databasus
