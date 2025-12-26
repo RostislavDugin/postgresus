@@ -3,7 +3,7 @@ import Link from "next/link";
 import InstallationComponent from "../components/InstallationComponent";
 
 export const metadata: Metadata = {
-  title: "MySQL backupwith MariaDB support",
+  title: "MySQL backup with MariaDB support",
   description:
     "Free and open source tool for MySQL and MariaDB scheduled backups. Alternative to mysqldump with web UI, cloud storage (S3, Google Drive), notifications (Slack, Discord, Telegram) and AES-256 encryption.",
   keywords:
