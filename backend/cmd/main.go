@@ -21,6 +21,7 @@ import (
 	"databasus-backend/internal/features/encryption/secrets"
 	healthcheck_attempt "databasus-backend/internal/features/healthcheck/attempt"
 	healthcheck_config "databasus-backend/internal/features/healthcheck/config"
+	"databasus-backend/internal/features/metrics"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/restores"
 	"databasus-backend/internal/features/storages"
@@ -174,6 +175,10 @@ func startServerWithGracefulShutdown(log *slog.Logger, app *gin.Engine) {
 }
 
 func setUpRoutes(r *gin.Engine) {
+	// Expose Prometheus metrics endpoint (public, no auth required)
+	metricsController := metrics.NewMetricsController()
+	r.GET("/metrics", metricsController.GetMetrics)
+
 	v1 := r.Group("/api/v1")
 
 	// Mount Swagger UI
