@@ -16,6 +16,7 @@ import (
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/features/metrics"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
 	users_models "databasus-backend/internal/features/users/models"
@@ -246,6 +247,9 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		return
 	}
 
+	// Record backup start in metrics
+	metrics.RecordBackupStart(string(database.Type), database.ID, database.Name, database.WorkspaceID)
+
 	start := time.Now().UTC()
 
 	backupProgressListener := func(
@@ -285,6 +289,10 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 			backup.BackupDurationMs = time.Since(start).Milliseconds()
 			backup.BackupSizeMb = 0
 
+			// Record backup cancellation in metrics
+			durationSeconds := float64(backup.BackupDurationMs) / 1000.0
+			metrics.RecordBackupCancellation(string(database.Type), database.ID, database.Name, database.WorkspaceID, durationSeconds)
+
 			if err := s.backupRepository.Save(backup); err != nil {
 				s.logger.Error("Failed to save cancelled backup", "error", err)
 			}
@@ -310,6 +318,10 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		backup.Status = BackupStatusFailed
 		backup.BackupDurationMs = time.Since(start).Milliseconds()
 		backup.BackupSizeMb = 0
+
+		// Record backup failure in metrics
+		durationSeconds := float64(backup.BackupDurationMs) / 1000.0
+		metrics.RecordBackupFailure(string(database.Type), database.ID, database.Name, database.WorkspaceID, durationSeconds)
 
 		if updateErr := s.databaseService.SetBackupError(databaseID, errMsg); updateErr != nil {
 			s.logger.Error(
@@ -349,6 +361,10 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		s.logger.Error("Failed to save backup", "error", err)
 		return
 	}
+
+	// Record backup completion in metrics
+	durationSeconds := float64(backup.BackupDurationMs) / 1000.0
+	metrics.RecordBackupCompletion(string(database.Type), database.ID, database.Name, database.WorkspaceID, durationSeconds, backup.BackupSizeMb)
 
 	// Update database last backup time
 	now := time.Now().UTC()
