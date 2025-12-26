@@ -17,4 +17,9 @@ migration-down:
 	goose down
 
 swagger:
-	swag init -g ./cmd/main.go -o swagger
+	@if ! command -v swag > /dev/null 2>&1; then \
+		echo "swag not found, installing..."; \
+		go install github.com/swaggo/swag/cmd/swag@v1.16.4; \
+		export PATH=$$PATH:$$(go env GOPATH)/bin; \
+	fi
+	@PATH=$$PATH:$$(go env GOPATH)/bin swag init -g ./cmd/main.go -o swagger
