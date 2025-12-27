@@ -10,4 +10,5 @@ export interface MongodbDatabase {
   database: string;
   authDatabase: string;
   useTls: boolean;
+  cpuCount: number;
 }

@@ -217,6 +217,7 @@ func createTestDatabaseViaAPI(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 

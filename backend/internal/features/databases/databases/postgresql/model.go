@@ -34,6 +34,7 @@ type PostgresqlDatabase struct {
 	// backup settings
 	IncludeSchemas       []string `json:"includeSchemas" gorm:"-"`
 	IncludeSchemasString string   `json:"-"              gorm:"column:include_schemas;type:text;not null;default:''"`
+	CpuCount             int      `json:"cpuCount"       gorm:"column:cpu_count;type:int;not null;default:1"`
 
 	// restore settings (not saved to DB)
 	IsExcludeExtensions bool `json:"isExcludeExtensions" gorm:"-"`
@@ -80,6 +81,10 @@ func (p *PostgresqlDatabase) Validate() error {
 		return errors.New("password is required")
 	}
 
+	if p.CpuCount <= 0 {
+		return errors.New("cpu count must be greater than 0")
+	}
+
 	return nil
 }
 
@@ -110,6 +115,7 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	p.Database = incoming.Database
 	p.IsHttps = incoming.IsHttps
 	p.IncludeSchemas = incoming.IncludeSchemas
+	p.CpuCount = incoming.CpuCount
 
 	if incoming.Password != "" {
 		p.Password = incoming.Password

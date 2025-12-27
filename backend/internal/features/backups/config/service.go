@@ -168,7 +168,6 @@ func (s *BackupConfigService) initializeDefaultConfig(
 			NotificationBackupFailed,
 			NotificationBackupSuccess,
 		},
-		CpuCount:            1,
 		IsRetryIfFailed:     true,
 		MaxFailedTriesCount: 3,
 		Encryption:          BackupEncryptionNone,

@@ -139,7 +139,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 	uc.logger.Info("Executing PostgreSQL backup command", "command", cmd.String())
 
-	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, backupConfig.CpuCount, pgBin); err != nil {
+	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, db.Postgresql.CpuCount, pgBin); err != nil {
 		return nil, err
 	}
 
@@ -333,6 +333,11 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlD
 		"-U", pg.Username,
 		"-d", *pg.Database,
 		"--verbose",
+	}
+
+	// Add parallel jobs based on CPU count
+	if pg.CpuCount > 1 {
+		args = append(args, "-j", strconv.Itoa(pg.CpuCount))
 	}
 
 	for _, schema := range pg.IncludeSchemas {

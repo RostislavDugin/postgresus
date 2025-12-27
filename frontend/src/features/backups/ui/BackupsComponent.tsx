@@ -541,7 +541,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       <h2 className="text-lg font-bold md:text-xl dark:text-white">Backups</h2>
 
       {!isBackupConfigLoading && !backupConfig?.isBackupsEnabled && (
-        <div className="text-sm text-red-600 md:text-base">
+        <div className="text-sm text-red-600">
           Scheduled backups are disabled (you can enable it back in the backup configuration)
         </div>
       )}

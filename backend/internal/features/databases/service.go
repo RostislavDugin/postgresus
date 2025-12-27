@@ -396,15 +396,17 @@ func (s *DatabaseService) CopyDatabase(
 	case DatabaseTypePostgres:
 		if existingDatabase.Postgresql != nil {
 			newDatabase.Postgresql = &postgresql.PostgresqlDatabase{
-				ID:         uuid.Nil,
-				DatabaseID: nil,
-				Version:    existingDatabase.Postgresql.Version,
-				Host:       existingDatabase.Postgresql.Host,
-				Port:       existingDatabase.Postgresql.Port,
-				Username:   existingDatabase.Postgresql.Username,
-				Password:   existingDatabase.Postgresql.Password,
-				Database:   existingDatabase.Postgresql.Database,
-				IsHttps:    existingDatabase.Postgresql.IsHttps,
+				ID:             uuid.Nil,
+				DatabaseID:     nil,
+				Version:        existingDatabase.Postgresql.Version,
+				Host:           existingDatabase.Postgresql.Host,
+				Port:           existingDatabase.Postgresql.Port,
+				Username:       existingDatabase.Postgresql.Username,
+				Password:       existingDatabase.Postgresql.Password,
+				Database:       existingDatabase.Postgresql.Database,
+				IsHttps:        existingDatabase.Postgresql.IsHttps,
+				IncludeSchemas: existingDatabase.Postgresql.IncludeSchemas,
+				CpuCount:       existingDatabase.Postgresql.CpuCount,
 			}
 		}
 	case DatabaseTypeMysql:
@@ -448,6 +450,7 @@ func (s *DatabaseService) CopyDatabase(
 				Database:     existingDatabase.Mongodb.Database,
 				AuthDatabase: existingDatabase.Mongodb.AuthDatabase,
 				IsHttps:      existingDatabase.Mongodb.IsHttps,
+				CpuCount:     existingDatabase.Mongodb.CpuCount,
 			}
 		}
 	}

@@ -106,6 +106,13 @@ func (uc *CreateMongodbBackupUsecase) buildMongodumpArgs(
 		"--gzip",
 	}
 
+	// Use numParallelCollections based on CPU count
+	// Cap between 1 and 16 to balance performance and resource usage
+	parallelCollections := max(1, min(mdb.CpuCount, 16))
+	if parallelCollections > 1 {
+		args = append(args, "--numParallelCollections="+fmt.Sprintf("%d", parallelCollections))
+	}
+
 	return args
 }
 

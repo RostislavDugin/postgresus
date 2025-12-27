@@ -111,6 +111,16 @@ func (uc *RestoreMongodbBackupUsecase) buildMongorestoreArgs(
 		args = append(args, "--nsInclude="+mdb.Database+".*")
 	}
 
+	// Use numInsertionWorkersPerCollection based on CPU count
+	// Cap between 1 and 16 to balance performance and resource usage
+	parallelWorkers := max(1, min(mdb.CpuCount, 16))
+	if parallelWorkers > 1 {
+		args = append(
+			args,
+			"--numInsertionWorkersPerCollection="+fmt.Sprintf("%d", parallelWorkers),
+		)
+	}
+
 	return args
 }
 

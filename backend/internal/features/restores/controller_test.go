@@ -295,6 +295,7 @@ func createTestDatabase(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 

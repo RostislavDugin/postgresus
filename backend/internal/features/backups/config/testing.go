@@ -28,7 +28,6 @@ func EnableBackupsForTestDatabase(
 			NotificationBackupFailed,
 			NotificationBackupSuccess,
 		},
-		CpuCount: 1,
 	}
 
 	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)

@@ -154,7 +154,6 @@ export const EditBackupConfigComponent = ({
           timeOfDay: '00:00',
         },
         storage: undefined,
-        cpuCount: 1,
         storePeriod: Period.THREE_MONTH,
         sendNotificationsOn: [],
         isRetryIfFailed: true,
@@ -201,7 +200,6 @@ export const EditBackupConfigComponent = ({
     !backupConfig.isBackupsEnabled ||
     (Boolean(backupConfig.storePeriod) &&
       Boolean(backupConfig.storage?.id) &&
-      Boolean(backupConfig.cpuCount) &&
       Boolean(backupConfig.encryption) &&
       Boolean(backupInterval?.interval) &&
       (!backupInterval ||
@@ -211,16 +209,18 @@ export const EditBackupConfigComponent = ({
 
   return (
     <div>
-      <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
-        <div className="mb-1 min-w-[150px] sm:mb-0">Backups enabled</div>
-        <Switch
-          checked={backupConfig.isBackupsEnabled}
-          onChange={(checked) => {
-            updateBackupConfig({ isBackupsEnabled: checked });
-          }}
-          size="small"
-        />
-      </div>
+      {database.id && (
+        <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+          <div className="mb-1 min-w-[150px] sm:mb-0">Backups enabled</div>
+          <Switch
+            checked={backupConfig.isBackupsEnabled}
+            onChange={(checked) => {
+              updateBackupConfig({ isBackupsEnabled: checked });
+            }}
+            size="small"
+          />
+        </div>
+      )}
 
       {backupConfig.isBackupsEnabled && (
         <>
@@ -403,27 +403,6 @@ export const EditBackupConfigComponent = ({
               </div>
             </div>
           )}
-
-          <div className="mt-5 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
-            <div className="mb-1 min-w-[150px] sm:mb-0">CPU count</div>
-            <div className="flex items-center">
-              <InputNumber
-                min={1}
-                max={16}
-                value={backupConfig.cpuCount}
-                onChange={(value) => updateBackupConfig({ cpuCount: value || 1 })}
-                size="small"
-                className="w-full max-w-[200px] grow"
-              />
-
-              <Tooltip
-                className="cursor-pointer"
-                title="Number of CPU cores to use for restore processing. Higher values may speed up restores, but use more resources."
-              >
-                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-              </Tooltip>
-            </div>
-          </div>
 
           <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
             <div className="mb-1 min-w-[150px] sm:mb-0">Store period</div>

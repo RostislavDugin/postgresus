@@ -25,6 +25,7 @@ func CreateTestDatabase(
 			Port:     5432,
 			Username: "postgres",
 			Password: "postgres",
+			CpuCount: 1,
 		},
 
 		Notifiers: []notifiers.Notifier{

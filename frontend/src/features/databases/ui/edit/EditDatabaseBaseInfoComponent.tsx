@@ -65,7 +65,8 @@ export const EditDatabaseBaseInfoComponent = ({
 
     switch (newType) {
       case DatabaseType.POSTGRES:
-        updatedDatabase.postgresql = editingDatabase.postgresql ?? ({} as PostgresqlDatabase);
+        updatedDatabase.postgresql =
+          editingDatabase.postgresql ?? ({ cpuCount: 1 } as PostgresqlDatabase);
         break;
       case DatabaseType.MYSQL:
         updatedDatabase.mysql = editingDatabase.mysql ?? ({} as MysqlDatabase);
@@ -74,7 +75,7 @@ export const EditDatabaseBaseInfoComponent = ({
         updatedDatabase.mariadb = editingDatabase.mariadb ?? ({} as MariadbDatabase);
         break;
       case DatabaseType.MONGODB:
-        updatedDatabase.mongodb = editingDatabase.mongodb ?? ({} as MongodbDatabase);
+        updatedDatabase.mongodb = editingDatabase.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase);
         break;
     }
 

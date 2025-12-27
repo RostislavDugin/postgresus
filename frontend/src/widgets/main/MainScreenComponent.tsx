@@ -193,10 +193,7 @@ export const MainScreenComponent = () => {
       <div className="mb-2 flex h-[50px] items-center rounded bg-white px-2 py-2 shadow md:mb-3 md:h-[60px] md:p-3 dark:bg-gray-800">
         <div className="flex items-center gap-2 hover:opacity-80 md:gap-3">
           <a href="https://databasus.com" target="_blank" rel="noreferrer">
-            <img
-              className="padding-[2.5px] h-[30px] w-[30px] md:h-[40px] md:w-[40px]"
-              src="/logo.svg"
-            />
+            <img className="h-[30px] w-[30px] p-1 md:h-[40px] md:w-[40px]" src="/logo.svg" />
           </a>
         </div>
 

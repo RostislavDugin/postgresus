@@ -100,6 +100,7 @@ func Test_CreateDatabase_PermissionsEnforced(t *testing.T) {
 					Username: "postgres",
 					Password: "postgres",
 					Database: &testDbName,
+					CpuCount: 1,
 				},
 			}
 
@@ -143,6 +144,7 @@ func Test_CreateDatabase_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testin
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -747,6 +749,7 @@ func createTestDatabaseViaAPI(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -790,6 +793,7 @@ func Test_CreateDatabase_PasswordIsEncryptedInDB(t *testing.T) {
 			Username: "postgres",
 			Password: plainPassword,
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -862,6 +866,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Username: "postgres",
 						Password: "original-password-secret",
 						Database: &testDbName,
+						CpuCount: 1,
 					},
 				}
 			},
@@ -879,6 +884,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Username: "updated_user",
 						Password: "",
 						Database: &testDbName,
+						CpuCount: 1,
 					},
 				}
 			},
@@ -961,6 +967,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Database:     "test_db",
 						AuthDatabase: "admin",
 						IsHttps:      false,
+						CpuCount:     1,
 					},
 				}
 			},
@@ -979,6 +986,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Database:     "updated_test_db",
 						AuthDatabase: "admin",
 						IsHttps:      false,
+						CpuCount:     1,
 					},
 				}
 			},

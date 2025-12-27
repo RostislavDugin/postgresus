@@ -109,7 +109,6 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 				SendNotificationsOn: []BackupNotificationType{
 					NotificationBackupFailed,
 				},
-				CpuCount:            2,
 				IsRetryIfFailed:     true,
 				MaxFailedTriesCount: 3,
 			}
@@ -129,7 +128,6 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 				assert.Equal(t, database.ID, response.DatabaseID)
 				assert.True(t, response.IsBackupsEnabled)
 				assert.Equal(t, period.PeriodWeek, response.StorePeriod)
-				assert.Equal(t, 2, response.CpuCount)
 			} else {
 				assert.Contains(t, string(testResp.Body), "insufficient permissions")
 			}
@@ -158,7 +156,6 @@ func Test_SaveBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *test
 		SendNotificationsOn: []BackupNotificationType{
 			NotificationBackupFailed,
 		},
-		CpuCount:            2,
 		IsRetryIfFailed:     true,
 		MaxFailedTriesCount: 3,
 	}
@@ -290,7 +287,6 @@ func Test_GetBackupConfigByDbID_ReturnsDefaultConfigForNewDatabase(t *testing.T)
 	assert.Equal(t, database.ID, response.DatabaseID)
 	assert.False(t, response.IsBackupsEnabled)
 	assert.Equal(t, period.PeriodWeek, response.StorePeriod)
-	assert.Equal(t, 1, response.CpuCount)
 	assert.True(t, response.IsRetryIfFailed)
 	assert.Equal(t, 3, response.MaxFailedTriesCount)
 	assert.NotNil(t, response.BackupInterval)
@@ -387,7 +383,6 @@ func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 		SendNotificationsOn: []BackupNotificationType{
 			NotificationBackupFailed,
 		},
-		CpuCount:            2,
 		IsRetryIfFailed:     true,
 		MaxFailedTriesCount: 3,
 		Encryption:          BackupEncryptionNone,
@@ -427,7 +422,6 @@ func Test_SaveBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
 		SendNotificationsOn: []BackupNotificationType{
 			NotificationBackupFailed,
 		},
-		CpuCount:            2,
 		IsRetryIfFailed:     true,
 		MaxFailedTriesCount: 3,
 		Encryption:          BackupEncryptionEncrypted,
@@ -466,6 +460,7 @@ func createTestDatabaseViaAPI(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 

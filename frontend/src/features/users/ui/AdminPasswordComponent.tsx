@@ -130,7 +130,7 @@ export function AdminPasswordComponent({
         }}
         type="primary"
       >
-        Set Password
+        Set password
       </Button>
 
       {adminPasswordError && (

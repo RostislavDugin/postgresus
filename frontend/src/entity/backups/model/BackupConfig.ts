@@ -12,7 +12,6 @@ export interface BackupConfig {
   backupInterval?: Interval;
   storage?: Storage;
   sendNotificationsOn: BackupNotificationType[];
-  cpuCount: number;
   isRetryIfFailed: boolean;
   maxFailedTriesCount: number;
   encryption: BackupEncryption;

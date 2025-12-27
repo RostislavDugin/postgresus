@@ -30,6 +30,7 @@ type MongodbDatabase struct {
 	Database     string `json:"database"     gorm:"type:text;not null"`
 	AuthDatabase string `json:"authDatabase" gorm:"type:text;not null;default:'admin'"`
 	IsHttps      bool   `json:"isHttps"      gorm:"type:boolean;default:false"`
+	CpuCount     int    `json:"cpuCount"     gorm:"column:cpu_count;type:int;not null;default:1"`
 }
 
 func (m *MongodbDatabase) TableName() string {
@@ -51,6 +52,9 @@ func (m *MongodbDatabase) Validate() error {
 	}
 	if m.Database == "" {
 		return errors.New("database is required")
+	}
+	if m.CpuCount <= 0 {
+		return errors.New("cpu count must be greater than 0")
 	}
 	return nil
 }
@@ -109,6 +113,7 @@ func (m *MongodbDatabase) Update(incoming *MongodbDatabase) {
 	m.Database = incoming.Database
 	m.AuthDatabase = incoming.AuthDatabase
 	m.IsHttps = incoming.IsHttps
+	m.CpuCount = incoming.CpuCount
 
 	if incoming.Password != "" {
 		m.Password = incoming.Password

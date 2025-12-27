@@ -67,7 +67,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 
 	// Use parallel jobs based on CPU count (same as backup)
 	// Cap between 1 and 8 to avoid overwhelming the server
-	parallelJobs := max(1, min(backupConfig.CpuCount, 8))
+	parallelJobs := max(1, min(restoringToDB.Postgresql.CpuCount, 8))
 
 	args := []string{
 		"-Fc",                            // expect custom format (same as backup)

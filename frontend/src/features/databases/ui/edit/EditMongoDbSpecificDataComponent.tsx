@@ -1,5 +1,5 @@
-import { CopyOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
-import { App, Button, Input, InputNumber, Switch } from 'antd';
+import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { App, Button, Input, InputNumber, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { type Database, databaseApi } from '../../../../entity/databases';
@@ -78,6 +78,7 @@ export const EditMongoDbSpecificDataComponent = ({
           database: result.database,
           authDatabase: result.authDatabase,
           useTls: result.useTls,
+          cpuCount: 1,
         },
       };
 
@@ -285,7 +286,7 @@ export const EditMongoDbSpecificDataComponent = ({
         </div>
       )}
 
-      <div className="mb-3 flex w-full items-center">
+      <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">Use TLS</div>
         <Switch
           checked={editingDatabase.mongodb?.useTls}
@@ -302,7 +303,36 @@ export const EditMongoDbSpecificDataComponent = ({
         />
       </div>
 
-      <div className="mt-4 mb-3 flex items-center">
+      <div className="mb-5 flex w-full items-center">
+        <div className="min-w-[150px]">CPU count</div>
+        <div className="flex items-center">
+          <InputNumber
+            min={1}
+            max={16}
+            value={editingDatabase.mongodb?.cpuCount || 1}
+            onChange={(value) => {
+              if (!editingDatabase.mongodb) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                mongodb: { ...editingDatabase.mongodb, cpuCount: value || 1 },
+              });
+              setIsConnectionTested(false);
+            }}
+            size="small"
+            className="max-w-[200px] grow"
+          />
+
+          <Tooltip
+            className="cursor-pointer"
+            title="Number of CPU cores to use for backup and restore operations. Higher values may speed up operations but use more resources."
+          >
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
+      </div>
+
+      <div className="mt-4 mb-1 flex items-center">
         <div
           className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
           onClick={() => setShowAdvanced(!isShowAdvanced)}
@@ -318,24 +348,26 @@ export const EditMongoDbSpecificDataComponent = ({
       </div>
 
       {isShowAdvanced && (
-        <div className="mb-1 flex w-full items-center">
-          <div className="min-w-[150px]">Auth database</div>
-          <Input
-            value={editingDatabase.mongodb?.authDatabase}
-            onChange={(e) => {
-              if (!editingDatabase.mongodb) return;
+        <>
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Auth database</div>
+            <Input
+              value={editingDatabase.mongodb?.authDatabase}
+              onChange={(e) => {
+                if (!editingDatabase.mongodb) return;
 
-              setEditingDatabase({
-                ...editingDatabase,
-                mongodb: { ...editingDatabase.mongodb, authDatabase: e.target.value.trim() },
-              });
-              setIsConnectionTested(false);
-            }}
-            size="small"
-            className="max-w-[200px] grow"
-            placeholder="admin"
-          />
-        </div>
+                setEditingDatabase({
+                  ...editingDatabase,
+                  mongodb: { ...editingDatabase.mongodb, authDatabase: e.target.value.trim() },
+                });
+                setIsConnectionTested(false);
+              }}
+              size="small"
+              className="max-w-[200px] grow"
+              placeholder="admin"
+            />
+          </div>
+        </>
       )}
 
       <div className="mt-5 flex">

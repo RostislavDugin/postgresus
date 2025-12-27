@@ -394,6 +394,7 @@ func createMongodbDatabaseViaAPI(
 			AuthDatabase: authDatabase,
 			Version:      version,
 			IsHttps:      false,
+			CpuCount:     1,
 		},
 	}
 
@@ -440,6 +441,7 @@ func createMongodbRestoreViaAPI(
 			AuthDatabase: authDatabase,
 			Version:      version,
 			IsHttps:      false,
+			CpuCount:     1,
 		},
 	}
 

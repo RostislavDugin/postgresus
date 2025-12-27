@@ -43,6 +43,11 @@ export const ShowMongoDbSpecificDataComponent = ({ database }: Props) => {
           <div>{database.mongodb.authDatabase}</div>
         </div>
       )}
+
+      <div className="mb-1 flex w-full items-center">
+        <div className="min-w-[150px]">CPU count</div>
+        <div>{database.mongodb?.cpuCount || 1}</div>
+      </div>
     </div>
   );
 };

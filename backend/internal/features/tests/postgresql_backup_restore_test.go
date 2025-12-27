@@ -1269,6 +1269,7 @@ func createDatabaseViaAPI(
 			Username: username,
 			Password: password,
 			Database: &database,
+			CpuCount: 1,
 		},
 	}
 
@@ -1387,6 +1388,7 @@ func createRestoreWithOptionsViaAPI(
 			Password:            password,
 			Database:            &database,
 			IsExcludeExtensions: isExcludeExtensions,
+			CpuCount:            1,
 		},
 	}
 
@@ -1424,6 +1426,7 @@ func createDatabaseWithSchemasViaAPI(
 			Password:       password,
 			Database:       &database,
 			IncludeSchemas: includeSchemas,
+			CpuCount:       1,
 		},
 	}
 
@@ -1476,6 +1479,7 @@ func createSupabaseDatabaseViaAPI(
 			Database:       &database,
 			IsHttps:        true,
 			IncludeSchemas: includeSchemas,
+			CpuCount:       1,
 		},
 	}
 
@@ -1522,6 +1526,7 @@ func createSupabaseRestoreViaAPI(
 			Password: password,
 			Database: &database,
 			IsHttps:  true,
+			CpuCount: 1,
 		},
 	}
 
