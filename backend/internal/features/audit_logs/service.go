@@ -135,3 +135,19 @@ func (s *AuditLogService) GetWorkspaceAuditLogs(
 		Offset:    offset,
 	}, nil
 }
+
+func (s *AuditLogService) CleanOldAuditLogs() error {
+	oneYearAgo := time.Now().UTC().Add(-365 * 24 * time.Hour)
+
+	deletedCount, err := s.auditLogRepository.DeleteOlderThan(oneYearAgo)
+	if err != nil {
+		s.logger.Error("Failed to delete old audit logs", "error", err)
+		return err
+	}
+
+	if deletedCount > 0 {
+		s.logger.Info("Deleted old audit logs", "count", deletedCount, "olderThan", oneYearAgo)
+	}
+
+	return nil
+}

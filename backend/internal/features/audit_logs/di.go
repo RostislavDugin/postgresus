@@ -7,11 +7,15 @@ import (
 
 var auditLogRepository = &AuditLogRepository{}
 var auditLogService = &AuditLogService{
-	auditLogRepository: auditLogRepository,
-	logger:             logger.GetLogger(),
+	auditLogRepository,
+	logger.GetLogger(),
 }
 var auditLogController = &AuditLogController{
-	auditLogService: auditLogService,
+	auditLogService,
+}
+var auditLogBackgroundService = &AuditLogBackgroundService{
+	auditLogService,
+	logger.GetLogger(),
 }
 
 func GetAuditLogService() *AuditLogService {
@@ -20,6 +24,10 @@ func GetAuditLogService() *AuditLogService {
 
 func GetAuditLogController() *AuditLogController {
 	return auditLogController
+}
+
+func GetAuditLogBackgroundService() *AuditLogBackgroundService {
+	return auditLogBackgroundService
 }
 
 func SetupDependencies() {
