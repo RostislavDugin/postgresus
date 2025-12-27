@@ -857,7 +857,7 @@ export default function DatabasusVsWalGPage() {
                 streamlined experience with its unified interface and built-in
                 features — and works seamlessly with both self-hosted and
                 cloud-managed databases. Databasus is suitable for comprehensive
-                backup management, not just backups.
+                backup management of production databases, not just backups.
                 <br />
                 <br />
                 WAL-G remains an excellent choice for organizations with

@@ -411,7 +411,7 @@ export default function Index() {
             </h2>
 
             <p className="text-sm sm:text-lg text-gray-200 max-w-[650px] mx-auto mb-8 md:mb-10">
-              Databasus provides everything you need for reliable database
+              Databasus provides everything you need for reliable production
               backup management. From automated scheduling to backups
               encryption. Suitable well for both individual developers with
               personal projects, DevOps teams and enterprises

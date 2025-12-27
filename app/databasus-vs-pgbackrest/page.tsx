@@ -704,11 +704,11 @@ export default function DatabasusVsPgBackRestPage() {
               </div>
 
               <p>
-                For most use cases, from individual projects to enterprise
-                deployments, Databasus provides the right balance of power and
-                usability — and works seamlessly with both self-hosted and
-                cloud-managed databases. Databasus is suitable for comprehensive
-                backup management, not just backups.
+                For most use cases, from individual projects to production
+                databases and to enterprise deployments, Databasus provides the
+                right balance of power and usability — and works seamlessly with
+                both self-hosted and cloud-managed databases. Databasus is
+                suitable for comprehensive backup management, not just backups.
                 <br />
                 <br />
                 pgBackRest remains the specialized choice for DBAs managing very
