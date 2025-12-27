@@ -257,24 +257,68 @@ if [ ! -s "/databasus-data/pgdata/PG_VERSION" ]; then
     echo "max_connections = 100" >> /databasus-data/pgdata/postgresql.conf
 fi
 
-# Start PostgreSQL in background
-echo "Starting PostgreSQL..."
-gosu postgres \$PG_BIN/postgres -D /databasus-data/pgdata -p 5437 &
-POSTGRES_PID=\$!
+# Function to start PostgreSQL and wait for it to be ready
+start_postgres() {
+    echo "Starting PostgreSQL..."
+    gosu postgres \$PG_BIN/postgres -D /databasus-data/pgdata -p 5437 &
+    POSTGRES_PID=\$!
+    
+    echo "Waiting for PostgreSQL to be ready..."
+    for i in {1..30}; do
+        if gosu postgres \$PG_BIN/pg_isready -p 5437 -h localhost >/dev/null 2>&1; then
+            echo "PostgreSQL is ready!"
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-for i in {1..30}; do
-    if gosu postgres \$PG_BIN/pg_isready -p 5437 -h localhost >/dev/null 2>&1; then
-        echo "PostgreSQL is ready!"
-        break
-    fi
-    if [ \$i -eq 30 ]; then
-        echo "PostgreSQL failed to start"
+# Try to start PostgreSQL
+if ! start_postgres; then
+    echo ""
+    echo "=========================================="
+    echo "PostgreSQL failed to start. Attempting WAL reset recovery..."
+    echo "=========================================="
+    echo ""
+    
+    # Kill any remaining postgres processes
+    pkill -9 postgres 2>/dev/null || true
+    sleep 2
+    
+    # Attempt pg_resetwal to recover from WAL corruption
+    echo "Running pg_resetwal to reset WAL..."
+    if gosu postgres \$PG_BIN/pg_resetwal -f /databasus-data/pgdata; then
+        echo "WAL reset successful. Restarting PostgreSQL..."
+        
+        # Try starting PostgreSQL again after WAL reset
+        if start_postgres; then
+            echo "PostgreSQL recovered successfully after WAL reset!"
+        else
+            echo ""
+            echo "=========================================="
+            echo "ERROR: PostgreSQL failed to start even after WAL reset."
+            echo "The database may be severely corrupted."
+            echo ""
+            echo "Options:"
+            echo "  1. Delete the volume and start fresh (data loss)"
+            echo "  2. Manually inspect /databasus-data/pgdata for issues"
+            echo "=========================================="
+            exit 1
+        fi
+    else
+        echo ""
+        echo "=========================================="
+        echo "ERROR: pg_resetwal failed."
+        echo "The database may be severely corrupted."
+        echo ""
+        echo "Options:"
+        echo "  1. Delete the volume and start fresh (data loss)"
+        echo "  2. Manually inspect /databasus-data/pgdata for issues"
+        echo "=========================================="
         exit 1
     fi
-    sleep 1
-done
+fi
 
 # Create database and set password for postgres user
 echo "Setting up database and user..."
