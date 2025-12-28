@@ -278,3 +278,35 @@ It was an important step for the project to grow. Actually, there are a couple o
 2. New databases are supported: although the primary focus is PostgreSQL (with 100% support in the most efficient way) and always will be, Databasus added support for MySQL, MariaDB and MongoDB. Later more databases will be supported.
 
 3. Trademark issue: "postgres" is a trademark of PostgreSQL Inc. and cannot be used in the project name. So for safety and legal reasons, we had to rename the project.
+
+## AI disclaimer
+
+There have been questions about AI usage in project development in issues and discussions. As the project focuses on security, reliability and production usage, it's important to explain how AI is used in the development process.
+
+AI is used as a helper for:
+
+- verification of code quality and searching for vulnerabilities
+- cleaning up and improving documentation, comments and code
+- assistance during development
+- double-checking PRs and commits after human review
+
+AI is not used for:
+
+- writing entire code
+- "vibe code" approach
+- code without line-by-line verification by a human
+- code without tests
+
+The project has:
+
+- solid test coverage (both unit and integration tests)
+- CI/CD pipeline automation with tests and linting to ensure code quality
+- verification by experienced developers with experience in large and secure projects
+
+So AI is just an assistant and a tool for developers to increase productivity and ensure code quality. The work is done by developers.
+
+Moreover, it's important to note that we do not differentiate between bad human code and AI vibe code. There are strict requirements for any code to be merged to keep the codebase maintainable.
+
+Even if code is written manually by a human, it's not guaranteed to be merged. Vibe code is not allowed at all and all such PRs are rejected by default (see [contributing guide](https://databasus.com/contribute)).
+
+We also draw attention to fast issue resolution and security [vulnerability reporting](https://github.com/databasus/databasus?tab=security-ov-file#readme).
