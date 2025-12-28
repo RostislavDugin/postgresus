@@ -1448,6 +1448,36 @@ export default function Index() {
                 </>
               }
             />
+            <FaqItem
+              number="14"
+              question="How is AI used in Databasus development?"
+              answer={
+                <>
+                  There have been questions about AI usage in project
+                  development. As the project focuses on security, reliability
+                  and production usage, we want to be transparent about how AI
+                  is used in the development process.
+                  <br />
+                  <br />
+                  AI is used as a helper for code quality verification,
+                  documentation improvement and assistance during development.
+                  AI is NOT used for writing entire code or code without tests.
+                  The project has solid test coverage, CI/CD automation and
+                  verification by experienced developers.
+                  <br />
+                  <br />
+                  For detailed information about AI usage, development process
+                  and security measures, please visit our{" "}
+                  <a
+                    href="/faq#ai-usage"
+                    className="text-blue-400 hover:text-blue-600"
+                  >
+                    dedicated FAQ page
+                  </a>
+                  .
+                </>
+              }
+            />
           </div>
         </div>
       </section>

@@ -57,7 +57,7 @@ Content: Detailed privacy policy explaining how Databasus respects user privacy 
 
 ### FAQ - Frequently Asked Questions
 URL: /faq
-Content: Frequently asked questions about Databasus
+Content: Frequently asked questions about Databasus. Includes questions about backup formats, installation directory, PITR support and AI usage in development.
 
 #### How to backup localhost databases
 URL: /faq/localhost
@@ -228,6 +228,9 @@ Real-time notifications via email, Slack, Telegram, webhooks, Mattermost, Discor
 
 ### Security
 All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Enterprise-grade AES-256-GCM encryption protects backup files, making them useless even if storage is compromised. Open source allows full code inspection.
+
+### AI Usage in Development
+For information about AI usage in Databasus development, see /faq#ai-usage
 
 ## Developer Information
 
