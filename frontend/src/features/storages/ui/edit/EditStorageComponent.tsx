@@ -9,9 +9,12 @@ import {
 } from '../../../../entity/storages';
 import { ToastHelper } from '../../../../shared/toast';
 import { EditAzureBlobStorageComponent } from './storages/EditAzureBlobStorageComponent';
+import { EditFTPStorageComponent } from './storages/EditFTPStorageComponent';
 import { EditGoogleDriveStorageComponent } from './storages/EditGoogleDriveStorageComponent';
 import { EditNASStorageComponent } from './storages/EditNASStorageComponent';
+import { EditRcloneStorageComponent } from './storages/EditRcloneStorageComponent';
 import { EditS3StorageComponent } from './storages/EditS3StorageComponent';
+import { EditSFTPStorageComponent } from './storages/EditSFTPStorageComponent';
 
 interface Props {
   workspaceId: string;
@@ -86,6 +89,9 @@ export function EditStorageComponent({
     storage.s3Storage = undefined;
     storage.googleDriveStorage = undefined;
     storage.azureBlobStorage = undefined;
+    storage.ftpStorage = undefined;
+    storage.sftpStorage = undefined;
+    storage.rcloneStorage = undefined;
 
     if (type === StorageType.LOCAL) {
       storage.localStorage = {};
@@ -130,6 +136,34 @@ export function EditStorageComponent({
         containerName: '',
         endpoint: '',
         prefix: '',
+      };
+    }
+
+    if (type === StorageType.FTP) {
+      storage.ftpStorage = {
+        host: '',
+        port: 21,
+        username: '',
+        password: '',
+        useSsl: false,
+        path: '',
+      };
+    }
+
+    if (type === StorageType.SFTP) {
+      storage.sftpStorage = {
+        host: '',
+        port: 22,
+        username: '',
+        password: '',
+        path: '',
+      };
+    }
+
+    if (type === StorageType.RCLONE) {
+      storage.rcloneStorage = {
+        configContent: '',
+        remotePath: '',
       };
     }
 
@@ -235,6 +269,42 @@ export function EditStorageComponent({
       }
     }
 
+    if (storage.type === StorageType.FTP) {
+      if (storage.id) {
+        return storage.ftpStorage?.host && storage.ftpStorage?.port && storage.ftpStorage?.username;
+      }
+
+      return (
+        storage.ftpStorage?.host &&
+        storage.ftpStorage?.port &&
+        storage.ftpStorage?.username &&
+        storage.ftpStorage?.password
+      );
+    }
+
+    if (storage.type === StorageType.SFTP) {
+      if (storage.id) {
+        return (
+          storage.sftpStorage?.host && storage.sftpStorage?.port && storage.sftpStorage?.username
+        );
+      }
+
+      return (
+        storage.sftpStorage?.host &&
+        storage.sftpStorage?.port &&
+        storage.sftpStorage?.username &&
+        (storage.sftpStorage?.password || storage.sftpStorage?.privateKey)
+      );
+    }
+
+    if (storage.type === StorageType.RCLONE) {
+      if (storage.id) {
+        return true;
+      }
+
+      return storage.rcloneStorage?.configContent;
+    }
+
     return false;
   };
 
@@ -271,6 +341,9 @@ export function EditStorageComponent({
               { label: 'Google Drive', value: StorageType.GOOGLE_DRIVE },
               { label: 'NAS', value: StorageType.NAS },
               { label: 'Azure Blob Storage', value: StorageType.AZURE_BLOB },
+              { label: 'FTP', value: StorageType.FTP },
+              { label: 'SFTP', value: StorageType.SFTP },
+              { label: 'Rclone', value: StorageType.RCLONE },
             ]}
             onChange={(value) => {
               setStorageType(value);
@@ -324,6 +397,39 @@ export function EditStorageComponent({
 
         {storage?.type === StorageType.AZURE_BLOB && (
           <EditAzureBlobStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.FTP && (
+          <EditFTPStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.SFTP && (
+          <EditSFTPStorageComponent
+            storage={storage}
+            setStorage={setStorage}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestConnectionSuccess(false);
+            }}
+          />
+        )}
+
+        {storage?.type === StorageType.RCLONE && (
+          <EditRcloneStorageComponent
             storage={storage}
             setStorage={setStorage}
             setUnsaved={() => {

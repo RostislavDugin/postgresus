@@ -2,9 +2,12 @@ import { type Storage, StorageType } from '../../../../entity/storages';
 import { getStorageLogoFromType } from '../../../../entity/storages/models/getStorageLogoFromType';
 import { getStorageNameFromType } from '../../../../entity/storages/models/getStorageNameFromType';
 import { ShowAzureBlobStorageComponent } from './storages/ShowAzureBlobStorageComponent';
+import { ShowFTPStorageComponent } from './storages/ShowFTPStorageComponent';
 import { ShowGoogleDriveStorageComponent } from './storages/ShowGoogleDriveStorageComponent';
 import { ShowNASStorageComponent } from './storages/ShowNASStorageComponent';
+import { ShowRcloneStorageComponent } from './storages/ShowRcloneStorageComponent';
 import { ShowS3StorageComponent } from './storages/ShowS3StorageComponent';
+import { ShowSFTPStorageComponent } from './storages/ShowSFTPStorageComponent';
 
 interface Props {
   storage?: Storage;
@@ -43,6 +46,18 @@ export function ShowStorageComponent({ storage }: Props) {
         {storage?.type === StorageType.AZURE_BLOB && (
           <ShowAzureBlobStorageComponent storage={storage} />
         )}
+      </div>
+
+      <div>
+        {storage?.type === StorageType.FTP && <ShowFTPStorageComponent storage={storage} />}
+      </div>
+
+      <div>
+        {storage?.type === StorageType.SFTP && <ShowSFTPStorageComponent storage={storage} />}
+      </div>
+
+      <div>
+        {storage?.type === StorageType.RCLONE && <ShowRcloneStorageComponent storage={storage} />}
       </div>
     </div>
   );

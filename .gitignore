@@ -1,5 +1,6 @@
 postgresus_data/
 postgresus-data/
+databasus-data/
 .env
 pgdata/
 docker-compose.yml

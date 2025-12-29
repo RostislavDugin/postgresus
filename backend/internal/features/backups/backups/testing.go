@@ -1,10 +1,10 @@
 package backups
 
 import (
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 
 	"github.com/gin-gonic/gin"
 )

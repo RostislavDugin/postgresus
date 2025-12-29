@@ -15,21 +15,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/features/storages"
-	local_storage "postgresus-backend/internal/features/storages/models/local"
-	users_dto "postgresus-backend/internal/features/users/dto"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_services "postgresus-backend/internal/features/users/services"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	"postgresus-backend/internal/util/encryption"
-	test_utils "postgresus-backend/internal/util/testing"
-	"postgresus-backend/internal/util/tools"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/storages"
+	local_storage "databasus-backend/internal/features/storages/models/local"
+	users_dto "databasus-backend/internal/features/users/dto"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_services "databasus-backend/internal/features/users/services"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/encryption"
+	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/tools"
 )
 
 func Test_GetBackups_PermissionsEnforced(t *testing.T) {
@@ -585,6 +585,7 @@ func createTestDatabase(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 

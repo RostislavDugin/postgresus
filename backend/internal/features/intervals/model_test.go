@@ -457,6 +457,144 @@ func TestInterval_ShouldTriggerBackup_Monthly(t *testing.T) {
 	)
 }
 
+func TestInterval_ShouldTriggerBackup_Cron(t *testing.T) {
+	cronExpr := "0 2 * * *" // Daily at 2:00 AM
+	interval := &Interval{
+		ID:             uuid.New(),
+		Interval:       IntervalCron,
+		CronExpression: &cronExpr,
+	}
+
+	t.Run("No previous backup: Trigger backup immediately", func(t *testing.T) {
+		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+		should := interval.ShouldTriggerBackup(now, nil)
+		assert.True(t, should)
+	})
+
+	t.Run("Before scheduled cron time: Do not trigger backup", func(t *testing.T) {
+		now := time.Date(2024, 1, 15, 1, 59, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 2, 0, 0, 0, time.UTC) // Yesterday at 2 AM
+		should := interval.ShouldTriggerBackup(now, &lastBackup)
+		assert.False(t, should)
+	})
+
+	t.Run("Exactly at scheduled cron time: Trigger backup", func(t *testing.T) {
+		now := time.Date(2024, 1, 15, 2, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 2, 0, 0, 0, time.UTC) // Yesterday at 2 AM
+		should := interval.ShouldTriggerBackup(now, &lastBackup)
+		assert.True(t, should)
+	})
+
+	t.Run("After scheduled cron time: Trigger backup", func(t *testing.T) {
+		now := time.Date(2024, 1, 15, 3, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 2, 0, 0, 0, time.UTC) // Yesterday at 2 AM
+		should := interval.ShouldTriggerBackup(now, &lastBackup)
+		assert.True(t, should)
+	})
+
+	t.Run("Backup already done after scheduled time: Do not trigger again", func(t *testing.T) {
+		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 15, 2, 5, 0, 0, time.UTC) // Today at 2:05 AM
+		should := interval.ShouldTriggerBackup(now, &lastBackup)
+		assert.False(t, should)
+	})
+
+	t.Run("Weekly cron expression: 0 3 * * 1 (Monday at 3 AM)", func(t *testing.T) {
+		weeklyCron := "0 3 * * 1" // Every Monday at 3 AM
+		weeklyInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &weeklyCron,
+		}
+
+		// Monday Jan 15, 2024 at 3:00 AM
+		monday := time.Date(2024, 1, 15, 3, 0, 0, 0, time.UTC)
+		// Last backup was previous Monday
+		lastBackup := time.Date(2024, 1, 8, 3, 0, 0, 0, time.UTC)
+
+		should := weeklyInterval.ShouldTriggerBackup(monday, &lastBackup)
+		assert.True(t, should)
+	})
+
+	t.Run("Complex cron expression: 30 4 1,15 * * (1st and 15th at 4:30 AM)", func(t *testing.T) {
+		complexCron := "30 4 1,15 * *" // 1st and 15th of each month at 4:30 AM
+		complexInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &complexCron,
+		}
+
+		// Jan 15, 2024 at 4:30 AM
+		now := time.Date(2024, 1, 15, 4, 30, 0, 0, time.UTC)
+		// Last backup was Jan 1
+		lastBackup := time.Date(2024, 1, 1, 4, 30, 0, 0, time.UTC)
+
+		should := complexInterval.ShouldTriggerBackup(now, &lastBackup)
+		assert.True(t, should)
+	})
+
+	t.Run("Every 6 hours cron expression: 0 */6 * * *", func(t *testing.T) {
+		sixHourlyCron := "0 */6 * * *" // Every 6 hours (0:00, 6:00, 12:00, 18:00)
+		sixHourlyInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &sixHourlyCron,
+		}
+
+		// 12:00 - next trigger after 6:00
+		now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+		// Last backup was at 6:00
+		lastBackup := time.Date(2024, 1, 15, 6, 0, 0, 0, time.UTC)
+
+		should := sixHourlyInterval.ShouldTriggerBackup(now, &lastBackup)
+		assert.True(t, should)
+	})
+
+	t.Run("Invalid cron expression returns false", func(t *testing.T) {
+		invalidCron := "invalid cron"
+		invalidInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &invalidCron,
+		}
+
+		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
+
+		should := invalidInterval.ShouldTriggerBackup(now, &lastBackup)
+		assert.False(t, should)
+	})
+
+	t.Run("Empty cron expression returns false", func(t *testing.T) {
+		emptyCron := ""
+		emptyInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &emptyCron,
+		}
+
+		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
+
+		should := emptyInterval.ShouldTriggerBackup(now, &lastBackup)
+		assert.False(t, should)
+	})
+
+	t.Run("Nil cron expression returns false", func(t *testing.T) {
+		nilInterval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: nil,
+		}
+
+		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
+
+		should := nilInterval.ShouldTriggerBackup(now, &lastBackup)
+		assert.False(t, should)
+	})
+}
+
 func TestInterval_Validate(t *testing.T) {
 	t.Run("Daily interval requires time of day", func(t *testing.T) {
 		interval := &Interval{
@@ -522,6 +660,62 @@ func TestInterval_Validate(t *testing.T) {
 			Interval:   IntervalMonthly,
 			TimeOfDay:  &timeOfDay,
 			DayOfMonth: &dayOfMonth,
+		}
+		err := interval.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Cron interval requires cron expression", func(t *testing.T) {
+		interval := &Interval{
+			ID:       uuid.New(),
+			Interval: IntervalCron,
+		}
+		err := interval.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cron expression is required")
+	})
+
+	t.Run("Cron interval with empty expression is invalid", func(t *testing.T) {
+		emptyCron := ""
+		interval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &emptyCron,
+		}
+		err := interval.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cron expression is required")
+	})
+
+	t.Run("Cron interval with invalid expression is invalid", func(t *testing.T) {
+		invalidCron := "invalid cron"
+		interval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &invalidCron,
+		}
+		err := interval.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid cron expression")
+	})
+
+	t.Run("Valid cron interval with daily expression", func(t *testing.T) {
+		cronExpr := "0 2 * * *" // Daily at 2 AM
+		interval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &cronExpr,
+		}
+		err := interval.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Valid cron interval with complex expression", func(t *testing.T) {
+		cronExpr := "30 4 1,15 * *" // 1st and 15th of each month at 4:30 AM
+		interval := &Interval{
+			ID:             uuid.New(),
+			Interval:       IntervalCron,
+			CronExpression: &cronExpr,
 		}
 		err := interval.Validate()
 		assert.NoError(t, err)

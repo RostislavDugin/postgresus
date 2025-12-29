@@ -1,12 +1,22 @@
-import { Button, Input } from 'antd';
+import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, databaseApi } from '../../../../entity/databases';
+import {
+  type Database,
+  DatabaseType,
+  type MariadbDatabase,
+  type MongodbDatabase,
+  type MysqlDatabase,
+  type PostgresqlDatabase,
+  databaseApi,
+  getDatabaseLogoFromType,
+} from '../../../../entity/databases';
 
 interface Props {
   database: Database;
 
   isShowName?: boolean;
+  isShowType?: boolean;
   isShowCancelButton?: boolean;
   onCancel: () => void;
 
@@ -15,9 +25,17 @@ interface Props {
   onSaved: (db: Database) => void;
 }
 
+const databaseTypeOptions = [
+  { value: DatabaseType.POSTGRES, label: 'PostgreSQL' },
+  { value: DatabaseType.MYSQL, label: 'MySQL' },
+  { value: DatabaseType.MARIADB, label: 'MariaDB' },
+  { value: DatabaseType.MONGODB, label: 'MongoDB' },
+];
+
 export const EditDatabaseBaseInfoComponent = ({
   database,
   isShowName,
+  isShowType,
   isShowCancelButton,
   onCancel,
   saveButtonText,
@@ -30,6 +48,38 @@ export const EditDatabaseBaseInfoComponent = ({
 
   const updateDatabase = (patch: Partial<Database>) => {
     setEditingDatabase((prev) => (prev ? { ...prev, ...patch } : prev));
+    setIsUnsaved(true);
+  };
+
+  const handleTypeChange = (newType: DatabaseType) => {
+    if (!editingDatabase) return;
+
+    const updatedDatabase: Database = {
+      ...editingDatabase,
+      type: newType,
+      postgresql: undefined,
+      mysql: undefined,
+      mariadb: undefined,
+      mongodb: undefined,
+    };
+
+    switch (newType) {
+      case DatabaseType.POSTGRES:
+        updatedDatabase.postgresql =
+          editingDatabase.postgresql ?? ({ cpuCount: 1 } as PostgresqlDatabase);
+        break;
+      case DatabaseType.MYSQL:
+        updatedDatabase.mysql = editingDatabase.mysql ?? ({} as MysqlDatabase);
+        break;
+      case DatabaseType.MARIADB:
+        updatedDatabase.mariadb = editingDatabase.mariadb ?? ({} as MariadbDatabase);
+        break;
+      case DatabaseType.MONGODB:
+        updatedDatabase.mongodb = editingDatabase.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase);
+        break;
+    }
+
+    setEditingDatabase(updatedDatabase);
     setIsUnsaved(true);
   };
 
@@ -59,7 +109,6 @@ export const EditDatabaseBaseInfoComponent = ({
 
   if (!editingDatabase) return null;
 
-  // mandatory-field check
   const isAllFieldsFilled = !!editingDatabase.name?.trim();
 
   return (
@@ -74,6 +123,28 @@ export const EditDatabaseBaseInfoComponent = ({
             placeholder="My favourite DB"
             className="max-w-[200px] grow"
           />
+        </div>
+      )}
+
+      {isShowType && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Database type</div>
+
+          <div className="flex items-center">
+            <Select
+              value={editingDatabase.type}
+              onChange={handleTypeChange}
+              options={databaseTypeOptions}
+              size="small"
+              className="w-[200px] grow"
+            />
+
+            <img
+              src={getDatabaseLogoFromType(editingDatabase.type)}
+              alt="databaseIcon"
+              className="ml-2 h-4 w-4"
+            />
+          </div>
         </div>
       )}
 

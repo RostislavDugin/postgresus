@@ -1,7 +1,7 @@
 package audit_logs
 
 import (
-	"postgresus-backend/internal/storage"
+	"databasus-backend/internal/storage"
 	"time"
 
 	"github.com/google/uuid"
@@ -136,4 +136,16 @@ func (r *AuditLogRepository) CountGlobal(beforeDate *time.Time) (int64, error) {
 
 	err := query.Count(&count).Error
 	return count, err
+}
+
+func (r *AuditLogRepository) DeleteOlderThan(beforeDate time.Time) (int64, error) {
+	result := storage.GetDb().
+		Where("created_at < ?", beforeDate).
+		Delete(&AuditLog{})
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return result.RowsAffected, nil
 }

@@ -1,8 +1,8 @@
 package backups
 
 import (
+	"databasus-backend/internal/storage"
 	"errors"
-	"postgresus-backend/internal/storage"
 
 	"time"
 

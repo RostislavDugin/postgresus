@@ -1,11 +1,14 @@
 package databases
 
 import (
+	"databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"log/slog"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/util/encryption"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +24,9 @@ type Database struct {
 	Type        DatabaseType `json:"type"        gorm:"column:type;type:text;not null"`
 
 	Postgresql *postgresql.PostgresqlDatabase `json:"postgresql,omitempty" gorm:"foreignKey:DatabaseID"`
+	Mysql      *mysql.MysqlDatabase           `json:"mysql,omitempty"      gorm:"foreignKey:DatabaseID"`
+	Mariadb    *mariadb.MariadbDatabase       `json:"mariadb,omitempty"    gorm:"foreignKey:DatabaseID"`
+	Mongodb    *mongodb.MongodbDatabase       `json:"mongodb,omitempty"    gorm:"foreignKey:DatabaseID"`
 
 	Notifiers []notifiers.Notifier `json:"notifiers" gorm:"many2many:database_notifiers;"`
 
@@ -42,8 +48,22 @@ func (d *Database) Validate() error {
 		if d.Postgresql == nil {
 			return errors.New("postgresql database is required")
 		}
-
 		return d.Postgresql.Validate()
+	case DatabaseTypeMysql:
+		if d.Mysql == nil {
+			return errors.New("mysql database is required")
+		}
+		return d.Mysql.Validate()
+	case DatabaseTypeMariadb:
+		if d.Mariadb == nil {
+			return errors.New("mariadb database is required")
+		}
+		return d.Mariadb.Validate()
+	case DatabaseTypeMongodb:
+		if d.Mongodb == nil {
+			return errors.New("mongodb database is required")
+		}
+		return d.Mongodb.Validate()
 	default:
 		return errors.New("invalid database type: " + string(d.Type))
 	}
@@ -72,6 +92,15 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	if d.Postgresql != nil {
 		return d.Postgresql.EncryptSensitiveFields(d.ID, encryptor)
 	}
+	if d.Mysql != nil {
+		return d.Mysql.EncryptSensitiveFields(d.ID, encryptor)
+	}
+	if d.Mariadb != nil {
+		return d.Mariadb.EncryptSensitiveFields(d.ID, encryptor)
+	}
+	if d.Mongodb != nil {
+		return d.Mongodb.EncryptSensitiveFields(d.ID, encryptor)
+	}
 	return nil
 }
 
@@ -81,6 +110,15 @@ func (d *Database) PopulateVersionIfEmpty(
 ) error {
 	if d.Postgresql != nil {
 		return d.Postgresql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mysql != nil {
+		return d.Mysql.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mariadb != nil {
+		return d.Mariadb.PopulateVersionIfEmpty(logger, encryptor, d.ID)
+	}
+	if d.Mongodb != nil {
+		return d.Mongodb.PopulateVersionIfEmpty(logger, encryptor, d.ID)
 	}
 	return nil
 }
@@ -95,6 +133,18 @@ func (d *Database) Update(incoming *Database) {
 		if d.Postgresql != nil && incoming.Postgresql != nil {
 			d.Postgresql.Update(incoming.Postgresql)
 		}
+	case DatabaseTypeMysql:
+		if d.Mysql != nil && incoming.Mysql != nil {
+			d.Mysql.Update(incoming.Mysql)
+		}
+	case DatabaseTypeMariadb:
+		if d.Mariadb != nil && incoming.Mariadb != nil {
+			d.Mariadb.Update(incoming.Mariadb)
+		}
+	case DatabaseTypeMongodb:
+		if d.Mongodb != nil && incoming.Mongodb != nil {
+			d.Mongodb.Update(incoming.Mongodb)
+		}
 	}
 }
 
@@ -102,6 +152,12 @@ func (d *Database) getSpecificDatabase() DatabaseConnector {
 	switch d.Type {
 	case DatabaseTypePostgres:
 		return d.Postgresql
+	case DatabaseTypeMysql:
+		return d.Mysql
+	case DatabaseTypeMariadb:
+		return d.Mariadb
+	case DatabaseTypeMongodb:
+		return d.Mongodb
 	}
 
 	panic("invalid database type: " + string(d.Type))

@@ -1,7 +1,7 @@
 package users_controllers
 
 import (
-	users_services "postgresus-backend/internal/features/users/services"
+	users_services "databasus-backend/internal/features/users/services"
 
 	"golang.org/x/time/rate"
 )

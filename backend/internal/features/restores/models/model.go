@@ -1,8 +1,8 @@
 package models
 
 import (
-	"postgresus-backend/internal/features/backups/backups"
-	"postgresus-backend/internal/features/restores/enums"
+	"databasus-backend/internal/features/backups/backups"
+	"databasus-backend/internal/features/restores/enums"
 	"time"
 
 	"github.com/google/uuid"

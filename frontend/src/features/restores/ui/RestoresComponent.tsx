@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
 import type { Backup } from '../../../entity/backups';
-import { type Database, DatabaseType, type PostgresqlDatabase } from '../../../entity/databases';
+import { type Database, DatabaseType } from '../../../entity/databases';
 import { type Restore, RestoreStatus, restoreApi } from '../../../entity/restores';
 import { getUserTimeFormat } from '../../../shared/time';
 import { EditDatabaseSpecificDataComponent } from '../../databases/ui/edit/EditDatabaseSpecificDataComponent';
@@ -15,21 +15,53 @@ interface Props {
   backup: Backup;
 }
 
+type DatabaseCredentials = {
+  username?: string;
+  host?: string;
+  port?: number;
+  password?: string;
+};
+
+const clearCredentials = <T extends DatabaseCredentials>(db: T | undefined): T | undefined => {
+  if (!db) return undefined;
+  return {
+    ...db,
+    username: undefined,
+    host: undefined,
+    port: undefined,
+    password: undefined,
+  } as T;
+};
+
+const createInitialEditingDatabase = (database: Database): Database => ({
+  ...database,
+  postgresql: clearCredentials(database.postgresql),
+  mysql: clearCredentials(database.mysql),
+  mariadb: clearCredentials(database.mariadb),
+  mongodb: clearCredentials(database.mongodb),
+});
+
+const getRestorePayload = (database: Database, editingDatabase: Database) => {
+  switch (database.type) {
+    case DatabaseType.POSTGRES:
+      return { postgresql: editingDatabase.postgresql };
+    case DatabaseType.MYSQL:
+      return { mysql: editingDatabase.mysql };
+    case DatabaseType.MARIADB:
+      return { mariadb: editingDatabase.mariadb };
+    case DatabaseType.MONGODB:
+      return { mongodb: editingDatabase.mongodb };
+    default:
+      return {};
+  }
+};
+
 export const RestoresComponent = ({ database, backup }: Props) => {
   const { message } = App.useApp();
 
-  const [editingDatabase, setEditingDatabase] = useState<Database>({
-    ...database,
-    postgresql: database.postgresql
-      ? ({
-          ...database.postgresql,
-          username: undefined,
-          host: undefined,
-          port: undefined,
-          password: undefined,
-        } as unknown as PostgresqlDatabase)
-      : undefined,
-  });
+  const [editingDatabase, setEditingDatabase] = useState<Database>(
+    createInitialEditingDatabase(database),
+  );
 
   const [restores, setRestores] = useState<Restore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +93,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
     try {
       await restoreApi.restoreBackup({
         backupId: backup.id,
-        postgresql: editingDatabase.postgresql as PostgresqlDatabase,
+        ...getRestorePayload(database, editingDatabase),
       });
       await loadRestores();
 
@@ -87,34 +119,33 @@ export const RestoresComponent = ({ database, backup }: Props) => {
   );
 
   if (isShowRestore) {
-    if (database.type === DatabaseType.POSTGRES) {
-      return (
-        <>
-          <div className="my-5 text-sm">
-            Enter info of the database we will restore backup to.{' '}
-            <u>The empty database for restore should be created before the restore</u>. During the
-            restore, all the current data will be cleared
-            <br />
-            <br />
-            Make sure the database is not used right now (most likely you do not want to restore the
-            data to the same DB where the backup was made)
-          </div>
+    return (
+      <>
+        <div className="my-5 text-sm">
+          Enter info of the database we will restore backup to.{' '}
+          <u>The empty database for restore should be created before the restore</u>. During the
+          restore, all the current data will be cleared
+          <br />
+          <br />
+          Make sure the database is not used right now (most likely you do not want to restore the
+          data to the same DB where the backup was made)
+        </div>
 
-          <EditDatabaseSpecificDataComponent
-            database={editingDatabase}
-            onCancel={() => setIsShowRestore(false)}
-            isShowBackButton={false}
-            onBack={() => setIsShowRestore(false)}
-            saveButtonText="Restore to this DB"
-            isSaveToApi={false}
-            onSaved={(database) => {
-              setEditingDatabase({ ...database });
-              restore(database);
-            }}
-          />
-        </>
-      );
-    }
+        <EditDatabaseSpecificDataComponent
+          database={editingDatabase}
+          onCancel={() => setIsShowRestore(false)}
+          isShowBackButton={false}
+          onBack={() => setIsShowRestore(false)}
+          saveButtonText="Restore to this DB"
+          isSaveToApi={false}
+          onSaved={(database) => {
+            setEditingDatabase({ ...database });
+            restore(database);
+          }}
+          isRestoreMode={true}
+        />
+      </>
+    );
   }
 
   return (
@@ -233,6 +264,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
           title="Restore error details"
           open={!!showingRestoreError}
           onCancel={() => setShowingRestoreError(undefined)}
+          maskClosable={false}
           footer={
             <Button
               icon={<CopyOutlined />}
@@ -245,6 +277,13 @@ export const RestoresComponent = ({ database, backup }: Props) => {
             </Button>
           }
         >
+          {showingRestoreError.failMessage?.includes('must be owner of extension') && (
+            <div className="mb-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-600 dark:bg-yellow-900/30">
+              <strong>💡 Tip:</strong> This error typically occurs when restoring to managed
+              PostgreSQL services (like Yandex Cloud, AWS RDS or similar). Try enabling{' '}
+              <strong>&quot;Exclude extensions&quot;</strong> in Advanced settings before restoring.
+            </div>
+          )}
           <div className="overflow-y-auto text-sm whitespace-pre-wrap" style={{ height: '400px' }}>
             {showingRestoreError.failMessage}
           </div>

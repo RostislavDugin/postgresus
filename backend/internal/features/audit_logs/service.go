@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	user_models "postgresus-backend/internal/features/users/models"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_models "databasus-backend/internal/features/users/models"
 
 	"github.com/google/uuid"
 )
@@ -134,4 +134,20 @@ func (s *AuditLogService) GetWorkspaceAuditLogs(
 		Limit:     limit,
 		Offset:    offset,
 	}, nil
+}
+
+func (s *AuditLogService) CleanOldAuditLogs() error {
+	oneYearAgo := time.Now().UTC().Add(-365 * 24 * time.Hour)
+
+	deletedCount, err := s.auditLogRepository.DeleteOlderThan(oneYearAgo)
+	if err != nil {
+		s.logger.Error("Failed to delete old audit logs", "error", err)
+		return err
+	}
+
+	if deletedCount > 0 {
+		s.logger.Info("Deleted old audit logs", "count", deletedCount, "olderThan", oneYearAgo)
+	}
+
+	return nil
 }

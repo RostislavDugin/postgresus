@@ -14,15 +14,16 @@ import (
 	"strings"
 	"time"
 
-	"postgresus-backend/internal/config"
-	backup_encryption "postgresus-backend/internal/features/backups/backups/encryption"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	pgtypes "postgresus-backend/internal/features/databases/databases/postgresql"
-	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/config"
+	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
+	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	pgtypes "databasus-backend/internal/features/databases/databases/postgresql"
+	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
 )
@@ -50,7 +51,6 @@ type writeResult struct {
 	writeErr     error
 }
 
-// Execute creates a backup of the database
 func (uc *CreatePostgresqlBackupUsecase) Execute(
 	ctx context.Context,
 	backupID uuid.UUID,
@@ -60,7 +60,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) (*BackupMetadata, error) {
+) (*usecases_common.BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating PostgreSQL backup via pg_dump custom format",
 		"databaseId",
@@ -119,7 +119,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	db *databases.Database,
 	backupProgressListener func(completedMBs float64),
-) (*BackupMetadata, error) {
+) (*usecases_common.BackupMetadata, error) {
 	uc.logger.Info("Streaming PostgreSQL backup to storage", "pgBin", pgBin, "args", args)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
@@ -131,14 +131,15 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	}
 	defer func() {
 		if pgpassFile != "" {
-			_ = os.Remove(pgpassFile)
+			// Remove the entire temp directory (which contains the .pgpass file)
+			_ = os.RemoveAll(filepath.Dir(pgpassFile))
 		}
 	}()
 
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 	uc.logger.Info("Executing PostgreSQL backup command", "command", cmd.String())
 
-	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, backupConfig.CpuCount, pgBin); err != nil {
+	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, db.Postgresql.CpuCount, pgBin); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +171,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := &CountingWriter{writer: finalWriter}
+	countingWriter := usecases_common.NewCountingWriter(finalWriter)
 
 	// The backup ID becomes the object key / filename in storage
 
@@ -334,6 +335,11 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlD
 		"--verbose",
 	}
 
+	// Add parallel jobs based on CPU count
+	if pg.CpuCount > 1 {
+		args = append(args, "-j", strconv.Itoa(pg.CpuCount))
+	}
+
 	for _, schema := range pg.IncludeSchemas {
 		args = append(args, "-n", schema)
 	}
@@ -470,8 +476,8 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, BackupMetadata, error) {
-	metadata := BackupMetadata{}
+) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
+	metadata := usecases_common.BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_config.BackupEncryptionNone

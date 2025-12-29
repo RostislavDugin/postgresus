@@ -1,10 +1,10 @@
 package databases
 
 import (
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
 )
@@ -25,6 +25,7 @@ func CreateTestDatabase(
 			Port:     5432,
 			Username: "postgres",
 			Password: "postgres",
+			CpuCount: 1,
 		},
 
 		Notifiers: []notifiers.Notifier{

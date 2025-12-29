@@ -1,9 +1,9 @@
 package backups_config
 
 import (
-	"postgresus-backend/internal/features/intervals"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/period"
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/period"
 
 	"github.com/google/uuid"
 )
@@ -28,7 +28,6 @@ func EnableBackupsForTestDatabase(
 			NotificationBackupFailed,
 			NotificationBackupSuccess,
 		},
-		CpuCount: 1,
 	}
 
 	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)

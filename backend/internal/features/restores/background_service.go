@@ -1,8 +1,8 @@
 package restores
 
 import (
+	"databasus-backend/internal/features/restores/enums"
 	"log/slog"
-	"postgresus-backend/internal/features/restores/enums"
 )
 
 type RestoreBackgroundService struct {

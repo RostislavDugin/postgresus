@@ -1,5 +1,5 @@
-const AUTHORIED_USER_TOKEN_KEY = 'postgresus_user_token';
-const AUTHORIED_USER_ID_KEY = 'postgresus_user_id';
+const AUTHORIED_USER_TOKEN_KEY = 'databasus_user_token';
+const AUTHORIED_USER_ID_KEY = 'databasus_user_id';
 
 export const accessTokenHelper = {
   saveAccessToken: (token: string) => {

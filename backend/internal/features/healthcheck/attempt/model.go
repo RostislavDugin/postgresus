@@ -1,7 +1,7 @@
 package healthcheck_attempt
 
 import (
-	"postgresus-backend/internal/features/databases"
+	"databasus-backend/internal/features/databases"
 	"time"
 
 	"github.com/google/uuid"

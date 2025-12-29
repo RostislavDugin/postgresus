@@ -8,4 +8,7 @@ const (
 	StorageTypeGoogleDrive StorageType = "GOOGLE_DRIVE"
 	StorageTypeNAS         StorageType = "NAS"
 	StorageTypeAzureBlob   StorageType = "AZURE_BLOB"
+	StorageTypeFTP         StorageType = "FTP"
+	StorageTypeSFTP        StorageType = "SFTP"
+	StorageTypeRclone      StorageType = "RCLONE"
 )

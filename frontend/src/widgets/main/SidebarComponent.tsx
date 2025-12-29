@@ -187,7 +187,7 @@ export const SidebarComponent = ({
           <div className="space-y-2">
             <a
               className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://postgresus.com/installation"
+              href="https://databasus.com/installation"
               target="_blank"
               rel="noreferrer"
             >
@@ -196,7 +196,7 @@ export const SidebarComponent = ({
 
             <a
               className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://postgresus.com/contribute"
+              href="https://databasus.com/contribute"
               target="_blank"
               rel="noreferrer"
             >
@@ -205,7 +205,7 @@ export const SidebarComponent = ({
 
             <a
               className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://t.me/postgresus_community"
+              href="https://t.me/databasus_community"
               target="_blank"
               rel="noreferrer"
             >
@@ -214,11 +214,11 @@ export const SidebarComponent = ({
 
             <div className="pt-2">
               <GitHubButton
-                href="https://github.com/RostislavDugin/postgresus"
+                href="https://github.com/databasus/databasus"
                 data-icon="octicon-star"
                 data-size="large"
                 data-show-count="true"
-                aria-label="Star RostislavDugin/postgresus on GitHub"
+                aria-label="Star databasus/databasus on GitHub"
               >
                 Star on GitHub
               </GitHubButton>

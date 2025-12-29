@@ -1,8 +1,8 @@
 package healthcheck_attempt
 
 import (
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/notifiers"
 
 	"github.com/google/uuid"
 )

@@ -3,7 +3,7 @@ package workspaces_models
 import (
 	"time"
 
-	users_enums "postgresus-backend/internal/features/users/enums"
+	users_enums "databasus-backend/internal/features/users/enums"
 
 	"github.com/google/uuid"
 )

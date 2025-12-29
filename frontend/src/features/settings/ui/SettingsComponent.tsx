@@ -98,7 +98,7 @@ export function SettingsComponent({ contentHeight }: Props) {
           className="grow overflow-y-auto rounded bg-white p-5 shadow dark:bg-gray-800"
           style={{ height: contentHeight }}
         >
-          <h1 className="text-2xl font-bold dark:text-white">Postgresus settings</h1>
+          <h1 className="text-2xl font-bold dark:text-white">Databasus settings</h1>
 
           <div className="mt-6">
             {isLoading ? (
@@ -115,8 +115,8 @@ export function SettingsComponent({ contentHeight }: Props) {
                         Allow external registrations
                       </div>
                       <div className="mt-1 text-gray-500 dark:text-gray-400">
-                        When enabled, new users can register accounts in Postgresus. If disabled,
-                        new users can only register via invitation
+                        When enabled, new users can register accounts in Databasus. If disabled, new
+                        users can only register via invitation
                       </div>
                     </div>
 
@@ -144,7 +144,7 @@ export function SettingsComponent({ contentHeight }: Props) {
                         </div>
 
                         <div className="mt-1 text-gray-500 dark:text-gray-400">
-                          When enabled, existing members can invite new users to join Postgresus. If
+                          When enabled, existing members can invite new users to join Databasus. If
                           not - only admins can invite users.
                         </div>
                       </div>
@@ -218,7 +218,7 @@ export function SettingsComponent({ contentHeight }: Props) {
           <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             Read more about settings you can{' '}
             <a
-              href="https://postgresus.com/access-management/#global-settings"
+              href="https://databasus.com/access-management/#global-settings"
               target="_blank"
               rel="noreferrer"
               className="!text-blue-600"
@@ -255,7 +255,7 @@ export function SettingsComponent({ contentHeight }: Props) {
                 </Button>
               </div>
               <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Use this endpoint to monitor your Postgresus system&apos;s availability
+                Use this endpoint to monitor your Databasus system&apos;s availability
               </div>
             </div>
           </div>

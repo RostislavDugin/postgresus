@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.3"
+          go-version: "1.24.4"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -31,7 +31,7 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.60.3
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.7.2
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Install swag for swagger generation
@@ -82,6 +82,25 @@ jobs:
           cd frontend
           npm run lint
 
+  test-frontend:
+    runs-on: ubuntu-latest
+    needs: [lint-frontend]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
       - name: Run frontend tests
         run: |
           cd frontend
@@ -91,13 +110,31 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint-backend]
     steps:
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          # Remove unnecessary pre-installed software
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+          # Clean apt cache
+          sudo apt-get clean
+          # Clean docker images (if any pre-installed)
+          docker system prune -af --volumes || true
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Check out code
         uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.3"
+          go-version: "1.24.4"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -114,17 +151,17 @@ jobs:
           cd backend
           cat > .env << EOF
           # docker-compose.yml
-          DEV_DB_NAME=postgresus
+          DEV_DB_NAME=databasus
           DEV_DB_USERNAME=postgres
           DEV_DB_PASSWORD=Q1234567
           #app
           ENV_MODE=development
           # db
-          DATABASE_DSN=host=localhost user=postgres password=Q1234567 dbname=postgresus port=5437 sslmode=disable
-          DATABASE_URL=postgres://postgres:Q1234567@localhost:5437/postgresus?sslmode=disable
+          DATABASE_DSN=host=localhost user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable
+          DATABASE_URL=postgres://postgres:Q1234567@localhost:5437/databasus?sslmode=disable
           # migrations
           GOOSE_DRIVER=postgres
-          GOOSE_DBSTRING=postgres://postgres:Q1234567@localhost:5437/postgresus?sslmode=disable
+          GOOSE_DBSTRING=postgres://postgres:Q1234567@localhost:5437/databasus?sslmode=disable
           GOOSE_MIGRATION_DIR=./migrations
           # testing
           # to get Google Drive env variables: add storage in UI and copy data from added storage here 
@@ -146,6 +183,27 @@ jobs:
           TEST_AZURITE_BLOB_PORT=10000
           # testing NAS
           TEST_NAS_PORT=7006
+          # testing FTP
+          TEST_FTP_PORT=7007
+          # testing SFTP
+          TEST_SFTP_PORT=7008
+          # testing MySQL
+          TEST_MYSQL_57_PORT=33057
+          TEST_MYSQL_80_PORT=33080
+          TEST_MYSQL_84_PORT=33084
+          TEST_MYSQL_90_PORT=33090
+          # testing MariaDB
+          TEST_MARIADB_55_PORT=33055
+          TEST_MARIADB_101_PORT=33101
+          TEST_MARIADB_102_PORT=33102
+          TEST_MARIADB_103_PORT=33103
+          TEST_MARIADB_104_PORT=33104
+          TEST_MARIADB_105_PORT=33105
+          TEST_MARIADB_106_PORT=33106
+          TEST_MARIADB_1011_PORT=33111
+          TEST_MARIADB_114_PORT=33114
+          TEST_MARIADB_118_PORT=33118
+          TEST_MARIADB_120_PORT=33120
           # testing Telegram
           TEST_TELEGRAM_BOT_TOKEN=${{ secrets.TEST_TELEGRAM_BOT_TOKEN }}
           TEST_TELEGRAM_CHAT_ID=${{ secrets.TEST_TELEGRAM_CHAT_ID }}
@@ -155,6 +213,14 @@ jobs:
           TEST_SUPABASE_USERNAME=${{ secrets.TEST_SUPABASE_USERNAME }}
           TEST_SUPABASE_PASSWORD=${{ secrets.TEST_SUPABASE_PASSWORD }}
           TEST_SUPABASE_DATABASE=${{ secrets.TEST_SUPABASE_DATABASE }}
+          # testing MongoDB
+          TEST_MONGODB_40_PORT=27040
+          TEST_MONGODB_42_PORT=27042
+          TEST_MONGODB_44_PORT=27044
+          TEST_MONGODB_50_PORT=27050
+          TEST_MONGODB_60_PORT=27060
+          TEST_MONGODB_70_PORT=27070
+          TEST_MONGODB_82_PORT=27082
           EOF
 
       - name: Start test containers
@@ -181,18 +247,158 @@ jobs:
           # Wait for Azurite
           timeout 60 bash -c 'until nc -z localhost 10000; do sleep 2; done'
 
+          # Wait for FTP
+          timeout 60 bash -c 'until nc -z localhost 7007; do sleep 2; done'
+
+          # Wait for SFTP
+          timeout 60 bash -c 'until nc -z localhost 7008; do sleep 2; done'
+
+          # Wait for MySQL containers
+          echo "Waiting for MySQL 5.7..."
+          timeout 120 bash -c 'until docker exec test-mysql-57 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 8.0..."
+          timeout 120 bash -c 'until docker exec test-mysql-80 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 8.4..."
+          timeout 120 bash -c 'until docker exec test-mysql-84 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MySQL 9.0..."
+          timeout 120 bash -c 'until docker exec test-mysql-90 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
+
+          # Wait for MariaDB containers
+          echo "Waiting for MariaDB 5.5..."
+          timeout 120 bash -c 'until docker exec test-mariadb-55 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.1..."
+          timeout 120 bash -c 'until docker exec test-mariadb-101 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.2..."
+          timeout 120 bash -c 'until docker exec test-mariadb-102 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.3..."
+          timeout 120 bash -c 'until docker exec test-mariadb-103 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.4..."
+          timeout 120 bash -c 'until docker exec test-mariadb-104 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.5..."
+          timeout 120 bash -c 'until docker exec test-mariadb-105 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.6..."
+          timeout 120 bash -c 'until docker exec test-mariadb-106 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 10.11..."
+          timeout 120 bash -c 'until docker exec test-mariadb-1011 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 11.4..."
+          timeout 120 bash -c 'until docker exec test-mariadb-114 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 11.8..."
+          timeout 120 bash -c 'until docker exec test-mariadb-118 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MariaDB 12.0..."
+          timeout 120 bash -c 'until docker exec test-mariadb-120 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
+
+          # Wait for MongoDB containers
+          echo "Waiting for MongoDB 4.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-40 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 4.2..."
+          timeout 120 bash -c 'until docker exec test-mongodb-42 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 4.4..."
+          timeout 120 bash -c 'until docker exec test-mongodb-44 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 5.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-50 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 6.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-60 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 7.0..."
+          timeout 120 bash -c 'until docker exec test-mongodb-70 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          echo "Waiting for MongoDB 8.2..."
+          timeout 120 bash -c 'until docker exec test-mongodb-82 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+
       - name: Create data and temp directories
         run: |
           # Create directories that are used for backups and restore
           # These paths match what's configured in config.go
-          mkdir -p postgresus-data/backups
-          mkdir -p postgresus-data/temp
+          mkdir -p databasus-data/backups
+          mkdir -p databasus-data/temp
 
-      - name: Install PostgreSQL client tools
+      - name: Cache PostgreSQL client tools
+        id: cache-postgres
+        uses: actions/cache@v4
+        with:
+          path: /usr/lib/postgresql
+          key: postgres-clients-12-18-v1
+
+      - name: Cache MySQL client tools
+        id: cache-mysql
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mysql
+          key: mysql-clients-57-80-84-9-v1
+
+      - name: Cache MariaDB client tools
+        id: cache-mariadb
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mariadb
+          key: mariadb-clients-106-121-v1
+
+      - name: Cache MongoDB Database Tools
+        id: cache-mongodb
+        uses: actions/cache@v4
+        with:
+          path: backend/tools/mongodb
+          key: mongodb-database-tools-100.10.0-v1
+
+      - name: Install MySQL dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libncurses6
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+
+      - name: Install PostgreSQL, MySQL, MariaDB and MongoDB client tools
+        if: steps.cache-postgres.outputs.cache-hit != 'true' || steps.cache-mysql.outputs.cache-hit != 'true' || steps.cache-mariadb.outputs.cache-hit != 'true' || steps.cache-mongodb.outputs.cache-hit != 'true'
         run: |
           chmod +x backend/tools/download_linux.sh
           cd backend/tools
           ./download_linux.sh
+
+      - name: Setup PostgreSQL symlinks (when using cache)
+        if: steps.cache-postgres.outputs.cache-hit == 'true'
+        run: |
+          cd backend/tools
+          mkdir -p postgresql
+          for version in 12 13 14 15 16 17 18; do
+            version_dir="postgresql/postgresql-$version"
+            mkdir -p "$version_dir/bin"
+            pg_bin_dir="/usr/lib/postgresql/$version/bin"
+            if [ -d "$pg_bin_dir" ]; then
+              ln -sf "$pg_bin_dir/pg_dump" "$version_dir/bin/pg_dump"
+              ln -sf "$pg_bin_dir/pg_dumpall" "$version_dir/bin/pg_dumpall"
+              ln -sf "$pg_bin_dir/psql" "$version_dir/bin/psql"
+              ln -sf "$pg_bin_dir/pg_restore" "$version_dir/bin/pg_restore"
+              ln -sf "$pg_bin_dir/createdb" "$version_dir/bin/createdb"
+              ln -sf "$pg_bin_dir/dropdb" "$version_dir/bin/dropdb"
+            fi
+          done
+
+      - name: Verify MariaDB client tools exist
+        run: |
+          cd backend/tools
+          echo "Checking MariaDB client tools..."
+          if [ -f "mariadb/mariadb-10.6/bin/mariadb-dump" ]; then
+            echo "MariaDB 10.6 client tools found"
+            ls -la mariadb/mariadb-10.6/bin/
+          else
+            echo "MariaDB 10.6 client tools NOT found"
+          fi
+          if [ -f "mariadb/mariadb-12.1/bin/mariadb-dump" ]; then
+            echo "MariaDB 12.1 client tools found"
+            ls -la mariadb/mariadb-12.1/bin/
+          else
+            echo "MariaDB 12.1 client tools NOT found"
+          fi
+
+      - name: Verify MongoDB Database Tools exist
+        run: |
+          cd backend/tools
+          echo "Checking MongoDB Database Tools..."
+          if [ -f "mongodb/bin/mongodump" ]; then
+            echo "MongoDB Database Tools found"
+            ls -la mongodb/bin/
+            mongodb/bin/mongodump --version || true
+          else
+            echo "MongoDB Database Tools NOT found"
+          fi
 
       - name: Run database migrations
         run: |
@@ -203,7 +409,7 @@ jobs:
       - name: Run Go tests
         run: |
           cd backend
-          go test -p=1 -count=1 -failfast ./internal/...
+          go test -p=1 -count=1 -failfast -timeout 10m ./internal/...
 
       - name: Stop test containers
         if: always()
@@ -213,7 +419,7 @@ jobs:
 
   determine-version:
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend]
+    needs: [test-backend, test-frontend]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
       should_release: ${{ steps.version_bump.outputs.should_release }}
@@ -306,7 +512,7 @@ jobs:
 
   build-only:
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend]
+    needs: [test-backend, test-frontend]
     if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[skip-release]') }}
     steps:
       - name: Check out code
@@ -333,8 +539,8 @@ jobs:
           build-args: |
             APP_VERSION=dev-${{ github.sha }}
           tags: |
-            rostislavdugin/postgresus:latest
-            rostislavdugin/postgresus:${{ github.sha }}
+            databasus/databasus:latest
+            databasus/databasus:${{ github.sha }}
 
   build-and-push:
     runs-on: ubuntu-latest
@@ -367,9 +573,9 @@ jobs:
           build-args: |
             APP_VERSION=${{ needs.determine-version.outputs.new_version }}
           tags: |
-            rostislavdugin/postgresus:latest
-            rostislavdugin/postgresus:v${{ needs.determine-version.outputs.new_version }}
-            rostislavdugin/postgresus:${{ github.sha }}
+            databasus/databasus:latest
+            databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
+            databasus/databasus:${{ github.sha }}
 
   release:
     runs-on: ubuntu-latest
@@ -456,7 +662,7 @@ jobs:
 
           # Add Docker image info
           CHANGELOG="${CHANGELOG}### 🐳 Docker\n"
-          CHANGELOG="${CHANGELOG}- **Image**: \`rostislavdugin/postgresus:v${NEW_VERSION}\`\n"
+          CHANGELOG="${CHANGELOG}- **Image**: \`databasus/databasus:v${NEW_VERSION}\`\n"
           CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64, linux/arm64\n\n"
 
           # Set output for GitHub release
@@ -465,6 +671,17 @@ jobs:
             echo -e "$CHANGELOG"
             echo EOF
           } >> $GITHUB_OUTPUT
+
+      - name: Update CITATION.cff version
+        run: |
+          VERSION="${{ needs.determine-version.outputs.new_version }}"
+          sed -i "s/^version: .*/version: ${VERSION}/" CITATION.cff
+          sed -i "s/^date-released: .*/date-released: \"$(date +%Y-%m-%d)\"/" CITATION.cff
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CITATION.cff
+          git commit -m "Update CITATION.cff to v${VERSION}" || true
+          git push || true
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
@@ -509,4 +726,4 @@ jobs:
       - name: Push Helm chart to GHCR
         run: |
           VERSION="${{ needs.determine-version.outputs.new_version }}"
-          helm push postgresus-${VERSION}.tgz oci://ghcr.io/rostislavdugin/charts
+          helm push databasus-${VERSION}.tgz oci://ghcr.io/databasus/charts

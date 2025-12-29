@@ -2,13 +2,13 @@ package teams_notifier
 
 import (
 	"bytes"
+	"databasus-backend/internal/util/encryption"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

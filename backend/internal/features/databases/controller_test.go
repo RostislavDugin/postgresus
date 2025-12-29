@@ -11,14 +11,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	"postgresus-backend/internal/util/encryption"
-	test_utils "postgresus-backend/internal/util/testing"
-	"postgresus-backend/internal/util/tools"
+	"databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/encryption"
+	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/tools"
 )
 
 func createTestRouter() *gin.Engine {
@@ -98,6 +100,7 @@ func Test_CreateDatabase_PermissionsEnforced(t *testing.T) {
 					Username: "postgres",
 					Password: "postgres",
 					Database: &testDbName,
+					CpuCount: 1,
 				},
 			}
 
@@ -141,6 +144,7 @@ func Test_CreateDatabase_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testin
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -745,6 +749,7 @@ func createTestDatabaseViaAPI(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -788,6 +793,7 @@ func Test_CreateDatabase_PasswordIsEncryptedInDB(t *testing.T) {
 			Username: "postgres",
 			Password: plainPassword,
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 
@@ -860,6 +866,7 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Username: "postgres",
 						Password: "original-password-secret",
 						Database: &testDbName,
+						CpuCount: 1,
 					},
 				}
 			},
@@ -877,15 +884,14 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 						Username: "updated_user",
 						Password: "",
 						Database: &testDbName,
+						CpuCount: 1,
 					},
 				}
 			},
 			verifySensitiveData: func(t *testing.T, database *Database) {
-				// Verify password is encrypted
 				assert.True(t, strings.HasPrefix(database.Postgresql.Password, "enc:"),
 					"Password should be encrypted in database")
 
-				// Verify it can be decrypted back to original
 				encryptor := encryption.GetFieldEncryptor()
 				decrypted, err := encryptor.Decrypt(database.ID, database.Postgresql.Password)
 				assert.NoError(t, err)
@@ -893,6 +899,108 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 			verifyHiddenData: func(t *testing.T, database *Database) {
 				assert.Equal(t, "", database.Postgresql.Password)
+			},
+		},
+		{
+			name:         "MariaDB Database",
+			databaseType: DatabaseTypeMariadb,
+			createDatabase: func(workspaceID uuid.UUID) *Database {
+				testDbName := "test_db"
+				return &Database{
+					WorkspaceID: &workspaceID,
+					Name:        "Test MariaDB Database",
+					Type:        DatabaseTypeMariadb,
+					Mariadb: &mariadb.MariadbDatabase{
+						Version:  tools.MariadbVersion1011,
+						Host:     "localhost",
+						Port:     3306,
+						Username: "root",
+						Password: "original-password-secret",
+						Database: &testDbName,
+					},
+				}
+			},
+			updateDatabase: func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database {
+				testDbName := "updated_test_db"
+				return &Database{
+					ID:          databaseID,
+					WorkspaceID: &workspaceID,
+					Name:        "Updated MariaDB Database",
+					Type:        DatabaseTypeMariadb,
+					Mariadb: &mariadb.MariadbDatabase{
+						Version:  tools.MariadbVersion114,
+						Host:     "updated-host",
+						Port:     3307,
+						Username: "updated_user",
+						Password: "",
+						Database: &testDbName,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.True(t, strings.HasPrefix(database.Mariadb.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.ID, database.Mariadb.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password-secret", decrypted)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.Mariadb.Password)
+			},
+		},
+		{
+			name:         "MongoDB Database",
+			databaseType: DatabaseTypeMongodb,
+			createDatabase: func(workspaceID uuid.UUID) *Database {
+				return &Database{
+					WorkspaceID: &workspaceID,
+					Name:        "Test MongoDB Database",
+					Type:        DatabaseTypeMongodb,
+					Mongodb: &mongodb.MongodbDatabase{
+						Version:      tools.MongodbVersion7,
+						Host:         "localhost",
+						Port:         27017,
+						Username:     "root",
+						Password:     "original-password-secret",
+						Database:     "test_db",
+						AuthDatabase: "admin",
+						IsHttps:      false,
+						CpuCount:     1,
+					},
+				}
+			},
+			updateDatabase: func(workspaceID uuid.UUID, databaseID uuid.UUID) *Database {
+				return &Database{
+					ID:          databaseID,
+					WorkspaceID: &workspaceID,
+					Name:        "Updated MongoDB Database",
+					Type:        DatabaseTypeMongodb,
+					Mongodb: &mongodb.MongodbDatabase{
+						Version:      tools.MongodbVersion8,
+						Host:         "updated-host",
+						Port:         27018,
+						Username:     "updated_user",
+						Password:     "",
+						Database:     "updated_test_db",
+						AuthDatabase: "admin",
+						IsHttps:      false,
+						CpuCount:     1,
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.True(t, strings.HasPrefix(database.Mongodb.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.ID, database.Mongodb.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password-secret", decrypted)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.Mongodb.Password)
 			},
 		},
 	}

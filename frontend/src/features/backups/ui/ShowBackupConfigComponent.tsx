@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
+import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
 import { useEffect, useState } from 'react';
@@ -10,7 +11,12 @@ import type { Database } from '../../../entity/databases';
 import { Period } from '../../../entity/databases/model/Period';
 import { IntervalType } from '../../../entity/intervals';
 import { getStorageLogoFromType } from '../../../entity/storages/models/getStorageLogoFromType';
-import { getLocalDayOfMonth, getLocalWeekday, getUserTimeFormat } from '../../../shared/time/utils';
+import { getUserTimeFormat } from '../../../shared/time';
+import {
+  getUserTimeFormat as getIs12Hour,
+  getLocalDayOfMonth,
+  getLocalWeekday,
+} from '../../../shared/time/utils';
 
 interface Props {
   database: Database;
@@ -31,6 +37,7 @@ const intervalLabels = {
   [IntervalType.DAILY]: 'Daily',
   [IntervalType.WEEKLY]: 'Weekly',
   [IntervalType.MONTHLY]: 'Monthly',
+  [IntervalType.CRON]: 'Cron',
 };
 
 const periodLabels = {
@@ -57,12 +64,14 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
 
   // Detect user's preferred time format (12-hour vs 24-hour)
   const timeFormat = useMemo(() => {
-    const is12Hour = getUserTimeFormat();
+    const is12Hour = getIs12Hour();
     return {
       use12Hours: is12Hour,
       format: is12Hour ? 'h:mm A' : 'HH:mm',
     };
   }, []);
+
+  const dateTimeFormat = useMemo(() => getUserTimeFormat(), []);
 
   useEffect(() => {
     if (database.id) {
@@ -131,12 +140,44 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
             </div>
           )}
 
-          {backupInterval?.interval !== IntervalType.HOURLY && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">Backup time of day</div>
-              <div>{formattedTime}</div>
-            </div>
+          {backupInterval?.interval === IntervalType.CRON && (
+            <>
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">Cron expression (UTC)</div>
+                <code className="rounded bg-gray-100 px-2 py-0.5 text-sm dark:bg-gray-700">
+                  {backupInterval?.cronExpression || ''}
+                </code>
+              </div>
+              {backupInterval?.cronExpression &&
+                (() => {
+                  try {
+                    const interval = CronExpressionParser.parse(backupInterval.cronExpression, {
+                      tz: 'UTC',
+                    });
+                    const nextRun = interval.next().toDate();
+                    return (
+                      <div className="mb-1 flex w-full items-center text-xs text-gray-600 dark:text-gray-400">
+                        <div className="min-w-[150px]" />
+                        <div>
+                          Next run {dayjs(nextRun).local().format(dateTimeFormat.format)}
+                          <br />({dayjs(nextRun).fromNow()})
+                        </div>
+                      </div>
+                    );
+                  } catch {
+                    return null;
+                  }
+                })()}
+            </>
           )}
+
+          {backupInterval?.interval !== IntervalType.HOURLY &&
+            backupInterval?.interval !== IntervalType.CRON && (
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">Backup time of day</div>
+                <div>{formattedTime}</div>
+              </div>
+            )}
 
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Retry if failed</div>
@@ -175,7 +216,7 @@ export const ShowBackupConfigComponent = ({ database }: Props) => {
 
             <Tooltip
               className="cursor-pointer"
-              title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Postgresus or download them unencrypted via the 'Download' button."
+              title="If backup is encrypted, backup files in your storage (S3, local, etc.) cannot be used directly. You can restore backups through Databasus or download them unencrypted via the 'Download' button."
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>

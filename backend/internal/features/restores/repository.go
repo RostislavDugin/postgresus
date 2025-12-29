@@ -1,9 +1,9 @@
 package restores
 
 import (
-	"postgresus-backend/internal/features/restores/enums"
-	"postgresus-backend/internal/features/restores/models"
-	"postgresus-backend/internal/storage"
+	"databasus-backend/internal/features/restores/enums"
+	"databasus-backend/internal/features/restores/models"
+	"databasus-backend/internal/storage"
 
 	"github.com/google/uuid"
 )

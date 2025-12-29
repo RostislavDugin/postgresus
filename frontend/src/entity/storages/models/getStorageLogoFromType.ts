@@ -12,6 +12,12 @@ export const getStorageLogoFromType = (type: StorageType) => {
       return '/icons/storages/nas.svg';
     case StorageType.AZURE_BLOB:
       return '/icons/storages/azure.svg';
+    case StorageType.FTP:
+      return '/icons/storages/ftp.svg';
+    case StorageType.SFTP:
+      return '/icons/storages/sftp.svg';
+    case StorageType.RCLONE:
+      return '/icons/storages/rclone.svg';
     default:
       return '';
   }

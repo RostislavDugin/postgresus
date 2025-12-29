@@ -1,8 +1,8 @@
 package backups
 
 import (
+	"databasus-backend/internal/features/backups/backups/encryption"
 	"io"
-	"postgresus-backend/internal/features/backups/backups/encryption"
 )
 
 type GetBackupsRequest struct {

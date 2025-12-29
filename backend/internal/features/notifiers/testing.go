@@ -1,7 +1,7 @@
 package notifiers
 
 import (
-	webhook_notifier "postgresus-backend/internal/features/notifiers/models/webhook"
+	webhook_notifier "databasus-backend/internal/features/notifiers/models/webhook"
 
 	"github.com/google/uuid"
 )

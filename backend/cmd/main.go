@@ -12,27 +12,27 @@ import (
 	"syscall"
 	"time"
 
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/features/audit_logs"
-	"postgresus-backend/internal/features/backups/backups"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/disk"
-	"postgresus-backend/internal/features/encryption/secrets"
-	healthcheck_attempt "postgresus-backend/internal/features/healthcheck/attempt"
-	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/restores"
-	"postgresus-backend/internal/features/storages"
-	system_healthcheck "postgresus-backend/internal/features/system/healthcheck"
-	users_controllers "postgresus-backend/internal/features/users/controllers"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	users_services "postgresus-backend/internal/features/users/services"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	env_utils "postgresus-backend/internal/util/env"
-	files_utils "postgresus-backend/internal/util/files"
-	"postgresus-backend/internal/util/logger"
-	_ "postgresus-backend/swagger" // swagger docs
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/features/audit_logs"
+	"databasus-backend/internal/features/backups/backups"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/disk"
+	"databasus-backend/internal/features/encryption/secrets"
+	healthcheck_attempt "databasus-backend/internal/features/healthcheck/attempt"
+	healthcheck_config "databasus-backend/internal/features/healthcheck/config"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/restores"
+	"databasus-backend/internal/features/storages"
+	system_healthcheck "databasus-backend/internal/features/system/healthcheck"
+	users_controllers "databasus-backend/internal/features/users/controllers"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	env_utils "databasus-backend/internal/util/env"
+	files_utils "databasus-backend/internal/util/files"
+	"databasus-backend/internal/util/logger"
+	_ "databasus-backend/swagger" // swagger docs
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
@@ -41,9 +41,9 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-// @title Postgresus Backend API
+// @title Databasus Backend API
 // @version 1.0
-// @description API for Postgresus
+// @description API for Databasus
 // @termsOfService http://swagger.io/terms/
 
 // @host localhost:4005
@@ -237,6 +237,10 @@ func runBackgroundTasks(log *slog.Logger) {
 
 	go runWithPanicLogging(log, "healthcheck attempt background service", func() {
 		healthcheck_attempt.GetHealthcheckAttemptBackgroundService().Run()
+	})
+
+	go runWithPanicLogging(log, "audit log cleanup background service", func() {
+		audit_logs.GetAuditLogBackgroundService().Run()
 	})
 }
 

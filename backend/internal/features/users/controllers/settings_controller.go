@@ -3,10 +3,10 @@ package users_controllers
 import (
 	"net/http"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	user_middleware "postgresus-backend/internal/features/users/middleware"
-	user_models "postgresus-backend/internal/features/users/models"
-	users_services "postgresus-backend/internal/features/users/services"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_middleware "databasus-backend/internal/features/users/middleware"
+	user_models "databasus-backend/internal/features/users/models"
+	users_services "databasus-backend/internal/features/users/services"
 
 	"github.com/gin-gonic/gin"
 )

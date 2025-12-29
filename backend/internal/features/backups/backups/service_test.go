@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	usecases_postgresql "postgresus-backend/internal/features/backups/backups/usecases/postgresql"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/storages"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/logger"
+	"databasus-backend/internal/features/backups/backups/usecases/common"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -178,16 +178,13 @@ func (uc *CreateFailedBackupUsecase) Execute(
 	backupConfig *backups_config.BackupConfig,
 	database *databases.Database,
 	storage *storages.Storage,
-	backupProgressListener func(
-		completedMBs float64,
-	),
-) (*usecases_postgresql.BackupMetadata, error) {
-	backupProgressListener(10) // Assume we completed 10MB
+	backupProgressListener func(completedMBs float64),
+) (*common.BackupMetadata, error) {
+	backupProgressListener(10)
 	return nil, errors.New("backup failed")
 }
 
-type CreateSuccessBackupUsecase struct {
-}
+type CreateSuccessBackupUsecase struct{}
 
 func (uc *CreateSuccessBackupUsecase) Execute(
 	ctx context.Context,
@@ -195,12 +192,10 @@ func (uc *CreateSuccessBackupUsecase) Execute(
 	backupConfig *backups_config.BackupConfig,
 	database *databases.Database,
 	storage *storages.Storage,
-	backupProgressListener func(
-		completedMBs float64,
-	),
-) (*usecases_postgresql.BackupMetadata, error) {
-	backupProgressListener(10) // Assume we completed 10MB
-	return &usecases_postgresql.BackupMetadata{
+	backupProgressListener func(completedMBs float64),
+) (*common.BackupMetadata, error) {
+	backupProgressListener(10)
+	return &common.BackupMetadata{
 		EncryptionSalt: nil,
 		EncryptionIV:   nil,
 		Encryption:     backups_config.BackupEncryptionNone,

@@ -7,13 +7,13 @@ version: "3"
 services:
   # For local development only to test build. Do
   # not use in production or VPS
-  postgresus-local:
+  databasus-local:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "4005:4005"
     volumes:
-      - ./postgresus-data:/postgresus-data
-    container_name: postgresus-local
+      - ./databasus-data:/databasus-data
+    container_name: databasus-local
     restart: unless-stopped

@@ -1,13 +1,13 @@
 package telegram_notifier
 
 import (
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"postgresus-backend/internal/util/encryption"
 	"strconv"
 	"strings"
 

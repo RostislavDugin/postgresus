@@ -1,6 +1,6 @@
 apiVersion: v2
-name: postgresus
-description: A Helm chart for Postgresus - PostgreSQL backup and management system
+name: databasus
+description: A Helm chart for Databasus - databases backup and management system
 type: application
 version: 0.0.0
 appVersion: "latest"
@@ -9,14 +9,14 @@ keywords:
   - backup
   - database
   - restore
-home: https://github.com/RostislavDugin/postgresus
+home: https://github.com/databasus/databasus
 
 sources:
-  - https://github.com/RostislavDugin/postgresus
-  - https://github.com/RostislavDugin/postgresus/tree/main/deploy/helm
+  - https://github.com/databasus/databasus
+  - https://github.com/databasus/databasus/tree/main/deploy/helm
 
 maintainers:
   - name: Rostislav Dugin
     url: https://github.com/RostislavDugin
 
-icon: https://raw.githubusercontent.com/RostislavDugin/postgresus/main/frontend/public/logo.svg
+icon: https://raw.githubusercontent.com/databasus/databasus/main/frontend/public/logo.svg

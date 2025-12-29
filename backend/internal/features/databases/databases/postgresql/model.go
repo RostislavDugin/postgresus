@@ -2,11 +2,11 @@ package postgresql
 
 import (
 	"context"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/tools"
 	"errors"
 	"fmt"
 	"log/slog"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/tools"
 	"regexp"
 	"strings"
 	"time"
@@ -34,6 +34,10 @@ type PostgresqlDatabase struct {
 	// backup settings
 	IncludeSchemas       []string `json:"includeSchemas" gorm:"-"`
 	IncludeSchemasString string   `json:"-"              gorm:"column:include_schemas;type:text;not null;default:''"`
+	CpuCount             int      `json:"cpuCount"       gorm:"column:cpu_count;type:int;not null;default:1"`
+
+	// restore settings (not saved to DB)
+	IsExcludeExtensions bool `json:"isExcludeExtensions" gorm:"-"`
 }
 
 func (p *PostgresqlDatabase) TableName() string {
@@ -77,6 +81,10 @@ func (p *PostgresqlDatabase) Validate() error {
 		return errors.New("password is required")
 	}
 
+	if p.CpuCount <= 0 {
+		return errors.New("cpu count must be greater than 0")
+	}
+
 	return nil
 }
 
@@ -107,6 +115,7 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	p.Database = incoming.Database
 	p.IsHttps = incoming.IsHttps
 	p.IncludeSchemas = incoming.IncludeSchemas
+	p.CpuCount = incoming.CpuCount
 
 	if incoming.Password != "" {
 		p.Password = incoming.Password
@@ -138,7 +147,15 @@ func (p *PostgresqlDatabase) PopulateVersionIfEmpty(
 	if p.Version != "" {
 		return nil
 	}
+	return p.PopulateVersion(logger, encryptor, databaseID)
+}
 
+// PopulateVersion detects and sets the PostgreSQL version by querying the database.
+func (p *PostgresqlDatabase) PopulateVersion(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) error {
 	if p.Database == nil || *p.Database == "" {
 		return nil
 	}
@@ -308,7 +325,7 @@ func (p *PostgresqlDatabase) IsUserReadOnly(
 // 5. Sets default privileges for future tables and sequences
 //
 // Security features:
-// - Username format: "postgresus-{8-char-uuid}" for uniqueness
+// - Username format: "databasus-{8-char-uuid}" for uniqueness
 // - Password: Full UUID (36 characters) for strong entropy
 // - Transaction safety: All operations rollback on any failure
 // - Retry logic: Up to 3 attempts if username collision occurs
@@ -354,7 +371,7 @@ func (p *PostgresqlDatabase) CreateReadOnlyUser(
 	maxRetries := 3
 	for attempt := range maxRetries {
 		// Generate base username for PostgreSQL user creation
-		baseUsername := fmt.Sprintf("postgresus-%s", uuid.New().String()[:8])
+		baseUsername := fmt.Sprintf("databasus-%s", uuid.New().String()[:8])
 
 		// For Supabase session pooler, the username format for connection is "username.projectid"
 		// but the actual PostgreSQL user must be created with just the base name.

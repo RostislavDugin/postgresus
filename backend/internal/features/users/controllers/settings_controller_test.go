@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	test_utils "postgresus-backend/internal/util/testing"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_models "databasus-backend/internal/features/users/models"
+	users_testing "databasus-backend/internal/features/users/testing"
+	test_utils "databasus-backend/internal/util/testing"
 
 	"github.com/stretchr/testify/assert"
 )

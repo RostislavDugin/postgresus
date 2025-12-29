@@ -4,6 +4,9 @@ import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/
 import {
   type Database,
   DatabaseType,
+  type MariadbDatabase,
+  type MongodbDatabase,
+  type MysqlDatabase,
   Period,
   type PostgresqlDatabase,
   databaseApi,
@@ -21,18 +24,12 @@ interface Props {
   onClose: () => void;
 }
 
-export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
-  const [database, setDatabase] = useState<Database>({
+const createInitialDatabase = (workspaceId: string): Database =>
+  ({
     id: undefined as unknown as string,
     name: '',
     workspaceId,
     storePeriod: Period.MONTH,
-
-    postgresql: {
-      cpuCount: 1,
-    } as unknown as PostgresqlDatabase,
 
     type: DatabaseType.POSTGRES,
 
@@ -40,7 +37,35 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
 
     notifiers: [],
     sendNotificationsOn: [],
-  } as Database);
+  }) as Database;
+
+const initializeDatabaseTypeData = (db: Database): Database => {
+  const base = {
+    ...db,
+    postgresql: undefined,
+    mysql: undefined,
+    mariadb: undefined,
+    mongodb: undefined,
+  };
+
+  switch (db.type) {
+    case DatabaseType.POSTGRES:
+      return { ...base, postgresql: db.postgresql ?? ({ cpuCount: 1 } as PostgresqlDatabase) };
+    case DatabaseType.MYSQL:
+      return { ...base, mysql: db.mysql ?? ({} as MysqlDatabase) };
+    case DatabaseType.MARIADB:
+      return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
+    case DatabaseType.MONGODB:
+      return { ...base, mongodb: db.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase) };
+    default:
+      return db;
+  }
+};
+
+export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Props) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
+  const [database, setDatabase] = useState<Database>(createInitialDatabase(workspaceId));
 
   const [step, setStep] = useState<
     'base-info' | 'db-settings' | 'create-readonly-user' | 'backup-config' | 'notifiers'
@@ -74,11 +99,13 @@ export const CreateDatabaseComponent = ({ workspaceId, onCreated, onClose }: Pro
         <EditDatabaseBaseInfoComponent
           database={database}
           isShowName
+          isShowType
           isSaveToApi={false}
           saveButtonText="Continue"
           onCancel={() => onClose()}
-          onSaved={(database) => {
-            setDatabase({ ...database });
+          onSaved={(db) => {
+            const initializedDb = initializeDatabaseTypeData(db);
+            setDatabase({ ...initializedDb });
             setStep('db-settings');
           }}
         />

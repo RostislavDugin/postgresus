@@ -1,10 +1,10 @@
 package backups_config
 
 import (
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/period"
 	"errors"
-	"postgresus-backend/internal/features/intervals"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/period"
 	"strings"
 
 	"github.com/google/uuid"
@@ -29,8 +29,6 @@ type BackupConfig struct {
 
 	IsRetryIfFailed     bool `json:"isRetryIfFailed"     gorm:"column:is_retry_if_failed;type:boolean;not null"`
 	MaxFailedTriesCount int  `json:"maxFailedTriesCount" gorm:"column:max_failed_tries_count;type:int;not null"`
-
-	CpuCount int `json:"cpuCount" gorm:"type:int;not null"`
 
 	Encryption BackupEncryption `json:"encryption" gorm:"column:encryption;type:text;not null;default:'NONE'"`
 }
@@ -82,10 +80,6 @@ func (b *BackupConfig) Validate() error {
 		return errors.New("store period is required")
 	}
 
-	if b.CpuCount == 0 {
-		return errors.New("cpu count is required")
-	}
-
 	if b.IsRetryIfFailed && b.MaxFailedTriesCount <= 0 {
 		return errors.New("max failed tries count must be greater than 0")
 	}
@@ -109,7 +103,6 @@ func (b *BackupConfig) Copy(newDatabaseID uuid.UUID) *BackupConfig {
 		SendNotificationsOn: b.SendNotificationsOn,
 		IsRetryIfFailed:     b.IsRetryIfFailed,
 		MaxFailedTriesCount: b.MaxFailedTriesCount,
-		CpuCount:            b.CpuCount,
 		Encryption:          b.Encryption,
 	}
 }

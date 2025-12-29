@@ -1,10 +1,10 @@
 package system_healthcheck
 
 import (
+	"databasus-backend/internal/features/backups/backups"
+	"databasus-backend/internal/features/disk"
+	"databasus-backend/internal/storage"
 	"errors"
-	"postgresus-backend/internal/features/backups/backups"
-	"postgresus-backend/internal/features/disk"
-	"postgresus-backend/internal/storage"
 )
 
 type HealthcheckService struct {

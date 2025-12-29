@@ -6,20 +6,23 @@ import (
 	"strings"
 	"testing"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
-	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
-	local_storage "postgresus-backend/internal/features/storages/models/local"
-	nas_storage "postgresus-backend/internal/features/storages/models/nas"
-	s3_storage "postgresus-backend/internal/features/storages/models/s3"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	users_services "postgresus-backend/internal/features/users/services"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	"postgresus-backend/internal/util/encryption"
-	test_utils "postgresus-backend/internal/util/testing"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
+	google_drive_storage "databasus-backend/internal/features/storages/models/google_drive"
+	local_storage "databasus-backend/internal/features/storages/models/local"
+	nas_storage "databasus-backend/internal/features/storages/models/nas"
+	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
+	s3_storage "databasus-backend/internal/features/storages/models/s3"
+	sftp_storage "databasus-backend/internal/features/storages/models/sftp"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/encryption"
+	test_utils "databasus-backend/internal/util/testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -736,6 +739,155 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			verifyHiddenData: func(t *testing.T, storage *Storage) {
 				assert.Equal(t, "", storage.GoogleDriveStorage.ClientSecret)
 				assert.Equal(t, "", storage.GoogleDriveStorage.TokenJSON)
+			},
+		},
+		{
+			name:        "FTP Storage",
+			storageType: StorageTypeFTP,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeFTP,
+					Name:        "Test FTP Storage",
+					FTPStorage: &ftp_storage.FTPStorage{
+						Host:     "ftp.example.com",
+						Port:     21,
+						Username: "testuser",
+						Password: "original-password",
+						UseSSL:   false,
+						Path:     "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeFTP,
+					Name:        "Updated FTP Storage",
+					FTPStorage: &ftp_storage.FTPStorage{
+						Host:     "ftp2.example.com",
+						Port:     2121,
+						Username: "testuser2",
+						Password: "",
+						UseSSL:   true,
+						Path:     "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.FTPStorage.Password, "enc:"),
+					"Password should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				password, err := encryptor.Decrypt(storage.ID, storage.FTPStorage.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password", password)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.FTPStorage.Password)
+			},
+		},
+		{
+			name:        "SFTP Storage",
+			storageType: StorageTypeSFTP,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeSFTP,
+					Name:        "Test SFTP Storage",
+					SFTPStorage: &sftp_storage.SFTPStorage{
+						Host:              "sftp.example.com",
+						Port:              22,
+						Username:          "testuser",
+						Password:          "original-password",
+						PrivateKey:        "original-private-key",
+						SkipHostKeyVerify: false,
+						Path:              "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeSFTP,
+					Name:        "Updated SFTP Storage",
+					SFTPStorage: &sftp_storage.SFTPStorage{
+						Host:              "sftp2.example.com",
+						Port:              2222,
+						Username:          "testuser2",
+						Password:          "",
+						PrivateKey:        "",
+						SkipHostKeyVerify: true,
+						Path:              "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.SFTPStorage.Password, "enc:"),
+					"Password should be encrypted with 'enc:' prefix")
+				assert.True(t, strings.HasPrefix(storage.SFTPStorage.PrivateKey, "enc:"),
+					"PrivateKey should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				password, err := encryptor.Decrypt(storage.ID, storage.SFTPStorage.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-password", password)
+
+				privateKey, err := encryptor.Decrypt(storage.ID, storage.SFTPStorage.PrivateKey)
+				assert.NoError(t, err)
+				assert.Equal(t, "original-private-key", privateKey)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.SFTPStorage.Password)
+				assert.Equal(t, "", storage.SFTPStorage.PrivateKey)
+			},
+		},
+		{
+			name:        "Rclone Storage",
+			storageType: StorageTypeRclone,
+			createStorage: func(workspaceID uuid.UUID) *Storage {
+				return &Storage{
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeRclone,
+					Name:        "Test Rclone Storage",
+					RcloneStorage: &rclone_storage.RcloneStorage{
+						ConfigContent: "[myremote]\ntype = s3\nprovider = AWS\naccess_key_id = test\nsecret_access_key = secret\n",
+						RemotePath:    "/backups",
+					},
+				}
+			},
+			updateStorage: func(workspaceID uuid.UUID, storageID uuid.UUID) *Storage {
+				return &Storage{
+					ID:          storageID,
+					WorkspaceID: workspaceID,
+					Type:        StorageTypeRclone,
+					Name:        "Updated Rclone Storage",
+					RcloneStorage: &rclone_storage.RcloneStorage{
+						ConfigContent: "",
+						RemotePath:    "/backups2",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, storage *Storage) {
+				assert.True(t, strings.HasPrefix(storage.RcloneStorage.ConfigContent, "enc:"),
+					"ConfigContent should be encrypted with 'enc:' prefix")
+
+				encryptor := encryption.GetFieldEncryptor()
+				configContent, err := encryptor.Decrypt(
+					storage.ID,
+					storage.RcloneStorage.ConfigContent,
+				)
+				assert.NoError(t, err)
+				assert.Equal(
+					t,
+					"[myremote]\ntype = s3\nprovider = AWS\naccess_key_id = test\nsecret_access_key = secret\n",
+					configContent,
+				)
+			},
+			verifyHiddenData: func(t *testing.T, storage *Storage) {
+				assert.Equal(t, "", storage.RcloneStorage.ConfigContent)
 			},
 		},
 	}

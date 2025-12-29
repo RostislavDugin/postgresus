@@ -2,13 +2,13 @@ package discord_notifier
 
 import (
 	"bytes"
+	"databasus-backend/internal/util/encryption"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

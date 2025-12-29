@@ -1,9 +1,9 @@
 package storage
 
 import (
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/util/logger"
 	"os"
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/util/logger"
 	"sync"
 
 	"gorm.io/driver/postgres"

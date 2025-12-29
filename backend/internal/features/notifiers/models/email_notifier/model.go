@@ -2,12 +2,12 @@ package email_notifier
 
 import (
 	"crypto/tls"
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/smtp"
-	"postgresus-backend/internal/util/encryption"
 	"time"
 
 	"github.com/google/uuid"

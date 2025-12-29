@@ -14,4 +14,8 @@ export interface PostgresqlDatabase {
 
   // backup settings
   includeSchemas?: string[];
+  cpuCount: number;
+
+  // restore settings (not saved to DB)
+  isExcludeExtensions?: boolean;
 }

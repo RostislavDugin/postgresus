@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	user_dto "postgresus-backend/internal/features/users/dto"
-	user_enums "postgresus-backend/internal/features/users/enums"
-	user_middleware "postgresus-backend/internal/features/users/middleware"
-	users_services "postgresus-backend/internal/features/users/services"
+	user_dto "databasus-backend/internal/features/users/dto"
+	user_enums "databasus-backend/internal/features/users/enums"
+	user_middleware "databasus-backend/internal/features/users/middleware"
+	users_services "databasus-backend/internal/features/users/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

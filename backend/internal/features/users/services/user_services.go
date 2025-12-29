@@ -16,13 +16,13 @@ import (
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 
-	"postgresus-backend/internal/config"
-	"postgresus-backend/internal/features/encryption/secrets"
-	users_dto "postgresus-backend/internal/features/users/dto"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_interfaces "postgresus-backend/internal/features/users/interfaces"
-	users_models "postgresus-backend/internal/features/users/models"
-	users_repositories "postgresus-backend/internal/features/users/repositories"
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/features/encryption/secrets"
+	users_dto "databasus-backend/internal/features/users/dto"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_interfaces "databasus-backend/internal/features/users/interfaces"
+	users_models "databasus-backend/internal/features/users/models"
+	users_repositories "databasus-backend/internal/features/users/repositories"
 )
 
 type UserService struct {

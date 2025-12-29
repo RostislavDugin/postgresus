@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	user_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
+	user_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

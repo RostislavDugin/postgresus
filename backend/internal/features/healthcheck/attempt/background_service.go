@@ -1,16 +1,16 @@
 package healthcheck_attempt
 
 import (
+	"databasus-backend/internal/config"
+	healthcheck_config "databasus-backend/internal/features/healthcheck/config"
 	"log/slog"
-	"postgresus-backend/internal/config"
-	healthcheck_config "postgresus-backend/internal/features/healthcheck/config"
 	"time"
 )
 
 type HealthcheckAttemptBackgroundService struct {
-	healthcheckConfigService *healthcheck_config.HealthcheckConfigService
-	checkPgHealthUseCase     *CheckPgHealthUseCase
-	logger                   *slog.Logger
+	healthcheckConfigService   *healthcheck_config.HealthcheckConfigService
+	checkDatabaseHealthUseCase *CheckDatabaseHealthUseCase
+	logger                     *slog.Logger
 }
 
 func (s *HealthcheckAttemptBackgroundService) Run() {
@@ -39,9 +39,9 @@ func (s *HealthcheckAttemptBackgroundService) checkDatabases() {
 
 	for _, healthcheckConfig := range healthcheckConfigs {
 		go func(healthcheckConfig *healthcheck_config.HealthcheckConfig) {
-			err := s.checkPgHealthUseCase.Execute(now, healthcheckConfig)
+			err := s.checkDatabaseHealthUseCase.Execute(now, healthcheckConfig)
 			if err != nil {
-				s.logger.Error("failed to check pg health", "error", err)
+				s.logger.Error("failed to check database health", "error", err)
 			}
 		}(&healthcheckConfig)
 	}

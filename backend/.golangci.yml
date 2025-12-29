@@ -1,7 +1,7 @@
 version: "2"
 
 run:
-  timeout: 1m
+  timeout: 5m
   tests: false
   concurrency: 4
 

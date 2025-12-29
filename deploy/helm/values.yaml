@@ -1,8 +1,8 @@
-# Default values for postgresus
+# Default values for databasus
 
 # Image configuration
 image:
-  repository: rostislavdugin/postgresus
+  repository: databasus/databasus
   tag: null
   pullPolicy: Always
 
@@ -39,7 +39,7 @@ persistence:
   accessMode: ReadWriteOnce
   size: 10Gi
   # Mount path in container
-  mountPath: /postgresus-data
+  mountPath: /databasus-data
 
 # Ingress configuration (disabled by default - using LoadBalancer instead)
 ingress:
@@ -47,7 +47,7 @@ ingress:
   className: nginx
   annotations: {}
   hosts:
-    - host: postgresus.example.com
+    - host: databasus.example.com
       paths:
         - path: /
           pathType: Prefix
@@ -60,7 +60,7 @@ route:
   kind: HTTPRoute
   annotations: {}
   hostnames:
-  - postgresus.example.com
+  - databasus.example.com
   parentRefs: []
   filters: []
   matches: []

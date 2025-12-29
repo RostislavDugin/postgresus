@@ -3,9 +3,9 @@ package workspaces_controllers
 import (
 	"net/http"
 
-	users_middleware "postgresus-backend/internal/features/users/middleware"
-	workspaces_dto "postgresus-backend/internal/features/workspaces/dto"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
+	users_middleware "databasus-backend/internal/features/users/middleware"
+	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

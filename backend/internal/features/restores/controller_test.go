@@ -15,24 +15,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	"postgresus-backend/internal/features/backups/backups"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	"postgresus-backend/internal/features/databases/databases/postgresql"
-	"postgresus-backend/internal/features/restores/models"
-	"postgresus-backend/internal/features/storages"
-	local_storage "postgresus-backend/internal/features/storages/models/local"
-	users_dto "postgresus-backend/internal/features/users/dto"
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_services "postgresus-backend/internal/features/users/services"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_controllers "postgresus-backend/internal/features/workspaces/controllers"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	util_encryption "postgresus-backend/internal/util/encryption"
-	test_utils "postgresus-backend/internal/util/testing"
-	"postgresus-backend/internal/util/tools"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	"databasus-backend/internal/features/backups/backups"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/databases/databases/postgresql"
+	"databasus-backend/internal/features/restores/models"
+	"databasus-backend/internal/features/storages"
+	local_storage "databasus-backend/internal/features/storages/models/local"
+	users_dto "databasus-backend/internal/features/users/dto"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_services "databasus-backend/internal/features/users/services"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	util_encryption "databasus-backend/internal/util/encryption"
+	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/tools"
 )
 
 func createTestRouter() *gin.Engine {
@@ -171,6 +171,36 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 	assert.Contains(t, string(testResp.Body), "insufficient permissions")
 }
 
+func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	_, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
+
+	request := RestoreBackupRequest{
+		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+			Version:             tools.PostgresqlVersion16,
+			Host:                "localhost",
+			Port:                5432,
+			Username:            "postgres",
+			Password:            "postgres",
+			IsExcludeExtensions: true,
+		},
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+	)
+
+	assert.Contains(t, string(testResp.Body), "restore started successfully")
+}
+
 func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
@@ -265,6 +295,7 @@ func createTestDatabase(
 			Username: "postgres",
 			Password: "postgres",
 			Database: &testDbName,
+			CpuCount: 1,
 		},
 	}
 

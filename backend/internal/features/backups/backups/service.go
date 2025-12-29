@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	"postgresus-backend/internal/features/backups/backups/encryption"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/databases"
-	encryption_secrets "postgresus-backend/internal/features/encryption/secrets"
-	"postgresus-backend/internal/features/notifiers"
-	"postgresus-backend/internal/features/storages"
-	users_models "postgresus-backend/internal/features/users/models"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	util_encryption "postgresus-backend/internal/util/encryption"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	"databasus-backend/internal/features/backups/backups/encryption"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/databases"
+	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
+	users_models "databasus-backend/internal/features/users/models"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	util_encryption "databasus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )
@@ -502,19 +502,19 @@ func (s *BackupService) CancelBackup(
 func (s *BackupService) GetBackupFile(
 	user *users_models.User,
 	backupID uuid.UUID,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, databases.DatabaseType, error) {
 	backup, err := s.backupRepository.FindByID(backupID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if database.WorkspaceID == nil {
-		return nil, errors.New("cannot download backup for database without workspace")
+		return nil, "", errors.New("cannot download backup for database without workspace")
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
@@ -522,10 +522,10 @@ func (s *BackupService) GetBackupFile(
 		user,
 	)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if !canAccess {
-		return nil, errors.New("insufficient permissions to download backup for this database")
+		return nil, "", errors.New("insufficient permissions to download backup for this database")
 	}
 
 	s.auditLogService.WriteAuditLog(
@@ -538,7 +538,12 @@ func (s *BackupService) GetBackupFile(
 		database.WorkspaceID,
 	)
 
-	return s.getBackupReader(backupID)
+	reader, err := s.getBackupReader(backupID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return reader, database.Type, nil
 }
 
 func (s *BackupService) deleteBackup(backup *Backup) error {

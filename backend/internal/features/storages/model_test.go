@@ -3,18 +3,21 @@ package storages
 import (
 	"bytes"
 	"context"
+	"databasus-backend/internal/config"
+	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
+	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
+	google_drive_storage "databasus-backend/internal/features/storages/models/google_drive"
+	local_storage "databasus-backend/internal/features/storages/models/local"
+	nas_storage "databasus-backend/internal/features/storages/models/nas"
+	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
+	s3_storage "databasus-backend/internal/features/storages/models/s3"
+	sftp_storage "databasus-backend/internal/features/storages/models/sftp"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"postgresus-backend/internal/config"
-	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
-	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
-	local_storage "postgresus-backend/internal/features/storages/models/local"
-	nas_storage "postgresus-backend/internal/features/storages/models/nas"
-	s3_storage "postgresus-backend/internal/features/storages/models/s3"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/logger"
 	"strconv"
 	"testing"
 	"time"
@@ -70,6 +73,22 @@ func Test_Storage_BasicOperations(t *testing.T) {
 		}
 	}
 
+	// Setup FTP port
+	ftpPort := 21
+	if portStr := config.GetEnv().TestFTPPort; portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			ftpPort = port
+		}
+	}
+
+	// Setup SFTP port
+	sftpPort := 22
+	if portStr := config.GetEnv().TestSFTPPort; portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			sftpPort = port
+		}
+	}
+
 	// Run tests
 	testCases := []struct {
 		name    string
@@ -122,6 +141,44 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				AuthMethod:       azure_blob_storage.AuthMethodConnectionString,
 				ConnectionString: azuriteContainer.connectionString,
 				ContainerName:    azuriteContainer.containerNameStr,
+			},
+		},
+		{
+			name: "FTPStorage",
+			storage: &ftp_storage.FTPStorage{
+				StorageID: uuid.New(),
+				Host:      "localhost",
+				Port:      ftpPort,
+				Username:  "testuser",
+				Password:  "testpassword",
+				UseSSL:    false,
+				Path:      "test-files",
+			},
+		},
+		{
+			name: "SFTPStorage",
+			storage: &sftp_storage.SFTPStorage{
+				StorageID:         uuid.New(),
+				Host:              "localhost",
+				Port:              sftpPort,
+				Username:          "testuser",
+				Password:          "testpassword",
+				SkipHostKeyVerify: true,
+				Path:              "upload",
+			},
+		},
+		{
+			name: "RcloneStorage",
+			storage: &rclone_storage.RcloneStorage{
+				StorageID: uuid.New(),
+				ConfigContent: fmt.Sprintf(`[minio]
+type = s3
+provider = Other
+access_key_id = %s
+secret_access_key = %s
+endpoint = http://%s
+acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoint),
+				RemotePath: s3Container.bucketName,
 			},
 		},
 	}

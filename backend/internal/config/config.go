@@ -1,11 +1,11 @@
 package config
 
 import (
+	env_utils "databasus-backend/internal/util/env"
+	"databasus-backend/internal/util/logger"
+	"databasus-backend/internal/util/tools"
 	"os"
 	"path/filepath"
-	env_utils "postgresus-backend/internal/util/env"
-	"postgresus-backend/internal/util/logger"
-	"postgresus-backend/internal/util/tools"
 	"strings"
 	"sync"
 
@@ -25,6 +25,9 @@ type EnvVariables struct {
 	DatabaseDsn          string            `env:"DATABASE_DSN"         required:"true"`
 	EnvMode              env_utils.EnvMode `env:"ENV_MODE"             required:"true"`
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
+	MysqlInstallDir      string            `env:"MYSQL_INSTALL_DIR"`
+	MariadbInstallDir    string            `env:"MARIADB_INSTALL_DIR"`
+	MongodbInstallDir    string            `env:"MONGODB_INSTALL_DIR"`
 
 	DataFolder    string
 	TempFolder    string
@@ -47,7 +50,34 @@ type EnvVariables struct {
 
 	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
 
-	TestNASPort string `env:"TEST_NAS_PORT"`
+	TestNASPort  string `env:"TEST_NAS_PORT"`
+	TestFTPPort  string `env:"TEST_FTP_PORT"`
+	TestSFTPPort string `env:"TEST_SFTP_PORT"`
+
+	TestMysql57Port string `env:"TEST_MYSQL_57_PORT"`
+	TestMysql80Port string `env:"TEST_MYSQL_80_PORT"`
+	TestMysql84Port string `env:"TEST_MYSQL_84_PORT"`
+	TestMysql90Port string `env:"TEST_MYSQL_90_PORT"`
+
+	TestMariadb55Port   string `env:"TEST_MARIADB_55_PORT"`
+	TestMariadb101Port  string `env:"TEST_MARIADB_101_PORT"`
+	TestMariadb102Port  string `env:"TEST_MARIADB_102_PORT"`
+	TestMariadb103Port  string `env:"TEST_MARIADB_103_PORT"`
+	TestMariadb104Port  string `env:"TEST_MARIADB_104_PORT"`
+	TestMariadb105Port  string `env:"TEST_MARIADB_105_PORT"`
+	TestMariadb106Port  string `env:"TEST_MARIADB_106_PORT"`
+	TestMariadb1011Port string `env:"TEST_MARIADB_1011_PORT"`
+	TestMariadb114Port  string `env:"TEST_MARIADB_114_PORT"`
+	TestMariadb118Port  string `env:"TEST_MARIADB_118_PORT"`
+	TestMariadb120Port  string `env:"TEST_MARIADB_120_PORT"`
+
+	TestMongodb40Port string `env:"TEST_MONGODB_40_PORT"`
+	TestMongodb42Port string `env:"TEST_MONGODB_42_PORT"`
+	TestMongodb44Port string `env:"TEST_MONGODB_44_PORT"`
+	TestMongodb50Port string `env:"TEST_MONGODB_50_PORT"`
+	TestMongodb60Port string `env:"TEST_MONGODB_60_PORT"`
+	TestMongodb70Port string `env:"TEST_MONGODB_70_PORT"`
+	TestMongodb82Port string `env:"TEST_MONGODB_82_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -150,11 +180,20 @@ func loadEnvVariables() {
 	env.PostgresesInstallDir = filepath.Join(backendRoot, "tools", "postgresql")
 	tools.VerifyPostgresesInstallation(log, env.EnvMode, env.PostgresesInstallDir)
 
+	env.MysqlInstallDir = filepath.Join(backendRoot, "tools", "mysql")
+	tools.VerifyMysqlInstallation(log, env.EnvMode, env.MysqlInstallDir)
+
+	env.MariadbInstallDir = filepath.Join(backendRoot, "tools", "mariadb")
+	tools.VerifyMariadbInstallation(log, env.EnvMode, env.MariadbInstallDir)
+
+	env.MongodbInstallDir = filepath.Join(backendRoot, "tools", "mongodb")
+	tools.VerifyMongodbInstallation(log, env.EnvMode, env.MongodbInstallDir)
+
 	// Store the data and temp folders one level below the root
-	// (projectRoot/postgresus-data -> /postgresus-data)
-	env.DataFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "backups")
-	env.TempFolder = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "temp")
-	env.SecretKeyPath = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "secret.key")
+	// (projectRoot/databasus-data -> /databasus-data)
+	env.DataFolder = filepath.Join(filepath.Dir(backendRoot), "databasus-data", "backups")
+	env.TempFolder = filepath.Join(filepath.Dir(backendRoot), "databasus-data", "temp")
+	env.SecretKeyPath = filepath.Join(filepath.Dir(backendRoot), "databasus-data", "secret.key")
 
 	if env.IsTesting {
 		if env.TestPostgres12Port == "" {

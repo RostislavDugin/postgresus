@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "postgresus.fullname" . }}
-  namespace: {{ include "postgresus.namespace" . }}
+  name: {{ include "databasus.fullname" . }}
+  namespace: {{ include "databasus.namespace" . }}
   labels:
-    {{- include "postgresus.labels" . | nindent 4 }}
+    {{- include "databasus.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "postgresus.fullname" . }}-headless
+  serviceName: {{ include "databasus.fullname" . }}-headless
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "postgresus.selectorLabels" . | nindent 6 }}
+      {{- include "databasus.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "postgresus.selectorLabels" . | nindent 8 }}
+        {{- include "databasus.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -49,7 +49,7 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           volumeMounts:
-            - name: postgresus-storage
+            - name: databasus-storage
               mountPath: {{ .Values.persistence.mountPath }}
             {{- if .Values.customRootCA }}
             - name: custom-root-ca
@@ -86,7 +86,7 @@ spec:
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
-        name: postgresus-storage
+        name: databasus-storage
       spec:
         accessModes:
           - {{ .Values.persistence.accessMode }}

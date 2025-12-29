@@ -1,12 +1,12 @@
 package databases
 
 import (
-	audit_logs "postgresus-backend/internal/features/audit_logs"
-	"postgresus-backend/internal/features/notifiers"
-	users_services "postgresus-backend/internal/features/users/services"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/logger"
+	audit_logs "databasus-backend/internal/features/audit_logs"
+	"databasus-backend/internal/features/notifiers"
+	users_services "databasus-backend/internal/features/users/services"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 )
 
 var databaseRepository = &DatabaseRepository{}

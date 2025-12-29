@@ -1,6 +1,6 @@
 package encryption
 
-import "postgresus-backend/internal/features/encryption/secrets"
+import "databasus-backend/internal/features/encryption/secrets"
 
 var fieldEncryptor = &SecretKeyFieldEncryptor{
 	secrets.GetSecretKeyService(),

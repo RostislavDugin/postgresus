@@ -296,6 +296,7 @@ export function ProfileComponent({ contentHeight }: Props) {
                         visible: newPasswordVisible,
                         onVisibleChange: setNewPasswordVisible,
                       }}
+                      autoComplete="new-password"
                     />
 
                     <div className="mt-2 mb-1 text-xs font-semibold dark:text-gray-200">
@@ -312,6 +313,7 @@ export function ProfileComponent({ contentHeight }: Props) {
                       iconRender={(visible) =>
                         visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
                       }
+                      autoComplete="new-password"
                       visibilityToggle={{
                         visible: confirmPasswordVisible,
                         onVisibleChange: setConfirmPasswordVisible,

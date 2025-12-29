@@ -1,12 +1,12 @@
 package backups
 
 import (
+	"databasus-backend/internal/config"
+	backups_config "databasus-backend/internal/features/backups/config"
+	"databasus-backend/internal/features/storages"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/period"
 	"log/slog"
-	"postgresus-backend/internal/config"
-	backups_config "postgresus-backend/internal/features/backups/config"
-	"postgresus-backend/internal/features/storages"
-	"postgresus-backend/internal/util/encryption"
-	"postgresus-backend/internal/util/period"
 	"time"
 )
 

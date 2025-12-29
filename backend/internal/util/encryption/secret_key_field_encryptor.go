@@ -5,10 +5,10 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
+	"databasus-backend/internal/features/encryption/secrets"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"postgresus-backend/internal/features/encryption/secrets"
 	"strings"
 
 	"github.com/google/uuid"

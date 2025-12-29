@@ -148,6 +148,7 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
           footer={<div />}
           open={isShowAddStorage}
           onCancel={() => setIsShowAddStorage(false)}
+          maskClosable={false}
         >
           <div className="my-3 max-w-[250px] text-gray-500 dark:text-gray-400">
             Storage - is a place where backups will be stored (local disk, S3, etc.)

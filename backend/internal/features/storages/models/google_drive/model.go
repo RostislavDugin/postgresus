@@ -2,6 +2,7 @@ package google_drive_storage
 
 import (
 	"context"
+	"databasus-backend/internal/util/encryption"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"postgresus-backend/internal/util/encryption"
 	"strings"
 	"time"
 
@@ -92,7 +92,7 @@ func (s *GoogleDriveStorage) SaveFile(
 			"name",
 			filename,
 			"folder",
-			"postgresus_backups",
+			"databasus_backups",
 		)
 		return nil
 	})
@@ -230,7 +230,7 @@ func (s *GoogleDriveStorage) TestConnection(encryptor encryption.FieldEncryptor)
 		testFilename := "test-connection-" + uuid.New().String()
 		testData := []byte("test")
 
-		// Ensure the postgresus_backups folder exists
+		// Ensure the databasus_backups folder exists
 		folderID, err := s.ensureBackupsFolderExists(ctx, driveService)
 		if err != nil {
 			return fmt.Errorf("failed to create/find backups folder: %w", err)
@@ -644,7 +644,7 @@ func escapeForQuery(s string) string {
 	return strings.ReplaceAll(s, `'`, `\'`)
 }
 
-// ensureBackupsFolderExists creates the postgresus_backups folder if it doesn't exist
+// ensureBackupsFolderExists creates the databasus_backups folder if it doesn't exist
 func (s *GoogleDriveStorage) ensureBackupsFolderExists(
 	ctx context.Context,
 	driveService *drive.Service,
@@ -656,21 +656,21 @@ func (s *GoogleDriveStorage) ensureBackupsFolderExists(
 
 	// Folder doesn't exist, create it
 	folderMeta := &drive.File{
-		Name:     "postgresus_backups",
+		Name:     "databasus_backups",
 		MimeType: "application/vnd.google-apps.folder",
 	}
 
 	folder, err := driveService.Files.Create(folderMeta).Context(ctx).Do()
 	if err != nil {
-		return "", fmt.Errorf("failed to create postgresus_backups folder: %w", err)
+		return "", fmt.Errorf("failed to create databasus_backups folder: %w", err)
 	}
 
 	return folder.Id, nil
 }
 
-// findBackupsFolder finds the postgresus_backups folder ID
+// findBackupsFolder finds the databasus_backups folder ID
 func (s *GoogleDriveStorage) findBackupsFolder(driveService *drive.Service) (string, error) {
-	query := "name = 'postgresus_backups' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+	query := "name = 'databasus_backups' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
 
 	results, err := driveService.Files.List().
 		Q(query).
@@ -682,7 +682,7 @@ func (s *GoogleDriveStorage) findBackupsFolder(driveService *drive.Service) (str
 	}
 
 	if len(results.Files) == 0 {
-		return "", fmt.Errorf("postgresus_backups folder not found")
+		return "", fmt.Errorf("databasus_backups folder not found")
 	}
 
 	return results.Files[0].Id, nil

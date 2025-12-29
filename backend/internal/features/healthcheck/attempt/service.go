@@ -1,10 +1,10 @@
 package healthcheck_attempt
 
 import (
+	"databasus-backend/internal/features/databases"
+	users_models "databasus-backend/internal/features/users/models"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	"errors"
-	"postgresus-backend/internal/features/databases"
-	users_models "postgresus-backend/internal/features/users/models"
-	workspaces_services "postgresus-backend/internal/features/workspaces/services"
 	"time"
 
 	"github.com/google/uuid"

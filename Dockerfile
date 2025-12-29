@@ -22,7 +22,7 @@ RUN npm run build
 
 # ========= BUILD BACKEND =========
 # Backend build stage
-FROM --platform=$BUILDPLATFORM golang:1.23.3 AS backend-build
+FROM --platform=$BUILDPLATFORM golang:1.24.4 AS backend-build
 
 # Make TARGET args available early so tools built here match the final image arch
 ARG TARGETOS
@@ -77,22 +77,119 @@ ENV APP_VERSION=$APP_VERSION
 # Set production mode for Docker containers
 ENV ENV_MODE=production
 
-# Install PostgreSQL server and client tools (versions 12-18)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  wget ca-certificates gnupg lsb-release sudo gosu && \
-  wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+# ========= STEP 1: Install base packages =========
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends \
+  wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils libncurses5 libncurses6
+RUN rm -rf /var/lib/apt/lists/*
+
+# ========= Install PostgreSQL client binaries (versions 12-18) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
+ARG TARGETARCH
+RUN mkdir -p /usr/lib/postgresql/12/bin /usr/lib/postgresql/13/bin \
+  /usr/lib/postgresql/14/bin /usr/lib/postgresql/15/bin \
+  /usr/lib/postgresql/16/bin /usr/lib/postgresql/17/bin \
+  /usr/lib/postgresql/18/bin
+
+# Copy pre-downloaded PostgreSQL binaries based on architecture
+COPY assets/tools/x64/postgresql/ /tmp/pg-x64/
+COPY assets/tools/arm/postgresql/ /tmp/pg-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp -r /tmp/pg-x64/postgresql-12/bin/* /usr/lib/postgresql/12/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-13/bin/* /usr/lib/postgresql/13/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-14/bin/* /usr/lib/postgresql/14/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-15/bin/* /usr/lib/postgresql/15/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-16/bin/* /usr/lib/postgresql/16/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-17/bin/* /usr/lib/postgresql/17/bin/ && \
+  cp -r /tmp/pg-x64/postgresql-18/bin/* /usr/lib/postgresql/18/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  cp -r /tmp/pg-arm/postgresql-12/bin/* /usr/lib/postgresql/12/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-13/bin/* /usr/lib/postgresql/13/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-14/bin/* /usr/lib/postgresql/14/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-15/bin/* /usr/lib/postgresql/15/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-16/bin/* /usr/lib/postgresql/16/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-17/bin/* /usr/lib/postgresql/17/bin/ && \
+  cp -r /tmp/pg-arm/postgresql-18/bin/* /usr/lib/postgresql/18/bin/; \
+  fi && \
+  rm -rf /tmp/pg-x64 /tmp/pg-arm && \
+  chmod +x /usr/lib/postgresql/*/bin/*
+
+# Install PostgreSQL 17 server (needed for internal database)
+# Add PostgreSQL repository for server installation only
+RUN wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
   echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list && \
   apt-get update && \
-  apt-get install -y --no-install-recommends \
-  postgresql-17 postgresql-18 postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
-  postgresql-client-16 postgresql-client-17 postgresql-client-18 && \
+  apt-get install -y --no-install-recommends postgresql-17 && \
   rm -rf /var/lib/apt/lists/*
+
+# ========= Install rclone =========
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends rclone && \
+  rm -rf /var/lib/apt/lists/*
+
+# Create directories for all database clients
+RUN mkdir -p /usr/local/mysql-5.7/bin /usr/local/mysql-8.0/bin /usr/local/mysql-8.4/bin \
+  /usr/local/mysql-9/bin \
+  /usr/local/mariadb-10.6/bin /usr/local/mariadb-12.1/bin \
+  /usr/local/mongodb-database-tools/bin
+
+# ========= Install MySQL clients (5.7, 8.0, 8.4, 9) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
+# Note: MySQL 5.7 is only available for x86_64
+# Note: MySQL binaries require libncurses5 for terminal handling
+COPY assets/tools/x64/mysql/ /tmp/mysql-x64/
+COPY assets/tools/arm/mysql/ /tmp/mysql-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp /tmp/mysql-x64/mysql-5.7/bin/* /usr/local/mysql-5.7/bin/ && \
+  cp /tmp/mysql-x64/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
+  cp /tmp/mysql-x64/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/ && \
+  cp /tmp/mysql-x64/mysql-9/bin/* /usr/local/mysql-9/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  echo "MySQL 5.7 not available for arm64, skipping..." && \
+  cp /tmp/mysql-arm/mysql-8.0/bin/* /usr/local/mysql-8.0/bin/ && \
+  cp /tmp/mysql-arm/mysql-8.4/bin/* /usr/local/mysql-8.4/bin/ && \
+  cp /tmp/mysql-arm/mysql-9/bin/* /usr/local/mysql-9/bin/; \
+  fi && \
+  rm -rf /tmp/mysql-x64 /tmp/mysql-arm && \
+  chmod +x /usr/local/mysql-*/bin/*
+
+# ========= Install MariaDB clients (10.6, 12.1) =========
+# Pre-downloaded binaries from assets/tools/ - no network download needed
+# 10.6 (legacy): For older servers (5.5, 10.1) that don't have generation_expression column
+# 12.1 (modern): For newer servers (10.2+)
+COPY assets/tools/x64/mariadb/ /tmp/mariadb-x64/
+COPY assets/tools/arm/mariadb/ /tmp/mariadb-arm/
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+  cp /tmp/mariadb-x64/mariadb-10.6/bin/* /usr/local/mariadb-10.6/bin/ && \
+  cp /tmp/mariadb-x64/mariadb-12.1/bin/* /usr/local/mariadb-12.1/bin/; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  cp /tmp/mariadb-arm/mariadb-10.6/bin/* /usr/local/mariadb-10.6/bin/ && \
+  cp /tmp/mariadb-arm/mariadb-12.1/bin/* /usr/local/mariadb-12.1/bin/; \
+  fi && \
+  rm -rf /tmp/mariadb-x64 /tmp/mariadb-arm && \
+  chmod +x /usr/local/mariadb-*/bin/*
+
+# ========= Install MongoDB Database Tools =========
+# Note: MongoDB Database Tools are backward compatible - single version supports all server versions (4.0-8.0)
+# Use dpkg with apt-get -f install to handle dependencies
+RUN apt-get update && \
+  if [ "$TARGETARCH" = "amd64" ]; then \
+  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
+  elif [ "$TARGETARCH" = "arm64" ]; then \
+  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-aarch64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
+  fi && \
+  dpkg -i /tmp/mongodb-database-tools.deb || true && \
+  apt-get install -f -y --no-install-recommends && \
+  rm /tmp/mongodb-database-tools.deb && \
+  rm -rf /var/lib/apt/lists/* && \
+  ln -sf /usr/bin/mongodump /usr/local/mongodb-database-tools/bin/mongodump && \
+  ln -sf /usr/bin/mongorestore /usr/local/mongodb-database-tools/bin/mongorestore
 
 # Create postgres user and set up directories
 RUN useradd -m -s /bin/bash postgres || true && \
-  mkdir -p /postgresus-data/pgdata && \
-  chown -R postgres:postgres /postgresus-data/pgdata
+  mkdir -p /databasus-data/pgdata && \
+  chown -R postgres:postgres /databasus-data/pgdata
 
 WORKDIR /app
 
@@ -121,59 +218,120 @@ COPY <<EOF /app/start.sh
 #!/bin/bash
 set -e
 
+# Check for legacy postgresus-data volume mount
+if [ -d "/postgresus-data" ] && [ "\$(ls -A /postgresus-data 2>/dev/null)" ]; then
+    echo ""
+    echo "=========================================="
+    echo "ERROR: Legacy volume detected!"
+    echo "=========================================="
+    echo ""
+    echo "You are using the \`postgresus-data\` folder. It seems you changed the image name from Postgresus to Databasus without changing the volume."
+    echo ""
+    echo "Please either:"
+    echo "  1. Switch back to image rostislavdugin/postgresus:latest (supported until ~Dec 2026)"
+    echo "  2. Read the migration guide: https://databasus.com/installation/#postgresus-migration"
+    echo ""
+    echo "=========================================="
+    exit 1
+fi
+
 # PostgreSQL 17 binary paths
 PG_BIN="/usr/lib/postgresql/17/bin"
 
 # Ensure proper ownership of data directory
 echo "Setting up data directory permissions..."
-mkdir -p /postgresus-data/pgdata
-chown -R postgres:postgres /postgresus-data
+mkdir -p /databasus-data/pgdata
+chown -R postgres:postgres /databasus-data
 
 # Initialize PostgreSQL if not already initialized
-if [ ! -s "/postgresus-data/pgdata/PG_VERSION" ]; then
+if [ ! -s "/databasus-data/pgdata/PG_VERSION" ]; then
     echo "Initializing PostgreSQL database..."
-    gosu postgres \$PG_BIN/initdb -D /postgresus-data/pgdata --encoding=UTF8 --locale=C.UTF-8
+    gosu postgres \$PG_BIN/initdb -D /databasus-data/pgdata --encoding=UTF8 --locale=C.UTF-8
     
     # Configure PostgreSQL
-    echo "host all all 127.0.0.1/32 md5" >> /postgresus-data/pgdata/pg_hba.conf
-    echo "local all all trust" >> /postgresus-data/pgdata/pg_hba.conf
-    echo "port = 5437" >> /postgresus-data/pgdata/postgresql.conf
-    echo "listen_addresses = 'localhost'" >> /postgresus-data/pgdata/postgresql.conf
-    echo "shared_buffers = 256MB" >> /postgresus-data/pgdata/postgresql.conf
-    echo "max_connections = 100" >> /postgresus-data/pgdata/postgresql.conf
+    echo "host all all 127.0.0.1/32 md5" >> /databasus-data/pgdata/pg_hba.conf
+    echo "local all all trust" >> /databasus-data/pgdata/pg_hba.conf
+    echo "port = 5437" >> /databasus-data/pgdata/postgresql.conf
+    echo "listen_addresses = 'localhost'" >> /databasus-data/pgdata/postgresql.conf
+    echo "shared_buffers = 256MB" >> /databasus-data/pgdata/postgresql.conf
+    echo "max_connections = 100" >> /databasus-data/pgdata/postgresql.conf
 fi
 
-# Start PostgreSQL in background
-echo "Starting PostgreSQL..."
-gosu postgres \$PG_BIN/postgres -D /postgresus-data/pgdata -p 5437 &
-POSTGRES_PID=\$!
+# Function to start PostgreSQL and wait for it to be ready
+start_postgres() {
+    echo "Starting PostgreSQL..."
+    gosu postgres \$PG_BIN/postgres -D /databasus-data/pgdata -p 5437 &
+    POSTGRES_PID=\$!
+    
+    echo "Waiting for PostgreSQL to be ready..."
+    for i in {1..30}; do
+        if gosu postgres \$PG_BIN/pg_isready -p 5437 -h localhost >/dev/null 2>&1; then
+            echo "PostgreSQL is ready!"
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-for i in {1..30}; do
-    if gosu postgres \$PG_BIN/pg_isready -p 5437 -h localhost >/dev/null 2>&1; then
-        echo "PostgreSQL is ready!"
-        break
-    fi
-    if [ \$i -eq 30 ]; then
-        echo "PostgreSQL failed to start"
+# Try to start PostgreSQL
+if ! start_postgres; then
+    echo ""
+    echo "=========================================="
+    echo "PostgreSQL failed to start. Attempting WAL reset recovery..."
+    echo "=========================================="
+    echo ""
+    
+    # Kill any remaining postgres processes
+    pkill -9 postgres 2>/dev/null || true
+    sleep 2
+    
+    # Attempt pg_resetwal to recover from WAL corruption
+    echo "Running pg_resetwal to reset WAL..."
+    if gosu postgres \$PG_BIN/pg_resetwal -f /databasus-data/pgdata; then
+        echo "WAL reset successful. Restarting PostgreSQL..."
+        
+        # Try starting PostgreSQL again after WAL reset
+        if start_postgres; then
+            echo "PostgreSQL recovered successfully after WAL reset!"
+        else
+            echo ""
+            echo "=========================================="
+            echo "ERROR: PostgreSQL failed to start even after WAL reset."
+            echo "The database may be severely corrupted."
+            echo ""
+            echo "Options:"
+            echo "  1. Delete the volume and start fresh (data loss)"
+            echo "  2. Manually inspect /databasus-data/pgdata for issues"
+            echo "=========================================="
+            exit 1
+        fi
+    else
+        echo ""
+        echo "=========================================="
+        echo "ERROR: pg_resetwal failed."
+        echo "The database may be severely corrupted."
+        echo ""
+        echo "Options:"
+        echo "  1. Delete the volume and start fresh (data loss)"
+        echo "  2. Manually inspect /databasus-data/pgdata for issues"
+        echo "=========================================="
         exit 1
     fi
-    sleep 1
-done
+fi
 
 # Create database and set password for postgres user
 echo "Setting up database and user..."
 gosu postgres \$PG_BIN/psql -p 5437 -h localhost -d postgres << 'SQL'
 ALTER USER postgres WITH PASSWORD 'Q1234567';
-SELECT 'CREATE DATABASE postgresus OWNER postgres'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'postgresus')
+SELECT 'CREATE DATABASE databasus OWNER postgres'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'databasus')
 \\gexec
 \\q
 SQL
 
 # Start the main application
-echo "Starting Postgresus application..."
+echo "Starting Databasus application..."
 exec ./main
 EOF
 
@@ -182,7 +340,7 @@ RUN chmod +x /app/start.sh
 EXPOSE 4005
 
 # Volume for PostgreSQL data
-VOLUME ["/postgresus-data"]
+VOLUME ["/databasus-data"]
 
 ENTRYPOINT ["/app/start.sh"]
 CMD []

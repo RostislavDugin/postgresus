@@ -35,13 +35,7 @@ export const MainScreenComponent = () => {
   const contentHeight = screenHeight - (isMobile ? 70 : 95);
 
   const [selectedTab, setSelectedTab] = useState<
-    | 'notifiers'
-    | 'storages'
-    | 'databases'
-    | 'profile'
-    | 'postgresus-settings'
-    | 'users'
-    | 'settings'
+    'notifiers' | 'storages' | 'databases' | 'profile' | 'databasus-settings' | 'users' | 'settings'
   >('databases');
   const [diskUsage, setDiskUsage] = useState<DiskUsage | undefined>(undefined);
   const [user, setUser] = useState<UserProfile | undefined>(undefined);
@@ -173,11 +167,11 @@ export const MainScreenComponent = () => {
       isVisible: true,
     },
     {
-      text: 'Postgresus settings',
-      name: 'postgresus-settings',
+      text: 'Databasus settings',
+      name: 'databasus-settings',
       icon: '/icons/menu/global-settings-gray.svg',
       selectedIcon: '/icons/menu/global-settings-white.svg',
-      onClick: () => setSelectedTab('postgresus-settings'),
+      onClick: () => setSelectedTab('databasus-settings'),
       isAdminOnly: true,
       marginTop: '0px',
       isVisible: true,
@@ -198,8 +192,8 @@ export const MainScreenComponent = () => {
     <div style={{ height: screenHeight }} className="bg-[#f5f5f5] p-2 md:p-3 dark:bg-gray-900">
       <div className="mb-2 flex h-[50px] items-center rounded bg-white px-2 py-2 shadow md:mb-3 md:h-[60px] md:p-3 dark:bg-gray-800">
         <div className="flex items-center gap-2 hover:opacity-80 md:gap-3">
-          <a href="https://postgresus.com" target="_blank" rel="noreferrer">
-            <img className="h-[30px] w-[30px] md:h-[40px] md:w-[40px]" src="/logo.svg" />
+          <a href="https://databasus.com" target="_blank" rel="noreferrer">
+            <img className="h-[30px] w-[30px] p-1 md:h-[40px] md:w-[40px]" src="/logo.svg" />
           </a>
         </div>
 
@@ -217,7 +211,7 @@ export const MainScreenComponent = () => {
         <div className="ml-auto hidden items-center gap-5 md:flex">
           <a
             className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://postgresus.com/installation"
+            href="https://databasus.com/installation"
             target="_blank"
             rel="noreferrer"
           >
@@ -226,7 +220,7 @@ export const MainScreenComponent = () => {
 
           <a
             className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://postgresus.com/contribute"
+            href="https://databasus.com/contribute"
             target="_blank"
             rel="noreferrer"
           >
@@ -234,7 +228,7 @@ export const MainScreenComponent = () => {
           </a>
           <a
             className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://t.me/postgresus_community"
+            href="https://t.me/databasus_community"
             target="_blank"
             rel="noreferrer"
           >
@@ -243,13 +237,13 @@ export const MainScreenComponent = () => {
 
           <div className="mt-1">
             <GitHubButton
-              href="https://github.com/RostislavDugin/postgresus"
+              href="https://github.com/databasus/databasus"
               data-icon="octicon-star"
               data-size="large"
               data-show-count="true"
-              aria-label="Star RostislavDugin/postgresus on GitHub"
+              aria-label="Star databasus/databasus on GitHub"
             >
-              &nbsp;Star Postgresus on GitHub
+              &nbsp;Star Databasus on GitHub
             </GitHubButton>
           </div>
 
@@ -297,7 +291,7 @@ export const MainScreenComponent = () => {
 
           {selectedTab === 'profile' && <ProfileComponent contentHeight={contentHeight} />}
 
-          {selectedTab === 'postgresus-settings' && (
+          {selectedTab === 'databasus-settings' && (
             <SettingsComponent contentHeight={contentHeight} />
           )}
 

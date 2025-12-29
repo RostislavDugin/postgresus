@@ -1,15 +1,15 @@
 package notifiers
 
 import (
+	discord_notifier "databasus-backend/internal/features/notifiers/models/discord"
+	"databasus-backend/internal/features/notifiers/models/email_notifier"
+	slack_notifier "databasus-backend/internal/features/notifiers/models/slack"
+	teams_notifier "databasus-backend/internal/features/notifiers/models/teams"
+	telegram_notifier "databasus-backend/internal/features/notifiers/models/telegram"
+	webhook_notifier "databasus-backend/internal/features/notifiers/models/webhook"
+	"databasus-backend/internal/util/encryption"
 	"errors"
 	"log/slog"
-	discord_notifier "postgresus-backend/internal/features/notifiers/models/discord"
-	"postgresus-backend/internal/features/notifiers/models/email_notifier"
-	slack_notifier "postgresus-backend/internal/features/notifiers/models/slack"
-	teams_notifier "postgresus-backend/internal/features/notifiers/models/teams"
-	telegram_notifier "postgresus-backend/internal/features/notifiers/models/telegram"
-	webhook_notifier "postgresus-backend/internal/features/notifiers/models/webhook"
-	"postgresus-backend/internal/util/encryption"
 
 	"github.com/google/uuid"
 )

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
@@ -12,11 +13,13 @@ type Interval struct {
 	ID       uuid.UUID    `json:"id"       gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	Interval IntervalType `json:"interval" gorm:"type:text;not null"`
 
-	TimeOfDay *string `json:"timeOfDay"            gorm:"type:text;"`
+	TimeOfDay *string `json:"timeOfDay"                gorm:"type:text;"`
 	// only for WEEKLY
-	Weekday *int `json:"weekday,omitempty"    gorm:"type:int"`
+	Weekday *int `json:"weekday,omitempty"        gorm:"type:int"`
 	// only for MONTHLY
-	DayOfMonth *int `json:"dayOfMonth,omitempty" gorm:"type:int"`
+	DayOfMonth *int `json:"dayOfMonth,omitempty"     gorm:"type:int"`
+	// only for CRON
+	CronExpression *string `json:"cronExpression,omitempty" gorm:"type:text"`
 }
 
 func (i *Interval) BeforeSave(tx *gorm.DB) error {
@@ -40,6 +43,16 @@ func (i *Interval) Validate() error {
 		return errors.New("day of month is required for monthly intervals")
 	}
 
+	// for cron interval cron expression is required and must be valid
+	if i.Interval == IntervalCron {
+		if i.CronExpression == nil || *i.CronExpression == "" {
+			return errors.New("cron expression is required for cron intervals")
+		}
+		if err := i.validateCronExpression(*i.CronExpression); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -59,6 +72,8 @@ func (i *Interval) ShouldTriggerBackup(now time.Time, lastBackupTime *time.Time)
 		return i.shouldTriggerWeekly(now, *lastBackupTime)
 	case IntervalMonthly:
 		return i.shouldTriggerMonthly(now, *lastBackupTime)
+	case IntervalCron:
+		return i.shouldTriggerCron(now, *lastBackupTime)
 	default:
 		return false
 	}
@@ -66,11 +81,12 @@ func (i *Interval) ShouldTriggerBackup(now time.Time, lastBackupTime *time.Time)
 
 func (i *Interval) Copy() *Interval {
 	return &Interval{
-		ID:         uuid.Nil,
-		Interval:   i.Interval,
-		TimeOfDay:  i.TimeOfDay,
-		Weekday:    i.Weekday,
-		DayOfMonth: i.DayOfMonth,
+		ID:             uuid.Nil,
+		Interval:       i.Interval,
+		TimeOfDay:      i.TimeOfDay,
+		Weekday:        i.Weekday,
+		DayOfMonth:     i.DayOfMonth,
+		CronExpression: i.CronExpression,
 	}
 }
 
@@ -203,4 +219,32 @@ func getStartOfWeek(t time.Time) time.Time {
 
 func getStartOfMonth(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
+}
+
+// cron trigger: check if we've passed a scheduled cron time since last backup
+func (i *Interval) shouldTriggerCron(now, lastBackup time.Time) bool {
+	if i.CronExpression == nil || *i.CronExpression == "" {
+		return false
+	}
+
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	schedule, err := parser.Parse(*i.CronExpression)
+	if err != nil {
+		return false
+	}
+
+	// Find the next scheduled time after the last backup
+	nextAfterLastBackup := schedule.Next(lastBackup)
+
+	// If we're at or past that next scheduled time, trigger
+	return now.After(nextAfterLastBackup) || now.Equal(nextAfterLastBackup)
+}
+
+func (i *Interval) validateCronExpression(expr string) error {
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	_, err := parser.Parse(expr)
+	if err != nil {
+		return errors.New("invalid cron expression: " + err.Error())
+	}
+	return nil
 }

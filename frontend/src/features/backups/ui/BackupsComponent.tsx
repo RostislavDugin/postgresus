@@ -22,7 +22,7 @@ import {
   backupConfigApi,
   backupsApi,
 } from '../../../entity/backups';
-import type { Database } from '../../../entity/databases';
+import { type Database, DatabaseType } from '../../../entity/databases';
 import { getUserTimeFormat } from '../../../shared/time';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { RestoresComponent } from '../../restores';
@@ -74,7 +74,8 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       // Find the backup to get a meaningful filename
       const backup = backups.find((b) => b.id === backupId);
       const createdAt = backup ? dayjs(backup.createdAt).format('YYYY-MM-DD_HH-mm-ss') : 'backup';
-      link.download = `${database.name}_backup_${createdAt}.dump`;
+      const extension = database.type === DatabaseType.MYSQL ? '.sql.zst' : '.dump.zst';
+      link.download = `${database.name}_backup_${createdAt}${extension}`;
 
       // Trigger download
       document.body.appendChild(link);
@@ -393,7 +394,19 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
                   />
                 </Tooltip>
 
-                <Tooltip title="Download backup file. It can be restored manually via pg_restore (from custom format)">
+                <Tooltip
+                  title={
+                    database.type === DatabaseType.POSTGRES
+                      ? 'Download backup file. It can be restored manually via pg_restore (from custom format)'
+                      : database.type === DatabaseType.MYSQL
+                        ? 'Download backup file. It can be restored manually via mysql client (from SQL dump)'
+                        : database.type === DatabaseType.MARIADB
+                          ? 'Download backup file. It can be restored manually via mariadb client (from SQL dump)'
+                          : database.type === DatabaseType.MONGODB
+                            ? 'Download backup file. It can be restored manually via mongorestore (from archive)'
+                            : 'Download backup file'
+                  }
+                >
                   {downloadingBackupId === record.id ? (
                     <SyncOutlined spin style={{ color: '#155dfc' }} />
                   ) : (
@@ -528,7 +541,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       <h2 className="text-lg font-bold md:text-xl dark:text-white">Backups</h2>
 
       {!isBackupConfigLoading && !backupConfig?.isBackupsEnabled && (
-        <div className="text-sm text-red-600 md:text-base">
+        <div className="text-sm text-red-600">
           Scheduled backups are disabled (you can enable it back in the backup configuration)
         </div>
       )}
@@ -654,6 +667,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           onCancel={() => setShowingRestoresBackupId(undefined)}
           title="Restore from backup"
           footer={null}
+          maskClosable={false}
         >
           <RestoresComponent
             database={database}
@@ -667,6 +681,7 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
           title="Backup error details"
           open={!!showingBackupError}
           onCancel={() => setShowingBackupError(undefined)}
+          maskClosable={false}
           footer={null}
         >
           <div className="text-sm">{showingBackupError.failMessage}</div>

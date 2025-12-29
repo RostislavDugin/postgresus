@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"testing"
 
-	users_enums "postgresus-backend/internal/features/users/enums"
-	users_testing "postgresus-backend/internal/features/users/testing"
-	workspaces_dto "postgresus-backend/internal/features/workspaces/dto"
-	workspaces_models "postgresus-backend/internal/features/workspaces/models"
-	workspaces_testing "postgresus-backend/internal/features/workspaces/testing"
-	test_utils "postgresus-backend/internal/util/testing"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_models "databasus-backend/internal/features/workspaces/models"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	test_utils "databasus-backend/internal/util/testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
