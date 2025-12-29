@@ -14,7 +14,7 @@ export function EditSFTPStorageComponent({ storage, setStorage, setUnsaved }: Pr
   const hasAdvancedValues = !!storage?.sftpStorage?.skipHostKeyVerify;
   const [showAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
-  const initialAuthMethod = storage?.sftpStorage?.privateKey !== undefined ? 'privateKey' : 'password';
+  const initialAuthMethod = storage?.sftpStorage?.privateKey ? 'privateKey' : 'password';
   const [authMethod, setAuthMethod] = useState<'password' | 'privateKey'>(initialAuthMethod);
 
   return (
