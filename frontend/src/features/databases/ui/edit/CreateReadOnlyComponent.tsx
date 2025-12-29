@@ -23,7 +23,17 @@ export const CreateReadOnlyComponent = ({
 
   const isPostgres = database.type === DatabaseType.POSTGRES;
   const isMysql = database.type === DatabaseType.MYSQL;
-  const databaseTypeName = isPostgres ? 'PostgreSQL' : isMysql ? 'MySQL' : 'database';
+  const isMariadb = database.type === DatabaseType.MARIADB;
+  const isMongodb = database.type === DatabaseType.MONGODB;
+  const databaseTypeName = isPostgres
+    ? 'PostgreSQL'
+    : isMysql
+      ? 'MySQL'
+      : isMariadb
+        ? 'MariaDB'
+        : isMongodb
+          ? 'MongoDB'
+          : 'database';
 
   const checkReadOnlyUser = async (): Promise<boolean> => {
     try {
@@ -47,6 +57,12 @@ export const CreateReadOnlyComponent = ({
       } else if (isMysql && database.mysql) {
         database.mysql.username = response.username;
         database.mysql.password = response.password;
+      } else if (isMariadb && database.mariadb) {
+        database.mariadb.username = response.username;
+        database.mariadb.password = response.password;
+      } else if (isMongodb && database.mongodb) {
+        database.mongodb.username = response.username;
+        database.mongodb.password = response.password;
       }
 
       onReadOnlyUserUpdated(database);

@@ -147,7 +147,9 @@ func (s *S3Storage) SaveFile(
 			objectKey,
 			bytes.NewReader([]byte{}),
 			0,
-			minio.PutObjectOptions{},
+			minio.PutObjectOptions{
+				SendContentMd5: true,
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("failed to upload empty file: %w", err)
@@ -283,7 +285,9 @@ func (s *S3Storage) TestConnection(encryptor encryption.FieldEncryptor) error {
 		testObjectKey,
 		testReader,
 		int64(len(testData)),
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			SendContentMd5: true,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upload test file to S3: %w", err)
