@@ -114,7 +114,7 @@ You have four ways to install Databasus:
 
 ## 📦 Installation
 
-You have three ways to install Databasus: automated script (recommended), simple Docker run, or Docker Compose setup.
+You have four ways to install Databasus: automated script (recommended), simple Docker run, or Docker Compose setup.
 
 ### Option 1: Automated installation script (recommended, Linux only)
 
