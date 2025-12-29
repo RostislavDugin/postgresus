@@ -4,7 +4,7 @@ import InstallationComponent from "./components/InstallationComponent";
 import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 
 export const metadata: Metadata = {
-  title: "PostgreSQL backup",
+  title: "PostgreSQL backup | Databasus",
   description:
     "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
   keywords:
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "https://databasus.com",
-    title: "PostgreSQL backup",
+    title: "PostgreSQL backup | Databasus",
     description:
       "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
     images: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "PostgreSQL backup",
+    title: "PostgreSQL backup | Databasus",
     description:
       "Free and open source tool for PostgreSQL scheduled backups (with MySQL and MongoDB support). Save them locally and to clouds. Notifications to Slack, Discord, Telegram, email, webhook, etc.",
     images: ["https://databasus.com/images/index/dashboard.png"],
