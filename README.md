@@ -273,7 +273,7 @@ Then manually move databases from Postgresus to Databasus.
 
 ### Why was Postgresus renamed to Databasus?
 
-Databasus has been developed since 2023. It was internal tool to backup production and home projects databases. In start of 2025 it was released as open source project on GitHub. By the end of 2025 it became popular and the time for renaming has come.
+Databasus has been developed since 2023. It was internal tool to backup production and home projects databases. In start of 2025 it was released as open source project on GitHub. By the end of 2025 it became popular and the time for renaming has come in December 2025.
 
 It was an important step for the project to grow. Actually, there are a couple of reasons:
 
