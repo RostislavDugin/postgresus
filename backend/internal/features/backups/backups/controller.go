@@ -193,8 +193,8 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		}
 	}()
 
-	extension := ".dump.zst"
-	if dbType == databases.DatabaseTypeMysql {
+	extension := ".dump"
+	if dbType == databases.DatabaseTypeMysql || dbType == databases.DatabaseTypeMariadb {
 		extension = ".sql.zst"
 	}
 
