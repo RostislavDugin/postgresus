@@ -232,6 +232,9 @@ All data executes within containers you control on servers you own. Credentials 
 ### AI Usage in Development
 For information about AI usage in Databasus development, see /faq#ai-usage
 
+### Community
+You can join our large community of developers, DBAs and DevOps engineers at https://t.me/databasus_community. The community is a great place to ask questions, share experiences, get help with configuration and stay updated with the latest features and releases.
+
 ## Developer Information
 
 - Docker Image: databasus/databasus:latest

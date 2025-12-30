@@ -1413,6 +1413,12 @@ export default function Index() {
               question="Why was Postgresus renamed to Databasus?"
               answer={
                 <>
+                  Databasus has been developed since 2023. It was internal tool
+                  to backup production and home projects databases. In start of
+                  2025 it was released as open source project on GitHub. By the
+                  end of 2025 it became popular and the time for renaming has
+                  come in December 2025.
+                  <br />
                   The renaming from Postgresus to Databasus was an important
                   step for the project&apos;s growth. There are several reasons:
                   <ol className="list-decimal list-inside mt-3 space-y-2">
@@ -1475,6 +1481,27 @@ export default function Index() {
                     dedicated FAQ page
                   </a>
                   .
+                </>
+              }
+            />
+            <FaqItem
+              number="15"
+              question="How can I join the Databasus community?"
+              answer={
+                <>
+                  You can join our large community of developers, DBAs and
+                  DevOps engineers at{" "}
+                  <a
+                    href="https://t.me/databasus_community"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-600"
+                  >
+                    t.me/databasus_community
+                  </a>
+                  . The community is a great place to ask questions, share
+                  experiences, get help with configuration and stay updated with
+                  the latest features and releases.
                 </>
               }
             />
