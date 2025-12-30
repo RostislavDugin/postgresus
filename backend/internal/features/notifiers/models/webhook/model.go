@@ -3,6 +3,7 @@ package webhook_notifier
 import (
 	"bytes"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/httpclient"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,7 +133,7 @@ func (t *WebhookNotifier) sendGET(webhookURL, heading, message string, logger *s
 
 	t.applyHeaders(req)
 
-	client := &http.Client{}
+	client := httpclient.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send GET webhook: %w", err)
@@ -179,7 +180,7 @@ func (t *WebhookNotifier) sendPOST(webhookURL, heading, message string, logger *
 
 	t.applyHeaders(req)
 
-	client := &http.Client{}
+	client := httpclient.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send POST webhook: %w", err)

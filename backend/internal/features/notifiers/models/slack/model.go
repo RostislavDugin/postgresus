@@ -3,6 +3,7 @@ package slack_notifier
 import (
 	"bytes"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/httpclient"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,9 +79,7 @@ func (s *SlackNotifier) Send(
 		attempts = 0
 	)
 
-	client := &http.Client{
-		Timeout: requestTimeout,
-	}
+	client := httpclient.NewClientWithTimeout(requestTimeout)
 
 	for {
 		attempts++

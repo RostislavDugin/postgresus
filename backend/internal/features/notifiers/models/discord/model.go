@@ -3,6 +3,7 @@ package discord_notifier
 import (
 	"bytes"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/httpclient"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,7 +63,7 @@ func (d *DiscordNotifier) Send(
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := httpclient.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send Discord message: %w", err)

@@ -2,6 +2,7 @@ package telegram_notifier
 
 import (
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/httpclient"
 	"errors"
 	"fmt"
 	"io"
@@ -71,7 +72,7 @@ func (t *TelegramNotifier) Send(
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{}
+	client := httpclient.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send telegram message: %w", err)

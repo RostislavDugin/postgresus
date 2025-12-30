@@ -3,6 +3,7 @@ package teams_notifier
 import (
 	"bytes"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/httpclient"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,7 +94,8 @@ func (n *TeamsNotifier) Send(
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := httpclient.NewClient()
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
