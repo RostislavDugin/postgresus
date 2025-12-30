@@ -74,7 +74,10 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
       // Find the backup to get a meaningful filename
       const backup = backups.find((b) => b.id === backupId);
       const createdAt = backup ? dayjs(backup.createdAt).format('YYYY-MM-DD_HH-mm-ss') : 'backup';
-      const extension = database.type === DatabaseType.MYSQL ? '.sql.zst' : '.dump.zst';
+      const extension =
+        database.type === DatabaseType.MYSQL || database.type === DatabaseType.MARIADB
+          ? '.sql.zst'
+          : '.dump';
       link.download = `${database.name}_backup_${createdAt}${extension}`;
 
       // Trigger download

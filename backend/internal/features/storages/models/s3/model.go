@@ -3,8 +3,10 @@ package s3_storage
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/tls"
 	"databasus-backend/internal/util/encryption"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -101,15 +103,21 @@ func (s *S3Storage) SaveFile(
 			return fmt.Errorf("read error: %w", readErr)
 		}
 
+		partData := buf[:n]
+		hash := md5.Sum(partData)
+		md5Base64 := base64.StdEncoding.EncodeToString(hash[:])
+
 		part, err := coreClient.PutObjectPart(
 			ctx,
 			s.S3Bucket,
 			objectKey,
 			uploadID,
 			partNumber,
-			bytes.NewReader(buf[:n]),
+			bytes.NewReader(partData),
 			int64(n),
-			minio.PutObjectPartOptions{},
+			minio.PutObjectPartOptions{
+				Md5Base64: md5Base64,
+			},
 		)
 		if err != nil {
 			_ = coreClient.AbortMultipartUpload(ctx, s.S3Bucket, objectKey, uploadID)
