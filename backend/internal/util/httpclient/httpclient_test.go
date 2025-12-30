@@ -108,7 +108,7 @@ func TestDefaultTimeout_Is30Seconds(t *testing.T) {
 	assert.Equal(t, 30*time.Second, DefaultTimeout)
 }
 
-func TestNewClient_HTTPSProxyEnvIsRespected(t *testing.T) {
+func TestNewClient_ProxyEnvIsRespected(t *testing.T) {
 	originalHTTPSProxy := os.Getenv("HTTPS_PROXY")
 	needCleanup := false
 	
@@ -159,7 +159,7 @@ func TestNewClient_NoProxyBypasses(t *testing.T) {
 	}()
 
 	os.Setenv("HTTP_PROXY", "http://proxy:8080")
-	os.Setenv("NO_PROXY", "internal.local,*.internal.com,192.168.1.0/24")
+	os.Setenv("NO_PROXY", "github.com,*.github.com,192.168.1.0/24")
 
 	client := NewClient()
 	transport, _ := client.Transport.(*http.Transport)
@@ -170,8 +170,11 @@ func TestNewClient_NoProxyBypasses(t *testing.T) {
 		description string
 	}{
 		{"http://github.com/", false, "exact match in NO_PROXY"},
-		{"http://api.internal.com/data", false, "wildcard match in NO_PROXY"},
-		{"http://external.com/api", true, "not in NO_PROXY list"},
+		{"https://github.com/", false, "exact match in NO_PROXY with https"},
+		{"http://api.github.com/meta", false, "wildcard match in NO_PROXY"},
+		{"https://api.github.com/meta", false, "wildcard match in NO_PROXY with https"},
+		{"http://google.com/api", true, "not in NO_PROXY list"},
+		{"https://google.com/api", true, "not in NO_PROXY list with https"},
 	}
 
 	for _, tc := range testCases {
