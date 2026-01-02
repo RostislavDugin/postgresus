@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	backupTimeout            = 6 * time.Hour
+	backupTimeout            = 23 * time.Hour
 	shutdownCheckInterval    = 1 * time.Second
 	copyBufferSize           = 8 * 1024 * 1024
 	progressReportIntervalMB = 1.0

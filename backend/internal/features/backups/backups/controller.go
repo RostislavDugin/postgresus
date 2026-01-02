@@ -1,7 +1,6 @@
 package backups
 
 import (
-	"databasus-backend/internal/features/backups/backups/common"
 	"databasus-backend/internal/features/databases"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	"fmt"
@@ -223,24 +222,20 @@ func (c *BackupController) generateBackupFilename(
 	// Sanitize database name for filename (replace spaces and special chars)
 	safeName := sanitizeFilename(database.Name)
 
-	// Determine extension based on database type and backup type
-	extension := c.getBackupExtension(database.Type, backup.Type)
+	// Determine extension based on database type
+	extension := c.getBackupExtension(database.Type)
 
 	return fmt.Sprintf("%s_backup_%s%s", safeName, timestamp, extension)
 }
 
 func (c *BackupController) getBackupExtension(
 	dbType databases.DatabaseType,
-	backupType common.BackupType,
 ) string {
 	switch dbType {
 	case databases.DatabaseTypeMysql, databases.DatabaseTypeMariadb:
 		return ".sql.zst"
 	case databases.DatabaseTypePostgres:
-		// For PostgreSQL, use .tar for directory type, .dump for custom type
-		if backupType == common.BackupTypeDirectory {
-			return ".tar"
-		}
+		// PostgreSQL custom format
 		return ".dump"
 	case databases.DatabaseTypeMongodb:
 		return ".archive"
