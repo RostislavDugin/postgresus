@@ -264,7 +264,7 @@ func (uc *CreateMariadbBackupUsecase) createTempMyCnfFile(
 	mdbConfig *mariadbtypes.MariadbDatabase,
 	password string,
 ) (string, error) {
-	tempDir, err := os.MkdirTemp("", "mycnf")
+	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "mycnf_"+uuid.New().String())
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}

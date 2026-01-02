@@ -287,7 +287,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	}
 	defer func() {
 		if pgpassFile != "" {
-			_ = os.Remove(pgpassFile)
+			_ = os.RemoveAll(filepath.Dir(pgpassFile))
 		}
 	}()
 
@@ -927,7 +927,7 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 	}
 
 	// Write filtered TOC to temporary file
-	tocFile, err := os.CreateTemp("", "pg_restore_toc_*.list")
+	tocFile, err := os.CreateTemp(config.GetEnv().TempFolder, "pg_restore_toc_*.list")
 	if err != nil {
 		return "", fmt.Errorf("failed to create TOC list file: %w", err)
 	}
@@ -974,7 +974,7 @@ func (uc *RestorePostgresqlBackupUsecase) createTempPgpassFile(
 		escapedPassword,
 	)
 
-	tempDir, err := os.MkdirTemp("", "pgpass")
+	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "pgpass_"+uuid.New().String())
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}

@@ -771,7 +771,7 @@ func (uc *CreatePostgresqlBackupUsecase) createTempPgpassFile(
 		escapedPassword,
 	)
 
-	tempDir, err := os.MkdirTemp("", "pgpass")
+	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "pgpass_"+uuid.New().String())
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
