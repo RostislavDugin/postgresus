@@ -172,19 +172,23 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 
 # ========= Install MongoDB Database Tools =========
 # Note: MongoDB Database Tools are backward compatible - single version supports all server versions (4.0-8.0)
-# Use dpkg with apt-get -f install to handle dependencies
+# Note: For ARM64, we use Ubuntu 22.04 package as MongoDB doesn't provide Debian 12 ARM64 packages
 RUN apt-get update && \
   if [ "$TARGETARCH" = "amd64" ]; then \
   wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
   elif [ "$TARGETARCH" = "arm64" ]; then \
-  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-aarch64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
+  wget -q https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-arm64-100.10.0.deb -O /tmp/mongodb-database-tools.deb; \
   fi && \
-  dpkg -i /tmp/mongodb-database-tools.deb || true && \
-  apt-get install -f -y --no-install-recommends && \
-  rm /tmp/mongodb-database-tools.deb && \
+  dpkg -i /tmp/mongodb-database-tools.deb || apt-get install -f -y --no-install-recommends && \
+  rm -f /tmp/mongodb-database-tools.deb && \
   rm -rf /var/lib/apt/lists/* && \
-  ln -sf /usr/bin/mongodump /usr/local/mongodb-database-tools/bin/mongodump && \
-  ln -sf /usr/bin/mongorestore /usr/local/mongodb-database-tools/bin/mongorestore
+  mkdir -p /usr/local/mongodb-database-tools/bin && \
+  if [ -f /usr/bin/mongodump ]; then \
+  ln -sf /usr/bin/mongodump /usr/local/mongodb-database-tools/bin/mongodump; \
+  fi && \
+  if [ -f /usr/bin/mongorestore ]; then \
+  ln -sf /usr/bin/mongorestore /usr/local/mongodb-database-tools/bin/mongorestore; \
+  fi
 
 # Create postgres user and set up directories
 RUN useradd -m -s /bin/bash postgres || true && \
