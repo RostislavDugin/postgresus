@@ -1,6 +1,7 @@
 package usecases_postgresql
 
 import (
+	"archive/tar"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -15,23 +16,23 @@ import (
 	"time"
 
 	"databasus-backend/internal/config"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	pgtypes "databasus-backend/internal/features/databases/databases/postgresql"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
+	files_utils "databasus-backend/internal/util/files"
 	"databasus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
 )
 
 const (
-	backupTimeout            = 23 * time.Hour
+	backupTimeout            = 6 * time.Hour
 	shutdownCheckInterval    = 1 * time.Second
-	copyBufferSize           = 8 * 1024 * 1024
 	progressReportIntervalMB = 1.0
 	pgConnectTimeout         = 30
 	compressionLevel         = 5
@@ -46,11 +47,6 @@ type CreatePostgresqlBackupUsecase struct {
 	fieldEncryptor   encryption.FieldEncryptor
 }
 
-type writeResult struct {
-	bytesWritten int
-	writeErr     error
-}
-
 func (uc *CreatePostgresqlBackupUsecase) Execute(
 	ctx context.Context,
 	backupID uuid.UUID,
@@ -60,9 +56,9 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 	backupProgressListener func(
 		completedMBs float64,
 	),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info(
-		"Creating PostgreSQL backup via pg_dump custom format",
+		"Creating PostgreSQL backup via pg_dump directory type",
 		"databaseId",
 		db.ID,
 		"storageId",
@@ -83,14 +79,12 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		return nil, fmt.Errorf("database name is required for pg_dump backups")
 	}
 
-	args := uc.buildPgDumpArgs(pg)
-
 	decryptedPassword, err := uc.fieldEncryptor.Decrypt(db.ID, pg.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
-	return uc.streamToStorage(
+	return uc.executeDirectoryBackup(
 		ctx,
 		backupID,
 		backupConfig,
@@ -100,52 +94,68 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 			config.GetEnv().EnvMode,
 			config.GetEnv().PostgresesInstallDir,
 		),
-		args,
+		pg,
 		decryptedPassword,
 		storage,
-		db,
 		backupProgressListener,
 	)
 }
 
-// streamToStorage streams pg_dump output directly to storage
-func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
+// executeDirectoryBackup runs pg_dump with directory type and streams as TAR to storage
+func (uc *CreatePostgresqlBackupUsecase) executeDirectoryBackup(
 	parentCtx context.Context,
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	pgBin string,
-	args []string,
+	pg *pgtypes.PostgresqlDatabase,
 	password string,
 	storage *storages.Storage,
-	db *databases.Database,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
-	uc.logger.Info("Streaming PostgreSQL backup to storage", "pgBin", pgBin, "args", args)
-
+) (*common.BackupMetadata, error) {
 	ctx, cancel := uc.createBackupContext(parentCtx)
 	defer cancel()
 
-	pgpassFile, err := uc.setupPgpassFile(db.Postgresql, password)
+	// Create temporary directory for pg_dump output
+	err := files_utils.EnsureDirectories([]string{config.GetEnv().TempFolder})
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure temp directories: %w", err)
+	}
+
+	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "pgdump_"+backupID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	outputDir := filepath.Join(tempDir, "dump")
+
+	args := uc.buildPgDumpArgs(pg, outputDir)
+	uc.logger.Info(
+		"Executing PostgreSQL backup with directory type",
+		"pgBin",
+		pgBin,
+		"args",
+		args,
+		"outputDir",
+		outputDir,
+	)
+
+	pgpassFile, err := uc.setupPgpassFile(pg, password)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if pgpassFile != "" {
-			// Remove the entire temp directory (which contains the .pgpass file)
 			_ = os.RemoveAll(filepath.Dir(pgpassFile))
 		}
 	}()
 
+	// Execute pg_dump to directory
 	cmd := exec.CommandContext(ctx, pgBin, args...)
-	uc.logger.Info("Executing PostgreSQL backup command", "command", cmd.String())
-
-	if err := uc.setupPgEnvironment(cmd, pgpassFile, db.Postgresql.IsHttps, password, db.Postgresql.CpuCount, pgBin); err != nil {
+	if err := uc.setupPgEnvironment(cmd, pgpassFile, pg.IsHttps, password, pg.CpuCount, pgBin); err != nil {
 		return nil, err
-	}
-
-	pgStdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
 	pgStderr, err := cmd.StderrPipe()
@@ -153,13 +163,58 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	// Capture stderr in a separate goroutine to ensure we don't miss any error output
 	stderrCh := make(chan []byte, 1)
 	go func() {
 		stderrOutput, _ := io.ReadAll(pgStderr)
 		stderrCh <- stderrOutput
 	}()
 
+	if err = cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
+	}
+
+	waitErr := cmd.Wait()
+	stderrOutput := <-stderrCh
+
+	select {
+	case <-ctx.Done():
+		return nil, uc.checkCancellationReason()
+	default:
+	}
+
+	if waitErr != nil {
+		if err := uc.checkCancellation(ctx); err != nil {
+			return nil, err
+		}
+		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput, pgBin, args, password)
+	}
+
+	uc.logger.Info(
+		"pg_dump completed successfully, streaming TAR to storage",
+		"outputDir",
+		outputDir,
+	)
+
+	// Stream directory as TAR to storage
+	return uc.streamDirectoryToStorage(
+		ctx,
+		backupID,
+		backupConfig,
+		outputDir,
+		storage,
+		backupProgressListener,
+	)
+}
+
+// streamDirectoryToStorage creates a TAR archive from the directory and streams it to storage
+func (uc *CreatePostgresqlBackupUsecase) streamDirectoryToStorage(
+	ctx context.Context,
+	backupID uuid.UUID,
+	backupConfig *backups_config.BackupConfig,
+	sourceDir string,
+	storage *storages.Storage,
+	backupProgressListener func(completedMBs float64),
+) (*common.BackupMetadata, error) {
 	storageReader, storageWriter := io.Pipe()
 
 	finalWriter, encryptionWriter, backupMetadata, err := uc.setupBackupEncryption(
@@ -171,162 +226,176 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := usecases_common.NewCountingWriter(finalWriter)
+	// Set type to DIRECTORY for new PostgreSQL backups
+	backupMetadata.Type = common.BackupTypeDirectory
 
-	// The backup ID becomes the object key / filename in storage
-
-	// Start streaming into storage in its own goroutine
+	// Start streaming into storage
 	saveErrCh := make(chan error, 1)
 	go func() {
 		saveErr := storage.SaveFile(ctx, uc.fieldEncryptor, uc.logger, backupID, storageReader)
 		saveErrCh <- saveErr
 	}()
 
-	// Start pg_dump
-	if err = cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
-	}
-
-	// Copy pg output directly to storage with shutdown checks
-	copyResultCh := make(chan error, 1)
-	bytesWrittenCh := make(chan int64, 1)
+	// Create TAR and stream to storage
+	tarErrCh := make(chan error, 1)
+	totalSizeCh := make(chan int64, 1)
 	go func() {
-		bytesWritten, err := uc.copyWithShutdownCheck(
+		totalSize, tarErr := uc.writeTarToWriter(
 			ctx,
-			countingWriter,
-			pgStdout,
+			sourceDir,
+			finalWriter,
 			backupProgressListener,
 		)
-		bytesWrittenCh <- bytesWritten
-		copyResultCh <- err
+		totalSizeCh <- totalSize
+		tarErrCh <- tarErr
+
+		// Close encryption writer first if present
+		if encryptionWriter != nil {
+			if closeErr := encryptionWriter.Close(); closeErr != nil {
+				uc.logger.Error("Failed to close encryption writer", "error", closeErr)
+			}
+		}
+		// Then close the pipe writer to signal EOF to storage
+		if closeErr := storageWriter.Close(); closeErr != nil {
+			uc.logger.Error("Failed to close pipe writer", "error", closeErr)
+		}
 	}()
 
-	copyErr := <-copyResultCh
-	bytesWritten := <-bytesWrittenCh
-	waitErr := cmd.Wait()
+	tarErr := <-tarErrCh
+	totalSize := <-totalSizeCh
+	saveErr := <-saveErrCh
 
 	select {
 	case <-ctx.Done():
-		uc.cleanupOnCancellation(encryptionWriter, storageWriter, saveErrCh)
 		return nil, uc.checkCancellationReason()
 	default:
 	}
 
-	if err := uc.closeWriters(encryptionWriter, storageWriter); err != nil {
-		<-saveErrCh
-		return nil, err
-	}
-
-	saveErr := <-saveErrCh
-	stderrOutput := <-stderrCh
-
-	// Send final sizing after backup is completed
-	if waitErr == nil && copyErr == nil && saveErr == nil && backupProgressListener != nil {
-		sizeMB := float64(bytesWritten) / (1024 * 1024)
+	// Send final size after backup is completed
+	if tarErr == nil && saveErr == nil && backupProgressListener != nil {
+		sizeMB := float64(totalSize) / (1024 * 1024)
 		backupProgressListener(sizeMB)
 	}
 
-	switch {
-	case waitErr != nil:
+	if tarErr != nil {
 		if err := uc.checkCancellation(ctx); err != nil {
 			return nil, err
 		}
-		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput, pgBin, args, password)
-	case copyErr != nil:
-		if err := uc.checkCancellation(ctx); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("copy to storage: %w", copyErr)
-	case saveErr != nil:
-		if err := uc.checkCancellation(ctx); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("save to storage: %w", saveErr)
+		return nil, fmt.Errorf("failed to create TAR archive: %w", tarErr)
 	}
 
+	if saveErr != nil {
+		if err := uc.checkCancellation(ctx); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to save to storage: %w", saveErr)
+	}
+
+	uc.logger.Info(
+		"Backup completed successfully",
+		"backupId",
+		backupID,
+		"totalSizeBytes",
+		totalSize,
+	)
 	return &backupMetadata, nil
 }
 
-func (uc *CreatePostgresqlBackupUsecase) copyWithShutdownCheck(
+// writeTarToWriter creates a TAR archive from sourceDir and writes it to the writer
+func (uc *CreatePostgresqlBackupUsecase) writeTarToWriter(
 	ctx context.Context,
-	dst io.Writer,
-	src io.Reader,
+	sourceDir string,
+	writer io.Writer,
 	backupProgressListener func(completedMBs float64),
 ) (int64, error) {
-	buf := make([]byte, copyBufferSize)
-	var totalBytesWritten int64
+	tarWriter := tar.NewWriter(writer)
+	defer func() {
+		_ = tarWriter.Close()
+	}()
+
+	var totalSize int64
 	var lastReportedMB float64
 
-	for {
+	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
 		select {
 		case <-ctx.Done():
-			return totalBytesWritten, fmt.Errorf("copy cancelled: %w", ctx.Err())
+			return ctx.Err()
 		default:
 		}
 
 		if config.IsShouldShutdown() {
-			return totalBytesWritten, fmt.Errorf("copy cancelled due to shutdown")
+			return fmt.Errorf("backup cancelled due to shutdown")
 		}
 
-		bytesRead, readErr := src.Read(buf)
-		if bytesRead > 0 {
-			writeResultCh := make(chan writeResult, 1)
-			go func() {
-				bytesWritten, writeErr := dst.Write(buf[0:bytesRead])
-				writeResultCh <- writeResult{bytesWritten, writeErr}
-			}()
+		// Get relative path for TAR header
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
 
-			var bytesWritten int
-			var writeErr error
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
 
-			select {
-			case <-ctx.Done():
-				return totalBytesWritten, fmt.Errorf("copy cancelled during write: %w", ctx.Err())
-			case result := <-writeResultCh:
-				bytesWritten = result.bytesWritten
-				writeErr = result.writeErr
-			}
+		// Create TAR header
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return fmt.Errorf("failed to create TAR header: %w", err)
+		}
+		header.Name = relPath
 
-			if bytesWritten < 0 || bytesRead < bytesWritten {
-				bytesWritten = 0
-				if writeErr == nil {
-					writeErr = fmt.Errorf("invalid write result")
-				}
-			}
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write TAR header: %w", err)
+		}
 
-			if writeErr != nil {
-				return totalBytesWritten, writeErr
-			}
+		// If it's a directory, we're done
+		if info.IsDir() {
+			return nil
+		}
 
-			if bytesRead != bytesWritten {
-				return totalBytesWritten, io.ErrShortWrite
-			}
+		// Copy file content to TAR
+		file, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", path, err)
+		}
+		defer func() {
+			_ = file.Close()
+		}()
 
-			totalBytesWritten += int64(bytesWritten)
+		written, err := io.Copy(tarWriter, file)
+		if err != nil {
+			return fmt.Errorf("failed to write file %s to TAR: %w", path, err)
+		}
 
-			if backupProgressListener != nil {
-				currentSizeMB := float64(totalBytesWritten) / (1024 * 1024)
-				if currentSizeMB >= lastReportedMB+progressReportIntervalMB {
-					backupProgressListener(currentSizeMB)
-					lastReportedMB = currentSizeMB
-				}
+		totalSize += written
+
+		// Report progress
+		if backupProgressListener != nil {
+			currentSizeMB := float64(totalSize) / (1024 * 1024)
+			if currentSizeMB >= lastReportedMB+progressReportIntervalMB {
+				backupProgressListener(currentSizeMB)
+				lastReportedMB = currentSizeMB
 			}
 		}
 
-		if readErr != nil {
-			if readErr != io.EOF {
-				return totalBytesWritten, readErr
-			}
-			break
-		}
-	}
+		return nil
+	})
 
-	return totalBytesWritten, nil
+	return totalSize, err
 }
 
-func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlDatabase) []string {
+func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(
+	pg *pgtypes.PostgresqlDatabase,
+	outputDir string,
+) []string {
 	args := []string{
-		"-Fc",
+		"-Fd",           // Directory type (enables parallel dump)
+		"-f", outputDir, // Output directory
 		"--no-password",
 		"-h", pg.Host,
 		"-p", strconv.Itoa(pg.Port),
@@ -335,7 +404,7 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlD
 		"--verbose",
 	}
 
-	// Add parallel jobs based on CPU count
+	// Parallel jobs now actually work with directory type
 	if pg.CpuCount > 1 {
 		args = append(args, "-j", strconv.Itoa(pg.CpuCount))
 	}
@@ -476,8 +545,8 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
-	metadata := usecases_common.BackupMetadata{}
+) (io.Writer, *backup_encryption.EncryptionWriter, common.BackupMetadata, error) {
+	metadata := common.BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_config.BackupEncryptionNone
@@ -519,63 +588,6 @@ func (uc *CreatePostgresqlBackupUsecase) setupBackupEncryption(
 
 	uc.logger.Info("Encryption enabled for backup", "backupId", backupID)
 	return encWriter, encWriter, metadata, nil
-}
-
-func (uc *CreatePostgresqlBackupUsecase) cleanupOnCancellation(
-	encryptionWriter *backup_encryption.EncryptionWriter,
-	storageWriter io.WriteCloser,
-	saveErrCh chan error,
-) {
-	if encryptionWriter != nil {
-		go func() {
-			if closeErr := encryptionWriter.Close(); closeErr != nil {
-				uc.logger.Error(
-					"Failed to close encrypting writer during cancellation",
-					"error",
-					closeErr,
-				)
-			}
-		}()
-	}
-
-	if err := storageWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close pipe writer during cancellation", "error", err)
-	}
-
-	<-saveErrCh
-}
-
-func (uc *CreatePostgresqlBackupUsecase) closeWriters(
-	encryptionWriter *backup_encryption.EncryptionWriter,
-	storageWriter io.WriteCloser,
-) error {
-	encryptionCloseErrCh := make(chan error, 1)
-	if encryptionWriter != nil {
-		go func() {
-			closeErr := encryptionWriter.Close()
-			if closeErr != nil {
-				uc.logger.Error("Failed to close encrypting writer", "error", closeErr)
-			}
-			encryptionCloseErrCh <- closeErr
-		}()
-	} else {
-		encryptionCloseErrCh <- nil
-	}
-
-	encryptionCloseErr := <-encryptionCloseErrCh
-	if encryptionCloseErr != nil {
-		if err := storageWriter.Close(); err != nil {
-			uc.logger.Error("Failed to close pipe writer after encryption error", "error", err)
-		}
-		return fmt.Errorf("failed to close encryption writer: %w", encryptionCloseErr)
-	}
-
-	if err := storageWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close pipe writer", "error", err)
-		return err
-	}
-
-	return nil
 }
 
 func (uc *CreatePostgresqlBackupUsecase) checkCancellation(ctx context.Context) error {

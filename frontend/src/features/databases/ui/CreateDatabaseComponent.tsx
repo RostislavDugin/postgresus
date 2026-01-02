@@ -50,13 +50,13 @@ const initializeDatabaseTypeData = (db: Database): Database => {
 
   switch (db.type) {
     case DatabaseType.POSTGRES:
-      return { ...base, postgresql: db.postgresql ?? ({ cpuCount: 1 } as PostgresqlDatabase) };
+      return { ...base, postgresql: db.postgresql ?? ({ cpuCount: 4 } as PostgresqlDatabase) };
     case DatabaseType.MYSQL:
       return { ...base, mysql: db.mysql ?? ({} as MysqlDatabase) };
     case DatabaseType.MARIADB:
       return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
     case DatabaseType.MONGODB:
-      return { ...base, mongodb: db.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase) };
+      return { ...base, mongodb: db.mongodb ?? ({ cpuCount: 4 } as MongodbDatabase) };
     default:
       return db;
   }

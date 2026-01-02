@@ -18,8 +18,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"databasus-backend/internal/config"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	mysqltypes "databasus-backend/internal/features/databases/databases/mysql"
@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	backupTimeout               = 23 * time.Hour
+	backupTimeout               = 6 * time.Hour
 	shutdownCheckInterval       = 1 * time.Second
 	copyBufferSize              = 8 * 1024 * 1024
 	progressReportIntervalMB    = 1.0
@@ -57,7 +57,7 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 	db *databases.Database,
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating MySQL backup via mysqldump",
 		"databaseId", db.ID,
@@ -155,7 +155,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 	myConfig *mysqltypes.MysqlDatabase,
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info("Streaming MySQL backup to storage", "mysqlBin", mysqlBin)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
@@ -211,7 +211,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
 	}
-	countingWriter := usecases_common.NewCountingWriter(zstdWriter)
+	countingWriter := common.NewCountingWriter(zstdWriter)
 
 	saveErrCh := make(chan error, 1)
 	go func() {
@@ -414,8 +414,8 @@ func (uc *CreateMysqlBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
-	metadata := usecases_common.BackupMetadata{}
+) (io.Writer, *backup_encryption.EncryptionWriter, common.BackupMetadata, error) {
+	metadata := common.BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_config.BackupEncryptionNone

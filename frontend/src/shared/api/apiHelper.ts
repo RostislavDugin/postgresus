@@ -176,6 +176,25 @@ export const apiHelper = {
     return response.blob();
   },
 
+  fetchGetBlobWithHeaders: async (
+    url: string,
+    requestOptions?: RequestOptions,
+    isRetryOnError = false,
+  ): Promise<{ blob: Blob; headers: Headers }> => {
+    const optionsWrapper = (requestOptions ?? new RequestOptions())
+      .addHeader('Access-Control-Allow-Methods', 'GET')
+      .addHeader('Authorization', accessTokenHelper.getAccessToken());
+
+    const response = await makeRequest(
+      url,
+      optionsWrapper,
+      isRetryOnError ? 0 : REPEAT_TRIES_COUNT,
+    );
+
+    const blob = await response.blob();
+    return { blob, headers: response.headers };
+  },
+
   fetchPutJson: async <T>(
     url: string,
     requestOptions?: RequestOptions,

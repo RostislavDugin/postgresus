@@ -29,8 +29,23 @@ export const backupsApi = {
     return apiHelper.fetchDeleteRaw(`${getApplicationServer()}/api/v1/backups/${id}`);
   },
 
-  async downloadBackup(id: string): Promise<Blob> {
-    return apiHelper.fetchGetBlob(`${getApplicationServer()}/api/v1/backups/${id}/file`);
+  async downloadBackup(id: string): Promise<{ blob: Blob; filename: string }> {
+    const result = await apiHelper.fetchGetBlobWithHeaders(
+      `${getApplicationServer()}/api/v1/backups/${id}/file`,
+    );
+
+    // Extract filename from Content-Disposition header
+    const contentDisposition = result.headers.get('Content-Disposition');
+    let filename = `backup_${id}.backup`; // fallback filename
+
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    return { blob: result.blob, filename };
   },
 
   async cancelBackup(id: string) {

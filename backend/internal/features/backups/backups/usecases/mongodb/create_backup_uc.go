@@ -15,8 +15,8 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/config"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	mongodbtypes "databasus-backend/internal/features/databases/databases/mongodb"
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	backupTimeout            = 23 * time.Hour
+	backupTimeout            = 6 * time.Hour
 	shutdownCheckInterval    = 1 * time.Second
 	copyBufferSize           = 8 * 1024 * 1024
 	progressReportIntervalMB = 1.0
@@ -51,7 +51,7 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 	db *databases.Database,
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating MongoDB backup via mongodump",
 		"databaseId", db.ID,
@@ -124,7 +124,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 	args []string,
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info("Streaming MongoDB backup to storage", "mongodumpBin", mongodumpBin)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
@@ -175,7 +175,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := usecases_common.NewCountingWriter(finalWriter)
+	countingWriter := common.NewCountingWriter(finalWriter)
 
 	saveErrCh := make(chan error, 1)
 	go func() {
@@ -264,8 +264,8 @@ func (uc *CreateMongodbBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
-	backupMetadata := usecases_common.BackupMetadata{
+) (io.Writer, *backup_encryption.EncryptionWriter, common.BackupMetadata, error) {
+	backupMetadata := common.BackupMetadata{
 		Encryption: backups_config.BackupEncryptionNone,
 	}
 

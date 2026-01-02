@@ -54,6 +54,11 @@ export const ShowPostgreSqlSpecificDataComponent = ({ database }: Props) => {
         <div>{database.postgresql?.isHttps ? 'Yes' : 'No'}</div>
       </div>
 
+      <div className="mb-1 flex w-full items-center">
+        <div className="min-w-[150px]">CPU count</div>
+        <div>{database.postgresql?.cpuCount}</div>
+      </div>
+
       {!!database.postgresql?.includeSchemas?.length && (
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Include schemas</div>
