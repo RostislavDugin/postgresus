@@ -129,7 +129,7 @@ func (s *RestoreService) RestoreBackupWithAuth(
 	}
 
 	// Validate disk space before starting restore
-	if err := s.validateDiskSpace(backup); err != nil {
+	if err := s.validateDiskSpace(backup, requestDTO); err != nil {
 		return err
 	}
 
@@ -369,7 +369,24 @@ func (s *RestoreService) validateVersionCompatibility(
 	return nil
 }
 
-func (s *RestoreService) validateDiskSpace(backup *backups.Backup) error {
+func (s *RestoreService) validateDiskSpace(
+	backup *backups.Backup,
+	requestDTO RestoreBackupRequest,
+) error {
+	// Only validate disk space for PostgreSQL when file-based restore is needed:
+	// - CPU > 1 (parallel jobs require file)
+	// - IsExcludeExtensions (TOC filtering requires file)
+	// Other databases and PostgreSQL with CPU=1 without extension exclusion stream directly
+	if requestDTO.PostgresqlDatabase == nil {
+		return nil
+	}
+
+	needsFileBased := requestDTO.PostgresqlDatabase.CpuCount > 1 ||
+		requestDTO.PostgresqlDatabase.IsExcludeExtensions
+	if !needsFileBased {
+		return nil
+	}
+
 	diskUsage, err := s.diskService.GetDiskUsage()
 	if err != nil {
 		return fmt.Errorf("failed to check disk space: %w", err)

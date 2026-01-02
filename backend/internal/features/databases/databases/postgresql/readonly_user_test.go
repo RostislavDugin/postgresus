@@ -202,8 +202,10 @@ func Test_ReadOnlyUser_MultipleSchemas_AllAccessible(t *testing.T) {
 	defer container.DB.Close()
 
 	_, err := container.DB.Exec(`
-		CREATE SCHEMA IF NOT EXISTS schema_a;
-		CREATE SCHEMA IF NOT EXISTS schema_b;
+		DROP SCHEMA IF EXISTS schema_a CASCADE;
+		DROP SCHEMA IF EXISTS schema_b CASCADE;
+		CREATE SCHEMA schema_a;
+		CREATE SCHEMA schema_b;
 		CREATE TABLE schema_a.table_a (id INT, data TEXT);
 		CREATE TABLE schema_b.table_b (id INT, data TEXT);
 		INSERT INTO schema_a.table_a VALUES (1, 'data_a');

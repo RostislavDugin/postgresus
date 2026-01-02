@@ -335,11 +335,6 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlD
 		"--verbose",
 	}
 
-	// Add parallel jobs based on CPU count
-	if pg.CpuCount > 1 {
-		args = append(args, "-j", strconv.Itoa(pg.CpuCount))
-	}
-
 	for _, schema := range pg.IncludeSchemas {
 		args = append(args, "-n", schema)
 	}

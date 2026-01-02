@@ -176,6 +176,13 @@ func getPostgresqlBasePath(
 	postgresesInstallDir string,
 ) string {
 	if envMode == env_utils.EnvModeDevelopment {
+		// On Windows, PostgreSQL 12 and 13 have issues with piping over restore
+		if runtime.GOOS == "windows" {
+			if version == PostgresqlVersion12 || version == PostgresqlVersion13 {
+				version = PostgresqlVersion14
+			}
+		}
+
 		return filepath.Join(
 			postgresesInstallDir,
 			fmt.Sprintf("postgresql-%s", string(version)),

@@ -68,23 +68,31 @@ type TestDataItem struct {
 func Test_BackupAndRestorePostgresql_RestoreIsSuccesful(t *testing.T) {
 	env := config.GetEnv()
 	cases := []struct {
-		name    string
-		version string
-		port    string
+		name     string
+		version  string
+		port     string
+		cpuCount int
 	}{
-		{"PostgreSQL 12", "12", env.TestPostgres12Port},
-		{"PostgreSQL 13", "13", env.TestPostgres13Port},
-		{"PostgreSQL 14", "14", env.TestPostgres14Port},
-		{"PostgreSQL 15", "15", env.TestPostgres15Port},
-		{"PostgreSQL 16", "16", env.TestPostgres16Port},
-		{"PostgreSQL 17", "17", env.TestPostgres17Port},
-		{"PostgreSQL 18", "18", env.TestPostgres18Port},
+		{"PostgreSQL 12 (CPU=1 streamed)", "12", env.TestPostgres12Port, 1},
+		{"PostgreSQL 12 (CPU=4 directory)", "12", env.TestPostgres12Port, 4},
+		{"PostgreSQL 13 (CPU=1 streamed)", "13", env.TestPostgres13Port, 1},
+		{"PostgreSQL 13 (CPU=4 directory)", "13", env.TestPostgres13Port, 4},
+		{"PostgreSQL 14 (CPU=1 streamed)", "14", env.TestPostgres14Port, 1},
+		{"PostgreSQL 14 (CPU=4 directory)", "14", env.TestPostgres14Port, 4},
+		{"PostgreSQL 15 (CPU=1 streamed)", "15", env.TestPostgres15Port, 1},
+		{"PostgreSQL 15 (CPU=4 directory)", "15", env.TestPostgres15Port, 4},
+		{"PostgreSQL 16 (CPU=1 streamed)", "16", env.TestPostgres16Port, 1},
+		{"PostgreSQL 16 (CPU=4 directory)", "16", env.TestPostgres16Port, 4},
+		{"PostgreSQL 17 (CPU=1 streamed)", "17", env.TestPostgres17Port, 1},
+		{"PostgreSQL 17 (CPU=4 directory)", "17", env.TestPostgres17Port, 4},
+		{"PostgreSQL 18 (CPU=1 streamed)", "18", env.TestPostgres18Port, 1},
+		{"PostgreSQL 18 (CPU=4 directory)", "18", env.TestPostgres18Port, 4},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			testBackupRestoreForVersion(t, tc.version, tc.port)
+			testBackupRestoreForVersion(t, tc.version, tc.port, tc.cpuCount)
 		})
 	}
 }
@@ -361,7 +369,7 @@ func Test_BackupAndRestorePostgresql_WithReadOnlyUser_RestoreIsSuccessful(t *tes
 	}
 }
 
-func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
+func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string, cpuCount int) {
 	container, err := connectToPostgresContainer(pgVersion, port)
 	assert.NoError(t, err)
 	defer func() {
@@ -379,10 +387,11 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 
 	storage := storages.CreateTestStorage(workspace.ID)
 
-	database := createDatabaseViaAPI(
+	database := createDatabaseWithCpuCountViaAPI(
 		t, router, "Test Database", workspace.ID,
 		container.Host, container.Port,
 		container.Username, container.Password, container.Database,
+		cpuCount,
 		user.Token,
 	)
 
@@ -396,7 +405,7 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	backup := waitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups.BackupStatusCompleted, backup.Status)
 
-	newDBName := "restoreddb"
+	newDBName := fmt.Sprintf("restoreddb_%s_cpu%d", pgVersion, cpuCount)
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
 	assert.NoError(t, err)
 
@@ -409,10 +418,11 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	assert.NoError(t, err)
 	defer newDB.Close()
 
-	createRestoreViaAPI(
+	createRestoreWithCpuCountViaAPI(
 		t, router, backup.ID,
 		container.Host, container.Port,
 		container.Username, container.Password, newDBName,
+		cpuCount,
 		user.Token,
 	)
 
@@ -1259,6 +1269,27 @@ func createDatabaseViaAPI(
 	database string,
 	token string,
 ) *databases.Database {
+	return createDatabaseWithCpuCountViaAPI(
+		t, router, name, workspaceID,
+		host, port, username, password, database,
+		1,
+		token,
+	)
+}
+
+func createDatabaseWithCpuCountViaAPI(
+	t *testing.T,
+	router *gin.Engine,
+	name string,
+	workspaceID uuid.UUID,
+	host string,
+	port int,
+	username string,
+	password string,
+	database string,
+	cpuCount int,
+	token string,
+) *databases.Database {
 	request := databases.Database{
 		Name:        name,
 		WorkspaceID: &workspaceID,
@@ -1269,7 +1300,7 @@ func createDatabaseViaAPI(
 			Username: username,
 			Password: password,
 			Database: &database,
-			CpuCount: 1,
+			CpuCount: cpuCount,
 		},
 	}
 
@@ -1354,7 +1385,7 @@ func createRestoreViaAPI(
 	database string,
 	token string,
 ) {
-	createRestoreWithOptionsViaAPI(
+	createRestoreWithCpuCountViaAPI(
 		t,
 		router,
 		backupID,
@@ -1363,8 +1394,41 @@ func createRestoreViaAPI(
 		username,
 		password,
 		database,
-		false,
+		1,
 		token,
+	)
+}
+
+func createRestoreWithCpuCountViaAPI(
+	t *testing.T,
+	router *gin.Engine,
+	backupID uuid.UUID,
+	host string,
+	port int,
+	username string,
+	password string,
+	database string,
+	cpuCount int,
+	token string,
+) {
+	request := restores.RestoreBackupRequest{
+		PostgresqlDatabase: &pgtypes.PostgresqlDatabase{
+			Host:     host,
+			Port:     port,
+			Username: username,
+			Password: password,
+			Database: &database,
+			CpuCount: cpuCount,
+		},
+	}
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/restores/%s/restore", backupID.String()),
+		"Bearer "+token,
+		request,
+		http.StatusOK,
 	)
 }
 

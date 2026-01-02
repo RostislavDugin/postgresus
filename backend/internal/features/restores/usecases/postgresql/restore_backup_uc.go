@@ -82,7 +82,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	)
 }
 
-// restoreCustomType restores a backup in custom type (-Fc) - legacy type
+// restoreCustomType restores a backup in custom type (-Fc)
 func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 	originalDB *databases.Database,
 	pgBin string,
@@ -91,7 +91,248 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 	pg *pgtypes.PostgresqlDatabase,
 	isExcludeExtensions bool,
 ) error {
-	uc.logger.Info("Restoring backup in custom type (-Fc)", "backupId", backup.ID)
+	uc.logger.Info(
+		"Restoring backup in custom type (-Fc)",
+		"backupId",
+		backup.ID,
+		"cpuCount",
+		pg.CpuCount,
+	)
+
+	// If excluding extensions, we must use file-based restore (requires TOC file generation)
+	// Also use file-based restore for parallel jobs (multiple CPUs)
+	if isExcludeExtensions || pg.CpuCount > 1 {
+		return uc.restoreViaFile(originalDB, pgBin, backup, storage, pg, isExcludeExtensions)
+	}
+
+	// Single CPU without extension exclusion: stream directly via stdin
+	return uc.restoreViaStdin(originalDB, pgBin, backup, storage, pg)
+}
+
+// restoreViaStdin streams backup via stdin for single CPU restore
+func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
+	originalDB *databases.Database,
+	pgBin string,
+	backup *backups.Backup,
+	storage *storages.Storage,
+	pg *pgtypes.PostgresqlDatabase,
+) error {
+	uc.logger.Info("Restoring via stdin streaming (CPU=1)", "backupId", backup.ID)
+
+	args := []string{
+		"-Fc", // expect custom type
+		"--no-password",
+		"-h", pg.Host,
+		"-p", strconv.Itoa(pg.Port),
+		"-U", pg.Username,
+		"-d", *pg.Database,
+		"--verbose",
+		"--clean",
+		"--if-exists",
+		"--no-owner",
+		"--no-acl",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
+	defer cancel()
+
+	// Monitor for shutdown and cancel context if needed
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if config.IsShouldShutdown() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	// Create temporary .pgpass file for authentication
+	fieldEncryptor := util_encryption.GetFieldEncryptor()
+	decryptedPassword, err := fieldEncryptor.Decrypt(originalDB.ID, pg.Password)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	pgpassFile, err := uc.createTempPgpassFile(pg, decryptedPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary .pgpass file: %w", err)
+	}
+	defer func() {
+		if pgpassFile != "" {
+			_ = os.RemoveAll(filepath.Dir(pgpassFile))
+		}
+	}()
+
+	// Verify .pgpass file was created successfully
+	if pgpassFile == "" {
+		return fmt.Errorf("temporary .pgpass file was not created")
+	}
+
+	if info, err := os.Stat(pgpassFile); err == nil {
+		uc.logger.Info("Temporary .pgpass file created successfully",
+			"pgpassFile", pgpassFile,
+			"size", info.Size(),
+			"mode", info.Mode(),
+		)
+	} else {
+		return fmt.Errorf("failed to verify .pgpass file: %w", err)
+	}
+
+	// Get backup stream from storage
+	rawReader, err := storage.GetFile(fieldEncryptor, backup.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get backup file from storage: %w", err)
+	}
+	defer func() {
+		if err := rawReader.Close(); err != nil {
+			uc.logger.Error("Failed to close backup reader", "error", err)
+		}
+	}()
+
+	var backupReader io.Reader = rawReader
+	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
+		// Validate encryption metadata
+		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
+			return fmt.Errorf("backup is encrypted but missing encryption metadata")
+		}
+
+		// Get master key
+		masterKey, err := uc.secretKeyService.GetSecretKey()
+		if err != nil {
+			return fmt.Errorf("failed to get master key for decryption: %w", err)
+		}
+
+		// Decode salt and IV from base64
+		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
+		if err != nil {
+			return fmt.Errorf("failed to decode encryption salt: %w", err)
+		}
+
+		iv, err := base64.StdEncoding.DecodeString(*backup.EncryptionIV)
+		if err != nil {
+			return fmt.Errorf("failed to decode encryption IV: %w", err)
+		}
+
+		// Create decryption reader
+		decryptReader, err := encryption.NewDecryptionReader(
+			rawReader,
+			masterKey,
+			backup.ID,
+			salt,
+			iv,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create decryption reader: %w", err)
+		}
+
+		backupReader = decryptReader
+		uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+	}
+
+	cmd := exec.CommandContext(ctx, pgBin, args...)
+	uc.logger.Info("Executing PostgreSQL restore command via stdin", "command", cmd.String())
+
+	// Setup environment variables
+	uc.setupPgRestoreEnvironment(cmd, pgpassFile, pg)
+
+	// Verify executable exists and is accessible
+	if _, err := exec.LookPath(pgBin); err != nil {
+		return fmt.Errorf(
+			"PostgreSQL executable not found or not accessible: %s - %w",
+			pgBin,
+			err,
+		)
+	}
+
+	// Create stdin pipe for explicit data pumping
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("stdin pipe: %w", err)
+	}
+
+	// Get stderr to capture any error output
+	pgStderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	// Capture stderr in a separate goroutine
+	stderrCh := make(chan []byte, 1)
+	go func() {
+		stderrOutput, _ := io.ReadAll(pgStderr)
+		stderrCh <- stderrOutput
+	}()
+
+	// Start pg_restore
+	if err = cmd.Start(); err != nil {
+		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
+	}
+
+	// Copy backup data to stdin in a separate goroutine with proper error handling
+	copyErrCh := make(chan error, 1)
+	go func() {
+		_, copyErr := io.Copy(stdinPipe, backupReader)
+		// Close stdin pipe to signal EOF to pg_restore - critical for proper termination
+		closeErr := stdinPipe.Close()
+		if copyErr != nil {
+			copyErrCh <- fmt.Errorf("copy to stdin: %w", copyErr)
+		} else if closeErr != nil {
+			copyErrCh <- fmt.Errorf("close stdin: %w", closeErr)
+		} else {
+			copyErrCh <- nil
+		}
+	}()
+
+	// Wait for the restore to finish
+	waitErr := cmd.Wait()
+	stderrOutput := <-stderrCh
+	copyErr := <-copyErrCh
+
+	// Check for shutdown before finalizing
+	if config.IsShouldShutdown() {
+		return fmt.Errorf("restore cancelled due to shutdown")
+	}
+
+	// Check for copy errors first - these indicate issues with decryption or data reading
+	if copyErr != nil {
+		return fmt.Errorf("failed to stream backup data to pg_restore: %w", copyErr)
+	}
+
+	if waitErr != nil {
+		if config.IsShouldShutdown() {
+			return fmt.Errorf("restore cancelled due to shutdown")
+		}
+
+		return uc.handlePgRestoreError(originalDB, waitErr, stderrOutput, pgBin, args, pg)
+	}
+
+	return nil
+}
+
+// restoreViaFile downloads backup and uses parallel jobs for multi-CPU restore
+func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
+	originalDB *databases.Database,
+	pgBin string,
+	backup *backups.Backup,
+	storage *storages.Storage,
+	pg *pgtypes.PostgresqlDatabase,
+	isExcludeExtensions bool,
+) error {
+	uc.logger.Info(
+		"Restoring via file with parallel jobs",
+		"backupId",
+		backup.ID,
+		"cpuCount",
+		pg.CpuCount,
+	)
 
 	// Use parallel jobs based on CPU count
 	// Cap between 1 and 8 to avoid overwhelming the server
