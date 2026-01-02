@@ -18,8 +18,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"databasus-backend/internal/config"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backup_encryption "databasus-backend/internal/features/backups/backups/encryption"
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	mariadbtypes "databasus-backend/internal/features/databases/databases/mariadb"
@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	backupTimeout               = 23 * time.Hour
+	backupTimeout               = 6 * time.Hour
 	shutdownCheckInterval       = 1 * time.Second
 	copyBufferSize              = 8 * 1024 * 1024
 	progressReportIntervalMB    = 1.0
@@ -57,7 +57,7 @@ func (uc *CreateMariadbBackupUsecase) Execute(
 	db *databases.Database,
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info(
 		"Creating MariaDB backup via mariadb-dump",
 		"databaseId", db.ID,
@@ -140,7 +140,7 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 	mdbConfig *mariadbtypes.MariadbDatabase,
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	uc.logger.Info("Streaming MariaDB backup to storage", "mariadbBin", mariadbBin)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
@@ -196,7 +196,7 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
 	}
-	countingWriter := usecases_common.NewCountingWriter(zstdWriter)
+	countingWriter := common.NewCountingWriter(zstdWriter)
 
 	saveErrCh := make(chan error, 1)
 	go func() {
@@ -264,7 +264,7 @@ func (uc *CreateMariadbBackupUsecase) createTempMyCnfFile(
 	mdbConfig *mariadbtypes.MariadbDatabase,
 	password string,
 ) (string, error) {
-	tempDir, err := os.MkdirTemp("", "mycnf")
+	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "mycnf_"+uuid.New().String())
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -401,8 +401,8 @@ func (uc *CreateMariadbBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config.BackupConfig,
 	storageWriter io.WriteCloser,
-) (io.Writer, *backup_encryption.EncryptionWriter, usecases_common.BackupMetadata, error) {
-	metadata := usecases_common.BackupMetadata{}
+) (io.Writer, *backup_encryption.EncryptionWriter, common.BackupMetadata, error) {
+	metadata := common.BackupMetadata{}
 
 	if backupConfig.Encryption != backups_config.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_config.BackupEncryptionNone

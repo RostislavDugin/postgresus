@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"databasus-backend/internal/features/backups/backups/usecases/common"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"

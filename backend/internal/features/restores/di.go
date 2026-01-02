@@ -5,6 +5,7 @@ import (
 	"databasus-backend/internal/features/backups/backups"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/disk"
 	"databasus-backend/internal/features/restores/usecases"
 	"databasus-backend/internal/features/storages"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -24,6 +25,7 @@ var restoreService = &RestoreService{
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	encryption.GetFieldEncryptor(),
+	disk.GetDiskService(),
 }
 var restoreController = &RestoreController{
 	restoreService,

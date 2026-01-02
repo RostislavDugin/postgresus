@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	common "databasus-backend/internal/features/backups/backups/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/databases/databases/postgresql"
@@ -494,6 +495,123 @@ func Test_DownloadBackup_AuditLogWritten(t *testing.T) {
 	assert.True(t, found, "Audit log for backup download not found")
 }
 
+func Test_DownloadBackup_ProperFilenameForPostgreSQL(t *testing.T) {
+	tests := []struct {
+		name           string
+		databaseName   string
+		backupType     string
+		expectedExt    string
+		expectedInName string
+	}{
+		{
+			name:           "PostgreSQL with directory type",
+			databaseName:   "my_postgres_db",
+			backupType:     "DIRECTORY",
+			expectedExt:    ".tar",
+			expectedInName: "my_postgres_db_backup_",
+		},
+		{
+			name:           "PostgreSQL with default type",
+			databaseName:   "my_postgres_db",
+			backupType:     "DEFAULT",
+			expectedExt:    ".dump",
+			expectedInName: "my_postgres_db_backup_",
+		},
+		{
+			name:           "Database name with spaces",
+			databaseName:   "my test db",
+			backupType:     "DIRECTORY",
+			expectedExt:    ".tar",
+			expectedInName: "my_test_db_backup_",
+		},
+		{
+			name:           "Database name with special characters",
+			databaseName:   "my:db/test",
+			backupType:     "DEFAULT",
+			expectedExt:    ".dump",
+			expectedInName: "my-db-test_backup_",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createTestDatabase(tt.databaseName, workspace.ID, owner.Token, router)
+			storage := createTestStorage(workspace.ID)
+
+			configService := backups_config.GetBackupConfigService()
+			config, err := configService.GetBackupConfigByDbId(database.ID)
+			assert.NoError(t, err)
+
+			config.IsBackupsEnabled = true
+			config.StorageID = &storage.ID
+			config.Storage = storage
+			_, err = configService.SaveBackupConfig(config)
+			assert.NoError(t, err)
+
+			backup := createTestBackupWithType(database, owner, tt.backupType)
+
+			resp := test_utils.MakeGetRequest(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/backups/%s/file", backup.ID.String()),
+				"Bearer "+owner.Token,
+				http.StatusOK,
+			)
+
+			contentDisposition := resp.Headers.Get("Content-Disposition")
+			assert.NotEmpty(t, contentDisposition, "Content-Disposition header should be present")
+
+			// Verify the filename contains expected parts
+			assert.Contains(
+				t,
+				contentDisposition,
+				tt.expectedInName,
+				"Filename should contain sanitized database name",
+			)
+			assert.Contains(
+				t,
+				contentDisposition,
+				tt.expectedExt,
+				"Filename should have correct extension",
+			)
+			assert.Contains(t, contentDisposition, "attachment", "Should be an attachment")
+
+			// Verify timestamp format (YYYY-MM-DD_HH-mm-ss)
+			assert.Regexp(
+				t,
+				`\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}`,
+				contentDisposition,
+				"Filename should contain timestamp",
+			)
+		})
+	}
+}
+
+func Test_SanitizeFilename(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{input: "simple_name", expected: "simple_name"},
+		{input: "name with spaces", expected: "name_with_spaces"},
+		{input: "name/with\\slashes", expected: "name-with-slashes"},
+		{input: "name:with*special?chars", expected: "name-with-special-chars"},
+		{input: "name<with>pipes|", expected: "name-with-pipes-"},
+		{input: `name"with"quotes`, expected: "name-with-quotes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
@@ -705,6 +823,23 @@ func createTestBackup(
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	if err := storages[0].SaveFile(context.Background(), encryption.GetFieldEncryptor(), logger, backup.ID, reader); err != nil {
 		panic(fmt.Sprintf("Failed to create test backup file: %v", err))
+	}
+
+	return backup
+}
+
+func createTestBackupWithType(
+	database *databases.Database,
+	owner *users_dto.SignInResponseDTO,
+	backupType string,
+) *Backup {
+	backup := createTestBackup(database, owner)
+
+	// Update the format field
+	repo := &BackupRepository{}
+	backup.Type = common.BackupType(backupType)
+	if err := repo.Save(backup); err != nil {
+		panic(err)
 	}
 
 	return backup

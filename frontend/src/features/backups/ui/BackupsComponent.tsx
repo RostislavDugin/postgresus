@@ -64,21 +64,13 @@ export const BackupsComponent = ({ database, isCanManageDBs, scrollContainerRef 
 
   const downloadBackup = async (backupId: string) => {
     try {
-      const blob = await backupsApi.downloadBackup(backupId);
+      const { blob, filename } = await backupsApi.downloadBackup(backupId);
 
       // Create a download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-
-      // Find the backup to get a meaningful filename
-      const backup = backups.find((b) => b.id === backupId);
-      const createdAt = backup ? dayjs(backup.createdAt).format('YYYY-MM-DD_HH-mm-ss') : 'backup';
-      const extension =
-        database.type === DatabaseType.MYSQL || database.type === DatabaseType.MARIADB
-          ? '.sql.zst'
-          : '.dump';
-      link.download = `${database.name}_backup_${createdAt}${extension}`;
+      link.download = filename;
 
       // Trigger download
       document.body.appendChild(link);

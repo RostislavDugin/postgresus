@@ -77,8 +77,8 @@ export const EditMongoDbSpecificDataComponent = ({
           password: result.password,
           database: result.database,
           authDatabase: result.authDatabase,
-          useTls: result.useTls,
-          cpuCount: 1,
+          isHttps: result.useTls,
+          cpuCount: 4,
         },
       };
 
@@ -287,15 +287,15 @@ export const EditMongoDbSpecificDataComponent = ({
       )}
 
       <div className="mb-1 flex w-full items-center">
-        <div className="min-w-[150px]">Use TLS</div>
+        <div className="min-w-[150px]">Use HTTPS</div>
         <Switch
-          checked={editingDatabase.mongodb?.useTls}
+          checked={editingDatabase.mongodb?.isHttps}
           onChange={(checked) => {
             if (!editingDatabase.mongodb) return;
 
             setEditingDatabase({
               ...editingDatabase,
-              mongodb: { ...editingDatabase.mongodb, useTls: checked },
+              mongodb: { ...editingDatabase.mongodb, isHttps: checked },
             });
             setIsConnectionTested(false);
           }}
@@ -309,7 +309,7 @@ export const EditMongoDbSpecificDataComponent = ({
           <InputNumber
             min={1}
             max={16}
-            value={editingDatabase.mongodb?.cpuCount || 1}
+            value={editingDatabase.mongodb?.cpuCount}
             onChange={(value) => {
               if (!editingDatabase.mongodb) return;
 

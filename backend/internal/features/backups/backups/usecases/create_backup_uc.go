@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	common "databasus-backend/internal/features/backups/backups/common"
 	usecases_mariadb "databasus-backend/internal/features/backups/backups/usecases/mariadb"
 	usecases_mongodb "databasus-backend/internal/features/backups/backups/usecases/mongodb"
 	usecases_mysql "databasus-backend/internal/features/backups/backups/usecases/mysql"
@@ -30,7 +30,7 @@ func (uc *CreateBackupUsecase) Execute(
 	database *databases.Database,
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
-) (*usecases_common.BackupMetadata, error) {
+) (*common.BackupMetadata, error) {
 	switch database.Type {
 	case databases.DatabaseTypePostgres:
 		return uc.CreatePostgresqlBackupUsecase.Execute(

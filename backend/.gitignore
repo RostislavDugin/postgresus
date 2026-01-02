@@ -17,3 +17,4 @@ ui/build/*
 pgdata-for-restore/
 temp/
 cmd.exe
+temp/

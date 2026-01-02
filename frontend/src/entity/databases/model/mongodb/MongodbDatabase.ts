@@ -9,6 +9,6 @@ export interface MongodbDatabase {
   password: string;
   database: string;
   authDatabase: string;
-  useTls: boolean;
+  isHttps: boolean;
   cpuCount: number;
 }

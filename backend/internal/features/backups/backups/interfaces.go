@@ -3,7 +3,7 @@ package backups
 import (
 	"context"
 
-	usecases_common "databasus-backend/internal/features/backups/backups/usecases/common"
+	usecases_common "databasus-backend/internal/features/backups/backups/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
