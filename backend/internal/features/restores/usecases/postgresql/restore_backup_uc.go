@@ -1,7 +1,6 @@
 package usecases_postgresql
 
 import (
-	"archive/tar"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -17,7 +16,6 @@ import (
 
 	"databasus-backend/internal/config"
 	"databasus-backend/internal/features/backups/backups"
-	common "databasus-backend/internal/features/backups/backups/common"
 	"databasus-backend/internal/features/backups/backups/encryption"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
@@ -26,7 +24,6 @@ import (
 	"databasus-backend/internal/features/restores/models"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
-	files_utils "databasus-backend/internal/util/files"
 	"databasus-backend/internal/util/tools"
 
 	"github.com/google/uuid"
@@ -56,8 +53,6 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		restore.ID,
 		"backupId",
 		backup.ID,
-		"format",
-		backup.Type,
 	)
 
 	pg := restoringToDB.Postgresql
@@ -76,30 +71,15 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		config.GetEnv().PostgresesInstallDir,
 	)
 
-	// Route based on backup type
-	switch backup.Type {
-	case common.BackupTypeDirectory:
-		return uc.restoreDirectoryType(
-			originalDB,
-			restoringToDB,
-			pgBin,
-			backup,
-			storage,
-			pg,
-			isExcludeExtensions,
-		)
-	case common.BackupTypeDefault, "": // empty = legacy DEFAULT
-		return uc.restoreCustomType(
-			originalDB,
-			pgBin,
-			backup,
-			storage,
-			pg,
-			isExcludeExtensions,
-		)
-	default:
-		return fmt.Errorf("unsupported backup type: %s", backup.Type)
-	}
+	// All PostgreSQL backups are now custom format (-Fc)
+	return uc.restoreCustomType(
+		originalDB,
+		pgBin,
+		backup,
+		storage,
+		pg,
+		isExcludeExtensions,
+	)
 }
 
 // restoreCustomType restores a backup in custom type (-Fc) - legacy type
@@ -142,100 +122,6 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 		pg,
 		isExcludeExtensions,
 	)
-}
-
-// restoreDirectoryType restores a backup in directory type (-Fd) - new TAR type
-func (uc *RestorePostgresqlBackupUsecase) restoreDirectoryType(
-	originalDB *databases.Database,
-	_ *databases.Database, // restoringToDB not used but kept for API consistency
-	pgBin string,
-	backup *backups.Backup,
-	storage *storages.Storage,
-	pg *pgtypes.PostgresqlDatabase,
-	isExcludeExtensions bool,
-) error {
-	uc.logger.Info("Restoring backup in directory type (-Fd)", "backupId", backup.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
-	defer cancel()
-
-	// Monitor for shutdown
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if config.IsShouldShutdown() {
-					cancel()
-					return
-				}
-			}
-		}
-	}()
-
-	// Create temporary .pgpass file
-	pgpassFile, err := uc.createTempPgpassFile(pg, pg.Password)
-	if err != nil {
-		return fmt.Errorf("failed to create temporary .pgpass file: %w", err)
-	}
-	defer func() {
-		if pgpassFile != "" {
-			_ = os.RemoveAll(filepath.Dir(pgpassFile))
-		}
-	}()
-
-	// Download and extract TAR to temporary directory
-	tempDir, cleanupFunc, err := uc.downloadAndExtractTar(ctx, backup, storage)
-	if err != nil {
-		return fmt.Errorf("failed to download and extract backup: %w", err)
-	}
-	defer cleanupFunc()
-
-	// Use parallel jobs based on CPU count
-	parallelJobs := max(1, min(pg.CpuCount, 8))
-
-	args := []string{
-		"-Fd",                            // directory type
-		"-j", strconv.Itoa(parallelJobs), // parallel restore
-		"--no-password",
-		"-h", pg.Host,
-		"-p", strconv.Itoa(pg.Port),
-		"-U", pg.Username,
-		"-d", *pg.Database,
-		"--verbose",
-		"--clean",
-		"--if-exists",
-		"--no-owner",
-		"--no-acl",
-	}
-
-	// If excluding extensions, generate filtered TOC list
-	if isExcludeExtensions {
-		tocListFile, err := uc.generateFilteredTocList(
-			ctx,
-			pgBin,
-			tempDir,
-			pgpassFile,
-			pg,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to generate filtered TOC list: %w", err)
-		}
-		defer func() {
-			_ = os.Remove(tocListFile)
-		}()
-
-		args = append(args, "-L", tocListFile)
-	}
-
-	// Add the directory as the last argument
-	args = append(args, tempDir)
-
-	return uc.executePgRestore(ctx, originalDB, pgBin, args, pgpassFile, pg)
 }
 
 // restoreFromStorage restores backup data from storage using pg_restore
@@ -345,13 +231,6 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	backup *backups.Backup,
 	storage *storages.Storage,
 ) (string, func(), error) {
-	err := files_utils.EnsureDirectories([]string{
-		config.GetEnv().TempFolder,
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to ensure directories: %w", err)
-	}
-
 	// Create temporary directory for backup data
 	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "restore_"+uuid.New().String())
 	if err != nil {
@@ -456,175 +335,6 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 
 	uc.logger.Info("Backup file written to temporary location", "tempFile", tempBackupFile)
 	return tempBackupFile, cleanupFunc, nil
-}
-
-// downloadAndExtractTar downloads a TAR backup from storage and extracts it to a temporary directory
-func (uc *RestorePostgresqlBackupUsecase) downloadAndExtractTar(
-	ctx context.Context,
-	backup *backups.Backup,
-	storage *storages.Storage,
-) (string, func(), error) {
-	err := files_utils.EnsureDirectories([]string{config.GetEnv().TempFolder})
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to ensure directories: %w", err)
-	}
-
-	// Create temporary directory for extracted data
-	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "restore_dir_"+uuid.New().String())
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-
-	cleanupFunc := func() {
-		_ = os.RemoveAll(tempDir)
-	}
-
-	uc.logger.Info(
-		"Downloading TAR backup from storage",
-		"backupId", backup.ID,
-		"tempDir", tempDir,
-		"encrypted", backup.Encryption == backups_config.BackupEncryptionEncrypted,
-	)
-
-	fieldEncryptor := util_encryption.GetFieldEncryptor()
-	rawReader, err := storage.GetFile(fieldEncryptor, backup.ID)
-	if err != nil {
-		cleanupFunc()
-		return "", nil, fmt.Errorf("failed to get backup file from storage: %w", err)
-	}
-	defer func() {
-		if err := rawReader.Close(); err != nil {
-			uc.logger.Error("Failed to close backup reader", "error", err)
-		}
-	}()
-
-	// Create a reader that handles decryption if needed
-	var backupReader io.Reader = rawReader
-	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
-		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
-			cleanupFunc()
-			return "", nil, fmt.Errorf("backup is encrypted but missing encryption metadata")
-		}
-
-		masterKey, err := uc.secretKeyService.GetSecretKey()
-		if err != nil {
-			cleanupFunc()
-			return "", nil, fmt.Errorf("failed to get master key for decryption: %w", err)
-		}
-
-		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
-		if err != nil {
-			cleanupFunc()
-			return "", nil, fmt.Errorf("failed to decode encryption salt: %w", err)
-		}
-
-		iv, err := base64.StdEncoding.DecodeString(*backup.EncryptionIV)
-		if err != nil {
-			cleanupFunc()
-			return "", nil, fmt.Errorf("failed to decode encryption IV: %w", err)
-		}
-
-		decryptReader, err := encryption.NewDecryptionReader(
-			rawReader,
-			masterKey,
-			backup.ID,
-			salt,
-			iv,
-		)
-		if err != nil {
-			cleanupFunc()
-			return "", nil, fmt.Errorf("failed to create decryption reader: %w", err)
-		}
-
-		backupReader = decryptReader
-		uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
-	}
-
-	// Extract TAR archive to temp directory
-	if err := uc.extractTar(ctx, backupReader, tempDir); err != nil {
-		cleanupFunc()
-		return "", nil, fmt.Errorf("failed to extract TAR archive: %w", err)
-	}
-
-	uc.logger.Info("TAR backup extracted to temporary directory", "tempDir", tempDir)
-	return tempDir, cleanupFunc, nil
-}
-
-// extractTar extracts a TAR archive to the specified directory
-func (uc *RestorePostgresqlBackupUsecase) extractTar(
-	ctx context.Context,
-	reader io.Reader,
-	destDir string,
-) error {
-	tarReader := tar.NewReader(reader)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		if config.IsShouldShutdown() {
-			return fmt.Errorf("extraction cancelled due to shutdown")
-		}
-
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read TAR header: %w", err)
-		}
-
-		targetPath := filepath.Join(destDir, header.Name)
-
-		// Ensure the target path is within destDir (prevent path traversal)
-		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
-			return fmt.Errorf("invalid file path in TAR: %s", header.Name)
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
-			}
-		case tar.TypeReg:
-			// Ensure parent directory exists
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
-			}
-
-			outFile, err := os.OpenFile(
-				targetPath,
-				os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
-				os.FileMode(header.Mode),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
-			}
-
-			_, copyErr := uc.copyWithShutdownCheck(ctx, outFile, tarReader)
-			closeErr := outFile.Close()
-
-			if copyErr != nil {
-				return fmt.Errorf("failed to write file %s: %w", targetPath, copyErr)
-			}
-			if closeErr != nil {
-				return fmt.Errorf("failed to close file %s: %w", targetPath, closeErr)
-			}
-		default:
-			uc.logger.Warn(
-				"Skipping unsupported TAR entry type",
-				"type",
-				header.Typeflag,
-				"name",
-				header.Name,
-			)
-		}
-	}
-
-	return nil
 }
 
 // executePgRestore executes the pg_restore command with proper environment setup

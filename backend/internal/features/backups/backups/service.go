@@ -343,7 +343,6 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		backup.EncryptionSalt = backupMetadata.EncryptionSalt
 		backup.EncryptionIV = backupMetadata.EncryptionIV
 		backup.Encryption = backupMetadata.Encryption
-		backup.Type = backupMetadata.Type
 	}
 
 	if err := s.backupRepository.Save(backup); err != nil {

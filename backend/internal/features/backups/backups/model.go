@@ -1,7 +1,6 @@
 package backups
 
 import (
-	common "databasus-backend/internal/features/backups/backups/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"time"
 
@@ -25,6 +24,5 @@ type Backup struct {
 	EncryptionIV   *string                         `json:"-"          gorm:"column:encryption_iv"`
 	Encryption     backups_config.BackupEncryption `json:"encryption" gorm:"column:encryption;type:text;not null;default:'NONE'"`
 
-	Type      common.BackupType `json:"type"      gorm:"column:type;type:text;not null;default:'DEFAULT'"`
-	CreatedAt time.Time         `json:"createdAt" gorm:"column:created_at"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:created_at"`
 }

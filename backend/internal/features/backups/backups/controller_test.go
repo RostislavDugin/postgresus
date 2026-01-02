@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	common "databasus-backend/internal/features/backups/backups/common"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/databases/databases/postgresql"
@@ -499,35 +498,24 @@ func Test_DownloadBackup_ProperFilenameForPostgreSQL(t *testing.T) {
 	tests := []struct {
 		name           string
 		databaseName   string
-		backupType     string
 		expectedExt    string
 		expectedInName string
 	}{
 		{
-			name:           "PostgreSQL with directory type",
+			name:           "PostgreSQL database",
 			databaseName:   "my_postgres_db",
-			backupType:     "DIRECTORY",
-			expectedExt:    ".tar",
-			expectedInName: "my_postgres_db_backup_",
-		},
-		{
-			name:           "PostgreSQL with default type",
-			databaseName:   "my_postgres_db",
-			backupType:     "DEFAULT",
 			expectedExt:    ".dump",
 			expectedInName: "my_postgres_db_backup_",
 		},
 		{
 			name:           "Database name with spaces",
 			databaseName:   "my test db",
-			backupType:     "DIRECTORY",
-			expectedExt:    ".tar",
+			expectedExt:    ".dump",
 			expectedInName: "my_test_db_backup_",
 		},
 		{
 			name:           "Database name with special characters",
 			databaseName:   "my:db/test",
-			backupType:     "DEFAULT",
 			expectedExt:    ".dump",
 			expectedInName: "my-db-test_backup_",
 		},
@@ -552,7 +540,7 @@ func Test_DownloadBackup_ProperFilenameForPostgreSQL(t *testing.T) {
 			_, err = configService.SaveBackupConfig(config)
 			assert.NoError(t, err)
 
-			backup := createTestBackupWithType(database, owner, tt.backupType)
+			backup := createTestBackup(database, owner)
 
 			resp := test_utils.MakeGetRequest(
 				t,
@@ -823,23 +811,6 @@ func createTestBackup(
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	if err := storages[0].SaveFile(context.Background(), encryption.GetFieldEncryptor(), logger, backup.ID, reader); err != nil {
 		panic(fmt.Sprintf("Failed to create test backup file: %v", err))
-	}
-
-	return backup
-}
-
-func createTestBackupWithType(
-	database *databases.Database,
-	owner *users_dto.SignInResponseDTO,
-	backupType string,
-) *Backup {
-	backup := createTestBackup(database, owner)
-
-	// Update the format field
-	repo := &BackupRepository{}
-	backup.Type = common.BackupType(backupType)
-	if err := repo.Save(backup); err != nil {
-		panic(err)
 	}
 
 	return backup
