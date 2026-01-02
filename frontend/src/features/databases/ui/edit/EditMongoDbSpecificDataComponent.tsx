@@ -78,7 +78,7 @@ export const EditMongoDbSpecificDataComponent = ({
           database: result.database,
           authDatabase: result.authDatabase,
           isHttps: result.useTls,
-          cpuCount: 4,
+          cpuCount: 1,
         },
       };
 

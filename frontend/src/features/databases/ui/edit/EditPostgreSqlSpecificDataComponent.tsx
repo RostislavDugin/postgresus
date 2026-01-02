@@ -82,7 +82,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
           password: result.password,
           database: result.database,
           isHttps: result.isHttps,
-          cpuCount: 4,
+          cpuCount: 1,
         },
       };
 
@@ -356,34 +356,36 @@ export const EditPostgreSqlSpecificDataComponent = ({
         />
       </div>
 
-      <div className="mb-5 flex w-full items-center">
-        <div className="min-w-[150px]">CPU count</div>
-        <div className="flex items-center">
-          <InputNumber
-            min={1}
-            max={128}
-            value={editingDatabase.postgresql?.cpuCount}
-            onChange={(value) => {
-              if (!editingDatabase.postgresql) return;
+      {isRestoreMode && (
+        <div className="mb-5 flex w-full items-center">
+          <div className="min-w-[150px]">CPU count</div>
+          <div className="flex items-center">
+            <InputNumber
+              min={1}
+              max={128}
+              value={editingDatabase.postgresql?.cpuCount}
+              onChange={(value) => {
+                if (!editingDatabase.postgresql) return;
 
-              setEditingDatabase({
-                ...editingDatabase,
-                postgresql: { ...editingDatabase.postgresql, cpuCount: value || 1 },
-              });
-              setIsConnectionTested(false);
-            }}
-            size="small"
-            className="max-w-[75px] grow"
-          />
+                setEditingDatabase({
+                  ...editingDatabase,
+                  postgresql: { ...editingDatabase.postgresql, cpuCount: value || 1 },
+                });
+                setIsConnectionTested(false);
+              }}
+              size="small"
+              className="max-w-[75px] grow"
+            />
 
-          <Tooltip
-            className="cursor-pointer"
-            title="Number of CPU cores to use for backup and restore operations. Higher values may speed up operations but use more resources."
-          >
-            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-          </Tooltip>
+            <Tooltip
+              className="cursor-pointer"
+              title="Number of CPU cores to use for backup and restore operations. Higher values may speed up operations but use more resources."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-4 mb-1 flex items-center">
         <div

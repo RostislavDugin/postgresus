@@ -19,6 +19,7 @@ import (
 	"databasus-backend/internal/features/backups/backups"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/databases/databases/mysql"
 	"databasus-backend/internal/features/databases/databases/postgresql"
 	"databasus-backend/internal/features/restores/models"
 	"databasus-backend/internal/features/storages"
@@ -34,18 +35,6 @@ import (
 	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/tools"
 )
-
-func createTestRouter() *gin.Engine {
-	router := workspaces_testing.CreateTestRouter(
-		workspaces_controllers.GetWorkspaceController(),
-		workspaces_controllers.GetMembershipController(),
-		databases.GetDatabaseController(),
-		backups_config.GetBackupConfigController(),
-		backups.GetBackupController(),
-		GetRestoreController(),
-	)
-	return router
-}
 
 func Test_GetRestores_WhenUserIsWorkspaceMember_RestoresReturned(t *testing.T) {
 	router := createTestRouter()
@@ -250,42 +239,122 @@ func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	assert.True(t, found, "Audit log for restore not found")
 }
 
-func Test_RestoreBackup_InsufficientDiskSpace_ReturnsError(t *testing.T) {
-	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-
-	_, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-
-	// Update backup size to 10 TB via repository
-	repo := &backups.BackupRepository{}
-	backup.BackupSizeMb = 10485760.0 // 10 TB in MB
-	err := repo.Save(backup)
-	assert.NoError(t, err)
-
-	request := RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
-			Version:  tools.PostgresqlVersion16,
-			Host:     "localhost",
-			Port:     5432,
-			Username: "postgres",
-			Password: "postgres",
+func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
+	tests := []struct {
+		name                string
+		dbType              databases.DatabaseType
+		cpuCount            int
+		expectDiskValidated bool
+	}{
+		{
+			name:                "PostgreSQL_CPU4_SpaceValidated",
+			dbType:              databases.DatabaseTypePostgres,
+			cpuCount:            4,
+			expectDiskValidated: true,
+		},
+		{
+			name:                "PostgreSQL_CPU1_SpaceNotValidated",
+			dbType:              databases.DatabaseTypePostgres,
+			cpuCount:            1,
+			expectDiskValidated: false,
+		},
+		{
+			name:                "MySQL_SpaceNotValidated",
+			dbType:              databases.DatabaseTypeMysql,
+			cpuCount:            3,
+			expectDiskValidated: false,
 		},
 	}
 
-	testResp := test_utils.MakePostRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
-		"Bearer "+owner.Token,
-		request,
-		http.StatusBadRequest,
-	)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
-	bodyStr := string(testResp.Body)
-	assert.Contains(t, bodyStr, "is required")
-	assert.Contains(t, bodyStr, "is available")
-	assert.Contains(t, bodyStr, "disk space")
+			var backup *backups.Backup
+			var request RestoreBackupRequest
+
+			if tc.dbType == databases.DatabaseTypePostgres {
+				_, backup = createTestDatabaseWithBackupForRestore(workspace, owner, router)
+				request = RestoreBackupRequest{
+					PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+						Version:  tools.PostgresqlVersion16,
+						Host:     "localhost",
+						Port:     5432,
+						Username: "postgres",
+						Password: "postgres",
+						CpuCount: tc.cpuCount,
+					},
+				}
+			} else {
+				mysqlDB := createTestMySQLDatabase("Test MySQL DB", workspace.ID, owner.Token, router)
+				storage := createTestStorage(workspace.ID)
+
+				configService := backups_config.GetBackupConfigService()
+				config, err := configService.GetBackupConfigByDbId(mysqlDB.ID)
+				assert.NoError(t, err)
+
+				config.IsBackupsEnabled = true
+				config.StorageID = &storage.ID
+				config.Storage = storage
+				_, err = configService.SaveBackupConfig(config)
+				assert.NoError(t, err)
+
+				backup = createTestBackup(mysqlDB, owner)
+				request = RestoreBackupRequest{
+					MysqlDatabase: &mysql.MysqlDatabase{
+						Version:  tools.MysqlVersion80,
+						Host:     "localhost",
+						Port:     3306,
+						Username: "root",
+						Password: "password",
+					},
+				}
+			}
+
+			// Set huge backup size (10 TB) that would fail disk validation if checked
+			repo := &backups.BackupRepository{}
+			backup.BackupSizeMb = 10485760.0
+			err := repo.Save(backup)
+			assert.NoError(t, err)
+
+			expectedStatus := http.StatusOK
+			if tc.expectDiskValidated {
+				expectedStatus = http.StatusBadRequest
+			}
+
+			testResp := test_utils.MakePostRequest(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
+				"Bearer "+owner.Token,
+				request,
+				expectedStatus,
+			)
+
+			bodyStr := string(testResp.Body)
+			if tc.expectDiskValidated {
+				assert.Contains(t, bodyStr, "is required")
+				assert.Contains(t, bodyStr, "is available")
+				assert.Contains(t, bodyStr, "disk space")
+			} else {
+				assert.Contains(t, bodyStr, "restore started successfully")
+			}
+		})
+	}
+}
+
+func createTestRouter() *gin.Engine {
+	router := workspaces_testing.CreateTestRouter(
+		workspaces_controllers.GetWorkspaceController(),
+		workspaces_controllers.GetMembershipController(),
+		databases.GetDatabaseController(),
+		backups_config.GetBackupConfigController(),
+		backups.GetBackupController(),
+		GetRestoreController(),
+	)
+	return router
 }
 
 func createTestDatabaseWithBackupForRestore(
@@ -348,6 +417,53 @@ func createTestDatabase(
 	if w.Code != http.StatusCreated {
 		panic(
 			fmt.Sprintf("Failed to create database. Status: %d, Body: %s", w.Code, w.Body.String()),
+		)
+	}
+
+	var database databases.Database
+	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
+		panic(err)
+	}
+
+	return &database
+}
+
+func createTestMySQLDatabase(
+	name string,
+	workspaceID uuid.UUID,
+	token string,
+	router *gin.Engine,
+) *databases.Database {
+	testDbName := "test_db"
+	request := databases.Database{
+		WorkspaceID: &workspaceID,
+		Name:        name,
+		Type:        databases.DatabaseTypeMysql,
+		Mysql: &mysql.MysqlDatabase{
+			Version:  tools.MysqlVersion80,
+			Host:     "localhost",
+			Port:     3306,
+			Username: "root",
+			Password: "password",
+			Database: &testDbName,
+		},
+	}
+
+	w := workspaces_testing.MakeAPIRequest(
+		router,
+		"POST",
+		"/api/v1/databases/create",
+		"Bearer "+token,
+		request,
+	)
+
+	if w.Code != http.StatusCreated {
+		panic(
+			fmt.Sprintf(
+				"Failed to create MySQL database. Status: %d, Body: %s",
+				w.Code,
+				w.Body.String(),
+			),
 		)
 	}
 

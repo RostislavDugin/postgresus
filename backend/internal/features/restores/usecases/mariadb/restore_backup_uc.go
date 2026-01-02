@@ -27,7 +27,6 @@ import (
 	"databasus-backend/internal/features/restores/models"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
-	files_utils "databasus-backend/internal/util/files"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -134,11 +133,16 @@ func (uc *RestoreMariadbBackupUsecase) restoreFromStorage(
 	}
 	defer func() { _ = os.RemoveAll(filepath.Dir(myCnfFile)) }()
 
-	tempBackupFile, cleanupFunc, err := uc.downloadBackupToTempFile(ctx, backup, storage)
+	// Stream backup directly from storage
+	rawReader, err := storage.GetFile(fieldEncryptor, backup.ID)
 	if err != nil {
-		return fmt.Errorf("failed to download backup: %w", err)
+		return fmt.Errorf("failed to get backup file from storage: %w", err)
 	}
-	defer cleanupFunc()
+	defer func() {
+		if err := rawReader.Close(); err != nil {
+			uc.logger.Error("Failed to close backup reader", "error", err)
+		}
+	}()
 
 	return uc.executeMariadbRestore(
 		ctx,
@@ -146,7 +150,7 @@ func (uc *RestoreMariadbBackupUsecase) restoreFromStorage(
 		mariadbBin,
 		args,
 		myCnfFile,
-		tempBackupFile,
+		rawReader,
 		backup,
 	)
 }
@@ -157,7 +161,7 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	mariadbBin string,
 	args []string,
 	myCnfFile string,
-	backupFile string,
+	backupReader io.ReadCloser,
 	backup *backups.Backup,
 ) error {
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
@@ -165,16 +169,10 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	cmd := exec.CommandContext(ctx, mariadbBin, fullArgs...)
 	uc.logger.Info("Executing MariaDB restore command", "command", cmd.String())
 
-	backupFileHandle, err := os.Open(backupFile)
-	if err != nil {
-		return fmt.Errorf("failed to open backup file: %w", err)
-	}
-	defer func() { _ = backupFileHandle.Close() }()
-
-	var inputReader io.Reader = backupFileHandle
+	var inputReader io.Reader = backupReader
 
 	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
-		decryptReader, err := uc.setupDecryption(backupFileHandle, backup)
+		decryptReader, err := uc.setupDecryption(backupReader, backup)
 		if err != nil {
 			return fmt.Errorf("failed to setup decryption: %w", err)
 		}
@@ -223,69 +221,6 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	}
 
 	return nil
-}
-
-func (uc *RestoreMariadbBackupUsecase) downloadBackupToTempFile(
-	ctx context.Context,
-	backup *backups.Backup,
-	storage *storages.Storage,
-) (string, func(), error) {
-	err := files_utils.EnsureDirectories([]string{
-		config.GetEnv().TempFolder,
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to ensure directories: %w", err)
-	}
-
-	tempDir, err := os.MkdirTemp(config.GetEnv().TempFolder, "restore_"+uuid.New().String())
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-
-	cleanupFunc := func() {
-		_ = os.RemoveAll(tempDir)
-	}
-
-	tempBackupFile := filepath.Join(tempDir, "backup.sql.zst")
-
-	uc.logger.Info(
-		"Downloading backup file from storage to temporary file",
-		"backupId", backup.ID,
-		"tempFile", tempBackupFile,
-		"encrypted", backup.Encryption == backups_config.BackupEncryptionEncrypted,
-	)
-
-	fieldEncryptor := util_encryption.GetFieldEncryptor()
-	rawReader, err := storage.GetFile(fieldEncryptor, backup.ID)
-	if err != nil {
-		cleanupFunc()
-		return "", nil, fmt.Errorf("failed to get backup file from storage: %w", err)
-	}
-	defer func() {
-		if err := rawReader.Close(); err != nil {
-			uc.logger.Error("Failed to close backup reader", "error", err)
-		}
-	}()
-
-	tempFile, err := os.Create(tempBackupFile)
-	if err != nil {
-		cleanupFunc()
-		return "", nil, fmt.Errorf("failed to create temporary backup file: %w", err)
-	}
-	defer func() {
-		if err := tempFile.Close(); err != nil {
-			uc.logger.Error("Failed to close temporary file", "error", err)
-		}
-	}()
-
-	_, err = uc.copyWithShutdownCheck(ctx, tempFile, rawReader)
-	if err != nil {
-		cleanupFunc()
-		return "", nil, fmt.Errorf("failed to write backup to temporary file: %w", err)
-	}
-
-	uc.logger.Info("Backup file written to temporary location", "tempFile", tempBackupFile)
-	return tempBackupFile, cleanupFunc, nil
 }
 
 func (uc *RestoreMariadbBackupUsecase) setupDecryption(
@@ -356,57 +291,6 @@ port=%d
 	}
 
 	return myCnfFile, nil
-}
-
-func (uc *RestoreMariadbBackupUsecase) copyWithShutdownCheck(
-	ctx context.Context,
-	dst io.Writer,
-	src io.Reader,
-) (int64, error) {
-	buf := make([]byte, 16*1024*1024)
-	var totalBytesWritten int64
-
-	for {
-		select {
-		case <-ctx.Done():
-			return totalBytesWritten, fmt.Errorf("copy cancelled: %w", ctx.Err())
-		default:
-		}
-
-		if config.IsShouldShutdown() {
-			return totalBytesWritten, fmt.Errorf("copy cancelled due to shutdown")
-		}
-
-		bytesRead, readErr := src.Read(buf)
-		if bytesRead > 0 {
-			bytesWritten, writeErr := dst.Write(buf[0:bytesRead])
-			if bytesWritten < 0 || bytesRead < bytesWritten {
-				bytesWritten = 0
-				if writeErr == nil {
-					writeErr = fmt.Errorf("invalid write result")
-				}
-			}
-
-			if writeErr != nil {
-				return totalBytesWritten, writeErr
-			}
-
-			if bytesRead != bytesWritten {
-				return totalBytesWritten, io.ErrShortWrite
-			}
-
-			totalBytesWritten += int64(bytesWritten)
-		}
-
-		if readErr != nil {
-			if readErr != io.EOF {
-				return totalBytesWritten, readErr
-			}
-			break
-		}
-	}
-
-	return totalBytesWritten, nil
 }
 
 func (uc *RestoreMariadbBackupUsecase) handleMariadbRestoreError(
