@@ -250,6 +250,44 @@ func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	assert.True(t, found, "Audit log for restore not found")
 }
 
+func Test_RestoreBackup_InsufficientDiskSpace_ReturnsError(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	_, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
+
+	// Update backup size to 10 TB via repository
+	repo := &backups.BackupRepository{}
+	backup.BackupSizeMb = 10485760.0 // 10 TB in MB
+	err := repo.Save(backup)
+	assert.NoError(t, err)
+
+	request := RestoreBackupRequest{
+		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+			Version:  tools.PostgresqlVersion16,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "postgres",
+			Password: "postgres",
+		},
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
+		"Bearer "+owner.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	bodyStr := string(testResp.Body)
+	assert.Contains(t, bodyStr, "is required")
+	assert.Contains(t, bodyStr, "is available")
+	assert.Contains(t, bodyStr, "disk space")
+}
+
 func createTestDatabaseWithBackupForRestore(
 	workspace *workspaces_models.Workspace,
 	owner *users_dto.SignInResponseDTO,

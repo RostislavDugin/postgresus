@@ -5,6 +5,7 @@ import (
 	"databasus-backend/internal/features/backups/backups"
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/disk"
 	"databasus-backend/internal/features/restores/enums"
 	"databasus-backend/internal/features/restores/models"
 	"databasus-backend/internal/features/restores/usecases"
@@ -32,6 +33,7 @@ type RestoreService struct {
 	workspaceService     *workspaces_services.WorkspaceService
 	auditLogService      *audit_logs.AuditLogService
 	fieldEncryptor       encryption.FieldEncryptor
+	diskService          *disk.DiskService
 }
 
 func (s *RestoreService) OnBeforeBackupRemove(backup *backups.Backup) error {
@@ -123,6 +125,11 @@ func (s *RestoreService) RestoreBackupWithAuth(
 	}
 
 	if err := s.validateVersionCompatibility(backupDatabase, requestDTO); err != nil {
+		return err
+	}
+
+	// Validate disk space before starting restore
+	if err := s.validateDiskSpace(backup); err != nil {
 		return err
 	}
 
@@ -359,5 +366,43 @@ func (s *RestoreService) validateVersionCompatibility(
 				`For example, you can restore MongoDB 6.0 backup to MongoDB 6.0, 7.0 or higher. But cannot restore to 5.0`)
 		}
 	}
+	return nil
+}
+
+func (s *RestoreService) validateDiskSpace(backup *backups.Backup) error {
+	diskUsage, err := s.diskService.GetDiskUsage()
+	if err != nil {
+		return fmt.Errorf("failed to check disk space: %w", err)
+	}
+
+	// Convert backup size from MB to bytes
+	backupSizeBytes := int64(backup.BackupSizeMb * 1024 * 1024)
+
+	// Calculate required space: backup size + 10% buffer
+	bufferBytes := int64(float64(backupSizeBytes) * 0.1)
+	requiredBytes := backupSizeBytes + bufferBytes
+
+	// Ensure minimum of 1 GB total (even if backup is small)
+	minRequiredBytes := int64(1024 * 1024 * 1024) // 1 GB
+	if requiredBytes < minRequiredBytes {
+		requiredBytes = minRequiredBytes
+	}
+
+	// Check if there's enough free space
+	if diskUsage.FreeSpaceBytes < requiredBytes {
+		backupSizeGB := float64(backupSizeBytes) / (1024 * 1024 * 1024)
+		bufferSizeGB := float64(bufferBytes) / (1024 * 1024 * 1024)
+		requiredGB := float64(requiredBytes) / (1024 * 1024 * 1024)
+		availableGB := float64(diskUsage.FreeSpaceBytes) / (1024 * 1024 * 1024)
+
+		return fmt.Errorf(
+			"to restore this backup, %.1f GB (%.1f GB backup + %.1f GB buffer) is required, but only %.1f GB is available. Please free up disk space before restoring",
+			requiredGB,
+			backupSizeGB,
+			bufferSizeGB,
+			availableGB,
+		)
+	}
+
 	return nil
 }
