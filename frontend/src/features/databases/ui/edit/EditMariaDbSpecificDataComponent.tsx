@@ -86,12 +86,20 @@ export const EditMariaDbSpecificDataComponent = ({
   };
 
   const testConnection = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mariadb) return;
     setIsTestingConnection(true);
     setIsConnectionFailed(false);
 
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mariadb: {
+        ...editingDatabase.mariadb,
+        password: editingDatabase.mariadb.password?.trim(),
+      },
+    };
+
     try {
-      await databaseApi.testDatabaseConnectionDirect(editingDatabase);
+      await databaseApi.testDatabaseConnectionDirect(trimmedDatabase);
       setIsConnectionTested(true);
       ToastHelper.showToast({
         title: 'Connection test passed',
@@ -106,13 +114,21 @@ export const EditMariaDbSpecificDataComponent = ({
   };
 
   const saveDatabase = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mariadb) return;
+
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mariadb: {
+        ...editingDatabase.mariadb,
+        password: editingDatabase.mariadb.password?.trim(),
+      },
+    };
 
     if (isSaveToApi) {
       setIsSaving(true);
 
       try {
-        await databaseApi.updateDatabase(editingDatabase);
+        await databaseApi.updateDatabase(trimmedDatabase);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -120,7 +136,7 @@ export const EditMariaDbSpecificDataComponent = ({
       setIsSaving(false);
     }
 
-    onSaved(editingDatabase);
+    onSaved(trimmedDatabase);
   };
 
   useEffect(() => {
@@ -246,7 +262,7 @@ export const EditMariaDbSpecificDataComponent = ({
 
             setEditingDatabase({
               ...editingDatabase,
-              mariadb: { ...editingDatabase.mariadb, password: e.target.value.trim() },
+              mariadb: { ...editingDatabase.mariadb, password: e.target.value },
             });
             setIsConnectionTested(false);
           }}

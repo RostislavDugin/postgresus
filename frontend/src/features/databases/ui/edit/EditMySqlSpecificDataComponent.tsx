@@ -86,12 +86,20 @@ export const EditMySqlSpecificDataComponent = ({
   };
 
   const testConnection = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mysql) return;
     setIsTestingConnection(true);
     setIsConnectionFailed(false);
 
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mysql: {
+        ...editingDatabase.mysql,
+        password: editingDatabase.mysql.password?.trim(),
+      },
+    };
+
     try {
-      await databaseApi.testDatabaseConnectionDirect(editingDatabase);
+      await databaseApi.testDatabaseConnectionDirect(trimmedDatabase);
       setIsConnectionTested(true);
       ToastHelper.showToast({
         title: 'Connection test passed',
@@ -106,13 +114,21 @@ export const EditMySqlSpecificDataComponent = ({
   };
 
   const saveDatabase = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mysql) return;
+
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mysql: {
+        ...editingDatabase.mysql,
+        password: editingDatabase.mysql.password?.trim(),
+      },
+    };
 
     if (isSaveToApi) {
       setIsSaving(true);
 
       try {
-        await databaseApi.updateDatabase(editingDatabase);
+        await databaseApi.updateDatabase(trimmedDatabase);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -120,7 +136,7 @@ export const EditMySqlSpecificDataComponent = ({
       setIsSaving(false);
     }
 
-    onSaved(editingDatabase);
+    onSaved(trimmedDatabase);
   };
 
   useEffect(() => {
@@ -246,7 +262,7 @@ export const EditMySqlSpecificDataComponent = ({
 
             setEditingDatabase({
               ...editingDatabase,
-              mysql: { ...editingDatabase.mysql, password: e.target.value.trim() },
+              mysql: { ...editingDatabase.mysql, password: e.target.value },
             });
             setIsConnectionTested(false);
           }}

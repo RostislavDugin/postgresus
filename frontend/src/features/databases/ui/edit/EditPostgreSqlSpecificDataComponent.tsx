@@ -120,12 +120,20 @@ export const EditPostgreSqlSpecificDataComponent = ({
   };
 
   const testConnection = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.postgresql) return;
     setIsTestingConnection(true);
     setIsConnectionFailed(false);
 
+    const trimmedDatabase = {
+      ...editingDatabase,
+      postgresql: {
+        ...editingDatabase.postgresql,
+        password: editingDatabase.postgresql.password?.trim(),
+      },
+    };
+
     try {
-      await databaseApi.testDatabaseConnectionDirect(editingDatabase);
+      await databaseApi.testDatabaseConnectionDirect(trimmedDatabase);
       setIsConnectionTested(true);
       ToastHelper.showToast({
         title: 'Connection test passed',
@@ -140,13 +148,21 @@ export const EditPostgreSqlSpecificDataComponent = ({
   };
 
   const saveDatabase = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.postgresql) return;
+
+    const trimmedDatabase = {
+      ...editingDatabase,
+      postgresql: {
+        ...editingDatabase.postgresql,
+        password: editingDatabase.postgresql.password?.trim(),
+      },
+    };
 
     if (isSaveToApi) {
       setIsSaving(true);
 
       try {
-        await databaseApi.updateDatabase(editingDatabase);
+        await databaseApi.updateDatabase(trimmedDatabase);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -154,7 +170,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
       setIsSaving(false);
     }
 
-    onSaved(editingDatabase);
+    onSaved(trimmedDatabase);
   };
 
   useEffect(() => {
@@ -304,7 +320,7 @@ export const EditPostgreSqlSpecificDataComponent = ({
 
             setEditingDatabase({
               ...editingDatabase,
-              postgresql: { ...editingDatabase.postgresql, password: e.target.value.trim() },
+              postgresql: { ...editingDatabase.postgresql, password: e.target.value },
             });
             setIsConnectionTested(false);
           }}
