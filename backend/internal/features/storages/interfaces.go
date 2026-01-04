@@ -30,3 +30,7 @@ type StorageFileSaver interface {
 
 	EncryptSensitiveData(encryptor encryption.FieldEncryptor) error
 }
+
+type StorageDatabaseCounter interface {
+	GetStorageAttachedDatabasesIDs(storageID uuid.UUID) ([]uuid.UUID, error)
+}

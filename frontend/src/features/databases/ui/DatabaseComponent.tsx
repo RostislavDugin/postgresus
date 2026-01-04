@@ -76,6 +76,7 @@ export const DatabaseComponent = ({
           isCanManageDBs={isCanManageDBs}
         />
       )}
+
       {currentTab === 'backups' && (
         <>
           <HealthckeckAttemptsComponent database={database} />

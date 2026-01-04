@@ -243,3 +243,19 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 
 	return databases, nil
 }
+
+func (r *DatabaseRepository) GetDatabasesIDsByNotifierID(
+	notifierID uuid.UUID,
+) ([]uuid.UUID, error) {
+	var databasesIDs []uuid.UUID
+
+	if err := storage.
+		GetDb().
+		Table("database_notifiers").
+		Where("notifier_id = ?", notifierID).
+		Pluck("database_id", &databasesIDs).Error; err != nil {
+		return nil, err
+	}
+
+	return databasesIDs, nil
+}

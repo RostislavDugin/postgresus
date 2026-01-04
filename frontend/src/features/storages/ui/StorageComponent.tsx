@@ -1,4 +1,9 @@
-import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import {
+  ArrowRightOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
 import { Button, Input, Spin } from 'antd';
 import { useState } from 'react';
 import { useEffect } from 'react';
@@ -8,6 +13,7 @@ import { storageApi } from '../../../entity/storages';
 import type { Storage } from '../../../entity/storages';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
+import { StorageTransferDialogComponent } from './StorageTransferDialogComponent';
 import { EditStorageComponent } from './edit/EditStorageComponent';
 import { ShowStorageComponent } from './show/ShowStorageComponent';
 
@@ -15,6 +21,7 @@ interface Props {
   storageId: string;
   onStorageChanged: (storage: Storage) => void;
   onStorageDeleted: () => void;
+  onStorageTransferred: () => void;
   isCanManageStorages: boolean;
 }
 
@@ -22,6 +29,7 @@ export const StorageComponent = ({
   storageId,
   onStorageChanged,
   onStorageDeleted,
+  onStorageTransferred,
   isCanManageStorages,
 }: Props) => {
   const [storage, setStorage] = useState<Storage | undefined>();
@@ -37,6 +45,8 @@ export const StorageComponent = ({
 
   const [isShowRemoveConfirm, setIsShowRemoveConfirm] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+
+  const [isShowTransferDialog, setIsShowTransferDialog] = useState(false);
 
   const testConnection = () => {
     if (!storage) return;
@@ -250,16 +260,25 @@ export const StorageComponent = ({
                 </Button>
 
                 {isCanManageStorages && (
-                  <Button
-                    type="primary"
-                    danger
-                    onClick={() => setIsShowRemoveConfirm(true)}
-                    ghost
-                    loading={isRemoving}
-                    disabled={isRemoving}
-                  >
-                    Remove
-                  </Button>
+                  <>
+                    <Button
+                      type="primary"
+                      ghost
+                      icon={<ArrowRightOutlined />}
+                      onClick={() => setIsShowTransferDialog(true)}
+                      className="mr-1"
+                    />
+
+                    <Button
+                      type="primary"
+                      ghost
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setIsShowRemoveConfirm(true)}
+                      loading={isRemoving}
+                      disabled={isRemoving}
+                    />
+                  </>
                 )}
               </div>
             )}
@@ -276,6 +295,17 @@ export const StorageComponent = ({
           />
         )}
       </div>
+
+      {isShowTransferDialog && storage && (
+        <StorageTransferDialogComponent
+          storage={storage}
+          onClose={() => setIsShowTransferDialog(false)}
+          onTransferred={() => {
+            setIsShowTransferDialog(false);
+            onStorageTransferred();
+          }}
+        />
+      )}
     </div>
   );
 };

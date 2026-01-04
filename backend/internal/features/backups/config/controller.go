@@ -1,8 +1,10 @@
 package backups_config
 
 import (
-	users_middleware "databasus-backend/internal/features/users/middleware"
+	"errors"
 	"net/http"
+
+	users_middleware "databasus-backend/internal/features/users/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,6 +18,8 @@ func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/backup-configs/save", c.SaveBackupConfig)
 	router.GET("/backup-configs/database/:id", c.GetBackupConfigByDbID)
 	router.GET("/backup-configs/storage/:id/is-using", c.IsStorageUsing)
+	router.GET("/backup-configs/storage/:id/databases-count", c.CountDatabasesForStorage)
+	router.POST("/backup-configs/database/:id/transfer", c.TransferDatabase)
 }
 
 // SaveBackupConfig
@@ -119,4 +123,87 @@ func (c *BackupConfigController) IsStorageUsing(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"isUsing": isUsing})
+}
+
+// CountDatabasesForStorage
+// @Summary Count databases using a storage
+// @Description Get the count of databases that are using a specific storage
+// @Tags backup-configs
+// @Produce json
+// @Param id path string true "Storage ID"
+// @Success 200 {object} map[string]int
+// @Failure 400
+// @Failure 401
+// @Failure 500
+// @Router /backup-configs/storage/{id}/databases-count [get]
+func (c *BackupConfigController) CountDatabasesForStorage(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid storage ID"})
+		return
+	}
+
+	count, err := c.backupConfigService.CountDatabasesForStorage(user, id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"count": count})
+}
+
+// TransferDatabase
+// @Summary Transfer database to another workspace
+// @Description Transfer a database from one workspace to another. Can transfer to a new storage or transfer with the existing storage. Can also specify target notifiers from the target workspace.
+// @Tags backup-configs
+// @Accept json
+// @Produce json
+// @Param id path string true "Database ID"
+// @Param request body TransferDatabaseRequest true "Transfer request with targetWorkspaceId, storage options (targetStorageId or isTransferWithStorage), and optional targetNotifierIds"
+// @Success 200 {object} map[string]string "Database transferred successfully"
+// @Failure 400 {object} map[string]string "Invalid request, target storage/notifier not in target workspace, or transfer failed"
+// @Failure 401 {object} map[string]string "User not authenticated"
+// @Failure 403 {object} map[string]string "Insufficient permissions"
+// @Router /backup-configs/database/{id}/transfer [post]
+func (c *BackupConfigController) TransferDatabase(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
+		return
+	}
+
+	var request TransferDatabaseRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if request.TargetWorkspaceID == uuid.Nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "targetWorkspaceId is required"})
+		return
+	}
+
+	if err := c.backupConfigService.TransferDatabaseToWorkspace(user, id, &request); err != nil {
+		if errors.Is(err, ErrInsufficientPermissionsInSourceWorkspace) ||
+			errors.Is(err, ErrInsufficientPermissionsInTargetWorkspace) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "database transferred successfully"})
 }

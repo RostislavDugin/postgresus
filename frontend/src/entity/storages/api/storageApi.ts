@@ -55,4 +55,13 @@ export const storageApi = {
       requestOptions,
     );
   },
+
+  async transferStorage(storageId: string, targetWorkspaceId: string) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify({ targetWorkspaceId }));
+    return apiHelper.fetchPostJson(
+      `${getApplicationServer()}/api/v1/storages/${storageId}/transfer`,
+      requestOptions,
+    );
+  },
 };

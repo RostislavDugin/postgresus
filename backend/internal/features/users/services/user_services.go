@@ -20,6 +20,7 @@ import (
 	"databasus-backend/internal/features/encryption/secrets"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
+	users_errors "databasus-backend/internal/features/users/errors"
 	users_interfaces "databasus-backend/internal/features/users/interfaces"
 	users_models "databasus-backend/internal/features/users/models"
 	users_repositories "databasus-backend/internal/features/users/repositories"
@@ -340,7 +341,7 @@ func (s *UserService) InviteUser(
 
 	// Check if user has permission to invite
 	if !invitedBy.CanInviteUsers(settings) {
-		return nil, errors.New("insufficient permissions to invite users")
+		return nil, users_errors.ErrInsufficientPermissionsToInviteUsers
 	}
 
 	// Check if user already exists

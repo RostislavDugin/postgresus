@@ -13,6 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"databasus-backend/internal/config"
 	"databasus-backend/internal/util/tools"
@@ -343,7 +344,7 @@ func Test_CreateReadOnlyUser_Supabase_UserCanReadButNotWrite(t *testing.T) {
 	)
 
 	adminDB, err := sqlx.Connect("postgres", dsn)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer adminDB.Close()
 
 	tableName := fmt.Sprintf(

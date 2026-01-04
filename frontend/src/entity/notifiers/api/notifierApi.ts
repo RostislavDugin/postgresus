@@ -55,4 +55,13 @@ export const notifierApi = {
       requestOptions,
     );
   },
+
+  async transferNotifier(notifierId: string, targetWorkspaceId: string) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify({ targetWorkspaceId }));
+    return apiHelper.fetchPostJson(
+      `${getApplicationServer()}/api/v1/notifiers/${notifierId}/transfer`,
+      requestOptions,
+    );
+  },
 };

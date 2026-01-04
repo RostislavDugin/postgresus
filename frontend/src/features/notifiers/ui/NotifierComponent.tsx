@@ -1,4 +1,9 @@
-import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import {
+  ArrowRightOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
 import { Button, Input, Spin } from 'antd';
 import { useState } from 'react';
 import { useEffect } from 'react';
@@ -8,6 +13,7 @@ import { notifierApi } from '../../../entity/notifiers';
 import type { Notifier } from '../../../entity/notifiers';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
+import { NotifierTransferDialogComponent } from './NotifierTransferDialogComponent';
 import { EditNotifierComponent } from './edit/EditNotifierComponent';
 import { ShowNotifierComponent } from './show/ShowNotifierComponent';
 
@@ -15,6 +21,7 @@ interface Props {
   notifierId: string;
   onNotifierChanged: (notifier: Notifier) => void;
   onNotifierDeleted: () => void;
+  onNotifierTransferred: () => void;
   isCanManageNotifiers: boolean;
 }
 
@@ -22,6 +29,7 @@ export const NotifierComponent = ({
   notifierId,
   onNotifierChanged,
   onNotifierDeleted,
+  onNotifierTransferred,
   isCanManageNotifiers,
 }: Props) => {
   const [notifier, setNotifier] = useState<Notifier | undefined>();
@@ -37,6 +45,8 @@ export const NotifierComponent = ({
 
   const [isShowRemoveConfirm, setIsShowRemoveConfirm] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+
+  const [isShowTransferDialog, setIsShowTransferDialog] = useState(false);
 
   const sendTestNotification = () => {
     if (!notifier) return;
@@ -254,16 +264,25 @@ export const NotifierComponent = ({
                 </Button>
 
                 {isCanManageNotifiers && (
-                  <Button
-                    type="primary"
-                    danger
-                    onClick={() => setIsShowRemoveConfirm(true)}
-                    ghost
-                    loading={isRemoving}
-                    disabled={isRemoving}
-                  >
-                    Remove
-                  </Button>
+                  <>
+                    <Button
+                      type="primary"
+                      ghost
+                      icon={<ArrowRightOutlined />}
+                      onClick={() => setIsShowTransferDialog(true)}
+                      className="mr-1"
+                    />
+
+                    <Button
+                      type="primary"
+                      ghost
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setIsShowRemoveConfirm(true)}
+                      loading={isRemoving}
+                      disabled={isRemoving}
+                    />
+                  </>
                 )}
               </div>
             )}
@@ -280,6 +299,17 @@ export const NotifierComponent = ({
           />
         )}
       </div>
+
+      {isShowTransferDialog && notifier && (
+        <NotifierTransferDialogComponent
+          notifier={notifier}
+          onClose={() => setIsShowTransferDialog(false)}
+          onTransferred={() => {
+            setIsShowTransferDialog(false);
+            onNotifierTransferred();
+          }}
+        />
+      )}
     </div>
   );
 };

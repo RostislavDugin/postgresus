@@ -25,6 +25,20 @@ func Test_MakeBackupForDbHavingBackupDayAgo_BackupCreated(t *testing.T) {
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
+
 	// Enable backups for the database
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
 	assert.NoError(t, err)
@@ -54,24 +68,13 @@ func Test_MakeBackupForDbHavingBackupDayAgo_BackupCreated(t *testing.T) {
 
 	GetBackupBackgroundService().runPendingBackups()
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait for backup to complete (runs in goroutine)
+	WaitForBackupCompletion(t, database.ID, 1, 10*time.Second)
 
 	// assertions
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
 	assert.NoError(t, err)
 	assert.Len(t, backups, 2)
-
-	// cleanup
-	for _, backup := range backups {
-		err := backupRepository.DeleteByID(backup.ID)
-		assert.NoError(t, err)
-	}
-
-	databases.RemoveTestDatabase(database)
-	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
-	notifiers.RemoveTestNotifier(notifier)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
@@ -82,6 +85,20 @@ func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
+
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
 
 	// Enable backups for the database
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -118,18 +135,6 @@ func Test_MakeBackupForDbHavingHourAgoBackup_BackupSkipped(t *testing.T) {
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
 	assert.NoError(t, err)
 	assert.Len(t, backups, 1) // Should still be 1 backup, no new backup created
-
-	// cleanup
-	for _, backup := range backups {
-		err := backupRepository.DeleteByID(backup.ID)
-		assert.NoError(t, err)
-	}
-
-	databases.RemoveTestDatabase(database)
-	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
-	notifiers.RemoveTestNotifier(notifier)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T) {
@@ -140,6 +145,20 @@ func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
+
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
 
 	// Enable backups for the database with retries disabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -180,18 +199,6 @@ func Test_MakeBackupHavingFailedBackupWithoutRetries_BackupSkipped(t *testing.T)
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
 	assert.NoError(t, err)
 	assert.Len(t, backups, 1) // Should still be 1 backup, no retry attempted
-
-	// cleanup
-	for _, backup := range backups {
-		err := backupRepository.DeleteByID(backup.ID)
-		assert.NoError(t, err)
-	}
-
-	databases.RemoveTestDatabase(database)
-	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
-	notifiers.RemoveTestNotifier(notifier)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
@@ -202,6 +209,20 @@ func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
+
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
 
 	// Enable backups for the database with retries enabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -236,24 +257,13 @@ func Test_MakeBackupHavingFailedBackupWithRetries_BackupCreated(t *testing.T) {
 
 	GetBackupBackgroundService().runPendingBackups()
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait for backup to complete (runs in goroutine)
+	WaitForBackupCompletion(t, database.ID, 1, 10*time.Second)
 
 	// assertions
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
 	assert.NoError(t, err)
 	assert.Len(t, backups, 2) // Should have 2 backups, retry was attempted
-
-	// cleanup
-	for _, backup := range backups {
-		err := backupRepository.DeleteByID(backup.ID)
-		assert.NoError(t, err)
-	}
-
-	databases.RemoveTestDatabase(database)
-	time.Sleep(100 * time.Millisecond) // Wait for cascading deletes
-	notifiers.RemoveTestNotifier(notifier)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
 func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *testing.T) {
@@ -264,6 +274,20 @@ func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *tes
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
+
+	defer func() {
+		// cleanup backups first
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
 
 	// Enable backups for the database with retries enabled
 	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
@@ -306,16 +330,4 @@ func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *tes
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
 	assert.NoError(t, err)
 	assert.Len(t, backups, 3) // Should have 3 backups, not more than max
-
-	// cleanup
-	for _, backup := range backups {
-		err := backupRepository.DeleteByID(backup.ID)
-		assert.NoError(t, err)
-	}
-
-	databases.RemoveTestDatabase(database)
-	time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
-	notifiers.RemoveTestNotifier(notifier)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }

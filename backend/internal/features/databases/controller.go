@@ -26,6 +26,7 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/databases/test-connection-direct", c.TestDatabaseConnectionDirect)
 	router.POST("/databases/:id/copy", c.CopyDatabase)
 	router.GET("/databases/notifier/:id/is-using", c.IsNotifierUsing)
+	router.GET("/databases/notifier/:id/databases-count", c.CountDatabasesByNotifier)
 	router.POST("/databases/is-readonly", c.IsUserReadOnly)
 	router.POST("/databases/create-readonly-user", c.CreateReadOnlyUser)
 }
@@ -297,6 +298,39 @@ func (c *DatabaseController) IsNotifierUsing(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"isUsing": isUsing})
+}
+
+// CountDatabasesByNotifier
+// @Summary Count databases using a notifier
+// @Description Get the count of databases that are using a specific notifier
+// @Tags databases
+// @Produce json
+// @Param id path string true "Notifier ID"
+// @Success 200 {object} map[string]int
+// @Failure 400
+// @Failure 401
+// @Failure 500
+// @Router /databases/notifier/{id}/databases-count [get]
+func (c *DatabaseController) CountDatabasesByNotifier(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid notifier ID"})
+		return
+	}
+
+	count, err := c.databaseService.CountDatabasesByNotifier(user, id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"count": count})
 }
 
 // CopyDatabase

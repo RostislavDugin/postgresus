@@ -217,6 +217,7 @@ func setUpDependencies() {
 	audit_logs.SetupDependencies()
 	notifiers.SetupDependencies()
 	storages.SetupDependencies()
+	backups_config.SetupDependencies()
 }
 
 func runBackgroundTasks(log *slog.Logger) {

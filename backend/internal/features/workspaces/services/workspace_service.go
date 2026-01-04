@@ -1,7 +1,6 @@
 package workspaces_services
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	users_models "databasus-backend/internal/features/users/models"
 	users_services "databasus-backend/internal/features/users/services"
 	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_errors "databasus-backend/internal/features/workspaces/errors"
 	workspaces_interfaces "databasus-backend/internal/features/workspaces/interfaces"
 	workspaces_models "databasus-backend/internal/features/workspaces/models"
 	workspaces_repositories "databasus-backend/internal/features/workspaces/repositories"
@@ -43,7 +43,7 @@ func (s *WorkspaceService) CreateWorkspace(
 	}
 
 	if !creator.CanCreateWorkspaces(settings) {
-		return nil, errors.New("insufficient permissions to create workspaces")
+		return nil, workspaces_errors.ErrInsufficientPermissionsToCreateWorkspaces
 	}
 
 	workspace := &workspaces_models.Workspace{
@@ -91,7 +91,7 @@ func (s *WorkspaceService) GetWorkspace(
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("insufficient permissions to view workspace")
+		return nil, workspaces_errors.ErrInsufficientPermissionsToViewWorkspace
 	}
 
 	return s.workspaceRepository.GetWorkspaceByID(workspaceID)
@@ -121,7 +121,7 @@ func (s *WorkspaceService) UpdateWorkspace(
 		return nil, err
 	}
 	if !canManage {
-		return nil, errors.New("insufficient permissions to update workspace")
+		return nil, workspaces_errors.ErrInsufficientPermissionsToUpdateWorkspace
 	}
 
 	existingWorkspace, err := s.workspaceRepository.GetWorkspaceByID(workspaceID)
@@ -155,7 +155,7 @@ func (s *WorkspaceService) DeleteWorkspace(workspaceID uuid.UUID, user *users_mo
 		}
 
 		if userWorkspaceRole == nil || *userWorkspaceRole != users_enums.WorkspaceRoleOwner {
-			return errors.New("only workspace owner or admin can delete workspace")
+			return workspaces_errors.ErrOnlyOwnerOrAdminCanDeleteWorkspace
 		}
 	}
 
@@ -299,7 +299,7 @@ func (s *WorkspaceService) GetWorkspaceAuditLogs(
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("insufficient permissions to view workspace audit logs")
+		return nil, workspaces_errors.ErrInsufficientPermissionsToViewWorkspaceAuditLogs
 	}
 
 	return s.auditLogService.GetWorkspaceAuditLogs(workspaceID, request)

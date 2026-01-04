@@ -39,4 +39,5 @@ func GetDatabaseController() *DatabaseController {
 
 func SetupDependencies() {
 	workspaces_services.GetWorkspaceService().AddWorkspaceDeletionListener(databaseService)
+	notifiers.GetNotifierService().SetNotifierDatabaseCounter(databaseService)
 }

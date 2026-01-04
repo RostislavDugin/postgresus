@@ -102,3 +102,19 @@ func (r *BackupConfigRepository) IsStorageUsing(storageID uuid.UUID) (bool, erro
 
 	return count > 0, nil
 }
+
+func (r *BackupConfigRepository) GetDatabasesIDsByStorageID(
+	storageID uuid.UUID,
+) ([]uuid.UUID, error) {
+	var databasesIDs []uuid.UUID
+
+	if err := storage.
+		GetDb().
+		Table("backup_configs").
+		Where("storage_id = ?", storageID).
+		Pluck("database_id", &databasesIDs).Error; err != nil {
+		return nil, err
+	}
+
+	return databasesIDs, nil
+}

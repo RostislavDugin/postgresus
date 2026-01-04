@@ -1,11 +1,13 @@
 package workspaces_controllers
 
 import (
+	"errors"
 	"net/http"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_errors "databasus-backend/internal/features/workspaces/errors"
 	workspaces_models "databasus-backend/internal/features/workspaces/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 
@@ -56,7 +58,7 @@ func (c *WorkspaceController) CreateWorkspace(ctx *gin.Context) {
 
 	response, err := c.workspaceService.CreateWorkspace(&request, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to create workspaces" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToCreateWorkspaces) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -121,7 +123,7 @@ func (c *WorkspaceController) GetWorkspace(ctx *gin.Context) {
 
 	workspace, err := c.workspaceService.GetWorkspace(workspaceID, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view workspace" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToViewWorkspace) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -168,7 +170,7 @@ func (c *WorkspaceController) UpdateWorkspace(ctx *gin.Context) {
 
 	updatedWorkspace, err := c.workspaceService.UpdateWorkspace(workspaceID, &workspace, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to update workspace" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToUpdateWorkspace) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -205,7 +207,7 @@ func (c *WorkspaceController) DeleteWorkspace(ctx *gin.Context) {
 	}
 
 	if err := c.workspaceService.DeleteWorkspace(workspaceID, user); err != nil {
-		if err.Error() == "only workspace owner or admin can delete workspace" {
+		if errors.Is(err, workspaces_errors.ErrOnlyOwnerOrAdminCanDeleteWorkspace) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -254,7 +256,7 @@ func (c *WorkspaceController) GetWorkspaceAuditLogs(ctx *gin.Context) {
 
 	response, err := c.workspaceService.GetWorkspaceAuditLogs(workspaceID, user, request)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view workspace audit logs" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToViewWorkspaceAuditLogs) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

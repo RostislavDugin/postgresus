@@ -1,7 +1,6 @@
 package audit_logs
 
 import (
-	"errors"
 	"log/slog"
 	"time"
 
@@ -44,7 +43,7 @@ func (s *AuditLogService) GetGlobalAuditLogs(
 	request *GetAuditLogsRequest,
 ) (*GetAuditLogsResponse, error) {
 	if user.Role != user_enums.UserRoleAdmin {
-		return nil, errors.New("only administrators can view global audit logs")
+		return nil, ErrOnlyAdminsCanViewGlobalLogs
 	}
 
 	limit := request.Limit
@@ -79,7 +78,7 @@ func (s *AuditLogService) GetUserAuditLogs(
 ) (*GetAuditLogsResponse, error) {
 	// Users can view their own logs, ADMIN can view any user's logs
 	if user.Role != user_enums.UserRoleAdmin && user.ID != targetUserID {
-		return nil, errors.New("insufficient permissions to view user audit logs")
+		return nil, ErrInsufficientPermissionsToViewLogs
 	}
 
 	limit := request.Limit

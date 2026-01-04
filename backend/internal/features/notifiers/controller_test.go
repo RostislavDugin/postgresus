@@ -202,164 +202,161 @@ func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_ViewerCanViewNotifiers_ButCannotModify(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	viewer := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		viewer,
-		users_enums.WorkspaceRoleViewer,
-		owner.Token,
-		router,
-	)
+func Test_WorkspaceRolePermissions_Notifiers(t *testing.T) {
+	tests := []struct {
+		name          string
+		workspaceRole *users_enums.WorkspaceRole
+		isGlobalAdmin bool
+		canCreate     bool
+		canUpdate     bool
+		canDelete     bool
+	}{
+		{
+			name:          "owner can manage notifiers",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "admin can manage notifiers",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "member can manage notifiers",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "viewer can view but cannot modify notifiers",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     false,
+			canUpdate:     false,
+			canDelete:     false,
+		},
+		{
+			name:          "global admin can manage notifiers",
+			workspaceRole: nil,
+			isGlobalAdmin: true,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+	}
 
-	notifier := createNewNotifier(workspace.ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createRouter()
+			GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
 
-	var savedNotifier Notifier
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/notifiers",
-		"Bearer "+owner.Token,
-		*notifier,
-		http.StatusOK,
-		&savedNotifier,
-	)
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
-	// Viewer can GET notifiers
-	var notifiers []Notifier
-	test_utils.MakeGetRequestAndUnmarshal(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/notifiers?workspace_id=%s", workspace.ID.String()),
-		"Bearer "+viewer.Token,
-		http.StatusOK,
-		&notifiers,
-	)
-	assert.Len(t, notifiers, 1)
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(
+					workspace,
+					testUser,
+					*tt.workspaceRole,
+					owner.Token,
+					router,
+				)
+				testUserToken = testUser.Token
+			}
 
-	// Viewer cannot CREATE notifier
-	newNotifier := createNewNotifier(workspace.ID)
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/notifiers", "Bearer "+viewer.Token, *newNotifier, http.StatusForbidden,
-	)
+			// Owner creates initial notifier for all test cases
+			var ownerNotifier Notifier
+			notifier := createNewNotifier(workspace.ID)
+			test_utils.MakePostRequestAndUnmarshal(
+				t, router, "/api/v1/notifiers", "Bearer "+owner.Token,
+				*notifier, http.StatusOK, &ownerNotifier,
+			)
 
-	// Viewer cannot UPDATE notifier
-	savedNotifier.Name = "Updated by viewer"
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/notifiers", "Bearer "+viewer.Token, savedNotifier, http.StatusForbidden,
-	)
+			// Test GET notifiers
+			var notifiers []Notifier
+			test_utils.MakeGetRequestAndUnmarshal(
+				t, router,
+				fmt.Sprintf("/api/v1/notifiers?workspace_id=%s", workspace.ID.String()),
+				"Bearer "+testUserToken, http.StatusOK, &notifiers,
+			)
+			assert.Len(t, notifiers, 1)
 
-	// Viewer cannot DELETE notifier
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
-		"Bearer "+viewer.Token,
-		http.StatusForbidden,
-	)
+			// Test CREATE notifier
+			createStatusCode := http.StatusOK
+			if !tt.canCreate {
+				createStatusCode = http.StatusForbidden
+			}
+			newNotifier := createNewNotifier(workspace.ID)
+			var savedNotifier Notifier
+			if tt.canCreate {
+				test_utils.MakePostRequestAndUnmarshal(
+					t, router, "/api/v1/notifiers", "Bearer "+testUserToken,
+					*newNotifier, createStatusCode, &savedNotifier,
+				)
+				assert.NotEmpty(t, savedNotifier.ID)
+			} else {
+				test_utils.MakePostRequest(
+					t, router, "/api/v1/notifiers", "Bearer "+testUserToken,
+					*newNotifier, createStatusCode,
+				)
+			}
 
-	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
+			// Test UPDATE notifier
+			updateStatusCode := http.StatusOK
+			if !tt.canUpdate {
+				updateStatusCode = http.StatusForbidden
+			}
+			ownerNotifier.Name = "Updated by test user"
+			if tt.canUpdate {
+				var updatedNotifier Notifier
+				test_utils.MakePostRequestAndUnmarshal(
+					t, router, "/api/v1/notifiers", "Bearer "+testUserToken,
+					ownerNotifier, updateStatusCode, &updatedNotifier,
+				)
+				assert.Equal(t, "Updated by test user", updatedNotifier.Name)
+			} else {
+				test_utils.MakePostRequest(
+					t, router, "/api/v1/notifiers", "Bearer "+testUserToken,
+					ownerNotifier, updateStatusCode,
+				)
+			}
 
-func Test_MemberCanManageNotifiers(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		member,
-		users_enums.WorkspaceRoleMember,
-		owner.Token,
-		router,
-	)
+			// Test DELETE notifier
+			deleteStatusCode := http.StatusOK
+			if !tt.canDelete {
+				deleteStatusCode = http.StatusForbidden
+			}
+			test_utils.MakeDeleteRequest(
+				t, router,
+				fmt.Sprintf("/api/v1/notifiers/%s", ownerNotifier.ID.String()),
+				"Bearer "+testUserToken, deleteStatusCode,
+			)
 
-	notifier := createNewNotifier(workspace.ID)
-
-	// Member can CREATE notifier
-	var savedNotifier Notifier
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/notifiers",
-		"Bearer "+member.Token,
-		*notifier,
-		http.StatusOK,
-		&savedNotifier,
-	)
-	assert.NotEmpty(t, savedNotifier.ID)
-
-	// Member can UPDATE notifier
-	savedNotifier.Name = "Updated by member"
-	var updatedNotifier Notifier
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/notifiers",
-		"Bearer "+member.Token,
-		savedNotifier,
-		http.StatusOK,
-		&updatedNotifier,
-	)
-	assert.Equal(t, "Updated by member", updatedNotifier.Name)
-
-	// Member can DELETE notifier
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
-		"Bearer "+member.Token,
-		http.StatusOK,
-	)
-
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_AdminCanManageNotifiers(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	admin := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		admin,
-		users_enums.WorkspaceRoleAdmin,
-		owner.Token,
-		router,
-	)
-
-	notifier := createNewNotifier(workspace.ID)
-
-	// Admin can CREATE, UPDATE, DELETE
-	var savedNotifier Notifier
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/notifiers",
-		"Bearer "+admin.Token,
-		*notifier,
-		http.StatusOK,
-		&savedNotifier,
-	)
-
-	savedNotifier.Name = "Updated by admin"
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/notifiers", "Bearer "+admin.Token, savedNotifier, http.StatusOK,
-	)
-
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
-		"Bearer "+admin.Token,
-		http.StatusOK,
-	)
-
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+			// Cleanup
+			if tt.canCreate {
+				deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
+			}
+			if !tt.canDelete {
+				deleteNotifier(t, router, ownerNotifier.ID, workspace.ID, owner.Token)
+			}
+			workspaces_testing.RemoveTestWorkspace(workspace, router)
+		})
+	}
 }
 
 func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
@@ -965,6 +962,192 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 	}
 }
 
+func Test_TransferNotifier_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		sourceRole         *users_enums.WorkspaceRole
+		targetRole         *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "owner in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "member in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "viewer in both workspaces cannot transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "global admin can transfer",
+			sourceRole:         nil,
+			targetRole:         nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createRouter()
+			GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
+
+			sourceOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			targetOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+			sourceWorkspace := workspaces_testing.CreateTestWorkspace(
+				"Source Workspace",
+				sourceOwner,
+				router,
+			)
+			targetWorkspace := workspaces_testing.CreateTestWorkspace(
+				"Target Workspace",
+				targetOwner,
+				router,
+			)
+
+			notifier := createNewNotifier(sourceWorkspace.ID)
+			var savedNotifier Notifier
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/notifiers",
+				"Bearer "+sourceOwner.Token,
+				*notifier,
+				http.StatusOK,
+				&savedNotifier,
+			)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.sourceRole != nil {
+				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(sourceWorkspace, testUser, *tt.sourceRole, sourceOwner.Token, router)
+				workspaces_testing.AddMemberToWorkspace(targetWorkspace, testUser, *tt.targetRole, targetOwner.Token, router)
+				testUserToken = testUser.Token
+			}
+
+			request := TransferNotifierRequest{
+				TargetWorkspaceID: targetWorkspace.ID,
+			}
+
+			testResp := test_utils.MakePostRequest(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/notifiers/%s/transfer", savedNotifier.ID.String()),
+				"Bearer "+testUserToken,
+				request,
+				tt.expectedStatusCode,
+			)
+
+			if tt.expectSuccess {
+				assert.Contains(t, string(testResp.Body), "transferred successfully")
+
+				var retrievedNotifier Notifier
+				test_utils.MakeGetRequestAndUnmarshal(
+					t,
+					router,
+					fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
+					"Bearer "+targetOwner.Token,
+					http.StatusOK,
+					&retrievedNotifier,
+				)
+				assert.Equal(t, targetWorkspace.ID, retrievedNotifier.WorkspaceID)
+
+				deleteNotifier(t, router, savedNotifier.ID, targetWorkspace.ID, targetOwner.Token)
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+				deleteNotifier(t, router, savedNotifier.ID, sourceWorkspace.ID, sourceOwner.Token)
+			}
+
+			workspaces_testing.RemoveTestWorkspace(sourceWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(targetWorkspace, router)
+		})
+	}
+}
+
+func Test_TransferNotifierNotManagableWorkspace_TransferFailed(t *testing.T) {
+	router := createRouter()
+	GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
+
+	userA := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	userB := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", userA, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", userB, router)
+
+	notifier := createNewNotifier(workspace1.ID)
+	var savedNotifier Notifier
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/notifiers",
+		"Bearer "+userA.Token,
+		*notifier,
+		http.StatusOK,
+		&savedNotifier,
+	)
+
+	request := TransferNotifierRequest{
+		TargetWorkspaceID: workspace2.ID,
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers/%s/transfer", savedNotifier.ID.String()),
+		"Bearer "+userA.Token,
+		request,
+		http.StatusForbidden,
+	)
+
+	assert.Contains(
+		t,
+		string(testResp.Body),
+		"insufficient permissions to manage notifier in target workspace",
+	)
+
+	deleteNotifier(t, router, savedNotifier.ID, workspace1.ID, userA.Token)
+	workspaces_testing.RemoveTestWorkspace(workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+}
+
+type mockNotifierDatabaseCounter struct{}
+
+func (m *mockNotifierDatabaseCounter) GetNotifierAttachedDatabasesIDs(
+	notifierID uuid.UUID,
+) ([]uuid.UUID, error) {
+	return []uuid.UUID{}, nil
+}
+
 func createRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -979,6 +1162,7 @@ func createRouter() *gin.Engine {
 	}
 
 	audit_logs.SetupDependencies()
+	GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
 
 	return router
 }
