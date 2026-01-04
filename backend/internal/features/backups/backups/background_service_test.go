@@ -331,3 +331,59 @@ func Test_MakeBackupHavingFailedBackupWithRetries_RetriesCountNotExceeded(t *tes
 	assert.NoError(t, err)
 	assert.Len(t, backups, 3) // Should have 3 backups, not more than max
 }
+
+func Test_MakeBackgroundBackupWhenBakupsDisabled_BackupSkipped(t *testing.T) {
+	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
+
+	defer func() {
+		backups, _ := backupRepository.FindByDatabaseID(database.ID)
+		for _, backup := range backups {
+			backupRepository.DeleteByID(backup.ID)
+		}
+
+		databases.RemoveTestDatabase(database)
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(notifier)
+		storages.RemoveTestStorage(storage.ID)
+		workspaces_testing.RemoveTestWorkspace(workspace, router)
+	}()
+
+	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	assert.NoError(t, err)
+
+	timeOfDay := "04:00"
+	backupConfig.BackupInterval = &intervals.Interval{
+		Interval:  intervals.IntervalDaily,
+		TimeOfDay: &timeOfDay,
+	}
+	backupConfig.IsBackupsEnabled = false
+	backupConfig.StorePeriod = period.PeriodWeek
+	backupConfig.Storage = storage
+	backupConfig.StorageID = &storage.ID
+
+	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	assert.NoError(t, err)
+
+	// add old backup that would trigger new backup if enabled
+	backupRepository.Save(&Backup{
+		DatabaseID: database.ID,
+		StorageID:  storage.ID,
+
+		Status: BackupStatusCompleted,
+
+		CreatedAt: time.Now().UTC().Add(-24 * time.Hour),
+	})
+
+	GetBackupBackgroundService().runPendingBackups()
+
+	time.Sleep(100 * time.Millisecond)
+
+	backups, err := backupRepository.FindByDatabaseID(database.ID)
+	assert.NoError(t, err)
+	assert.Len(t, backups, 1)
+}

@@ -58,10 +58,6 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 		"storageId", storage.ID,
 	)
 
-	if !backupConfig.IsBackupsEnabled {
-		return nil, fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
-	}
-
 	mdb := db.Mongodb
 	if mdb == nil {
 		return nil, fmt.Errorf("mongodb database configuration is required")

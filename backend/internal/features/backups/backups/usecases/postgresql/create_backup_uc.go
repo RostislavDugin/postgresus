@@ -69,10 +69,6 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		storage.ID,
 	)
 
-	if !backupConfig.IsBackupsEnabled {
-		return nil, fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
-	}
-
 	pg := db.Postgresql
 
 	if pg == nil {

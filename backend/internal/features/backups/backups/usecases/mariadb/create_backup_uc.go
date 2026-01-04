@@ -64,10 +64,6 @@ func (uc *CreateMariadbBackupUsecase) Execute(
 		"storageId", storage.ID,
 	)
 
-	if !backupConfig.IsBackupsEnabled {
-		return nil, fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
-	}
-
 	mdb := db.Mariadb
 	if mdb == nil {
 		return nil, fmt.Errorf("mariadb database configuration is required")

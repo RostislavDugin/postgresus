@@ -64,10 +64,6 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 		"storageId", storage.ID,
 	)
 
-	if !backupConfig.IsBackupsEnabled {
-		return nil, fmt.Errorf("backups are not enabled for this database: \"%s\"", db.Name)
-	}
-
 	my := db.Mysql
 	if my == nil {
 		return nil, fmt.Errorf("mysql database configuration is required")
