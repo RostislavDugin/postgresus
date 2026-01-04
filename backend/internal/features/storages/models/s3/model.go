@@ -356,7 +356,7 @@ func (s *S3Storage) Update(incoming *S3Storage) {
 	}
 
 	// we do not allow to change the prefix after creation,
-	// otherwise we will have to migrate all the data to the new prefix
+	// otherwise we will have to transfer all the data to the new prefix
 }
 
 func (s *S3Storage) buildObjectKey(fileName string) string {

@@ -214,11 +214,6 @@ func (s *BackupService) MakeBackup(databaseID uuid.UUID, isLastTry bool) {
 		return
 	}
 
-	if !backupConfig.IsBackupsEnabled {
-		s.logger.Info("Backups are not enabled for this database")
-		return
-	}
-
 	if backupConfig.StorageID == nil {
 		s.logger.Error("Backup config storage ID is not defined")
 		return

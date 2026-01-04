@@ -52,6 +52,17 @@ func (s *DatabaseService) AddDbCopyListener(
 	s.dbCopyListener = append(s.dbCopyListener, dbCopyListener)
 }
 
+func (s *DatabaseService) GetNotifierAttachedDatabasesIDs(
+	notifierID uuid.UUID,
+) ([]uuid.UUID, error) {
+	databasesIDs, err := s.dbRepository.GetDatabasesIDsByNotifierID(notifierID)
+	if err != nil {
+		return nil, err
+	}
+
+	return databasesIDs, nil
+}
+
 func (s *DatabaseService) CreateDatabase(
 	user *users_models.User,
 	workspaceID uuid.UUID,
@@ -124,6 +135,12 @@ func (s *DatabaseService) UpdateDatabase(
 
 	if err := database.ValidateUpdate(*existingDatabase, *database); err != nil {
 		return err
+	}
+
+	for _, notifier := range database.Notifiers {
+		if notifier.WorkspaceID != *existingDatabase.WorkspaceID {
+			return errors.New("notifier does not belong to this workspace")
+		}
 	}
 
 	existingDatabase.Update(database)
@@ -249,6 +266,23 @@ func (s *DatabaseService) IsNotifierUsing(
 	}
 
 	return s.dbRepository.IsNotifierUsing(notifierID)
+}
+
+func (s *DatabaseService) CountDatabasesByNotifier(
+	user *users_models.User,
+	notifierID uuid.UUID,
+) (int, error) {
+	_, err := s.notifierService.GetNotifier(user, notifierID)
+	if err != nil {
+		return 0, err
+	}
+
+	databaseIDs, err := s.dbRepository.GetDatabasesIDsByNotifierID(notifierID)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(databaseIDs), nil
 }
 
 func (s *DatabaseService) TestDatabaseConnection(
@@ -479,6 +513,48 @@ func (s *DatabaseService) CopyDatabase(
 	)
 
 	return copiedDatabase, nil
+}
+
+func (s *DatabaseService) TransferDatabaseToWorkspace(
+	databaseID uuid.UUID,
+	targetWorkspaceID uuid.UUID,
+) error {
+	database, err := s.dbRepository.FindByID(databaseID)
+	if err != nil {
+		return err
+	}
+
+	sourceWorkspaceID := database.WorkspaceID
+	database.WorkspaceID = &targetWorkspaceID
+
+	_, err = s.dbRepository.Save(database)
+	if err != nil {
+		return err
+	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Database transferred: %s from workspace %s to workspace %s",
+			database.Name, sourceWorkspaceID, targetWorkspaceID),
+		nil,
+		&targetWorkspaceID,
+	)
+
+	return nil
+}
+
+func (s *DatabaseService) UpdateDatabaseNotifiers(
+	databaseID uuid.UUID,
+	newNotifiers []notifiers.Notifier,
+) error {
+	database, err := s.dbRepository.FindByID(databaseID)
+	if err != nil {
+		return err
+	}
+
+	database.Notifiers = newNotifiers
+
+	_, err = s.dbRepository.Save(database)
+	return err
 }
 
 func (s *DatabaseService) SetHealthStatus(

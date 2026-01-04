@@ -1,6 +1,8 @@
 package storages
 
 import (
+	"errors"
+
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	"net/http"
@@ -20,6 +22,7 @@ func (c *StorageController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/storages/:id", c.GetStorage)
 	router.DELETE("/storages/:id", c.DeleteStorage)
 	router.POST("/storages/:id/test", c.TestStorageConnection)
+	router.POST("/storages/:id/transfer", c.TransferStorageToWorkspace)
 	router.POST("/storages/direct-test", c.TestStorageConnectionDirect)
 }
 
@@ -55,7 +58,7 @@ func (c *StorageController) SaveStorage(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.SaveStorage(user, request.WorkspaceID, &request); err != nil {
-		if err.Error() == "insufficient permissions to manage storage in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToManageStorage) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -93,7 +96,7 @@ func (c *StorageController) GetStorage(ctx *gin.Context) {
 
 	storage, err := c.storageService.GetStorage(user, id)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view storage in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToViewStorage) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -137,7 +140,7 @@ func (c *StorageController) GetStorages(ctx *gin.Context) {
 
 	storages, err := c.storageService.GetStorages(user, workspaceID)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view storages in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToViewStorages) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -174,7 +177,7 @@ func (c *StorageController) DeleteStorage(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.DeleteStorage(user, id); err != nil {
-		if err.Error() == "insufficient permissions to manage storage in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToManageStorage) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -211,7 +214,7 @@ func (c *StorageController) TestStorageConnection(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.TestStorageConnection(user, id); err != nil {
-		if err.Error() == "insufficient permissions to test storage in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToTestStorage) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -220,6 +223,57 @@ func (c *StorageController) TestStorageConnection(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "storage connection test successful"})
+}
+
+// TransferStorageToWorkspace
+// @Summary Transfer storage to another workspace
+// @Description Transfer a storage from one workspace to another
+// @Tags storages
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "JWT token"
+// @Param id path string true "Storage ID"
+// @Param request body TransferStorageRequest true "Target workspace ID"
+// @Success 200
+// @Failure 400
+// @Failure 401
+// @Failure 403
+// @Router /storages/{id}/transfer [post]
+func (c *StorageController) TransferStorageToWorkspace(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid storage ID"})
+		return
+	}
+
+	var request TransferStorageRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if request.TargetWorkspaceID == uuid.Nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "targetWorkspaceId is required"})
+		return
+	}
+
+	if err := c.storageService.TransferStorageToWorkspace(user, id, request.TargetWorkspaceID, nil); err != nil {
+		if errors.Is(err, ErrInsufficientPermissionsInSourceWorkspace) ||
+			errors.Is(err, ErrInsufficientPermissionsInTargetWorkspace) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "storage transferred successfully"})
 }
 
 // TestStorageConnectionDirect

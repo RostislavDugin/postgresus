@@ -12,6 +12,7 @@ var storageService = &StorageService{
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	encryption.GetFieldEncryptor(),
+	nil,
 }
 var storageController = &StorageController{
 	storageService,

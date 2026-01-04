@@ -91,12 +91,20 @@ export const EditMongoDbSpecificDataComponent = ({
   };
 
   const testConnection = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mongodb) return;
     setIsTestingConnection(true);
     setIsConnectionFailed(false);
 
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mongodb: {
+        ...editingDatabase.mongodb,
+        password: editingDatabase.mongodb.password?.trim(),
+      },
+    };
+
     try {
-      await databaseApi.testDatabaseConnectionDirect(editingDatabase);
+      await databaseApi.testDatabaseConnectionDirect(trimmedDatabase);
       setIsConnectionTested(true);
       ToastHelper.showToast({
         title: 'Connection test passed',
@@ -111,13 +119,21 @@ export const EditMongoDbSpecificDataComponent = ({
   };
 
   const saveDatabase = async () => {
-    if (!editingDatabase) return;
+    if (!editingDatabase?.mongodb) return;
+
+    const trimmedDatabase = {
+      ...editingDatabase,
+      mongodb: {
+        ...editingDatabase.mongodb,
+        password: editingDatabase.mongodb.password?.trim(),
+      },
+    };
 
     if (isSaveToApi) {
       setIsSaving(true);
 
       try {
-        await databaseApi.updateDatabase(editingDatabase);
+        await databaseApi.updateDatabase(trimmedDatabase);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -125,7 +141,7 @@ export const EditMongoDbSpecificDataComponent = ({
       setIsSaving(false);
     }
 
-    onSaved(editingDatabase);
+    onSaved(trimmedDatabase);
   };
 
   useEffect(() => {
@@ -251,7 +267,7 @@ export const EditMongoDbSpecificDataComponent = ({
 
             setEditingDatabase({
               ...editingDatabase,
-              mongodb: { ...editingDatabase.mongodb, password: e.target.value.trim() },
+              mongodb: { ...editingDatabase.mongodb, password: e.target.value },
             });
             setIsConnectionTested(false);
           }}

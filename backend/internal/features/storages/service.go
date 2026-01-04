@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"errors"
 	"fmt"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
@@ -13,10 +12,15 @@ import (
 )
 
 type StorageService struct {
-	storageRepository *StorageRepository
-	workspaceService  *workspaces_services.WorkspaceService
-	auditLogService   *audit_logs.AuditLogService
-	fieldEncryptor    encryption.FieldEncryptor
+	storageRepository      *StorageRepository
+	workspaceService       *workspaces_services.WorkspaceService
+	auditLogService        *audit_logs.AuditLogService
+	fieldEncryptor         encryption.FieldEncryptor
+	storageDatabaseCounter StorageDatabaseCounter
+}
+
+func (s *StorageService) SetStorageDatabaseCounter(storageDatabaseCounter StorageDatabaseCounter) {
+	s.storageDatabaseCounter = storageDatabaseCounter
 }
 
 func (s *StorageService) SaveStorage(
@@ -29,7 +33,7 @@ func (s *StorageService) SaveStorage(
 		return err
 	}
 	if !canManage {
-		return errors.New("insufficient permissions to manage storage in this workspace")
+		return ErrInsufficientPermissionsToManageStorage
 	}
 
 	isUpdate := storage.ID != uuid.Nil
@@ -41,7 +45,7 @@ func (s *StorageService) SaveStorage(
 		}
 
 		if existingStorage.WorkspaceID != workspaceID {
-			return errors.New("storage does not belong to this workspace")
+			return ErrStorageDoesNotBelongToWorkspace
 		}
 
 		existingStorage.Update(storage)
@@ -104,7 +108,15 @@ func (s *StorageService) DeleteStorage(
 		return err
 	}
 	if !canManage {
-		return errors.New("insufficient permissions to manage storage in this workspace")
+		return ErrInsufficientPermissionsToManageStorage
+	}
+
+	attachedDatabasesIDs, err := s.storageDatabaseCounter.GetStorageAttachedDatabasesIDs(storage.ID)
+	if err != nil {
+		return err
+	}
+	if len(attachedDatabasesIDs) > 0 {
+		return ErrStorageHasAttachedDatabases
 	}
 
 	err = s.storageRepository.Delete(storage)
@@ -135,7 +147,7 @@ func (s *StorageService) GetStorage(
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("insufficient permissions to view storage in this workspace")
+		return nil, ErrInsufficientPermissionsToViewStorage
 	}
 
 	storage.HideSensitiveData()
@@ -152,7 +164,7 @@ func (s *StorageService) GetStorages(
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("insufficient permissions to view storages in this workspace")
+		return nil, ErrInsufficientPermissionsToViewStorages
 	}
 
 	storages, err := s.storageRepository.FindByWorkspaceID(workspaceID)
@@ -181,7 +193,7 @@ func (s *StorageService) TestStorageConnection(
 		return err
 	}
 	if !canView {
-		return errors.New("insufficient permissions to test storage in this workspace")
+		return ErrInsufficientPermissionsToTestStorage
 	}
 
 	err = storage.TestConnection(s.fieldEncryptor)
@@ -212,7 +224,7 @@ func (s *StorageService) TestStorageConnectionDirect(
 		}
 
 		if existingStorage.WorkspaceID != storage.WorkspaceID {
-			return errors.New("storage does not belong to this workspace")
+			return ErrStorageDoesNotBelongToWorkspace
 		}
 
 		existingStorage.Update(storage)
@@ -233,6 +245,70 @@ func (s *StorageService) GetStorageByID(
 	id uuid.UUID,
 ) (*Storage, error) {
 	return s.storageRepository.FindByID(id)
+}
+
+func (s *StorageService) TransferStorageToWorkspace(
+	user *users_models.User,
+	storageID uuid.UUID,
+	targetWorkspaceID uuid.UUID,
+	transferingWithDbID *uuid.UUID,
+) error {
+	existingStorage, err := s.storageRepository.FindByID(storageID)
+	if err != nil {
+		return err
+	}
+
+	canManageSource, err := s.workspaceService.CanUserManageDBs(existingStorage.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManageSource {
+		return ErrInsufficientPermissionsInSourceWorkspace
+	}
+
+	canManageTarget, err := s.workspaceService.CanUserManageDBs(targetWorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManageTarget {
+		return ErrInsufficientPermissionsInTargetWorkspace
+	}
+
+	attachedDatabasesIDs, err := s.storageDatabaseCounter.GetStorageAttachedDatabasesIDs(
+		existingStorage.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if transferingWithDbID != nil {
+		for _, dbID := range attachedDatabasesIDs {
+			if dbID != *transferingWithDbID {
+				return ErrStorageHasOtherAttachedDatabasesCannotTransfer
+			}
+		}
+	} else {
+		if len(attachedDatabasesIDs) > 0 {
+			return ErrStorageHasAttachedDatabasesCannotTransfer
+		}
+	}
+
+	sourceWorkspaceID := existingStorage.WorkspaceID
+	existingStorage.WorkspaceID = targetWorkspaceID
+
+	_, err = s.storageRepository.Save(existingStorage)
+	if err != nil {
+		return err
+	}
+
+	s.auditLogService.WriteAuditLog(
+		fmt.Sprintf("Storage transferred: %s from workspace %s to workspace %s",
+			existingStorage.Name, sourceWorkspaceID, targetWorkspaceID),
+		&user.ID,
+		&targetWorkspaceID,
+	)
+
+	return nil
 }
 
 func (s *StorageService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error {

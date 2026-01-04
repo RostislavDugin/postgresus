@@ -1,10 +1,12 @@
 package users_controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"databasus-backend/internal/config"
 	user_dto "databasus-backend/internal/features/users/dto"
+	users_errors "databasus-backend/internal/features/users/errors"
 	user_middleware "databasus-backend/internal/features/users/middleware"
 	users_services "databasus-backend/internal/features/users/services"
 
@@ -206,7 +208,7 @@ func (c *UserController) InviteUser(ctx *gin.Context) {
 
 	response, err := c.userService.InviteUser(&request, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to invite users" {
+		if errors.Is(err, users_errors.ErrInsufficientPermissionsToInviteUsers) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

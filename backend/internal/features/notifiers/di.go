@@ -14,6 +14,7 @@ var notifierService = &NotifierService{
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	encryption.GetFieldEncryptor(),
+	nil,
 }
 var notifierController = &NotifierController{
 	notifierService,

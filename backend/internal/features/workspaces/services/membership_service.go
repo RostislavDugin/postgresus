@@ -1,7 +1,6 @@
 package workspaces_services
 
 import (
-	"errors"
 	"fmt"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
@@ -10,6 +9,7 @@ import (
 	users_models "databasus-backend/internal/features/users/models"
 	users_services "databasus-backend/internal/features/users/services"
 	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_errors "databasus-backend/internal/features/workspaces/errors"
 	workspaces_models "databasus-backend/internal/features/workspaces/models"
 	workspaces_repositories "databasus-backend/internal/features/workspaces/repositories"
 
@@ -34,7 +34,7 @@ func (s *MembershipService) GetMembers(
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("insufficient permissions to view workspace members")
+		return nil, workspaces_errors.ErrInsufficientPermissionsToViewMembers
 	}
 
 	members, err := s.membershipRepository.GetWorkspaceMembers(workspaceID)
@@ -74,7 +74,7 @@ func (s *MembershipService) AddMember(
 		}
 
 		if !addedBy.CanInviteUsers(settings) {
-			return nil, errors.New("insufficient permissions to invite users")
+			return nil, workspaces_errors.ErrInsufficientPermissionsToInviteUsers
 		}
 
 		inviteRequest := &users_dto.InviteUserRequestDTO{
@@ -118,7 +118,7 @@ func (s *MembershipService) AddMember(
 		workspaceID,
 	)
 	if existingMembership != nil {
-		return nil, errors.New("user is already a member of this workspace")
+		return nil, workspaces_errors.ErrUserAlreadyMember
 	}
 
 	membership := &workspaces_models.WorkspaceMembership{
@@ -153,7 +153,7 @@ func (s *MembershipService) ChangeMemberRole(
 	}
 
 	if memberUserID == changedBy.ID {
-		return errors.New("cannot change your own role")
+		return workspaces_errors.ErrCannotChangeOwnRole
 	}
 
 	existingMembership, err := s.membershipRepository.GetMembershipByUserAndWorkspace(
@@ -161,16 +161,16 @@ func (s *MembershipService) ChangeMemberRole(
 		workspaceID,
 	)
 	if err != nil {
-		return errors.New("user is not a member of this workspace")
+		return workspaces_errors.ErrUserNotMemberOfWorkspace
 	}
 
 	if existingMembership.Role == users_enums.WorkspaceRoleOwner {
-		return errors.New("cannot change owner role")
+		return workspaces_errors.ErrCannotChangeOwnerRole
 	}
 
 	targetUser, err := s.userService.GetUserByID(memberUserID)
 	if err != nil {
-		return errors.New("user not found")
+		return workspaces_errors.ErrUserNotFound
 	}
 
 	if err := s.membershipRepository.UpdateMemberRole(memberUserID, workspaceID, request.Role); err != nil {
@@ -202,7 +202,7 @@ func (s *MembershipService) RemoveMember(
 	}
 
 	if !canManage {
-		return errors.New("insufficient permissions to remove members")
+		return workspaces_errors.ErrInsufficientPermissionsToRemoveMembers
 	}
 
 	existingMembership, err := s.membershipRepository.GetMembershipByUserAndWorkspace(
@@ -210,11 +210,11 @@ func (s *MembershipService) RemoveMember(
 		workspaceID,
 	)
 	if err != nil {
-		return errors.New("user is not a member of this workspace")
+		return workspaces_errors.ErrUserNotMemberOfWorkspace
 	}
 
 	if existingMembership.Role == users_enums.WorkspaceRoleOwner {
-		return errors.New("cannot remove workspace owner, transfer ownership first")
+		return workspaces_errors.ErrCannotRemoveWorkspaceOwner
 	}
 
 	if existingMembership.Role == users_enums.WorkspaceRoleAdmin {
@@ -223,13 +223,13 @@ func (s *MembershipService) RemoveMember(
 			return err
 		}
 		if !canManageAdmins {
-			return errors.New("only workspace owner can remove admins")
+			return workspaces_errors.ErrOnlyOwnerCanRemoveAdmins
 		}
 	}
 
 	targetUser, err := s.userService.GetUserByID(memberUserID)
 	if err != nil {
-		return errors.New("user not found")
+		return workspaces_errors.ErrUserNotFound
 	}
 
 	if err := s.membershipRepository.RemoveMember(memberUserID, workspaceID); err != nil {
@@ -257,21 +257,21 @@ func (s *MembershipService) TransferOwnership(
 
 	if user.Role != users_enums.UserRoleAdmin &&
 		(currentRole == nil || *currentRole != users_enums.WorkspaceRoleOwner) {
-		return errors.New("only workspace owner or admin can transfer ownership")
+		return workspaces_errors.ErrOnlyOwnerOrAdminCanTransferOwnership
 	}
 
 	newOwner, err := s.userService.GetUserByEmail(request.NewOwnerEmail)
 	if err != nil {
-		return errors.New("new owner not found")
+		return workspaces_errors.ErrNewOwnerNotFound
 	}
 
 	if newOwner == nil {
-		return errors.New("new owner not found")
+		return workspaces_errors.ErrNewOwnerNotFound
 	}
 
 	_, err = s.membershipRepository.GetMembershipByUserAndWorkspace(newOwner.ID, workspaceID)
 	if err != nil {
-		return errors.New("new owner must be a workspace member")
+		return workspaces_errors.ErrNewOwnerMustBeMember
 	}
 
 	currentOwner, err := s.membershipRepository.GetWorkspaceOwner(workspaceID)
@@ -280,7 +280,7 @@ func (s *MembershipService) TransferOwnership(
 	}
 
 	if currentOwner == nil {
-		return errors.New("no current workspace owner found")
+		return workspaces_errors.ErrNoCurrentWorkspaceOwner
 	}
 
 	if err := s.membershipRepository.UpdateMemberRole(newOwner.ID, workspaceID, users_enums.WorkspaceRoleOwner); err != nil {
@@ -311,7 +311,7 @@ func (s *MembershipService) validateCanManageMembership(
 			return err
 		}
 		if !canManageAdmins {
-			return errors.New("only workspace owner can add/manage admins")
+			return workspaces_errors.ErrOnlyOwnerCanAddManageAdmins
 		}
 		return nil
 	}
@@ -322,7 +322,7 @@ func (s *MembershipService) validateCanManageMembership(
 	}
 
 	if !canManageMembership {
-		return errors.New("insufficient permissions to manage members")
+		return workspaces_errors.ErrInsufficientPermissionsToManageMembers
 	}
 
 	return nil

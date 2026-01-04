@@ -2,6 +2,7 @@ import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
 import type { BackupConfig } from '../model/BackupConfig';
+import type { TransferDatabaseRequest } from '../model/TransferDatabaseRequest';
 
 export const backupConfigApi = {
   async saveBackupConfig(config: BackupConfig) {
@@ -31,5 +32,26 @@ export const backupConfigApi = {
         true,
       )
       .then((res) => res.isUsing);
+  },
+
+  async getDatabasesCountForStorage(storageId: string): Promise<number> {
+    return await apiHelper
+      .fetchGetJson<{
+        count: number;
+      }>(
+        `${getApplicationServer()}/api/v1/backup-configs/storage/${storageId}/databases-count`,
+        undefined,
+        true,
+      )
+      .then((res) => res.count);
+  },
+
+  async transferDatabase(databaseId: string, request: TransferDatabaseRequest): Promise<void> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+    await apiHelper.fetchPostJson(
+      `${getApplicationServer()}/api/v1/backup-configs/database/${databaseId}/transfer`,
+      requestOptions,
+    );
   },
 };

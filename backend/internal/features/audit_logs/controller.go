@@ -1,6 +1,7 @@
 package audit_logs
 
 import (
+	"errors"
 	"net/http"
 
 	user_models "databasus-backend/internal/features/users/models"
@@ -50,7 +51,7 @@ func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
 
 	response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
 	if err != nil {
-		if err.Error() == "only administrators can view global audit logs" {
+		if errors.Is(err, ErrOnlyAdminsCanViewGlobalLogs) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -99,7 +100,7 @@ func (c *AuditLogController) GetUserAuditLogs(ctx *gin.Context) {
 
 	response, err := c.auditLogService.GetUserAuditLogs(targetUserID, user, request)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view user audit logs" {
+		if errors.Is(err, ErrInsufficientPermissionsToViewLogs) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

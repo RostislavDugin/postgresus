@@ -29,6 +29,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockStorageDatabaseCounter struct{}
+
+func (m *mockStorageDatabaseCounter) GetStorageAttachedDatabasesIDs(
+	storageID uuid.UUID,
+) ([]uuid.UUID, error) {
+	return []uuid.UUID{}, nil
+}
+
 func Test_SaveNewStorage_StorageReturnedViaGet(t *testing.T) {
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	router := createRouter()
@@ -200,161 +208,161 @@ func Test_TestExistingStorageConnection_ConnectionEstablished(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_ViewerCanViewStorages_ButCannotModify(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	viewer := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		viewer,
-		users_enums.WorkspaceRoleViewer,
-		owner.Token,
-		router,
-	)
-	storage := createNewStorage(workspace.ID)
+func Test_WorkspaceRolePermissions(t *testing.T) {
+	tests := []struct {
+		name          string
+		workspaceRole *users_enums.WorkspaceRole
+		isGlobalAdmin bool
+		canCreate     bool
+		canUpdate     bool
+		canDelete     bool
+	}{
+		{
+			name:          "owner can manage storages",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "admin can manage storages",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "member can manage storages",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+		{
+			name:          "viewer can view but cannot modify storages",
+			workspaceRole: func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin: false,
+			canCreate:     false,
+			canUpdate:     false,
+			canDelete:     false,
+		},
+		{
+			name:          "global admin can manage storages",
+			workspaceRole: nil,
+			isGlobalAdmin: true,
+			canCreate:     true,
+			canUpdate:     true,
+			canDelete:     true,
+		},
+	}
 
-	var savedStorage Storage
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/storages",
-		"Bearer "+owner.Token,
-		*storage,
-		http.StatusOK,
-		&savedStorage,
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createRouter()
+			GetStorageService().SetStorageDatabaseCounter(&mockStorageDatabaseCounter{})
 
-	// Viewer can GET storages
-	var storages []Storage
-	test_utils.MakeGetRequestAndUnmarshal(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/storages?workspace_id=%s", workspace.ID.String()),
-		"Bearer "+viewer.Token,
-		http.StatusOK,
-		&storages,
-	)
-	assert.Len(t, storages, 1)
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
-	// Viewer cannot CREATE storage
-	newStorage := createNewStorage(workspace.ID)
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/storages", "Bearer "+viewer.Token, *newStorage, http.StatusForbidden,
-	)
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
+				testUserToken = owner.Token
+			} else if tt.workspaceRole != nil {
+				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(
+					workspace,
+					testUser,
+					*tt.workspaceRole,
+					owner.Token,
+					router,
+				)
+				testUserToken = testUser.Token
+			}
 
-	// Viewer cannot UPDATE storage
-	savedStorage.Name = "Updated by viewer"
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/storages", "Bearer "+viewer.Token, savedStorage, http.StatusForbidden,
-	)
+			// Owner creates initial storage for all test cases
+			var ownerStorage Storage
+			storage := createNewStorage(workspace.ID)
+			test_utils.MakePostRequestAndUnmarshal(
+				t, router, "/api/v1/storages", "Bearer "+owner.Token,
+				*storage, http.StatusOK, &ownerStorage,
+			)
 
-	// Viewer cannot DELETE storage
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
-		"Bearer "+viewer.Token,
-		http.StatusForbidden,
-	)
+			// Test GET storages
+			var storages []Storage
+			test_utils.MakeGetRequestAndUnmarshal(
+				t, router,
+				fmt.Sprintf("/api/v1/storages?workspace_id=%s", workspace.ID.String()),
+				"Bearer "+testUserToken, http.StatusOK, &storages,
+			)
+			assert.Len(t, storages, 1)
 
-	deleteStorage(t, router, savedStorage.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
+			// Test CREATE storage
+			createStatusCode := http.StatusOK
+			if !tt.canCreate {
+				createStatusCode = http.StatusForbidden
+			}
+			newStorage := createNewStorage(workspace.ID)
+			var savedStorage Storage
+			if tt.canCreate {
+				test_utils.MakePostRequestAndUnmarshal(
+					t, router, "/api/v1/storages", "Bearer "+testUserToken,
+					*newStorage, createStatusCode, &savedStorage,
+				)
+				assert.NotEmpty(t, savedStorage.ID)
+			} else {
+				test_utils.MakePostRequest(
+					t, router, "/api/v1/storages", "Bearer "+testUserToken,
+					*newStorage, createStatusCode,
+				)
+			}
 
-func Test_MemberCanManageStorages(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		member,
-		users_enums.WorkspaceRoleMember,
-		owner.Token,
-		router,
-	)
-	storage := createNewStorage(workspace.ID)
+			// Test UPDATE storage
+			updateStatusCode := http.StatusOK
+			if !tt.canUpdate {
+				updateStatusCode = http.StatusForbidden
+			}
+			ownerStorage.Name = "Updated by test user"
+			if tt.canUpdate {
+				var updatedStorage Storage
+				test_utils.MakePostRequestAndUnmarshal(
+					t, router, "/api/v1/storages", "Bearer "+testUserToken,
+					ownerStorage, updateStatusCode, &updatedStorage,
+				)
+				assert.Equal(t, "Updated by test user", updatedStorage.Name)
+			} else {
+				test_utils.MakePostRequest(
+					t, router, "/api/v1/storages", "Bearer "+testUserToken,
+					ownerStorage, updateStatusCode,
+				)
+			}
 
-	// Member can CREATE storage
-	var savedStorage Storage
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/storages",
-		"Bearer "+member.Token,
-		*storage,
-		http.StatusOK,
-		&savedStorage,
-	)
-	assert.NotEmpty(t, savedStorage.ID)
+			// Test DELETE storage
+			deleteStatusCode := http.StatusOK
+			if !tt.canDelete {
+				deleteStatusCode = http.StatusForbidden
+			}
+			test_utils.MakeDeleteRequest(
+				t, router,
+				fmt.Sprintf("/api/v1/storages/%s", ownerStorage.ID.String()),
+				"Bearer "+testUserToken, deleteStatusCode,
+			)
 
-	// Member can UPDATE storage
-	savedStorage.Name = "Updated by member"
-	var updatedStorage Storage
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/storages",
-		"Bearer "+member.Token,
-		savedStorage,
-		http.StatusOK,
-		&updatedStorage,
-	)
-	assert.Equal(t, "Updated by member", updatedStorage.Name)
-
-	// Member can DELETE storage
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
-		"Bearer "+member.Token,
-		http.StatusOK,
-	)
-
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_AdminCanManageStorages(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	admin := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	workspaces_testing.AddMemberToWorkspace(
-		workspace,
-		admin,
-		users_enums.WorkspaceRoleAdmin,
-		owner.Token,
-		router,
-	)
-	storage := createNewStorage(workspace.ID)
-
-	// Admin can CREATE, UPDATE, DELETE
-	var savedStorage Storage
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/storages",
-		"Bearer "+admin.Token,
-		*storage,
-		http.StatusOK,
-		&savedStorage,
-	)
-
-	savedStorage.Name = "Updated by admin"
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/storages", "Bearer "+admin.Token, savedStorage, http.StatusOK,
-	)
-
-	test_utils.MakeDeleteRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
-		"Bearer "+admin.Token,
-		http.StatusOK,
-	)
-
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+			// Cleanup
+			if tt.canCreate {
+				deleteStorage(t, router, savedStorage.ID, workspace.ID, owner.Token)
+			}
+			if !tt.canDelete {
+				deleteStorage(t, router, ownerStorage.ID, workspace.ID, owner.Token)
+			}
+			workspaces_testing.RemoveTestWorkspace(workspace, router)
+		})
+	}
 }
 
 func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
@@ -975,6 +983,184 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 	}
 }
 
+func Test_TransferStorage_PermissionsEnforced(t *testing.T) {
+	tests := []struct {
+		name               string
+		sourceRole         *users_enums.WorkspaceRole
+		targetRole         *users_enums.WorkspaceRole
+		isGlobalAdmin      bool
+		expectSuccess      bool
+		expectedStatusCode int
+	}{
+		{
+			name:               "owner in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "member in both workspaces can transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "viewer in both workspaces cannot transfer",
+			sourceRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
+			isGlobalAdmin:      false,
+			expectSuccess:      false,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "global admin can transfer",
+			sourceRole:         nil,
+			targetRole:         nil,
+			isGlobalAdmin:      true,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := createRouter()
+			GetStorageService().SetStorageDatabaseCounter(&mockStorageDatabaseCounter{})
+
+			sourceOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			targetOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+			sourceWorkspace := workspaces_testing.CreateTestWorkspace(
+				"Source Workspace",
+				sourceOwner,
+				router,
+			)
+			targetWorkspace := workspaces_testing.CreateTestWorkspace(
+				"Target Workspace",
+				targetOwner,
+				router,
+			)
+
+			storage := createNewStorage(sourceWorkspace.ID)
+			var savedStorage Storage
+			test_utils.MakePostRequestAndUnmarshal(
+				t,
+				router,
+				"/api/v1/storages",
+				"Bearer "+sourceOwner.Token,
+				*storage,
+				http.StatusOK,
+				&savedStorage,
+			)
+
+			var testUserToken string
+			if tt.isGlobalAdmin {
+				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				testUserToken = admin.Token
+			} else if tt.sourceRole != nil {
+				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				workspaces_testing.AddMemberToWorkspace(sourceWorkspace, testUser, *tt.sourceRole, sourceOwner.Token, router)
+				workspaces_testing.AddMemberToWorkspace(targetWorkspace, testUser, *tt.targetRole, targetOwner.Token, router)
+				testUserToken = testUser.Token
+			}
+
+			request := TransferStorageRequest{
+				TargetWorkspaceID: targetWorkspace.ID,
+			}
+
+			testResp := test_utils.MakePostRequest(
+				t,
+				router,
+				fmt.Sprintf("/api/v1/storages/%s/transfer", savedStorage.ID.String()),
+				"Bearer "+testUserToken,
+				request,
+				tt.expectedStatusCode,
+			)
+
+			if tt.expectSuccess {
+				assert.Contains(t, string(testResp.Body), "transferred successfully")
+
+				var retrievedStorage Storage
+				test_utils.MakeGetRequestAndUnmarshal(
+					t,
+					router,
+					fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
+					"Bearer "+targetOwner.Token,
+					http.StatusOK,
+					&retrievedStorage,
+				)
+				assert.Equal(t, targetWorkspace.ID, retrievedStorage.WorkspaceID)
+
+				deleteStorage(t, router, savedStorage.ID, targetWorkspace.ID, targetOwner.Token)
+			} else {
+				assert.Contains(t, string(testResp.Body), "insufficient permissions")
+				deleteStorage(t, router, savedStorage.ID, sourceWorkspace.ID, sourceOwner.Token)
+			}
+
+			workspaces_testing.RemoveTestWorkspace(sourceWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(targetWorkspace, router)
+		})
+	}
+}
+
+func Test_TransferStorageNotManagableWorkspace_TransferFailed(t *testing.T) {
+	router := createRouter()
+	GetStorageService().SetStorageDatabaseCounter(&mockStorageDatabaseCounter{})
+
+	userA := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	userB := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", userA, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", userB, router)
+
+	storage := createNewStorage(workspace1.ID)
+	var savedStorage Storage
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/storages",
+		"Bearer "+userA.Token,
+		*storage,
+		http.StatusOK,
+		&savedStorage,
+	)
+
+	request := TransferStorageRequest{
+		TargetWorkspaceID: workspace2.ID,
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/storages/%s/transfer", savedStorage.ID.String()),
+		"Bearer "+userA.Token,
+		request,
+		http.StatusForbidden,
+	)
+
+	assert.Contains(
+		t,
+		string(testResp.Body),
+		"insufficient permissions to manage storage in target workspace",
+	)
+
+	deleteStorage(t, router, savedStorage.ID, workspace1.ID, userA.Token)
+	workspaces_testing.RemoveTestWorkspace(workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+}
+
 func createRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -989,6 +1175,7 @@ func createRouter() *gin.Engine {
 	}
 
 	audit_logs.SetupDependencies()
+	GetStorageService().SetStorageDatabaseCounter(&mockStorageDatabaseCounter{})
 
 	return router
 }

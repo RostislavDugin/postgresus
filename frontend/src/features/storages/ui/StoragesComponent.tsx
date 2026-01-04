@@ -136,6 +136,13 @@ export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorage
                 updateSelectedStorageId(remainingStorages[0]?.id);
                 loadStorages();
               }}
+              onStorageTransferred={() => {
+                const remainingStorages = storages.filter(
+                  (storage) => storage.id !== selectedStorageId,
+                );
+                updateSelectedStorageId(remainingStorages[0]?.id);
+                loadStorages();
+              }}
               isCanManageStorages={isCanManageStorages}
             />
           </div>

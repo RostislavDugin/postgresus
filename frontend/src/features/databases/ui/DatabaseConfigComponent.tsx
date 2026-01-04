@@ -1,12 +1,20 @@
-import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import {
+  ArrowRightOutlined,
+  CloseOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
 import { Button, Input } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { backupConfigApi } from '../../../entity/backups';
 import { type Database, databaseApi } from '../../../entity/databases';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { EditBackupConfigComponent, ShowBackupConfigComponent } from '../../backups';
 import { EditHealthcheckConfigComponent, ShowHealthcheckConfigComponent } from '../../healthcheck';
+import { DatabaseTransferDialogComponent } from './DatabaseTransferDialogComponent';
 import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComponent';
 import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDataComponent';
 import { ShowDatabaseNotifiersComponent } from './show/ShowDatabaseNotifiersComponent';
@@ -46,6 +54,15 @@ export const DatabaseConfigComponent = ({
   const [isCopying, setIsCopying] = useState(false);
   const [isShowRemoveConfirm, setIsShowRemoveConfirm] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isShowCopyConfirm, setIsShowCopyConfirm] = useState(false);
+  const [isShowTransferDialog, setIsShowTransferDialog] = useState(false);
+  const [currentStorageId, setCurrentStorageId] = useState<string | undefined>();
+
+  useEffect(() => {
+    backupConfigApi.getBackupConfigByDbID(database.id).then((config) => {
+      setCurrentStorageId(config.storage?.id);
+    });
+  }, [database.id]);
 
   const loadSettings = () => {
     setDatabase(undefined);
@@ -57,6 +74,7 @@ export const DatabaseConfigComponent = ({
     if (!database) return;
 
     setIsCopying(true);
+    setIsShowCopyConfirm(false);
 
     databaseApi
       .copyDatabase(database.id)
@@ -377,28 +395,48 @@ export const DatabaseConfigComponent = ({
             Test connection
           </Button>
 
-          <Button
-            type="primary"
-            className="w-full sm:mr-1 sm:w-auto"
-            onClick={copyDatabase}
-            loading={isCopying}
-            disabled={isCopying}
-          >
-            Copy
-          </Button>
+          {isCanManageDBs && (
+            <>
+              <Button
+                type="primary"
+                ghost
+                icon={<ArrowRightOutlined />}
+                onClick={() => setIsShowTransferDialog(true)}
+                className="sm:mr-1"
+              />
 
-          <Button
-            type="primary"
-            className="w-full sm:w-auto"
-            danger
-            onClick={() => setIsShowRemoveConfirm(true)}
-            ghost
-            loading={isRemoving}
-            disabled={isRemoving}
-          >
-            Remove
-          </Button>
+              <Button
+                type="primary"
+                ghost
+                icon={<CopyOutlined />}
+                onClick={() => setIsShowCopyConfirm(true)}
+                loading={isCopying}
+                disabled={isCopying}
+                className="sm:mr-1"
+              />
+
+              <Button
+                type="primary"
+                ghost
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => setIsShowRemoveConfirm(true)}
+                loading={isRemoving}
+                disabled={isRemoving}
+              />
+            </>
+          )}
         </div>
+      )}
+
+      {isShowCopyConfirm && (
+        <ConfirmationComponent
+          onConfirm={copyDatabase}
+          onDecline={() => setIsShowCopyConfirm(false)}
+          description="Are you sure you want to copy this database? A new database with the same settings will be created."
+          actionText="Copy"
+          actionButtonColor="blue"
+        />
       )}
 
       {isShowRemoveConfirm && (
@@ -408,6 +446,18 @@ export const DatabaseConfigComponent = ({
           description="Are you sure you want to remove this database? This action cannot be undone."
           actionText="Remove"
           actionButtonColor="red"
+        />
+      )}
+
+      {isShowTransferDialog && (
+        <DatabaseTransferDialogComponent
+          database={database}
+          currentStorageId={currentStorageId}
+          onClose={() => setIsShowTransferDialog(false)}
+          onTransferred={() => {
+            setIsShowTransferDialog(false);
+            window.location.reload();
+          }}
         />
       )}
     </div>

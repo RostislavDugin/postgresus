@@ -1,10 +1,12 @@
 package workspaces_controllers
 
 import (
+	"errors"
 	"net/http"
 
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_errors "databasus-backend/internal/features/workspaces/errors"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 
 	"github.com/gin-gonic/gin"
@@ -53,7 +55,7 @@ func (c *MembershipController) ListMembers(ctx *gin.Context) {
 
 	response, err := c.membershipService.GetMembers(workspaceID, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view workspace members" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToViewMembers) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -105,8 +107,8 @@ func (c *MembershipController) AddMember(ctx *gin.Context) {
 
 	response, err := c.membershipService.AddMember(workspaceID, &request, user)
 	if err != nil {
-		if err.Error() == "insufficient permissions to manage members" ||
-			err.Error() == "only workspace owner can add/manage admins" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToManageMembers) ||
+			errors.Is(err, workspaces_errors.ErrOnlyOwnerCanAddManageAdmins) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -160,8 +162,8 @@ func (c *MembershipController) ChangeMemberRole(ctx *gin.Context) {
 	}
 
 	if err := c.membershipService.ChangeMemberRole(workspaceID, userID, &request, user); err != nil {
-		if err.Error() == "insufficient permissions to manage members" ||
-			err.Error() == "only workspace owner can add/manage admins" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToManageMembers) ||
+			errors.Is(err, workspaces_errors.ErrOnlyOwnerCanAddManageAdmins) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -206,8 +208,8 @@ func (c *MembershipController) RemoveMember(ctx *gin.Context) {
 	}
 
 	if err := c.membershipService.RemoveMember(workspaceID, userID, user); err != nil {
-		if err.Error() == "insufficient permissions to remove members" ||
-			err.Error() == "only workspace owner can remove admins" {
+		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToRemoveMembers) ||
+			errors.Is(err, workspaces_errors.ErrOnlyOwnerCanRemoveAdmins) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -253,7 +255,7 @@ func (c *MembershipController) TransferOwnership(ctx *gin.Context) {
 	}
 
 	if err := c.membershipService.TransferOwnership(workspaceID, &request, user); err != nil {
-		if err.Error() == "only workspace owner or admin can transfer ownership" {
+		if errors.Is(err, workspaces_errors.ErrOnlyOwnerOrAdminCanTransferOwnership) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

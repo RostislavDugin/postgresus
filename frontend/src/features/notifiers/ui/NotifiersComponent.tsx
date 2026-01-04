@@ -166,6 +166,13 @@ export const NotifiersComponent = ({ contentHeight, workspace, isCanManageNotifi
                 updateSelectedNotifierId(remainingNotifiers[0]?.id);
                 loadNotifiers();
               }}
+              onNotifierTransferred={() => {
+                const remainingNotifiers = notifiers.filter(
+                  (notifier) => notifier.id !== selectedNotifierId,
+                );
+                updateSelectedNotifierId(remainingNotifiers[0]?.id);
+                loadNotifiers();
+              }}
               isCanManageNotifiers={isCanManageNotifiers}
             />
           </div>

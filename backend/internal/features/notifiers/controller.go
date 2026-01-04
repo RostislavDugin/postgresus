@@ -1,6 +1,8 @@
 package notifiers
 
 import (
+	"errors"
+
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	"net/http"
@@ -20,6 +22,7 @@ func (c *NotifierController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/notifiers/:id", c.GetNotifier)
 	router.DELETE("/notifiers/:id", c.DeleteNotifier)
 	router.POST("/notifiers/:id/test", c.SendTestNotification)
+	router.POST("/notifiers/:id/transfer", c.TransferNotifierToWorkspace)
 	router.POST("/notifiers/direct-test", c.SendTestNotificationDirect)
 }
 
@@ -55,7 +58,7 @@ func (c *NotifierController) SaveNotifier(ctx *gin.Context) {
 	}
 
 	if err := c.notifierService.SaveNotifier(user, request.WorkspaceID, &request); err != nil {
-		if err.Error() == "insufficient permissions to manage notifier in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToManageNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -93,7 +96,7 @@ func (c *NotifierController) GetNotifier(ctx *gin.Context) {
 
 	notifier, err := c.notifierService.GetNotifier(user, id)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view notifier in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToViewNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -137,7 +140,7 @@ func (c *NotifierController) GetNotifiers(ctx *gin.Context) {
 
 	notifiers, err := c.notifierService.GetNotifiers(user, workspaceID)
 	if err != nil {
-		if err.Error() == "insufficient permissions to view notifiers in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToViewNotifiers) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -174,7 +177,7 @@ func (c *NotifierController) DeleteNotifier(ctx *gin.Context) {
 	}
 
 	if err := c.notifierService.DeleteNotifier(user, id); err != nil {
-		if err.Error() == "insufficient permissions to manage notifier in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToManageNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -211,7 +214,7 @@ func (c *NotifierController) SendTestNotification(ctx *gin.Context) {
 	}
 
 	if err := c.notifierService.SendTestNotification(user, id); err != nil {
-		if err.Error() == "insufficient permissions to test notifier in this workspace" {
+		if errors.Is(err, ErrInsufficientPermissionsToTestNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -220,6 +223,57 @@ func (c *NotifierController) SendTestNotification(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "test notification sent successfully"})
+}
+
+// TransferNotifierToWorkspace
+// @Summary Transfer notifier to another workspace
+// @Description Transfer a notifier from one workspace to another
+// @Tags notifiers
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "JWT token"
+// @Param id path string true "Notifier ID"
+// @Param request body TransferNotifierRequest true "Target workspace ID"
+// @Success 200
+// @Failure 400
+// @Failure 401
+// @Failure 403
+// @Router /notifiers/{id}/transfer [post]
+func (c *NotifierController) TransferNotifierToWorkspace(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid notifier ID"})
+		return
+	}
+
+	var request TransferNotifierRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if request.TargetWorkspaceID == uuid.Nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "targetWorkspaceId is required"})
+		return
+	}
+
+	if err := c.notifierService.TransferNotifierToWorkspace(user, id, request.TargetWorkspaceID, nil); err != nil {
+		if errors.Is(err, ErrInsufficientPermissionsInSourceWorkspace) ||
+			errors.Is(err, ErrInsufficientPermissionsInTargetWorkspace) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "notifier transferred successfully"})
 }
 
 // SendTestNotificationDirect
