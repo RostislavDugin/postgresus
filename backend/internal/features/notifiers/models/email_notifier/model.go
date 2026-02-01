@@ -131,7 +131,7 @@ func (e *EmailNotifier) buildEmailContent(heading, message, from string) []byte 
 	encodedSubject := encodeRFC2047(heading)
 	subject := fmt.Sprintf("Subject: %s\r\n", encodedSubject)
 	// Get the current time
-	now := time.Now().UTC()
+	now := time.Now()
 	// Generate Date header that is compliant with RFC 5322 using the format from RFC 1123Z
 	dateHeader := fmt.Sprintf("Date: %s\r\n", now.Format(time.RFC1123Z))
 
