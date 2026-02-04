@@ -99,9 +99,9 @@ func main() {
 	}
 
 	err = users_services.GetSettingsService().CreateDefaultSettings(
-		config.GetEnv().UserSettingsIsAllowRegistrations,
-		config.GetEnv().UserSettingsIsAllowInvitations,
-		config.GetEnv().UserSettingsIsAllowMemberCreateWorkspaces,
+		config.GetEnv().UsersSettingsIsAllowRegistrations,
+		config.GetEnv().UsersSettingsIsAllowInvitations,
+		config.GetEnv().UsersSettingsIsAllowMemberCreateWorkspaces,
 	)
 	if err != nil {
 		log.Error("Failed to create default user settings", "error", err)
