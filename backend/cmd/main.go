@@ -98,6 +98,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	err = users_services.GetSettingsService().CreateDefaultSettings(
+		config.GetEnv().UserSettingsIsAllowRegistrations,
+		config.GetEnv().UserSettingsIsAllowInvitations,
+		config.GetEnv().UserSettingsIsAllowMemberCreateWorkspaces,
+	)
+	if err != nil {
+		log.Error("Failed to create default user settings", "error", err)
+		os.Exit(1)
+	}
+
 	handlePasswordReset(log)
 
 	go generateSwaggerDocs(log)

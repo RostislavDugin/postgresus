@@ -1,11 +1,15 @@
 package users_services
 
 import (
+	"errors"
 	"fmt"
 
 	users_interfaces "databasus-backend/internal/features/users/interfaces"
 	users_models "databasus-backend/internal/features/users/models"
 	users_repositories "databasus-backend/internal/features/users/repositories"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type SettingsService struct {
@@ -19,6 +23,34 @@ func (s *SettingsService) SetAuditLogWriter(writer users_interfaces.AuditLogWrit
 
 func (s *SettingsService) GetSettings() (*users_models.UsersSettings, error) {
 	return s.userSettingsRepository.GetSettings()
+}
+
+func (s *SettingsService) CreateDefaultSettings(isAllowExternalRegistrations bool,
+	isAllowInvitations bool,
+	isMemberAllowedToCreateWorkspaces bool,
+) error {
+	// Check if settings already exist
+	_, err := s.userSettingsRepository.GetSettings()
+	if err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("failed to check if user settings already exist: %w", err)
+	} else {
+		// Settings don't exist - create from passed values
+		defaultSettings := users_models.UsersSettings{
+			ID:                                uuid.New(),
+			IsAllowExternalRegistrations:      isAllowExternalRegistrations,
+			IsAllowMemberInvitations:          isAllowInvitations,
+			IsMemberAllowedToCreateWorkspaces: isMemberAllowedToCreateWorkspaces,
+		}
+
+		if err := s.userSettingsRepository.CreateSettings(&defaultSettings); err != nil {
+			return fmt.Errorf("failed to create default user settings: %w", err)
+		}
+
+	}
+
+	return nil
 }
 
 func (s *SettingsService) UpdateSettings(

@@ -52,6 +52,10 @@ type EnvVariables struct {
 	TempFolder    string
 	SecretKeyPath string
 
+	UserSettingsIsAllowRegistrations          bool `env:"USER_SETTINGS_IS_ALLOW_REGISTRATIONS"            env-default:"true"`
+	UserSettingsIsAllowInvitations            bool `env:"USER_SETTINGS_IS_ALLOW_INVITATIONS"              env-default:"true"`
+	UserSettingsIsAllowMemberCreateWorkspaces bool `env:"USER_SETTINGS_IS_ALLOW_MEMBER_CREATE_WORKSPACES" env-default:"true"`
+
 	TestGoogleDriveClientID     string `env:"TEST_GOOGLE_DRIVE_CLIENT_ID"`
 	TestGoogleDriveClientSecret string `env:"TEST_GOOGLE_DRIVE_CLIENT_SECRET"`
 	TestGoogleDriveTokenJSON    string `env:"TEST_GOOGLE_DRIVE_TOKEN_JSON"`
