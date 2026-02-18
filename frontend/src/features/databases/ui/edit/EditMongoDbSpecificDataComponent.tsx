@@ -46,7 +46,10 @@ export const EditMongoDbSpecificDataComponent = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
-  const hasAdvancedValues = !!database.mongodb?.authDatabase || !!database.mongodb?.isSrv;
+  const hasAdvancedValues =
+    !!database.mongodb?.authDatabase ||
+    !!database.mongodb?.isSrv ||
+    !!database.mongodb?.directConnection;
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const parseFromClipboard = async () => {
@@ -80,11 +83,12 @@ export const EditMongoDbSpecificDataComponent = ({
           authDatabase: result.authDatabase,
           isHttps: result.useTls,
           isSrv: result.isSrv,
+          directConnection: result.directConnection,
           cpuCount: 1,
         },
       };
 
-      if (result.isSrv) {
+      if (result.isSrv || result.directConnection) {
         setShowAdvanced(true);
       }
 
@@ -401,6 +405,31 @@ export const EditMongoDbSpecificDataComponent = ({
               <Tooltip
                 className="cursor-pointer"
                 title="Enable for MongoDB Atlas SRV connections (mongodb+srv://). Port is not required for SRV connections."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Direct connection</div>
+            <div className="flex items-center">
+              <Switch
+                checked={editingDatabase.mongodb?.directConnection || false}
+                onChange={(checked) => {
+                  if (!editingDatabase.mongodb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mongodb: { ...editingDatabase.mongodb, directConnection: checked },
+                  });
+                  setIsConnectionTested(false);
+                }}
+                size="small"
+              />
+              <Tooltip
+                className="cursor-pointer"
+                title="Bypass replica set topology discovery by connecting directly to a single server. Use this when connecting to a replica set member exposed via a LoadBalancer."
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>

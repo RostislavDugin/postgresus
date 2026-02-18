@@ -631,6 +631,89 @@ func Test_Validate_SrvConnection_AllowsNullPort(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_BuildConnectionURI_WithDirectConnection_ReturnsCorrectUri(t *testing.T) {
+	port := 27017
+	model := &MongodbDatabase{
+		Host:             "mongo.example.local",
+		Port:             &port,
+		Username:         "testuser",
+		Password:         "testpass123",
+		Database:         "mydb",
+		AuthDatabase:     "admin",
+		IsHttps:          false,
+		IsSrv:            false,
+		DirectConnection: true,
+	}
+
+	uri := model.buildConnectionURI("testpass123")
+
+	assert.Contains(t, uri, "mongodb://")
+	assert.Contains(t, uri, "directConnection=true")
+	assert.Contains(t, uri, "mongo.example.local:27017")
+	assert.Contains(t, uri, "authSource=admin")
+}
+
+func Test_BuildConnectionURI_WithoutDirectConnection_OmitsParam(t *testing.T) {
+	port := 27017
+	model := &MongodbDatabase{
+		Host:             "localhost",
+		Port:             &port,
+		Username:         "testuser",
+		Password:         "testpass123",
+		Database:         "mydb",
+		AuthDatabase:     "admin",
+		IsHttps:          false,
+		IsSrv:            false,
+		DirectConnection: false,
+	}
+
+	uri := model.buildConnectionURI("testpass123")
+
+	assert.NotContains(t, uri, "directConnection")
+}
+
+func Test_BuildMongodumpURI_WithDirectConnection_ReturnsCorrectUri(t *testing.T) {
+	port := 27017
+	model := &MongodbDatabase{
+		Host:             "mongo.example.local",
+		Port:             &port,
+		Username:         "testuser",
+		Password:         "testpass123",
+		Database:         "mydb",
+		AuthDatabase:     "admin",
+		IsHttps:          false,
+		IsSrv:            false,
+		DirectConnection: true,
+	}
+
+	uri := model.BuildMongodumpURI("testpass123")
+
+	assert.Contains(t, uri, "mongodb://")
+	assert.Contains(t, uri, "directConnection=true")
+	assert.NotContains(t, uri, "/mydb")
+}
+
+func Test_BuildConnectionURI_WithDirectConnectionAndTls_ReturnsBothParams(t *testing.T) {
+	port := 27017
+	model := &MongodbDatabase{
+		Host:             "mongo.example.local",
+		Port:             &port,
+		Username:         "testuser",
+		Password:         "testpass123",
+		Database:         "mydb",
+		AuthDatabase:     "admin",
+		IsHttps:          true,
+		IsSrv:            false,
+		DirectConnection: true,
+	}
+
+	uri := model.buildConnectionURI("testpass123")
+
+	assert.Contains(t, uri, "directConnection=true")
+	assert.Contains(t, uri, "tls=true")
+	assert.Contains(t, uri, "tlsInsecure=true")
+}
+
 func Test_Validate_StandardConnection_RequiresPort(t *testing.T) {
 	model := &MongodbDatabase{
 		Host:         "localhost",

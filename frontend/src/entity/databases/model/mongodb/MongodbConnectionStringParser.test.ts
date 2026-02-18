@@ -456,6 +456,46 @@ describe('MongodbConnectionStringParser', () => {
     });
   });
 
+  describe('Direct Connection Handling', () => {
+    it('should parse directConnection=true from URI', () => {
+      const result = expectSuccess(
+        MongodbConnectionStringParser.parse(
+          'mongodb://user:pass@host:27017/db?authSource=admin&directConnection=true',
+        ),
+      );
+
+      expect(result.directConnection).toBe(true);
+    });
+
+    it('should default directConnection to false when not specified in URI', () => {
+      const result = expectSuccess(
+        MongodbConnectionStringParser.parse('mongodb://user:pass@host:27017/db'),
+      );
+
+      expect(result.directConnection).toBe(false);
+    });
+
+    it('should parse directConnection=true from key-value format', () => {
+      const result = expectSuccess(
+        MongodbConnectionStringParser.parse(
+          'host=localhost port=27017 database=mydb user=admin password=secret directConnection=true',
+        ),
+      );
+
+      expect(result.directConnection).toBe(true);
+    });
+
+    it('should default directConnection to false in key-value format when not specified', () => {
+      const result = expectSuccess(
+        MongodbConnectionStringParser.parse(
+          'host=localhost port=27017 database=mydb user=admin password=secret',
+        ),
+      );
+
+      expect(result.directConnection).toBe(false);
+    });
+  });
+
   describe('Password Placeholder Handling', () => {
     it('should treat <db_password> placeholder as empty password in URI format', () => {
       const result = expectSuccess(

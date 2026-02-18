@@ -42,6 +42,13 @@ export const ShowMongoDbSpecificDataComponent = ({ database }: Props) => {
         <div>{database.mongodb?.cpuCount}</div>
       </div>
 
+      {database.mongodb?.directConnection && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Direct connection</div>
+          <div>Yes</div>
+        </div>
+      )}
+
       {database.mongodb?.authDatabase && (
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Auth database</div>
