@@ -429,7 +429,7 @@ export const EditMongoDbSpecificDataComponent = ({
               />
               <Tooltip
                 className="cursor-pointer"
-                title="Bypass replica set topology discovery by connecting directly to a single server. Use this when connecting to a replica set member exposed via a LoadBalancer."
+                title="Connect directly to a single server, skipping replica set discovery. Useful when the server is behind a load balancer, proxy, or tunnel."
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>
