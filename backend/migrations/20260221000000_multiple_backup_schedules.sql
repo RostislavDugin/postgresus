@@ -4,9 +4,6 @@
 -- Add new ID column
 ALTER TABLE backup_configs ADD COLUMN id UUID DEFAULT gen_random_uuid();
 
--- Populate ID for existing rows
-UPDATE backup_configs SET id = gen_random_uuid() WHERE id IS NULL;
-
 -- Set NOT NULL on id column
 ALTER TABLE backup_configs ALTER COLUMN id SET NOT NULL;
 
@@ -67,6 +64,12 @@ ALTER TABLE backup_configs DROP COLUMN IF EXISTS name;
 
 -- Remove index
 DROP INDEX IF EXISTS idx_backup_configs_database_id;
+
+-- Deduplicate backup configs before restoring the primary key on database_id
+DELETE FROM backup_configs 
+WHERE id NOT IN (
+    SELECT MIN(id) FROM backup_configs GROUP BY database_id
+);
 
 -- Drop new primary key
 ALTER TABLE backup_configs DROP CONSTRAINT backup_configs_pkey;
