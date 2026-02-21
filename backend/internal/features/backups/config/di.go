@@ -20,6 +20,7 @@ var backupConfigService = &BackupConfigService{
 	notifiers.GetNotifierService(),
 	workspaces_services.GetWorkspaceService(),
 	plans.GetDatabasePlanService(),
+	logger.GetLogger(),
 	nil,
 }
 var backupConfigController = &BackupConfigController{

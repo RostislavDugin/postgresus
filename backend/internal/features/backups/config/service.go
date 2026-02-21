@@ -2,6 +2,7 @@ package backups_config
 
 import (
 	"errors"
+	"log/slog"
 
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/intervals"
@@ -21,6 +22,7 @@ type BackupConfigService struct {
 	notifierService        *notifiers.NotifierService
 	workspaceService       *workspaces_services.WorkspaceService
 	databasePlanService    *plans.DatabasePlanService
+	logger                 *slog.Logger
 
 	dbStorageChangeListener BackupConfigStorageChangeListener
 }
@@ -275,7 +277,10 @@ func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID
 
 	for _, originalConfig := range originalConfigs {
 		newConfig := originalConfig.Copy(newDatabaseID)
-		_, _ = s.backupConfigRepository.Save(newConfig)
+		_, err := s.backupConfigRepository.Save(newConfig)
+		if err != nil {
+			s.logger.Error("Failed to save copied backup config", "error", err)
+		}
 	}
 }
 
@@ -361,9 +366,14 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 	}
 
 	if request.IsTransferWithStorage {
+		transferredStorages := make(map[uuid.UUID]bool)
 		for _, backupConfig := range backupConfigs {
 			if backupConfig.StorageID == nil {
 				return ErrDatabaseHasNoStorage
+			}
+
+			if transferredStorages[*backupConfig.StorageID] {
+				continue
 			}
 
 			attachedDatabasesIDs, err := s.GetStorageAttachedDatabasesIDs(*backupConfig.StorageID)
@@ -386,6 +396,8 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 			if err != nil {
 				return err
 			}
+
+			transferredStorages[*backupConfig.StorageID] = true
 		}
 	} else if request.TargetStorageID != nil {
 		targetStorage, err := s.storageService.GetStorageByID(*request.TargetStorageID)
