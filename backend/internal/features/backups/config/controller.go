@@ -51,7 +51,13 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 	// make sure we rely on full .Storage object
 	requestDTO.StorageID = nil
 
-	savedConfig, err := c.backupConfigService.SaveBackupConfigWithAuth(user, &requestDTO)
+	var savedConfig *BackupConfig
+	var err error
+	if requestDTO.ID == uuid.Nil {
+		savedConfig, err = c.backupConfigService.CreateBackupConfig(user, &requestDTO)
+	} else {
+		savedConfig, err = c.backupConfigService.UpdateBackupConfig(user, requestDTO.ID, &requestDTO)
+	}
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -84,13 +90,13 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 		return
 	}
 
-	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(user, id)
+	backupConfigs, err := c.backupConfigService.GetBackupConfigsByDatabaseIDWithAuth(user, id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, backupConfig)
+	ctx.JSON(http.StatusOK, backupConfigs[0])
 }
 
 // GetDatabasePlan

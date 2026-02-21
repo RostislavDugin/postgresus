@@ -42,7 +42,7 @@ func (s *BackupConfigService) GetStorageAttachedDatabasesIDs(
 	return databasesIDs, nil
 }
 
-func (s *BackupConfigService) SaveBackupConfigWithAuth(
+func (s *BackupConfigService) CreateBackupConfig(
 	user *users_models.User,
 	backupConfig *BackupConfig,
 ) (*BackupConfig, error) {
@@ -61,7 +61,7 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 	}
 
 	if database.WorkspaceID == nil {
-		return nil, errors.New("cannot save backup config for database without workspace")
+		return nil, errors.New("cannot create backup config for database without workspace")
 	}
 
 	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
@@ -69,7 +69,7 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 		return nil, err
 	}
 	if !canManage {
-		return nil, errors.New("insufficient permissions to modify backup configuration")
+		return nil, errors.New("insufficient permissions to create backup configuration")
 	}
 
 	if backupConfig.Storage != nil && backupConfig.Storage.ID != uuid.Nil {
@@ -82,13 +82,24 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 		}
 	}
 
-	return s.SaveBackupConfig(backupConfig)
+	return s.backupConfigRepository.Save(backupConfig)
 }
 
-func (s *BackupConfigService) SaveBackupConfig(
+func (s *BackupConfigService) UpdateBackupConfig(
+	user *users_models.User,
+	id uuid.UUID,
 	backupConfig *BackupConfig,
 ) (*BackupConfig, error) {
-	plan, err := s.databasePlanService.GetDatabasePlan(backupConfig.DatabaseID)
+	existingConfig, err := s.backupConfigRepository.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingConfig == nil {
+		return nil, errors.New("backup config not found")
+	}
+
+	plan, err := s.databasePlanService.GetDatabasePlan(existingConfig.DatabaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,38 +108,98 @@ func (s *BackupConfigService) SaveBackupConfig(
 		return nil, err
 	}
 
-	// Check if there's an existing backup config for this database
-	existingConfig, err := s.GetBackupConfigByDbId(backupConfig.DatabaseID)
+	database, err := s.databaseService.GetDatabase(user, existingConfig.DatabaseID)
 	if err != nil {
 		return nil, err
 	}
 
-	if existingConfig != nil {
-		// If storage is changing, notify the listener
-		if s.dbStorageChangeListener != nil &&
-			backupConfig.Storage != nil &&
-			!storageIDsEqual(existingConfig.StorageID, &backupConfig.Storage.ID) {
-			if err := s.dbStorageChangeListener.OnBeforeBackupsStorageChange(
-				backupConfig.DatabaseID,
-			); err != nil {
-				return nil, err
-			}
+	if database.WorkspaceID == nil {
+		return nil, errors.New("cannot update backup config for database without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage {
+		return nil, errors.New("insufficient permissions to update backup configuration")
+	}
+
+	// Preserve the ID and DatabaseID
+	backupConfig.ID = id
+	backupConfig.DatabaseID = existingConfig.DatabaseID
+
+	if backupConfig.Storage != nil && backupConfig.Storage.ID != uuid.Nil {
+		storage, err := s.storageService.GetStorageByID(backupConfig.Storage.ID)
+		if err != nil {
+			return nil, err
+		}
+		if storage.WorkspaceID != *database.WorkspaceID && !storage.IsSystem {
+			return nil, errors.New("storage does not belong to the same workspace as the database")
+		}
+	}
+
+	// Check if storage is changing
+	if s.dbStorageChangeListener != nil &&
+		backupConfig.Storage != nil &&
+		!storageIDsEqual(existingConfig.StorageID, &backupConfig.Storage.ID) {
+		if err := s.dbStorageChangeListener.OnBeforeBackupsStorageChange(
+			backupConfig.DatabaseID,
+		); err != nil {
+			return nil, err
 		}
 	}
 
 	return s.backupConfigRepository.Save(backupConfig)
 }
 
-func (s *BackupConfigService) GetBackupConfigByDbIdWithAuth(
+func (s *BackupConfigService) DeleteBackupConfig(
+	user *users_models.User,
+	id uuid.UUID,
+) error {
+	existingConfig, err := s.backupConfigRepository.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	if existingConfig == nil {
+		return errors.New("backup config not found")
+	}
+
+	database, err := s.databaseService.GetDatabase(user, existingConfig.DatabaseID)
+	if err != nil {
+		return err
+	}
+
+	if database.WorkspaceID == nil {
+		return errors.New("cannot delete backup config for database without workspace")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	if err != nil {
+		return err
+	}
+	if !canManage {
+		return errors.New("insufficient permissions to delete backup configuration")
+	}
+
+	return s.backupConfigRepository.Delete(id)
+}
+
+func (s *BackupConfigService) GetBackupConfigByID(id uuid.UUID) (*BackupConfig, error) {
+	return s.backupConfigRepository.FindByID(id)
+}
+
+func (s *BackupConfigService) GetBackupConfigsByDatabaseIDWithAuth(
 	user *users_models.User,
 	databaseID uuid.UUID,
-) (*BackupConfig, error) {
+) ([]*BackupConfig, error) {
 	_, err := s.databaseService.GetDatabase(user, databaseID)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.GetBackupConfigByDbId(databaseID)
+	return s.GetBackupConfigsByDatabaseID(databaseID)
 }
 
 func (s *BackupConfigService) GetDatabasePlan(
@@ -143,9 +214,9 @@ func (s *BackupConfigService) GetDatabasePlan(
 	return s.databasePlanService.GetDatabasePlan(databaseID)
 }
 
-func (s *BackupConfigService) GetBackupConfigByDbId(
+func (s *BackupConfigService) GetBackupConfigsByDatabaseID(
 	databaseID uuid.UUID,
-) (*BackupConfig, error) {
+) ([]*BackupConfig, error) {
 	configs, err := s.backupConfigRepository.FindByDatabaseID(databaseID)
 	if err != nil {
 		return nil, err
@@ -157,19 +228,10 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 			return nil, err
 		}
 
-		configs, err = s.backupConfigRepository.FindByDatabaseID(databaseID)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(configs) == 0 {
-			return nil, nil
-		}
-
-		return configs[0], nil
+		return s.backupConfigRepository.FindByDatabaseID(databaseID)
 	}
 
-	return configs[0], nil
+	return configs, nil
 }
 
 func (s *BackupConfigService) IsStorageUsing(
@@ -206,16 +268,14 @@ func (s *BackupConfigService) GetBackupConfigsWithEnabledBackups() ([]*BackupCon
 }
 
 func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID) {
-	originalConfig, err := s.GetBackupConfigByDbId(originalDatabaseID)
+	originalConfigs, err := s.GetBackupConfigsByDatabaseID(originalDatabaseID)
 	if err != nil {
 		return
 	}
 
-	newConfig := originalConfig.Copy(newDatabaseID)
-
-	_, err = s.SaveBackupConfig(newConfig)
-	if err != nil {
-		return
+	for _, originalConfig := range originalConfigs {
+		newConfig := originalConfig.Copy(newDatabaseID)
+		_, _ = s.backupConfigRepository.Save(newConfig)
 	}
 }
 
@@ -235,6 +295,7 @@ func (s *BackupConfigService) initializeDefaultConfig(
 
 	_, err = s.backupConfigRepository.Save(&BackupConfig{
 		DatabaseID:            databaseID,
+		Name:                  "Default",
 		IsBackupsEnabled:      false,
 		RetentionPolicyType:   RetentionPolicyTypeTimePeriod,
 		RetentionTimePeriod:   plan.MaxStoragePeriod,
@@ -290,7 +351,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		return err
 	}
 
-	backupConfig, err := s.GetBackupConfigByDbId(databaseID)
+	backupConfigs, err := s.GetBackupConfigsByDatabaseID(databaseID)
 	if err != nil {
 		return err
 	}
@@ -300,29 +361,31 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 	}
 
 	if request.IsTransferWithStorage {
-		if backupConfig.StorageID == nil {
-			return ErrDatabaseHasNoStorage
-		}
-
-		attachedDatabasesIDs, err := s.GetStorageAttachedDatabasesIDs(*backupConfig.StorageID)
-		if err != nil {
-			return err
-		}
-
-		for _, dbID := range attachedDatabasesIDs {
-			if dbID != databaseID {
-				return ErrStorageHasOtherAttachedDatabases
+		for _, backupConfig := range backupConfigs {
+			if backupConfig.StorageID == nil {
+				return ErrDatabaseHasNoStorage
 			}
-		}
 
-		err = s.storageService.TransferStorageToWorkspace(
-			user,
-			*backupConfig.StorageID,
-			request.TargetWorkspaceID,
-			&databaseID,
-		)
-		if err != nil {
-			return err
+			attachedDatabasesIDs, err := s.GetStorageAttachedDatabasesIDs(*backupConfig.StorageID)
+			if err != nil {
+				return err
+			}
+
+			for _, dbID := range attachedDatabasesIDs {
+				if dbID != databaseID {
+					return ErrStorageHasOtherAttachedDatabases
+				}
+			}
+
+			err = s.storageService.TransferStorageToWorkspace(
+				user,
+				*backupConfig.StorageID,
+				request.TargetWorkspaceID,
+				&databaseID,
+			)
+			if err != nil {
+				return err
+			}
 		}
 	} else if request.TargetStorageID != nil {
 		targetStorage, err := s.storageService.GetStorageByID(*request.TargetStorageID)
@@ -334,12 +397,14 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 			return ErrTargetStorageNotInTargetWorkspace
 		}
 
-		backupConfig.StorageID = request.TargetStorageID
-		backupConfig.Storage = targetStorage
+		for _, backupConfig := range backupConfigs {
+			backupConfig.StorageID = request.TargetStorageID
+			backupConfig.Storage = targetStorage
 
-		_, err = s.backupConfigRepository.Save(backupConfig)
-		if err != nil {
-			return err
+			_, err = s.backupConfigRepository.Save(backupConfig)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		return ErrTargetStorageNotSpecified

@@ -117,7 +117,7 @@ func (s *BackupsScheduler) IsBackupNodesAvailable() bool {
 }
 
 func (s *BackupsScheduler) StartBackup(database *databases.Database, isCallNotifier bool) {
-	backupConfig, err := s.backupConfigService.GetBackupConfigByDbId(database.ID)
+	backupConfig, err := s.backupConfigService.GetBackupConfigByID(database.ID)
 	if err != nil {
 		s.logger.Error("Failed to get backup config by database ID", "error", err)
 		return
@@ -269,7 +269,7 @@ func (s *BackupsScheduler) GetRemainedBackupTryCount(lastBackup *backups_core.Ba
 		return 0
 	}
 
-	backupConfig, err := s.backupConfigService.GetBackupConfigByDbId(lastBackup.DatabaseID)
+	backupConfig, err := s.backupConfigService.GetBackupConfigByID(lastBackup.DatabaseID)
 	if err != nil {
 		s.logger.Error("Failed to get backup config by database ID", "error", err)
 		return 0
@@ -372,7 +372,7 @@ func (s *BackupsScheduler) failBackupsInProgress() error {
 			)
 		}
 
-		backupConfig, err := s.backupConfigService.GetBackupConfigByDbId(backup.DatabaseID)
+		backupConfig, err := s.backupConfigService.GetBackupConfigByID(backup.DatabaseID)
 		if err != nil {
 			s.logger.Error("Failed to get backup config by database ID", "error", err)
 			continue

@@ -142,7 +142,8 @@ func (n *BackuperNode) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		return
 	}
 
-	backupConfig, err := n.backupConfigService.GetBackupConfigByDbId(databaseID)
+	backupConfigs, err := n.backupConfigService.GetBackupConfigsByDatabaseID(databaseID)
+	backupConfig := backupConfigs[0]
 	if err != nil {
 		n.logger.Error("Failed to get backup config by database ID", "error", err)
 		return

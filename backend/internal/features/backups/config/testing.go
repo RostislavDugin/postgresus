@@ -32,7 +32,7 @@ func EnableBackupsForTestDatabase(
 		},
 	}
 
-	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)
+	backupConfig, err := GetBackupConfigRepository().Save(backupConfig)
 	if err != nil {
 		panic(err)
 	}

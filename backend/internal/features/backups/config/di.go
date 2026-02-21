@@ -34,6 +34,10 @@ func GetBackupConfigService() *BackupConfigService {
 	return backupConfigService
 }
 
+func GetBackupConfigRepository() *BackupConfigRepository {
+	return backupConfigRepository
+}
+
 var (
 	setupOnce sync.Once
 	isSetup   atomic.Bool
