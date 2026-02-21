@@ -54,6 +54,8 @@ ALTER TABLE backup_configs ADD COLUMN name TEXT NOT NULL DEFAULT 'Default';
 -- Add unique constraint for backup config naming within database
 ALTER TABLE backup_configs ADD CONSTRAINT backup_configs_name_unique_per_database 
     UNIQUE (database_id, name);
+
+*(Note: The API handles this constraint gracefully by checking for name uniqueness before insertion and returning a 400 Bad Request if a duplicate name is provided for the same database).*
 ```
 
 ## Model Changes
@@ -132,9 +134,9 @@ Add reference to backup config:
 
 ```go
 type Backup struct {
-    ID             uuid.UUID `json:"id" gorm:"primaryKey"`
-    DatabaseID     uuid.UUID `json:"databaseId" gorm:"column:database_id"`
-    BackupConfigID uuid.UUID `json:"backupConfigId" gorm:"column:backup_config_id"` // NEW
+    ID             uuid.UUID  `json:"id" gorm:"primaryKey"`
+    DatabaseID     uuid.UUID  `json:"databaseId" gorm:"column:database_id"`
+    BackupConfigID *uuid.UUID `json:"backupConfigId" gorm:"column:backup_config_id"` // NEW
     // ... existing fields
 }
 ```

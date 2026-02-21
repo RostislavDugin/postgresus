@@ -624,7 +624,7 @@ func (c *BackupConfigController) GetBackupConfigByID(ctx *gin.Context) {
 	}
 
 	// Verify user has access to the database
-	_, err = c.backupConfigService.GetDatabasePlan(user, backupConfig.DatabaseID)
+	_, err = c.databaseService.GetDatabase(user, backupConfig.DatabaseID)
 	if err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
