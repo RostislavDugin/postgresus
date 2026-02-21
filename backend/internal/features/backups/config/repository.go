@@ -39,8 +39,8 @@ func (r *BackupConfigRepository) Save(
 		}
 
 		// Use Save which handles both create and update based on primary key
-		if err := tx.Save(backupConfig).
-			Omit("BackupInterval", "Storage").
+		if err := tx.Omit("BackupInterval", "Storage").
+			Save(backupConfig).
 			Error; err != nil {
 			return err
 		}
@@ -93,6 +93,10 @@ func (r *BackupConfigRepository) Delete(id uuid.UUID) error {
 	result := storage.GetDb().Delete(&BackupConfig{}, "id = ?", id)
 	if result.Error != nil {
 		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 
 	return nil
