@@ -40,7 +40,7 @@ func createTestRouter() *gin.Engine {
 	return router
 }
 
-func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
+func Test_CreateBackupConfig_PermissionsEnforced(t *testing.T) {
 	tests := []struct {
 		name               string
 		workspaceRole      *users_enums.WorkspaceRole
@@ -53,21 +53,21 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "workspace admin can save backup config",
 			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "workspace member can save backup config",
 			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "workspace viewer cannot save backup config",
@@ -81,7 +81,7 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 			workspaceRole:      nil,
 			isGlobalAdmin:      true,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 	}
 
@@ -118,6 +118,7 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 
 			timeOfDay := "04:00"
 			request := BackupConfig{
+				Name:                "Default Name",
 				DatabaseID:          database.ID,
 				IsBackupsEnabled:    true,
 				RetentionPolicyType: RetentionPolicyTypeTimePeriod,
@@ -137,7 +138,7 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 			testResp := test_utils.MakePostRequestAndUnmarshal(
 				t,
 				router,
-				"/api/v1/backup-configs/save",
+				"/api/v1/backup-configs",
 				"Bearer "+testUserToken,
 				request,
 				tt.expectedStatusCode,
@@ -155,7 +156,7 @@ func Test_SaveBackupConfig_PermissionsEnforced(t *testing.T) {
 	}
 }
 
-func Test_SaveBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
+func Test_CreateBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -171,6 +172,7 @@ func Test_SaveBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *test
 
 	timeOfDay := "04:00"
 	request := BackupConfig{
+		Name:                "Default Name",
 		DatabaseID:          database.ID,
 		IsBackupsEnabled:    true,
 		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
@@ -189,7 +191,7 @@ func Test_SaveBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *test
 	testResp := test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+nonMember.Token,
 		request,
 		http.StatusBadRequest,
@@ -198,7 +200,7 @@ func Test_SaveBackupConfig_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *test
 	assert.Contains(t, string(testResp.Body), "insufficient permissions")
 }
 
-func Test_GetBackupConfigByDbID_PermissionsEnforced(t *testing.T) {
+func Test_GetBackupConfigsByDatabaseID_PermissionsEnforced(t *testing.T) {
 	tests := []struct {
 		name               string
 		workspaceRole      *users_enums.WorkspaceRole
@@ -232,7 +234,7 @@ func Test_GetBackupConfigByDbID_PermissionsEnforced(t *testing.T) {
 			workspaceRole:      func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleViewer; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "global admin can get backup config",
@@ -304,7 +306,7 @@ func Test_GetBackupConfigByDbID_PermissionsEnforced(t *testing.T) {
 	}
 }
 
-func Test_GetBackupConfigByDbID_ReturnsDefaultConfigForNewDatabase(t *testing.T) {
+func Test_GetBackupConfigsByDatabaseID_ReturnsDefaultConfigForNewDatabase(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -375,7 +377,7 @@ func Test_GetDatabasePlan_ForNewDatabase_PlanAlwaysReturned(t *testing.T) {
 	assert.NotEmpty(t, response.MaxStoragePeriod)
 }
 
-func Test_SaveBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testing.T) {
+func Test_CreateBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -434,7 +436,7 @@ func Test_SaveBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testi
 	respExceededSize := test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigExceededSize,
 		http.StatusBadRequest,
@@ -464,7 +466,7 @@ func Test_SaveBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testi
 	respExceededTotal := test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigExceededTotal,
 		http.StatusBadRequest,
@@ -494,7 +496,7 @@ func Test_SaveBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testi
 	respExceededPeriod := test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigExceededPeriod,
 		http.StatusBadRequest,
@@ -525,7 +527,7 @@ func Test_SaveBackupConfig_WhenPlanLimitsAreAdjusted_ValidationEnforced(t *testi
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigValid,
 		http.StatusOK,
@@ -549,7 +551,7 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 			name:               "storage owner can check storage usage",
 			isStorageOwner:     true,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "non-storage-owner cannot check storage usage",
@@ -610,7 +612,7 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 	}
 }
 
-func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
+func Test_CreateBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -624,6 +626,7 @@ func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 
 	timeOfDay := "04:00"
 	request := BackupConfig{
+		Name:                "Default Name",
 		DatabaseID:          database.ID,
 		IsBackupsEnabled:    true,
 		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
@@ -644,7 +647,7 @@ func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		request,
 		http.StatusOK,
@@ -655,7 +658,7 @@ func Test_SaveBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 	assert.Equal(t, BackupEncryptionNone, response.Encryption)
 }
 
-func Test_SaveBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
+func Test_CreateBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -669,6 +672,7 @@ func Test_SaveBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
 
 	timeOfDay := "04:00"
 	request := BackupConfig{
+		Name:                "Default Name",
 		DatabaseID:          database.ID,
 		IsBackupsEnabled:    true,
 		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
@@ -689,7 +693,7 @@ func Test_SaveBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		request,
 		http.StatusOK,
@@ -715,7 +719,7 @@ func Test_TransferDatabase_PermissionsEnforced(t *testing.T) {
 			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleOwner; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "admin in both workspaces can transfer",
@@ -723,7 +727,7 @@ func Test_TransferDatabase_PermissionsEnforced(t *testing.T) {
 			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleAdmin; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "member in both workspaces can transfer",
@@ -731,7 +735,7 @@ func Test_TransferDatabase_PermissionsEnforced(t *testing.T) {
 			targetRole:         func() *users_enums.WorkspaceRole { r := users_enums.WorkspaceRoleMember; return &r }(),
 			isGlobalAdmin:      false,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 		{
 			name:               "viewer in both workspaces cannot transfer",
@@ -747,7 +751,7 @@ func Test_TransferDatabase_PermissionsEnforced(t *testing.T) {
 			targetRole:         nil,
 			isGlobalAdmin:      true,
 			expectSuccess:      true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusCreated,
 		},
 	}
 
@@ -988,7 +992,7 @@ func Test_TransferDatabase_ToNewStorage_DatabaseTransferd(t *testing.T) {
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1075,7 +1079,7 @@ func Test_TransferDatabase_WithExistingStorage_DatabaseAndStorageTransferd(t *te
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1172,7 +1176,7 @@ func Test_TransferDatabase_StorageHasOtherDBs_CannotTransfer(t *testing.T) {
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest1,
 		http.StatusOK,
@@ -1199,7 +1203,7 @@ func Test_TransferDatabase_StorageHasOtherDBs_CannotTransfer(t *testing.T) {
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest2,
 		http.StatusOK,
@@ -1276,7 +1280,7 @@ func Test_TransferDatabase_WithNotifiers_NotifiersTransferred(t *testing.T) {
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1397,7 +1401,7 @@ func Test_TransferDatabase_NotifierHasOtherDBs_NotifierSkipped(t *testing.T) {
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1520,7 +1524,7 @@ func Test_TransferDatabase_WithMultipleNotifiers_OnlyExclusiveOnesTransferred(t 
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1620,7 +1624,7 @@ func Test_TransferDatabase_WithTargetNotifiers_NotifiersAssigned(t *testing.T) {
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1701,7 +1705,7 @@ func Test_TransferDatabase_TargetNotifierFromDifferentWorkspace_ReturnsBadReques
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1767,7 +1771,7 @@ func Test_TransferDatabase_TargetStorageFromDifferentWorkspace_ReturnsBadRequest
 	test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		backupConfigRequest,
 		http.StatusOK,
@@ -1790,7 +1794,7 @@ func Test_TransferDatabase_TargetStorageFromDifferentWorkspace_ReturnsBadRequest
 	assert.Contains(t, string(testResp.Body), "target storage does not belong to target workspace")
 }
 
-func Test_SaveBackupConfig_WithSystemStorage_CanBeUsedByAnyDatabase(t *testing.T) {
+func Test_CreateBackupConfig_WithSystemStorage_CanBeUsedByAnyDatabase(t *testing.T) {
 	router := createTestRouterWithStorageForTransfer()
 
 	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
@@ -1828,7 +1832,7 @@ func Test_SaveBackupConfig_WithSystemStorage_CanBeUsedByAnyDatabase(t *testing.T
 	respRegular := test_utils.MakePostRequest(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner1.Token,
 		backupConfigWithRegularStorage,
 		http.StatusBadRequest,
@@ -1881,7 +1885,7 @@ func Test_SaveBackupConfig_WithSystemStorage_CanBeUsedByAnyDatabase(t *testing.T
 	test_utils.MakePostRequestAndUnmarshal(
 		t,
 		router,
-		"/api/v1/backup-configs/save",
+		"/api/v1/backup-configs",
 		"Bearer "+owner1.Token,
 		backupConfigWithSystemStorage,
 		http.StatusOK,
@@ -1986,4 +1990,89 @@ func createTestRouterWithNotifiersForTransfer() *gin.Engine {
 	SetupDependencies()
 
 	return router
+}
+
+func Test_CreateBackupConfig_ValidInput_ConfigCreated(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test", user, router)
+	database := createTestDatabaseViaAPI("TestDB", workspace.ID, user.Token, router)
+
+	request := BackupConfig{
+		DatabaseID:          database.ID,
+		Name:                "Hourly Backup",
+		IsBackupsEnabled:    true,
+		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
+		RetentionTimePeriod: period.PeriodDay,
+		BackupInterval: &intervals.Interval{
+			Interval: intervals.IntervalHourly,
+		},
+		SendNotificationsOn: []BackupNotificationType{
+			NotificationBackupFailed,
+		},
+	}
+
+	var response BackupConfig
+	test_utils.MakePostRequestAndUnmarshal(t, router, "/api/v1/backup-configs",
+		"Bearer "+user.Token, request, http.StatusCreated, &response)
+
+	assert.Equal(t, "Hourly Backup", response.Name)
+	assert.NotEqual(t, uuid.Nil, response.ID)
+}
+
+func Test_CreateBackupConfig_MultipleConfigsForSameDatabase_BothCreated(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test", user, router)
+	database := createTestDatabaseViaAPI("TestDB", workspace.ID, user.Token, router)
+
+	request1 := BackupConfig{
+		DatabaseID:          database.ID,
+		Name:                "Hourly",
+		IsBackupsEnabled:    true,
+		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
+		RetentionTimePeriod: period.PeriodDay,
+		BackupInterval:      &intervals.Interval{Interval: intervals.IntervalHourly},
+	}
+
+	var response1 BackupConfig
+	test_utils.MakePostRequestAndUnmarshal(t, router, "/api/v1/backup-configs",
+		"Bearer "+user.Token, request1, http.StatusCreated, &response1)
+
+	request2 := BackupConfig{
+		DatabaseID:          database.ID,
+		Name:                "Weekly",
+		IsBackupsEnabled:    true,
+		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
+		RetentionTimePeriod: period.PeriodMonth,
+		BackupInterval:      &intervals.Interval{Interval: intervals.IntervalWeekly},
+	}
+
+	var response2 BackupConfig
+	test_utils.MakePostRequestAndUnmarshal(t, router, "/api/v1/backup-configs",
+		"Bearer "+user.Token, request2, http.StatusCreated, &response2)
+
+	assert.NotEqual(t, response1.ID, response2.ID)
+	assert.Equal(t, "Hourly", response1.Name)
+	assert.Equal(t, "Weekly", response2.Name)
+}
+
+func Test_GetBackupConfigsByDatabaseID_ReturnsAllConfigs(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test", user, router)
+	database := createTestDatabaseViaAPI("TestDB", workspace.ID, user.Token, router)
+
+	request1 := BackupConfig{Name: "Hourly", DatabaseID: database.ID, IsBackupsEnabled: true, RetentionPolicyType: RetentionPolicyTypeTimePeriod, RetentionTimePeriod: period.PeriodDay, BackupInterval: &intervals.Interval{Interval: intervals.IntervalHourly}}
+	test_utils.MakePostRequest(t, router, "/api/v1/backup-configs", "Bearer "+user.Token, request1, http.StatusCreated)
+
+	request2 := BackupConfig{Name: "Weekly", DatabaseID: database.ID, IsBackupsEnabled: true, RetentionPolicyType: RetentionPolicyTypeTimePeriod, RetentionTimePeriod: period.PeriodMonth, BackupInterval: &intervals.Interval{Interval: intervals.IntervalWeekly}}
+	test_utils.MakePostRequest(t, router, "/api/v1/backup-configs", "Bearer "+user.Token, request2, http.StatusCreated)
+
+	var response []*BackupConfig
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
+		"/api/v1/backup-configs/database/"+database.ID.String(),
+		"Bearer "+user.Token, http.StatusCreated, &response)
+
+	assert.GreaterOrEqual(t, len(response), 2) // it might include default one as well
 }
