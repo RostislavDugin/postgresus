@@ -296,6 +296,8 @@ func Test_GetBackupConfigsByDatabaseID_PermissionsEnforced(t *testing.T) {
 				&responses,
 			)
 
+			assert.NotEmpty(t, responses)
+
 			if tt.expectSuccess {
 				assert.GreaterOrEqual(t, len(responses), 1)
 				assert.Equal(t, database.ID, responses[0].DatabaseID)
@@ -328,6 +330,8 @@ func Test_GetBackupConfigsByDatabaseID_ReturnsDefaultConfigForNewDatabase(t *tes
 		http.StatusOK,
 		&response,
 	)
+
+	assert.NotEmpty(t, response)
 
 	var plan plans.DatabasePlan
 
@@ -1036,6 +1040,8 @@ func Test_TransferDatabase_ToNewStorage_DatabaseTransferd(t *testing.T) {
 		http.StatusOK,
 		&retrievedConfigs,
 	)
+
+	assert.NotEmpty(t, retrievedConfigs)
 	assert.NotNil(t, retrievedConfigs[0].StorageID)
 	assert.Equal(t, targetStorage.ID, *retrievedConfigs[0].StorageID)
 }
