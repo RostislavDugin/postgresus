@@ -15,27 +15,107 @@ type BackupConfigController struct {
 }
 
 func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
-	router.POST("/backup-configs/save", c.SaveBackupConfig)
+	router.GET("/backup-configs/:id", c.GetBackupConfigByID)
+	router.GET("/backup-configs/database/:databaseId", c.GetBackupConfigsByDatabaseID)
+	router.POST("/backup-configs", c.CreateBackupConfig)
+	router.PUT("/backup-configs/:id", c.UpdateBackupConfig)
+	router.DELETE("/backup-configs/:id", c.DeleteBackupConfig)
 	router.GET("/backup-configs/database/:id/plan", c.GetDatabasePlan)
-	router.GET("/backup-configs/database/:id", c.GetBackupConfigByDbID)
 	router.GET("/backup-configs/storage/:id/is-using", c.IsStorageUsing)
 	router.GET("/backup-configs/storage/:id/databases-count", c.CountDatabasesForStorage)
 	router.POST("/backup-configs/database/:id/transfer", c.TransferDatabase)
 }
 
-// SaveBackupConfig
-// @Summary Save backup configuration
-// @Description Save or update backup configuration for a database. Encryption can be set to NONE (no encryption) or ENCRYPTED (AES-256-GCM encryption).
+// GetBackupConfigByID
+// @Summary Get backup configuration by ID
+// @Description Get a specific backup configuration by its ID
+// @Tags backup-configs
+// @Produce json
+// @Param id path string true "Backup Config ID"
+// @Success 200 {object} BackupConfig
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /backup-configs/{id} [get]
+func (c *BackupConfigController) GetBackupConfigByID(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup config ID"})
+		return
+	}
+
+	backupConfig, err := c.backupConfigService.GetBackupConfigByID(id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if backupConfig == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
+		return
+	}
+
+	// Verify user has access to the database
+	_, err = c.backupConfigService.GetDatabasePlan(user, backupConfig.DatabaseID)
+	if err != nil {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, backupConfig)
+}
+
+// GetBackupConfigsByDatabaseID
+// @Summary Get backup configurations by database ID
+// @Description Get all backup configurations for a specific database
+// @Tags backup-configs
+// @Produce json
+// @Param databaseId path string true "Database ID"
+// @Success 200 {array} BackupConfig
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /backup-configs/database/{databaseId} [get]
+func (c *BackupConfigController) GetBackupConfigsByDatabaseID(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	databaseID, err := uuid.Parse(ctx.Param("databaseId"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
+		return
+	}
+
+	backupConfigs, err := c.backupConfigService.GetBackupConfigsByDatabaseIDWithAuth(user, databaseID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, backupConfigs)
+}
+
+// CreateBackupConfig
+// @Summary Create a new backup configuration
+// @Description Create a new backup configuration for a database
 // @Tags backup-configs
 // @Accept json
 // @Produce json
-// @Param request body BackupConfig true "Backup configuration data (encryption field: NONE or ENCRYPTED)"
-// @Success 200 {object} BackupConfig "Returns the saved backup configuration including encryption settings"
-// @Failure 400 {object} map[string]string "Invalid encryption value or other validation errors"
-// @Failure 401 {object} map[string]string "User not authenticated"
-// @Failure 500 {object} map[string]string "Internal server error"
-// @Router /backup-configs/save [post]
-func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
+// @Param request body BackupConfig true "Backup configuration data"
+// @Success 201 {object} BackupConfig
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /backup-configs [post]
+func (c *BackupConfigController) CreateBackupConfig(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -48,36 +128,33 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 		return
 	}
 
-	// make sure we rely on full .Storage object
+	// Clear StorageID to rely on full Storage object
 	requestDTO.StorageID = nil
 
-	var savedConfig *BackupConfig
-	var err error
-	if requestDTO.ID == uuid.Nil {
-		savedConfig, err = c.backupConfigService.CreateBackupConfig(user, &requestDTO)
-	} else {
-		savedConfig, err = c.backupConfigService.UpdateBackupConfig(user, requestDTO.ID, &requestDTO)
-	}
+	savedConfig, err := c.backupConfigService.CreateBackupConfig(user, &requestDTO)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, savedConfig)
+	ctx.JSON(http.StatusCreated, savedConfig)
 }
 
-// GetBackupConfigByDbID
-// @Summary Get backup configuration by database ID
-// @Description Get backup configuration for a specific database including encryption settings (NONE or ENCRYPTED)
+// UpdateBackupConfig
+// @Summary Update a backup configuration
+// @Description Update an existing backup configuration
 // @Tags backup-configs
+// @Accept json
 // @Produce json
-// @Param id path string true "Database ID"
-// @Success 200 {object} BackupConfig "Returns backup configuration with encryption field"
-// @Failure 400 {object} map[string]string "Invalid database ID"
-// @Failure 401 {object} map[string]string "User not authenticated"
-// @Failure 404 {object} map[string]string "Backup configuration not found"
-// @Router /backup-configs/database/{id} [get]
-func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
+// @Param id path string true "Backup Config ID"
+// @Param request body BackupConfig true "Backup configuration data"
+// @Success 200 {object} BackupConfig
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /backup-configs/{id} [put]
+func (c *BackupConfigController) UpdateBackupConfig(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -86,17 +163,58 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup config ID"})
 		return
 	}
 
-	backupConfigs, err := c.backupConfigService.GetBackupConfigsByDatabaseIDWithAuth(user, id)
+	var requestDTO BackupConfig
+	if err := ctx.ShouldBindJSON(&requestDTO); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Clear StorageID to rely on full Storage object
+	requestDTO.StorageID = nil
+
+	savedConfig, err := c.backupConfigService.UpdateBackupConfig(user, id, &requestDTO)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, backupConfigs[0])
+	ctx.JSON(http.StatusOK, savedConfig)
+}
+
+// DeleteBackupConfig
+// @Summary Delete a backup configuration
+// @Description Delete an existing backup configuration
+// @Tags backup-configs
+// @Param id path string true "Backup Config ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /backup-configs/{id} [delete]
+func (c *BackupConfigController) DeleteBackupConfig(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup config ID"})
+		return
+	}
+
+	if err := c.backupConfigService.DeleteBackupConfig(user, id); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 // GetDatabasePlan
