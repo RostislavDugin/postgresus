@@ -263,3 +263,70 @@ func (r *BackupRepository) FindLastByConfigID(configID uuid.UUID) (*Backup, erro
 
 	return &backup, nil
 }
+
+func (r *BackupRepository) FindBackupsBeforeDateByConfigID(
+	configID uuid.UUID,
+	date time.Time,
+) ([]*Backup, error) {
+	var backups []*Backup
+
+	if err := storage.
+		GetDb().
+		Where("backup_config_id = ? AND created_at < ?", configID, date).
+		Order("created_at DESC").
+		Find(&backups).Error; err != nil {
+		return nil, err
+	}
+
+	return backups, nil
+}
+
+func (r *BackupRepository) FindByConfigIdAndStatus(
+	configID uuid.UUID,
+	status BackupStatus,
+) ([]*Backup, error) {
+	var backups []*Backup
+
+	if err := storage.
+		GetDb().
+		Where("backup_config_id = ? AND status = ?", configID, status).
+		Order("created_at DESC").
+		Find(&backups).Error; err != nil {
+		return nil, err
+	}
+
+	return backups, nil
+}
+
+func (r *BackupRepository) GetTotalSizeByConfigID(configID uuid.UUID) (float64, error) {
+	var totalSize float64
+
+	if err := storage.
+		GetDb().
+		Model(&Backup{}).
+		Select("COALESCE(SUM(backup_size_mb), 0)").
+		Where("backup_config_id = ? AND status != ?", configID, BackupStatusInProgress).
+		Scan(&totalSize).Error; err != nil {
+		return 0, err
+	}
+
+	return totalSize, nil
+}
+
+func (r *BackupRepository) FindOldestByConfigIDExcludingInProgress(
+	configID uuid.UUID,
+	limit int,
+) ([]*Backup, error) {
+	var backups []*Backup
+
+	if err := storage.
+		GetDb().
+		Where("backup_config_id = ? AND status != ?", configID, BackupStatusInProgress).
+		Order("created_at ASC").
+		Limit(limit).
+		Find(&backups).Error; err != nil {
+		return nil, err
+	}
+
+	return backups, nil
+}
