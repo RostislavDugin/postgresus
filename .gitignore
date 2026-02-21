@@ -12,3 +12,4 @@ node_modules/
 .DS_Store
 /scripts
 .vscode/settings.json
+.worktrees/
