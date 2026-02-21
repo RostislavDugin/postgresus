@@ -55,14 +55,29 @@ func (r *BackupConfigRepository) Save(
 	return backupConfig, nil
 }
 
-func (r *BackupConfigRepository) FindByDatabaseID(databaseID uuid.UUID) (*BackupConfig, error) {
-	var backupConfig BackupConfig
+func (r *BackupConfigRepository) FindByDatabaseID(databaseID uuid.UUID) ([]*BackupConfig, error) {
+	var backupConfigs []*BackupConfig
 
 	if err := storage.
 		GetDb().
 		Preload("BackupInterval").
 		Preload("Storage").
 		Where("database_id = ?", databaseID).
+		Find(&backupConfigs).Error; err != nil {
+		return nil, err
+	}
+
+	return backupConfigs, nil
+}
+
+func (r *BackupConfigRepository) FindByID(id uuid.UUID) (*BackupConfig, error) {
+	var backupConfig BackupConfig
+
+	if err := storage.
+		GetDb().
+		Preload("BackupInterval").
+		Preload("Storage").
+		Where("id = ?", id).
 		First(&backupConfig).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -72,6 +87,15 @@ func (r *BackupConfigRepository) FindByDatabaseID(databaseID uuid.UUID) (*Backup
 	}
 
 	return &backupConfig, nil
+}
+
+func (r *BackupConfigRepository) Delete(id uuid.UUID) error {
+	result := storage.GetDb().Delete(&BackupConfig{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
 }
 
 func (r *BackupConfigRepository) GetWithEnabledBackups() ([]*BackupConfig, error) {

@@ -146,21 +146,30 @@ func (s *BackupConfigService) GetDatabasePlan(
 func (s *BackupConfigService) GetBackupConfigByDbId(
 	databaseID uuid.UUID,
 ) (*BackupConfig, error) {
-	config, err := s.backupConfigRepository.FindByDatabaseID(databaseID)
+	configs, err := s.backupConfigRepository.FindByDatabaseID(databaseID)
 	if err != nil {
 		return nil, err
 	}
 
-	if config == nil {
+	if len(configs) == 0 {
 		err = s.initializeDefaultConfig(databaseID)
 		if err != nil {
 			return nil, err
 		}
 
-		return s.backupConfigRepository.FindByDatabaseID(databaseID)
+		configs, err = s.backupConfigRepository.FindByDatabaseID(databaseID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(configs) == 0 {
+			return nil, nil
+		}
+
+		return configs[0], nil
 	}
 
-	return config, nil
+	return configs[0], nil
 }
 
 func (s *BackupConfigService) IsStorageUsing(
