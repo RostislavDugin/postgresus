@@ -319,7 +319,7 @@ func Test_GetBackupConfigsByDatabaseID_ReturnsDefaultConfigForNewDatabase(t *tes
 		workspaces_testing.RemoveTestWorkspace(workspace, router)
 	}()
 
-	var response BackupConfig
+	var response []*BackupConfig
 	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,
@@ -340,14 +340,14 @@ func Test_GetBackupConfigsByDatabaseID_ReturnsDefaultConfigForNewDatabase(t *tes
 		&plan,
 	)
 
-	assert.Equal(t, database.ID, response.DatabaseID)
-	assert.False(t, response.IsBackupsEnabled)
-	assert.Equal(t, plan.MaxStoragePeriod, response.RetentionTimePeriod)
-	assert.Equal(t, plan.MaxBackupSizeMB, response.MaxBackupSizeMB)
-	assert.Equal(t, plan.MaxBackupsTotalSizeMB, response.MaxBackupsTotalSizeMB)
-	assert.True(t, response.IsRetryIfFailed)
-	assert.Equal(t, 3, response.MaxFailedTriesCount)
-	assert.NotNil(t, response.BackupInterval)
+	assert.Equal(t, database.ID, response[0].DatabaseID)
+	assert.False(t, response[0].IsBackupsEnabled)
+	assert.Equal(t, plan.MaxStoragePeriod, response[0].RetentionTimePeriod)
+	assert.Equal(t, plan.MaxBackupSizeMB, response[0].MaxBackupSizeMB)
+	assert.Equal(t, plan.MaxBackupsTotalSizeMB, response[0].MaxBackupsTotalSizeMB)
+	assert.True(t, response[0].IsRetryIfFailed)
+	assert.Equal(t, 3, response[0].MaxFailedTriesCount)
+	assert.NotNil(t, response[0].BackupInterval)
 }
 
 func Test_GetDatabasePlan_ForNewDatabase_PlanAlwaysReturned(t *testing.T) {
@@ -651,7 +651,7 @@ func Test_CreateBackupConfig_WithEncryptionNone_ConfigSaved(t *testing.T) {
 		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		request,
-		http.StatusOK,
+		http.StatusCreated,
 		&response,
 	)
 
@@ -697,7 +697,7 @@ func Test_CreateBackupConfig_WithEncryptionEncrypted_ConfigSaved(t *testing.T) {
 		"/api/v1/backup-configs",
 		"Bearer "+owner.Token,
 		request,
-		http.StatusOK,
+		http.StatusCreated,
 		&response,
 	)
 
@@ -1027,17 +1027,17 @@ func Test_TransferDatabase_ToNewStorage_DatabaseTransferd(t *testing.T) {
 	)
 	assert.Equal(t, targetWorkspace.ID, *retrievedDatabase.WorkspaceID)
 
-	var retrievedConfig BackupConfig
+	var retrievedConfigs []*BackupConfig
 	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,
 		"/api/v1/backup-configs/database/"+database.ID.String(),
 		"Bearer "+owner.Token,
 		http.StatusOK,
-		&retrievedConfig,
+		&retrievedConfigs,
 	)
-	assert.NotNil(t, retrievedConfig.StorageID)
-	assert.Equal(t, targetStorage.ID, *retrievedConfig.StorageID)
+	assert.NotNil(t, retrievedConfigs[0].StorageID)
+	assert.Equal(t, targetStorage.ID, *retrievedConfigs[0].StorageID)
 }
 
 func Test_TransferDatabase_WithExistingStorage_DatabaseAndStorageTransferd(t *testing.T) {
@@ -2000,8 +2000,8 @@ func Test_CreateBackupConfig_ValidInput_ConfigCreated(t *testing.T) {
 	database := createTestDatabaseViaAPI("TestDB", workspace.ID, user.Token, router)
 
 	request := BackupConfig{
+		Name:                "Default",
 		DatabaseID:          database.ID,
-		Name:                "Hourly Backup",
 		IsBackupsEnabled:    true,
 		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
 		RetentionTimePeriod: period.PeriodDay,
