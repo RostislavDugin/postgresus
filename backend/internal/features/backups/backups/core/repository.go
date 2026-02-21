@@ -245,3 +245,21 @@ func (r *BackupRepository) FindOldestByDatabaseExcludingInProgress(
 
 	return backups, nil
 }
+
+func (r *BackupRepository) FindLastByConfigID(configID uuid.UUID) (*Backup, error) {
+	var backup Backup
+
+	if err := storage.
+		GetDb().
+		Where("backup_config_id = ?", configID).
+		Order("created_at DESC").
+		First(&backup).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &backup, nil
+}

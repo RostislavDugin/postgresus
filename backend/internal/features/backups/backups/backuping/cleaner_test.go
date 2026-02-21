@@ -52,7 +52,7 @@ func Test_CleanOldBackups_DeletesBackupsOlderThanRetentionTimePeriod(t *testing.
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -130,7 +130,7 @@ func Test_CleanOldBackups_SkipsDatabaseWithForeverRetentionPeriod(t *testing.T) 
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	oldBackup := &backups_core.Backup{
@@ -187,7 +187,7 @@ func Test_CleanExceededBackups_WhenUnderLimit_NoBackupsDeleted(t *testing.T) {
 		BackupIntervalID:      interval.ID,
 		BackupInterval:        interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
@@ -245,7 +245,7 @@ func Test_CleanExceededBackups_WhenOverLimit_DeletesOldestBackups(t *testing.T) 
 		BackupIntervalID:      interval.ID,
 		BackupInterval:        interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -316,7 +316,7 @@ func Test_CleanExceededBackups_SkipsInProgressBackups(t *testing.T) {
 		BackupIntervalID:      interval.ID,
 		BackupInterval:        interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -398,7 +398,7 @@ func Test_CleanExceededBackups_WithZeroLimit_SkipsDatabase(t *testing.T) {
 		BackupIntervalID:      interval.ID,
 		BackupInterval:        interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -523,7 +523,7 @@ func Test_CleanByCount_KeepsNewestNBackups_DeletesOlder(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -595,7 +595,7 @@ func Test_CleanByCount_WhenUnderLimit_NoBackupsDeleted(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -652,7 +652,7 @@ func Test_CleanByCount_DoesNotDeleteInProgressBackups(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -732,7 +732,7 @@ func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -807,7 +807,7 @@ func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -929,7 +929,7 @@ func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1217,7 +1217,7 @@ func Test_CleanByTimePeriod_SkipsRecentBackup_EvenIfOlderThanRetention(t *testin
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1288,7 +1288,7 @@ func Test_CleanByCount_SkipsRecentBackup_EvenIfOverLimit(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1390,7 +1390,7 @@ func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 		BackupIntervalID:    interval.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1498,7 +1498,7 @@ func Test_CleanExceededBackups_SkipsRecentBackup_WhenOverTotalSizeLimit(t *testi
 		BackupIntervalID:      interval.ID,
 		BackupInterval:        interval,
 	}
-	_, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()

@@ -181,7 +181,7 @@ func Test_BackupSizeLimits(t *testing.T) {
 		// Enable backups with unlimited size (0)
 		backupConfig := backups_config.EnableBackupsForTestDatabase(database.ID, storage)
 		backupConfig.MaxBackupSizeMB = 0 // unlimited
-		backupConfig, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+		backupConfig, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 		assert.NoError(t, err)
 
 		backuperNode := CreateTestBackuperNode()
@@ -211,7 +211,7 @@ func Test_BackupSizeLimits(t *testing.T) {
 		// Enable backups with 5 MB limit
 		backupConfig := backups_config.EnableBackupsForTestDatabase(database.ID, storage)
 		backupConfig.MaxBackupSizeMB = 5
-		backupConfig, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+		backupConfig, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 		assert.NoError(t, err)
 
 		backuperNode := CreateTestBackuperNode()
@@ -245,7 +245,7 @@ func Test_BackupSizeLimits(t *testing.T) {
 		// Enable backups with 100 MB limit
 		backupConfig := backups_config.EnableBackupsForTestDatabase(database.ID, storage)
 		backupConfig.MaxBackupSizeMB = 100
-		backupConfig, err := backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+		backupConfig, err := backups_config.GetBackupConfigRepository().Save(backupConfig)
 		assert.NoError(t, err)
 
 		backuperNode := CreateTestBackuperNode()

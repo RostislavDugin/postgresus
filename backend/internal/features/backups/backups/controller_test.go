@@ -875,13 +875,14 @@ func Test_DownloadBackup_ProperFilenameForPostgreSQL(t *testing.T) {
 			storage := createTestStorage(workspace.ID)
 
 			configService := backups_config.GetBackupConfigService()
-			config, err := configService.GetBackupConfigByDbId(database.ID)
+			config, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 			assert.NoError(t, err)
 
 			config.IsBackupsEnabled = true
-			config.StorageID = &storage.ID
+			config := configs[0]
+		config.StorageID = &storage.ID
 			config.Storage = storage
-			_, err = configService.SaveBackupConfig(config)
+			_, err = backups_config.GetBackupConfigRepository().Save(config)
 			assert.NoError(t, err)
 
 			backup := createTestBackup(database, owner)
@@ -975,13 +976,14 @@ func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	config, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
 	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
+	config := configs[0]
+		config.StorageID = &storage.ID
 	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	_, err = backups_config.GetBackupConfigRepository().Save(config)
 	assert.NoError(t, err)
 
 	backup := &backups_core.Backup{
@@ -1408,7 +1410,7 @@ func enableBackupForDatabase(databaseID uuid.UUID) {
 	}
 
 	config.IsBackupsEnabled = true
-	_, err = configService.SaveBackupConfig(config)
+	_, err = backups_config.GetBackupConfigRepository().Save(config)
 	if err != nil {
 		panic(err)
 	}
@@ -1423,15 +1425,16 @@ func createTestDatabaseWithBackups(
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	config, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	if err != nil {
 		panic(err)
 	}
 
 	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
+	config := configs[0]
+		config.StorageID = &storage.ID
 	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	_, err = backups_config.GetBackupConfigRepository().Save(config)
 	if err != nil {
 		panic(err)
 	}
@@ -1613,13 +1616,14 @@ func Test_BandwidthThrottling_MultipleDownloads_ShareBandwidth(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	config, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
 	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
+	config := configs[0]
+		config.StorageID = &storage.ID
 	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	_, err = backups_config.GetBackupConfigRepository().Save(config)
 	assert.NoError(t, err)
 
 	backup1 := createTestBackup(database, owner1)
@@ -1730,13 +1734,14 @@ func Test_BandwidthThrottling_DynamicAdjustment(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	config, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
 	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
+	config := configs[0]
+		config.StorageID = &storage.ID
 	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	_, err = backups_config.GetBackupConfigRepository().Save(config)
 	assert.NoError(t, err)
 
 	backup1 := createTestBackup(database, owner1)
@@ -1815,7 +1820,7 @@ func Test_DeleteBackup_RemovesBackupAndMetadataFilesFromDisk(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	backupConfig, err := configService.GetBackupConfigByDbId(database.ID)
+	backupConfig, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
 	backupConfig.IsBackupsEnabled = true

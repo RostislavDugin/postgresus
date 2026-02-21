@@ -48,7 +48,8 @@ func Test_RunPendingBackups_WhenLastBackupWasYesterday_CreatesNewBackup(t *testi
 	}()
 
 	// Enable backups for the database
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -62,7 +63,7 @@ func Test_RunPendingBackups_WhenLastBackupWasYesterday_CreatesNewBackup(t *testi
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// add old backup
@@ -118,7 +119,8 @@ func Test_RunPendingBackups_WhenLastBackupWasRecentlyCompleted_SkipsBackup(t *te
 	}()
 
 	// Enable backups for the database
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -132,7 +134,7 @@ func Test_RunPendingBackups_WhenLastBackupWasRecentlyCompleted_SkipsBackup(t *te
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// add recent backup (1 hour ago)
@@ -187,7 +189,8 @@ func Test_RunPendingBackups_WhenLastBackupFailedAndRetriesDisabled_SkipsBackup(t
 	}()
 
 	// Enable backups for the database with retries disabled
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -203,7 +206,7 @@ func Test_RunPendingBackups_WhenLastBackupFailedAndRetriesDisabled_SkipsBackup(t
 	backupConfig.IsRetryIfFailed = false
 	backupConfig.MaxFailedTriesCount = 0
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// add failed backup
@@ -260,7 +263,8 @@ func Test_RunPendingBackups_WhenLastBackupFailedAndRetriesEnabled_CreatesNewBack
 	}()
 
 	// Enable backups for the database with retries enabled
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -276,7 +280,7 @@ func Test_RunPendingBackups_WhenLastBackupFailedAndRetriesEnabled_CreatesNewBack
 	backupConfig.IsRetryIfFailed = true
 	backupConfig.MaxFailedTriesCount = 3
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// add failed backup
@@ -334,7 +338,8 @@ func Test_RunPendingBackups_WhenFailedBackupsExceedMaxRetries_SkipsBackup(t *tes
 	}()
 
 	// Enable backups for the database with retries enabled
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -350,7 +355,7 @@ func Test_RunPendingBackups_WhenFailedBackupsExceedMaxRetries_SkipsBackup(t *tes
 	backupConfig.IsRetryIfFailed = true
 	backupConfig.MaxFailedTriesCount = 3
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	failMessage := "backup failed"
@@ -406,7 +411,8 @@ func Test_RunPendingBackups_WhenBackupsDisabled_SkipsBackup(t *testing.T) {
 		workspaces_testing.RemoveTestWorkspace(workspace, router)
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -420,7 +426,7 @@ func Test_RunPendingBackups_WhenBackupsDisabled_SkipsBackup(t *testing.T) {
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// add old backup that would trigger new backup if enabled
@@ -476,7 +482,8 @@ func Test_CheckDeadNodesAndFailBackups_WhenNodeDies_FailsBackupAndCleansUpRegist
 		cache_utils.ClearAllCache()
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -490,7 +497,7 @@ func Test_CheckDeadNodesAndFailBackups_WhenNodeDies_FailsBackupAndCleansUpRegist
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Register mock node without subscribing to backups (simulates node crash after registration)
@@ -499,7 +506,7 @@ func Test_CheckDeadNodesAndFailBackups_WhenNodeDies_FailsBackupAndCleansUpRegist
 	assert.NoError(t, err)
 
 	// Scheduler assigns backup to mock node
-	GetBackupsScheduler().StartBackup(database, false)
+	GetBackupsScheduler().StartBackup(database, backupConfig, false)
 	time.Sleep(100 * time.Millisecond)
 
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -580,7 +587,8 @@ func Test_OnBackupCompleted_WhenTaskIsNotBackup_SkipsProcessing(t *testing.T) {
 		cache_utils.ClearAllCache()
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -594,7 +602,7 @@ func Test_OnBackupCompleted_WhenTaskIsNotBackup_SkipsProcessing(t *testing.T) {
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Register mock node
@@ -603,7 +611,7 @@ func Test_OnBackupCompleted_WhenTaskIsNotBackup_SkipsProcessing(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Start a backup and assign it to the node
-	GetBackupsScheduler().StartBackup(database, false)
+	GetBackupsScheduler().StartBackup(database, backupConfig, false)
 	time.Sleep(100 * time.Millisecond)
 
 	backups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -758,7 +766,8 @@ func Test_FailBackupsInProgress_WhenSchedulerStarts_CancelsBackupsAndUpdatesStat
 		cache_utils.ClearAllCache()
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -772,7 +781,7 @@ func Test_FailBackupsInProgress_WhenSchedulerStarts_CancelsBackupsAndUpdatesStat
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Create two in-progress backups that should be failed on scheduler restart
@@ -872,7 +881,8 @@ func Test_StartBackup_WhenBackupCompletes_DecrementsActiveTaskCount(t *testing.T
 		workspaces_testing.RemoveTestWorkspace(workspace, router)
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -886,7 +896,7 @@ func Test_StartBackup_WhenBackupCompletes_DecrementsActiveTaskCount(t *testing.T
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Get initial active task count
@@ -902,7 +912,7 @@ func Test_StartBackup_WhenBackupCompletes_DecrementsActiveTaskCount(t *testing.T
 	t.Logf("Initial active tasks: %d", initialActiveTasks)
 
 	// Start backup
-	scheduler.StartBackup(database, false)
+	scheduler.StartBackup(database, backupConfig, false)
 
 	// Wait for backup to complete
 	WaitForBackupCompletion(t, database.ID, 0, 10*time.Second)
@@ -976,7 +986,8 @@ func Test_StartBackup_WhenBackupFails_DecrementsActiveTaskCount(t *testing.T) {
 	_, err := dbRepo.Save(database)
 	assert.NoError(t, err)
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -990,7 +1001,7 @@ func Test_StartBackup_WhenBackupFails_DecrementsActiveTaskCount(t *testing.T) {
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Get initial active task count
@@ -1006,7 +1017,7 @@ func Test_StartBackup_WhenBackupFails_DecrementsActiveTaskCount(t *testing.T) {
 	t.Logf("Initial active tasks: %d", initialActiveTasks)
 
 	// Start backup
-	scheduler.StartBackup(database, false)
+	scheduler.StartBackup(database, backupConfig, false)
 
 	// Wait for backup to fail
 	WaitForBackupCompletion(t, database.ID, 0, 10*time.Second)
@@ -1071,7 +1082,8 @@ func Test_StartBackup_WhenBackupAlreadyInProgress_SkipsNewBackup(t *testing.T) {
 		workspaces_testing.RemoveTestWorkspace(workspace, router)
 	}()
 
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -1085,7 +1097,7 @@ func Test_StartBackup_WhenBackupAlreadyInProgress_SkipsNewBackup(t *testing.T) {
 	backupConfig.Storage = storage
 	backupConfig.StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Create an in-progress backup manually
@@ -1100,7 +1112,7 @@ func Test_StartBackup_WhenBackupAlreadyInProgress_SkipsNewBackup(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Try to start a new backup - should be skipped
-	GetBackupsScheduler().StartBackup(database, false)
+	GetBackupsScheduler().StartBackup(database, backupConfig, false)
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -1143,7 +1155,8 @@ func Test_RunPendingBackups_WhenLastBackupFailedWithIsSkipRetry_SkipsBackupEvenW
 	}()
 
 	// Enable backups with retries enabled and high retry count
-	backupConfig, err := backups_config.GetBackupConfigService().GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := backups_config.GetBackupConfigService().GetBackupConfigsByDatabaseID(database.ID)
+		backupConfig := backupConfigs[0]
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
@@ -1159,7 +1172,7 @@ func Test_RunPendingBackups_WhenLastBackupFailedWithIsSkipRetry_SkipsBackupEvenW
 	backupConfig.IsRetryIfFailed = true
 	backupConfig.MaxFailedTriesCount = 5
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig)
 	assert.NoError(t, err)
 
 	// Create a failed backup with IsSkipRetry set to true
@@ -1246,47 +1259,47 @@ func Test_StartBackup_When2BackupsStartedForDifferentDatabases_BothUseCasesAreCa
 
 	// Enable backups for database1
 	backupConfig1, err := backups_config.GetBackupConfigService().
-		GetBackupConfigByDbId(database1.ID)
+		GetBackupConfigsByDatabaseID(database1.ID)
 	assert.NoError(t, err)
 
 	timeOfDay := "04:00"
-	backupConfig1.BackupInterval = &intervals.Interval{
+	backupConfig1[0].BackupInterval = &intervals.Interval{
 		Interval:  intervals.IntervalDaily,
 		TimeOfDay: &timeOfDay,
 	}
-	backupConfig1.IsBackupsEnabled = true
-	backupConfig1.RetentionPolicyType = backups_config.RetentionPolicyTypeTimePeriod
-	backupConfig1.RetentionTimePeriod = period.PeriodWeek
-	backupConfig1.Storage = storage
-	backupConfig1.StorageID = &storage.ID
+	backupConfig1[0].IsBackupsEnabled = true
+	backupConfig1[0].RetentionPolicyType = backups_config.RetentionPolicyTypeTimePeriod
+	backupConfig1[0].RetentionTimePeriod = period.PeriodWeek
+	backupConfig1[0].Storage = storage
+	backupConfig1[0].StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig1)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig1[0])
 	assert.NoError(t, err)
 
 	// Enable backups for database2
 	backupConfig2, err := backups_config.GetBackupConfigService().
-		GetBackupConfigByDbId(database2.ID)
+		GetBackupConfigsByDatabaseID(database2.ID)
 	assert.NoError(t, err)
 
-	backupConfig2.BackupInterval = &intervals.Interval{
+	backupConfig2[0].BackupInterval = &intervals.Interval{
 		Interval:  intervals.IntervalDaily,
 		TimeOfDay: &timeOfDay,
 	}
-	backupConfig2.IsBackupsEnabled = true
-	backupConfig2.RetentionPolicyType = backups_config.RetentionPolicyTypeTimePeriod
-	backupConfig2.RetentionTimePeriod = period.PeriodWeek
-	backupConfig2.Storage = storage
-	backupConfig2.StorageID = &storage.ID
+	backupConfig2[0].IsBackupsEnabled = true
+	backupConfig2[0].RetentionPolicyType = backups_config.RetentionPolicyTypeTimePeriod
+	backupConfig2[0].RetentionTimePeriod = period.PeriodWeek
+	backupConfig2[0].Storage = storage
+	backupConfig2[0].StorageID = &storage.ID
 
-	_, err = backups_config.GetBackupConfigService().SaveBackupConfig(backupConfig2)
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfig2[0])
 	assert.NoError(t, err)
 
 	// Start 2 backups simultaneously
 	t.Log("Starting backup for database1")
-	scheduler.StartBackup(database1, false)
+	scheduler.StartBackup(database1, backupConfig1[0], false)
 
 	t.Log("Starting backup for database2")
-	scheduler.StartBackup(database2, false)
+	scheduler.StartBackup(database2, backupConfig2[0], false)
 
 	// Wait up to 10 seconds for both backups to complete
 	t.Log("Waiting for both backups to complete...")
