@@ -286,19 +286,20 @@ func Test_GetBackupConfigsByDatabaseID_PermissionsEnforced(t *testing.T) {
 				testUserToken = nonMember.Token
 			}
 
-			var response BackupConfig
+			var responses []*BackupConfig
 			testResp := test_utils.MakeGetRequestAndUnmarshal(
 				t,
 				router,
 				"/api/v1/backup-configs/database/"+database.ID.String(),
 				"Bearer "+testUserToken,
 				tt.expectedStatusCode,
-				&response,
+				&responses,
 			)
 
 			if tt.expectSuccess {
-				assert.Equal(t, database.ID, response.DatabaseID)
-				assert.NotNil(t, response.BackupInterval)
+				assert.GreaterOrEqual(t, len(responses), 1)
+				assert.Equal(t, database.ID, responses[0].DatabaseID)
+				assert.NotNil(t, responses[0].BackupInterval)
 			} else {
 				assert.Contains(t, string(testResp.Body), "backup configuration not found")
 			}
