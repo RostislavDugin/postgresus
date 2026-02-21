@@ -453,6 +453,7 @@ func createValidBackupConfig() *BackupConfig {
 	intervalID := uuid.New()
 	return &BackupConfig{
 		DatabaseID:            uuid.New(),
+		Name:                  "Default Schedule",
 		IsBackupsEnabled:      true,
 		RetentionPolicyType:   RetentionPolicyTypeTimePeriod,
 		RetentionTimePeriod:   period.PeriodMonth,

@@ -14,7 +14,11 @@ import (
 )
 
 type BackupConfig struct {
-	DatabaseID uuid.UUID `json:"databaseId" gorm:"column:database_id;type:uuid;primaryKey;not null"`
+	ID         uuid.UUID `json:"id" gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+	DatabaseID uuid.UUID `json:"databaseId" gorm:"column:database_id;type:uuid;not null"`
+
+	// Human-readable name for the schedule
+	Name string `json:"name" gorm:"column:name;type:text;not null"`
 
 	IsBackupsEnabled bool `json:"isBackupsEnabled" gorm:"column:is_backups_enabled;type:boolean;not null"`
 
@@ -86,6 +90,10 @@ func (b *BackupConfig) AfterFind(tx *gorm.DB) error {
 }
 
 func (b *BackupConfig) Validate(plan *plans.DatabasePlan) error {
+	if b.Name == "" {
+		return errors.New("name is required")
+	}
+
 	if b.BackupIntervalID == uuid.Nil && b.BackupInterval == nil {
 		return errors.New("backup interval is required")
 	}
@@ -136,6 +144,7 @@ func (b *BackupConfig) Validate(plan *plans.DatabasePlan) error {
 func (b *BackupConfig) Copy(newDatabaseID uuid.UUID) *BackupConfig {
 	return &BackupConfig{
 		DatabaseID:            newDatabaseID,
+		Name:                  b.Name,
 		IsBackupsEnabled:      b.IsBackupsEnabled,
 		RetentionPolicyType:   b.RetentionPolicyType,
 		RetentionTimePeriod:   b.RetentionTimePeriod,
