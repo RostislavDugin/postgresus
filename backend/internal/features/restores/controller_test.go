@@ -348,13 +348,13 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 				}()
 
 				configService := backups_config.GetBackupConfigService()
-				config, err := configService.GetBackupConfigByDbId(mysqlDB.ID)
+				configs, err := configService.GetBackupConfigsByDatabaseID(mysqlDB.ID)
 				assert.NoError(t, err)
 
-				config.IsBackupsEnabled = true
-				config.StorageID = &storage.ID
-				config.Storage = storage
-				_, err = configService.SaveBackupConfig(config)
+				configs[0].IsBackupsEnabled = true
+				configs[0].StorageID = &storage.ID
+				configs[0].Storage = storage
+				_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 				assert.NoError(t, err)
 
 				backup = createTestBackup(mysqlDB, storage)
@@ -596,15 +596,15 @@ func createTestDatabaseWithBackupForRestore(
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	if err != nil {
 		panic(err)
 	}
 
-	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
-	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	configs[0].StorageID = &storage.ID
+	configs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	if err != nil {
 		panic(err)
 	}
@@ -769,9 +769,9 @@ func cleanupDatabaseWithBackup(database *databases.Database, backup *backups_cor
 
 	// Clean up storage last (after database and backup are removed)
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
-	if err == nil && config.StorageID != nil {
-		storages.RemoveTestStorage(*config.StorageID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
+	if err == nil && configs[0].StorageID != nil {
+		storages.RemoveTestStorage(*configs[0].StorageID)
 	}
 }
 
