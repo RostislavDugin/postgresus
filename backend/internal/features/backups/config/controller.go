@@ -15,7 +15,7 @@ type BackupConfigController struct {
 }
 
 func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
-	router.GET("/backup-configs/:id", c.GetBackupConfigByID)
+	router.GET("/backup-configs/by-id/:id", c.GetBackupConfigByID)
 	router.GET("/backup-configs/database/:databaseId", c.GetBackupConfigsByDatabaseID)
 	router.POST("/backup-configs", c.CreateBackupConfig)
 	router.PUT("/backup-configs/:id", c.UpdateBackupConfig)
@@ -36,7 +36,7 @@ func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /backup-configs/{id} [get]
+// @Router /backup-configs/by-id/{id} [get]
 func (c *BackupConfigController) GetBackupConfigByID(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
