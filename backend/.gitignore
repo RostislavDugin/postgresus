@@ -1,4 +1,5 @@
 main
+*.test
 .env
 docker-compose.yml
 pgdata
