@@ -93,7 +93,13 @@ func (s *BackupService) MakeBackupWithAuth(
 		return errors.New("insufficient permissions to create backup for this database")
 	}
 
-	s.backupSchedulerService.StartBackup(database, true)
+	configs, err := s.backupConfigService.GetBackupConfigsByDatabaseID(database.ID)
+	if err != nil {
+		return err
+	}
+	for _, config := range configs {
+		s.backupSchedulerService.StartBackup(database, config, true)
+	}
 
 	s.auditLogService.WriteAuditLog(
 		fmt.Sprintf("Backup manually initiated for database: %s", database.Name),

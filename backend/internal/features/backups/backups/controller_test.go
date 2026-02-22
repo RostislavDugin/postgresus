@@ -729,23 +729,23 @@ func Test_DownloadBackup_WithDifferentBackupToken_Unauthorized(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config1, err := configService.GetBackupConfigByDbId(database1.ID)
+	configs1, err := configService.GetBackupConfigsByDatabaseID(database1.ID)
 	assert.NoError(t, err)
-	config1.IsBackupsEnabled = true
-	config1.StorageID = &storage.ID
-	config1.Storage = storage
-	_, err = configService.SaveBackupConfig(config1)
+	configs1[0].IsBackupsEnabled = true
+	configs1[0].StorageID = &storage.ID
+	configs1[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs1[0])
 	assert.NoError(t, err)
 
 	backup1 := createTestBackup(database1, owner)
 
 	database2 := createTestDatabase("Database 2", workspace.ID, owner.Token, router)
-	config2, err := configService.GetBackupConfigByDbId(database2.ID)
+	configs2, err := configService.GetBackupConfigsByDatabaseID(database2.ID)
 	assert.NoError(t, err)
-	config2.IsBackupsEnabled = true
-	config2.StorageID = &storage.ID
-	config2.Storage = storage
-	_, err = configService.SaveBackupConfig(config2)
+	configs2[0].IsBackupsEnabled = true
+	configs2[0].StorageID = &storage.ID
+	configs2[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs2[0])
 	assert.NoError(t, err)
 
 	backup2 := createTestBackup(database2, owner)
@@ -875,13 +875,14 @@ func Test_DownloadBackup_ProperFilenameForPostgreSQL(t *testing.T) {
 			storage := createTestStorage(workspace.ID)
 
 			configService := backups_config.GetBackupConfigService()
-			config, err := configService.GetBackupConfigByDbId(database.ID)
+			configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 			assert.NoError(t, err)
 
-			config.IsBackupsEnabled = true
-			config.StorageID = &storage.ID
-			config.Storage = storage
-			_, err = configService.SaveBackupConfig(config)
+			configs[0].IsBackupsEnabled = true
+			
+		configs[0].StorageID = &storage.ID
+			configs[0].Storage = storage
+			_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 			assert.NoError(t, err)
 
 			backup := createTestBackup(database, owner)
@@ -975,13 +976,14 @@ func Test_CancelBackup_InProgressBackup_SuccessfullyCancelled(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
-	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
-	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	
+		configs[0].StorageID = &storage.ID
+	configs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	assert.NoError(t, err)
 
 	backup := &backups_core.Backup{
@@ -1402,13 +1404,13 @@ func createTestStorage(workspaceID uuid.UUID) *storages.Storage {
 
 func enableBackupForDatabase(databaseID uuid.UUID) {
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(databaseID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(databaseID)
 	if err != nil {
 		panic(err)
 	}
 
-	config.IsBackupsEnabled = true
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	if err != nil {
 		panic(err)
 	}
@@ -1423,15 +1425,16 @@ func createTestDatabaseWithBackups(
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	if err != nil {
 		panic(err)
 	}
 
-	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
-	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	
+		configs[0].StorageID = &storage.ID
+	configs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	if err != nil {
 		panic(err)
 	}
@@ -1613,13 +1616,14 @@ func Test_BandwidthThrottling_MultipleDownloads_ShareBandwidth(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
-	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
-	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	
+		configs[0].StorageID = &storage.ID
+	configs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	assert.NoError(t, err)
 
 	backup1 := createTestBackup(database, owner1)
@@ -1730,13 +1734,14 @@ func Test_BandwidthThrottling_DynamicAdjustment(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	config, err := configService.GetBackupConfigByDbId(database.ID)
+	configs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
-	config.IsBackupsEnabled = true
-	config.StorageID = &storage.ID
-	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	configs[0].IsBackupsEnabled = true
+	
+		configs[0].StorageID = &storage.ID
+	configs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(configs[0])
 	assert.NoError(t, err)
 
 	backup1 := createTestBackup(database, owner1)
@@ -1815,13 +1820,13 @@ func Test_DeleteBackup_RemovesBackupAndMetadataFilesFromDisk(t *testing.T) {
 	storage := createTestStorage(workspace.ID)
 
 	configService := backups_config.GetBackupConfigService()
-	backupConfig, err := configService.GetBackupConfigByDbId(database.ID)
+	backupConfigs, err := configService.GetBackupConfigsByDatabaseID(database.ID)
 	assert.NoError(t, err)
 
-	backupConfig.IsBackupsEnabled = true
-	backupConfig.StorageID = &storage.ID
-	backupConfig.Storage = storage
-	_, err = configService.SaveBackupConfig(backupConfig)
+	backupConfigs[0].IsBackupsEnabled = true
+	backupConfigs[0].StorageID = &storage.ID
+	backupConfigs[0].Storage = storage
+	_, err = backups_config.GetBackupConfigRepository().Save(backupConfigs[0])
 	assert.NoError(t, err)
 
 	defer func() {

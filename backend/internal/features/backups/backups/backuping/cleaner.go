@@ -123,6 +123,7 @@ func (c *BackupCleaner) cleanByRetentionPolicy() error {
 			c.logger.Error(
 				"Failed to clean backups by retention policy",
 				"databaseId", backupConfig.DatabaseID,
+				"configId", backupConfig.ID,
 				"policy", backupConfig.RetentionPolicyType,
 				"error", cleanErr,
 			)
@@ -144,13 +145,15 @@ func (c *BackupCleaner) cleanExceededBackups() error {
 		}
 
 		if err := c.cleanExceededBackupsForDatabase(
-			backupConfig.DatabaseID,
+			backupConfig,
 			backupConfig.MaxBackupsTotalSizeMB,
 		); err != nil {
 			c.logger.Error(
-				"Failed to clean exceeded backups for database",
+				"Failed to clean exceeded backups for database config",
 				"databaseId",
 				backupConfig.DatabaseID,
+				"configId",
+				backupConfig.ID,
 				"error",
 				err,
 			)
@@ -173,13 +176,14 @@ func (c *BackupCleaner) cleanByTimePeriod(backupConfig *backups_config.BackupCon
 	storeDuration := backupConfig.RetentionTimePeriod.ToDuration()
 	dateBeforeBackupsShouldBeDeleted := time.Now().UTC().Add(-storeDuration)
 
-	oldBackups, err := c.backupRepository.FindBackupsBeforeDate(
-		backupConfig.DatabaseID,
+	oldBackups, err := c.backupRepository.FindBackupsBeforeDateByConfigID(
+		backupConfig.ID,
 		dateBeforeBackupsShouldBeDeleted,
 	)
 	if err != nil {
 		return fmt.Errorf(
-			"failed to find old backups for database %s: %w",
+			"failed to find old backups for config %s (database %s): %w",
+			backupConfig.ID,
 			backupConfig.DatabaseID,
 			err,
 		)
@@ -199,6 +203,7 @@ func (c *BackupCleaner) cleanByTimePeriod(backupConfig *backups_config.BackupCon
 			"Deleted old backup",
 			"backupId", backup.ID,
 			"databaseId", backupConfig.DatabaseID,
+			"configId", backupConfig.ID,
 		)
 	}
 
@@ -210,13 +215,14 @@ func (c *BackupCleaner) cleanByCount(backupConfig *backups_config.BackupConfig) 
 		return nil
 	}
 
-	completedBackups, err := c.backupRepository.FindByDatabaseIdAndStatus(
-		backupConfig.DatabaseID,
+	completedBackups, err := c.backupRepository.FindByConfigIdAndStatus(
+		backupConfig.ID,
 		backups_core.BackupStatusCompleted,
 	)
 	if err != nil {
 		return fmt.Errorf(
-			"failed to find completed backups for database %s: %w",
+			"failed to find completed backups for config %s (database %s): %w",
+			backupConfig.ID,
 			backupConfig.DatabaseID,
 			err,
 		)
@@ -248,6 +254,7 @@ func (c *BackupCleaner) cleanByCount(backupConfig *backups_config.BackupConfig) 
 			"Deleted backup by count policy",
 			"backupId", backup.ID,
 			"databaseId", backupConfig.DatabaseID,
+			"configId", backupConfig.ID,
 			"retentionCount", backupConfig.RetentionCount,
 		)
 	}
@@ -262,13 +269,14 @@ func (c *BackupCleaner) cleanByGFS(backupConfig *backups_config.BackupConfig) er
 		return nil
 	}
 
-	completedBackups, err := c.backupRepository.FindByDatabaseIdAndStatus(
-		backupConfig.DatabaseID,
+	completedBackups, err := c.backupRepository.FindByConfigIdAndStatus(
+		backupConfig.ID,
 		backups_core.BackupStatusCompleted,
 	)
 	if err != nil {
 		return fmt.Errorf(
-			"failed to find completed backups for database %s: %w",
+			"failed to find completed backups for config %s (database %s): %w",
+			backupConfig.ID,
 			backupConfig.DatabaseID,
 			err,
 		)
@@ -307,6 +315,7 @@ func (c *BackupCleaner) cleanByGFS(backupConfig *backups_config.BackupConfig) er
 			"Deleted backup by GFS policy",
 			"backupId", backup.ID,
 			"databaseId", backupConfig.DatabaseID,
+			"configId", backupConfig.ID,
 		)
 	}
 
@@ -314,11 +323,11 @@ func (c *BackupCleaner) cleanByGFS(backupConfig *backups_config.BackupConfig) er
 }
 
 func (c *BackupCleaner) cleanExceededBackupsForDatabase(
-	databaseID uuid.UUID,
+	backupConfig *backups_config.BackupConfig,
 	limitperDbMB int64,
 ) error {
 	for {
-		backupsTotalSizeMB, err := c.backupRepository.GetTotalSizeByDatabase(databaseID)
+		backupsTotalSizeMB, err := c.backupRepository.GetTotalSizeByConfigID(backupConfig.ID)
 		if err != nil {
 			return err
 		}
@@ -327,8 +336,8 @@ func (c *BackupCleaner) cleanExceededBackupsForDatabase(
 			break
 		}
 
-		oldestBackups, err := c.backupRepository.FindOldestByDatabaseExcludingInProgress(
-			databaseID,
+		oldestBackups, err := c.backupRepository.FindOldestByConfigIDExcludingInProgress(
+			backupConfig.ID,
 			1,
 		)
 		if err != nil {
@@ -339,7 +348,9 @@ func (c *BackupCleaner) cleanExceededBackupsForDatabase(
 			c.logger.Warn(
 				"No backups to delete but still over limit",
 				"databaseId",
-				databaseID,
+				backupConfig.DatabaseID,
+				"configId",
+				backupConfig.ID,
 				"totalSizeMB",
 				backupsTotalSizeMB,
 				"limitMB",
@@ -353,7 +364,9 @@ func (c *BackupCleaner) cleanExceededBackupsForDatabase(
 			c.logger.Warn(
 				"Oldest backup is too recent to delete, stopping size cleanup",
 				"databaseId",
-				databaseID,
+				backupConfig.DatabaseID,
+				"configId",
+				backupConfig.ID,
 				"backupId",
 				backup.ID,
 				"totalSizeMB",
@@ -370,7 +383,9 @@ func (c *BackupCleaner) cleanExceededBackupsForDatabase(
 				"backupId",
 				backup.ID,
 				"databaseId",
-				databaseID,
+				backupConfig.DatabaseID,
+				"configId",
+				backupConfig.ID,
 				"error",
 				err,
 			)
@@ -382,7 +397,9 @@ func (c *BackupCleaner) cleanExceededBackupsForDatabase(
 			"backupId",
 			backup.ID,
 			"databaseId",
-			databaseID,
+			backupConfig.DatabaseID,
+			"configId",
+			backupConfig.ID,
 			"backupSizeMB",
 			backup.BackupSizeMb,
 			"totalSizeMB",

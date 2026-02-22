@@ -8,12 +8,12 @@ import (
 )
 
 type Backup struct {
-	ID       uuid.UUID `json:"id"       gorm:"column:id;type:uuid;primaryKey"`
+	ID       uuid.UUID `json:"id"       gorm:"column:id;type:uuid;primaryKey;default:gen_random_uuid()"`
 	FileName string    `json:"fileName" gorm:"column:file_name;type:text;not null"`
 
-	DatabaseID     uuid.UUID  `json:"databaseId" gorm:"column:database_id;type:uuid;not null"`
+	DatabaseID     uuid.UUID  `json:"databaseId"     gorm:"column:database_id;type:uuid;not null"`
 	BackupConfigID *uuid.UUID `json:"backupConfigId" gorm:"column:backup_config_id;type:uuid"`
-	StorageID      uuid.UUID  `json:"storageId"  gorm:"column:storage_id;type:uuid;not null"`
+	StorageID      uuid.UUID  `json:"storageId"      gorm:"column:storage_id;type:uuid;not null"`
 
 	Status      BackupStatus `json:"status"      gorm:"column:status;not null"`
 	FailMessage *string      `json:"failMessage" gorm:"column:fail_message"`

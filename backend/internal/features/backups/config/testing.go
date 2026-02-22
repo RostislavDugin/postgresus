@@ -16,6 +16,7 @@ func EnableBackupsForTestDatabase(
 
 	backupConfig := &BackupConfig{
 		DatabaseID:          databaseID,
+		Name:                "Test Backup",
 		IsBackupsEnabled:    true,
 		RetentionPolicyType: RetentionPolicyTypeTimePeriod,
 		RetentionTimePeriod: period.PeriodDay,
@@ -31,7 +32,7 @@ func EnableBackupsForTestDatabase(
 		},
 	}
 
-	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)
+	backupConfig, err := GetBackupConfigRepository().Save(backupConfig)
 	if err != nil {
 		panic(err)
 	}
