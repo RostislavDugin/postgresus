@@ -13,7 +13,7 @@ import { type Database, databaseApi } from '../../../entity/databases';
 import type { UserProfile } from '../../../entity/users';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
-import { EditBackupConfigComponent, ShowBackupConfigComponent } from '../../backups';
+import { BackupSchedulesComponent } from '../../backups';
 import { EditHealthcheckConfigComponent, ShowHealthcheckConfigComponent } from '../../healthcheck';
 import { DatabaseTransferDialogComponent } from './DatabaseTransferDialogComponent';
 import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComponent';
@@ -46,7 +46,6 @@ export const DatabaseConfigComponent = ({
   const [isEditName, setIsEditName] = useState(false);
   const [isEditDatabaseSpecificDataSettings, setIsEditDatabaseSpecificDataSettings] =
     useState(false);
-  const [isEditBackupConfig, setIsEditBackupConfig] = useState(false);
   const [isEditNotifiersSettings, setIsEditNotifiersSettings] = useState(false);
   const [isEditHealthcheckSettings, setIsEditHealthcheckSettings] = useState(false);
 
@@ -63,7 +62,7 @@ export const DatabaseConfigComponent = ({
 
   useEffect(() => {
     backupConfigApi.getBackupConfigByDbID(database.id).then((config) => {
-      setCurrentStorageId(config.storage?.id);
+      setCurrentStorageId(config?.storage?.id);
     });
   }, [database.id]);
 
@@ -139,11 +138,10 @@ export const DatabaseConfigComponent = ({
       });
   };
 
-  const startEdit = (type: 'name' | 'database' | 'backup-config' | 'notifiers' | 'healthcheck') => {
+  const startEdit = (type: 'name' | 'database' | 'notifiers' | 'healthcheck') => {
     setEditDatabase(JSON.parse(JSON.stringify(database)));
     setIsEditName(type === 'name');
     setIsEditDatabaseSpecificDataSettings(type === 'database');
-    setIsEditBackupConfig(type === 'backup-config');
     setIsEditNotifiersSettings(type === 'notifiers');
     setIsEditHealthcheckSettings(type === 'healthcheck');
     setIsNameUnsaved(false);
@@ -295,40 +293,16 @@ export const DatabaseConfigComponent = ({
 
         <div className="w-full lg:w-[400px]">
           <div className="mt-5 flex items-center font-bold">
-            <div>Backup config</div>
-
-            {!isEditBackupConfig && isCanManageDBs ? (
-              <div
-                className="ml-2 h-4 w-4 cursor-pointer"
-                onClick={() => startEdit('backup-config')}
-              >
-                <img src="/icons/pen-gray.svg" />
-              </div>
-            ) : (
-              <div />
-            )}
+            <div>Backup schedules</div>
           </div>
 
-          <div>
-            <div className="mt-1 text-sm">
-              {isEditBackupConfig ? (
-                <EditBackupConfigComponent
-                  database={database}
-                  user={user}
-                  isShowCancelButton
-                  onCancel={() => {
-                    setIsEditBackupConfig(false);
-                    loadSettings();
-                  }}
-                  isSaveToApi={true}
-                  onSaved={() => onDatabaseChanged(database)}
-                  isShowBackButton={false}
-                  onBack={() => {}}
-                />
-              ) : (
-                <ShowBackupConfigComponent database={database} />
-              )}
-            </div>
+          <div className="mt-1 text-sm">
+            <BackupSchedulesComponent
+              database={database}
+              user={user}
+              isCanManageDBs={isCanManageDBs}
+              onChanged={() => onDatabaseChanged(database)}
+            />
           </div>
         </div>
       </div>

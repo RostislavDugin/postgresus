@@ -9,18 +9,25 @@ export const backupConfigApi = {
   async saveBackupConfig(config: BackupConfig) {
     const requestOptions: RequestOptions = new RequestOptions();
     requestOptions.setBody(JSON.stringify(config));
+    if (config.id) {
+      return apiHelper.fetchPutJson<BackupConfig>(
+        `${getApplicationServer()}/api/v1/backup-configs/${config.id}`,
+        requestOptions,
+      );
+    }
     return apiHelper.fetchPostJson<BackupConfig>(
-      `${getApplicationServer()}/api/v1/backup-configs/save`,
+      `${getApplicationServer()}/api/v1/backup-configs`,
       requestOptions,
     );
   },
 
   async getBackupConfigByDbID(databaseId: string) {
-    return apiHelper.fetchGetJson<BackupConfig>(
+    const configs = await apiHelper.fetchGetJson<BackupConfig[]>(
       `${getApplicationServer()}/api/v1/backup-configs/database/${databaseId}`,
       undefined,
       true,
     );
+    return configs[0] ?? null;
   },
 
   async isStorageUsing(storageId: string): Promise<boolean> {
@@ -61,6 +68,20 @@ export const backupConfigApi = {
       `${getApplicationServer()}/api/v1/backup-configs/database/${databaseId}/plan`,
       undefined,
       true,
+    );
+  },
+
+  async getBackupConfigsByDbID(databaseId: string) {
+    return apiHelper.fetchGetJson<BackupConfig[]>(
+      `${getApplicationServer()}/api/v1/backup-configs/database/${databaseId}`,
+      undefined,
+      true,
+    );
+  },
+
+  async deleteBackupConfig(id: string): Promise<void> {
+    await apiHelper.fetchDeleteRaw(
+      `${getApplicationServer()}/api/v1/backup-configs/${id}`,
     );
   },
 };

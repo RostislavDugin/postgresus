@@ -6,7 +6,9 @@ import type { BackupNotificationType } from './BackupNotificationType';
 import type { RetentionPolicyType } from './RetentionPolicyType';
 
 export interface BackupConfig {
+  id?: string;
   databaseId: string;
+  name: string;
 
   isBackupsEnabled: boolean;
 

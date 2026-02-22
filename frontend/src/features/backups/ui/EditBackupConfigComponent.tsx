@@ -43,6 +43,7 @@ import { EditStorageComponent } from '../../storages/ui/edit/EditStorageComponen
 interface Props {
   user: UserProfile;
   database: Database;
+  initialConfig?: BackupConfig;
 
   isShowBackButton: boolean;
   onBack: () => void;
@@ -77,6 +78,7 @@ const retentionPolicyOptions = [
 export const EditBackupConfigComponent = ({
   user,
   database,
+  initialConfig,
 
   isShowBackButton,
   onBack,
@@ -233,7 +235,10 @@ export const EditBackupConfigComponent = ({
 
       try {
         if (database.id) {
-          const config = await backupConfigApi.getBackupConfigByDbID(database.id);
+          const config =
+            initialConfig !== undefined
+              ? initialConfig
+              : await backupConfigApi.getBackupConfigByDbID(database.id);
           setBackupConfig(config);
           setIsUnsaved(false);
           setIsSaving(false);
@@ -246,6 +251,7 @@ export const EditBackupConfigComponent = ({
 
           setBackupConfig({
             databaseId: database.id,
+            name: 'Default',
             isBackupsEnabled: true,
             backupInterval: {
               id: undefined as unknown as string,
@@ -332,7 +338,8 @@ export const EditBackupConfigComponent = ({
   })();
 
   const isAllFieldsFilled =
-    !backupConfig.isBackupsEnabled ||
+    Boolean(backupConfig.name) &&
+    (!backupConfig.isBackupsEnabled ||
     (isRetentionValid &&
       Boolean(backupConfig.storage?.id) &&
       Boolean(backupConfig.encryption) &&
@@ -340,10 +347,23 @@ export const EditBackupConfigComponent = ({
       (!backupInterval ||
         ((backupInterval.interval !== IntervalType.WEEKLY || displayedWeekday) &&
           (backupInterval.interval !== IntervalType.MONTHLY || displayedDayOfMonth) &&
-          (backupInterval.interval !== IntervalType.CRON || backupInterval.cronExpression))));
+          (backupInterval.interval !== IntervalType.CRON || backupInterval.cronExpression)))));
 
   return (
     <div>
+      {database.id && (
+        <div className="mb-3 flex w-full flex-col items-start sm:flex-row sm:items-center">
+          <div className="mb-1 min-w-[150px] sm:mb-0">Schedule name</div>
+          <Input
+            value={backupConfig.name}
+            onChange={(e) => updateBackupConfig({ name: e.target.value })}
+            size="small"
+            className="w-full max-w-[200px] grow"
+            placeholder="e.g. Daily backup"
+          />
+        </div>
+      )}
+
       {database.id && (
         <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
           <div className="mb-1 min-w-[150px] sm:mb-0">Backups enabled</div>

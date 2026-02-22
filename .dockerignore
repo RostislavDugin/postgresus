@@ -40,6 +40,7 @@ notifiers
 
 # Dist (will be built fresh)
 frontend/dist
+backend/ui/build
 
 # Environment files (handled separately)
 .env.local
