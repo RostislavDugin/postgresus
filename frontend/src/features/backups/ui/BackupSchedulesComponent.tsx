@@ -164,15 +164,17 @@ export const BackupSchedulesComponent = ({ database, user, isCanManageDBs, onCha
                   <Button size="small" onClick={() => setEditingConfig(config)}>
                     Edit
                   </Button>
-                  <Button
-                    size="small"
-                    danger
-                    ghost
-                    onClick={() => setConfirmDeleteId(config.id!)}
-                    loading={deletingId === config.id}
-                  >
-                    Delete
-                  </Button>
+                  {config.id && (
+                    <Button
+                      size="small"
+                      danger
+                      ghost
+                      onClick={() => setConfirmDeleteId(config.id!)}
+                      loading={deletingId === config.id}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
