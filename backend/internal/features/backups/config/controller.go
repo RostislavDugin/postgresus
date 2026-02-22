@@ -16,7 +16,7 @@ type BackupConfigController struct {
 
 func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/backup-configs/by-id/:id", c.GetBackupConfigByID)
-	router.GET("/backup-configs/database/:databaseId", c.GetBackupConfigsByDatabaseID)
+	router.GET("/backup-configs/database/:id", c.GetBackupConfigsByDatabaseID)
 	router.POST("/backup-configs", c.CreateBackupConfig)
 	router.PUT("/backup-configs/:id", c.UpdateBackupConfig)
 	router.DELETE("/backup-configs/:id", c.DeleteBackupConfig)
@@ -76,11 +76,11 @@ func (c *BackupConfigController) GetBackupConfigByID(ctx *gin.Context) {
 // @Description Get all backup configurations for a specific database
 // @Tags backup-configs
 // @Produce json
-// @Param databaseId path string true "Database ID"
+// @Param id path string true "Database ID"
 // @Success 200 {array} BackupConfig
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /backup-configs/database/{databaseId} [get]
+// @Router /backup-configs/database/{id} [get]
 func (c *BackupConfigController) GetBackupConfigsByDatabaseID(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
@@ -88,7 +88,7 @@ func (c *BackupConfigController) GetBackupConfigsByDatabaseID(ctx *gin.Context) 
 		return
 	}
 
-	databaseID, err := uuid.Parse(ctx.Param("databaseId"))
+	databaseID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
 		return
