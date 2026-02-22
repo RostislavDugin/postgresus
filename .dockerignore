@@ -44,6 +44,7 @@ frontend/dist
 # Environment files (handled separately)
 .env.local
 .env.development
+backend/.env
 
 # Logs and temp files
 **/*.log
