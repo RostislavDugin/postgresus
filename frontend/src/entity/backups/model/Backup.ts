@@ -3,6 +3,7 @@ import type { Storage } from '../../storages';
 import { BackupEncryption } from './BackupEncryption';
 import { BackupStatus } from './BackupStatus';
 import type { PgWalBackupType } from './PgWalBackupType';
+import type { TableHealthReport } from './TableHealthReport';
 
 export interface Backup {
   id: string;
@@ -14,5 +15,6 @@ export interface Backup {
   backupDurationMs: number;
   encryption: BackupEncryption;
   pgWalBackupType?: PgWalBackupType;
+  tableHealthReport?: TableHealthReport;
   createdAt: Date;
 }

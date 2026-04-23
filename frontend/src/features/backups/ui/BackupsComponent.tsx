@@ -9,7 +9,9 @@ import {
   FilterOutlined,
   InfoCircleOutlined,
   LockOutlined,
+  MedicineBoxOutlined,
   SyncOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { Button, Modal, Spin, Table, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -66,6 +68,7 @@ export const BackupsComponent = ({
   const [isMakeBackupRequestLoading, setIsMakeBackupRequestLoading] = useState(false);
 
   const [showingBackupError, setShowingBackupError] = useState<Backup | undefined>();
+  const [showingHealthReport, setShowingHealthReport] = useState<Backup | undefined>();
 
   const [deleteConfimationId, setDeleteConfimationId] = useState<string | undefined>();
   const [deletingBackupId, setDeletingBackupId] = useState<string | undefined>();
@@ -271,6 +274,13 @@ export const BackupsComponent = ({
     }
 
     if (status === BackupStatus.COMPLETED) {
+      const healthReport = record.tableHealthReport;
+      const hasHealthIssues = healthReport && (
+        healthReport.repairedCount > 0 ||
+        healthReport.failedRepairs > 0 ||
+        (healthReport.missingTables && healthReport.missingTables.length > 0)
+      );
+
       return (
         <div className="flex items-center text-green-600">
           <CheckCircleOutlined className="mr-2" style={{ fontSize: 16 }} />
@@ -278,6 +288,30 @@ export const BackupsComponent = ({
           {record.encryption === BackupEncryption.ENCRYPTED && (
             <Tooltip title="Encrypted">
               <LockOutlined className="ml-1" style={{ fontSize: 14 }} />
+            </Tooltip>
+          )}
+          {hasHealthIssues && (
+            <Tooltip title="Table health issues detected — click for details">
+              <WarningOutlined
+                className="ml-2 cursor-pointer text-amber-500"
+                style={{ fontSize: 14 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowingHealthReport(record);
+                }}
+              />
+            </Tooltip>
+          )}
+          {healthReport && healthReport.repairedCount > 0 && !healthReport.failedRepairs && !(healthReport.missingTables?.length) && (
+            <Tooltip title={`${healthReport.repairedCount} table(s) auto-repaired before backup`}>
+              <MedicineBoxOutlined
+                className="ml-2 cursor-pointer text-blue-500"
+                style={{ fontSize: 14 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowingHealthReport(record);
+                }}
+              />
             </Tooltip>
           )}
         </div>
@@ -723,6 +757,108 @@ export const BackupsComponent = ({
           footer={null}
         >
           <div className="text-sm">{showingBackupError.failMessage}</div>
+        </Modal>
+      )}
+
+      {showingHealthReport?.tableHealthReport && (
+        <Modal
+          title="Table Health Report"
+          open={!!showingHealthReport}
+          onCancel={() => setShowingHealthReport(undefined)}
+          maskClosable={false}
+          footer={null}
+          width={700}
+        >
+          {(() => {
+            const report = showingHealthReport.tableHealthReport!;
+            return (
+              <div className="text-sm">
+                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-gray-50 p-3 text-center dark:bg-gray-800">
+                    <div className="text-lg font-bold">{report.totalTables}</div>
+                    <div className="text-xs text-gray-500">Total Tables</div>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3 text-center dark:bg-gray-800">
+                    <div className="text-lg font-bold text-green-600">{report.dumpedTables || report.totalTables}</div>
+                    <div className="text-xs text-gray-500">Dumped</div>
+                  </div>
+                  {report.repairedCount > 0 && (
+                    <div className="rounded-lg bg-blue-50 p-3 text-center dark:bg-blue-900/20">
+                      <div className="text-lg font-bold text-blue-600">{report.repairedCount}</div>
+                      <div className="text-xs text-gray-500">Auto-Repaired</div>
+                    </div>
+                  )}
+                  {report.failedRepairs > 0 && (
+                    <div className="rounded-lg bg-red-50 p-3 text-center dark:bg-red-900/20">
+                      <div className="text-lg font-bold text-red-600">{report.failedRepairs}</div>
+                      <div className="text-xs text-gray-500">Repair Failed</div>
+                    </div>
+                  )}
+                </div>
+
+                {report.missingTables && report.missingTables.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="mb-2 font-semibold text-amber-700 dark:text-amber-400">
+                      <WarningOutlined className="mr-1" />
+                      Missing from backup ({report.missingTables.length} tables)
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {report.missingTables.map((table) => (
+                        <span key={table} className="rounded bg-amber-100 px-2 py-0.5 font-mono text-xs dark:bg-amber-800/30">
+                          {table}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {report.tables && report.tables.length > 0 && (
+                  <div>
+                    <div className="mb-2 font-semibold">Per-Table Details</div>
+                    <div className="max-h-80 overflow-y-auto rounded-lg border dark:border-gray-700">
+                      <table className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-gray-100 dark:bg-gray-800">
+                          <tr>
+                            <th className="px-3 py-2">Table</th>
+                            <th className="px-3 py-2">Engine</th>
+                            <th className="px-3 py-2">Status</th>
+                            <th className="px-3 py-2">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.tables
+                            .filter((t) => t.status !== 'OK')
+                            .concat(report.tables.filter((t) => t.status === 'OK'))
+                            .map((table) => (
+                            <tr
+                              key={table.name}
+                              className={
+                                table.status === 'REPAIRED' ? 'bg-blue-50 dark:bg-blue-900/10' :
+                                table.status === 'REPAIR_FAILED' ? 'bg-red-50 dark:bg-red-900/10' :
+                                table.status === 'MISSING_FROM_DUMP' ? 'bg-amber-50 dark:bg-amber-900/10' :
+                                ''
+                              }
+                            >
+                              <td className="px-3 py-1.5 font-mono">{table.name}</td>
+                              <td className="px-3 py-1.5 text-gray-500">{table.engine}</td>
+                              <td className="px-3 py-1.5">
+                                {table.status === 'OK' && <span className="text-green-600">OK</span>}
+                                {table.status === 'REPAIRED' && <span className="font-semibold text-blue-600">Repaired</span>}
+                                {table.status === 'REPAIR_FAILED' && <span className="font-semibold text-red-600">Repair Failed</span>}
+                                {table.status === 'MISSING_FROM_DUMP' && <span className="font-semibold text-amber-600">Missing</span>}
+                                {table.status === 'CHECK_ERROR' && <span className="text-gray-500">Check Error</span>}
+                              </td>
+                              <td className="px-3 py-1.5 text-gray-500">{table.message || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </Modal>
       )}
     </div>

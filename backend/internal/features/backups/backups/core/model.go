@@ -1,6 +1,7 @@
 package backups_core
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,6 +10,9 @@ import (
 	backups_config "databasus-backend/internal/features/backups/config"
 	files_utils "databasus-backend/internal/util/files"
 )
+
+// TableHealthReport is stored as JSON in the backup row.
+type TableHealthReport json.RawMessage
 
 type PgWalBackupType string
 
@@ -42,6 +46,12 @@ type Backup struct {
 	PgFullBackupWalStopSegmentName  *string          `json:"pgFullBackupWalStopSegmentName"  gorm:"column:pg_wal_stop_segment;type:text"`
 	PgVersion                       *string          `json:"pgVersion"                       gorm:"column:pg_version;type:text"`
 	PgWalSegmentName                *string          `json:"pgWalSegmentName"                gorm:"column:pg_wal_segment_name;type:text"`
+
+	TableHealthReportJSON *json.RawMessage `json:"tableHealthReport" gorm:"column:table_health_report;type:jsonb"`
+
+	// Transient fields (not persisted to DB, used during backup execution)
+	HealthReport any    `json:"-" gorm:"-"`
+	StderrOutput string `json:"-" gorm:"-"`
 
 	UploadCompletedAt *time.Time `json:"uploadCompletedAt" gorm:"column:upload_completed_at"`
 	CreatedAt         time.Time  `json:"createdAt"         gorm:"column:created_at"`

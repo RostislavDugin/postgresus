@@ -330,6 +330,17 @@ func (n *BackuperNode) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 
 	backup.Status = backups_core.BackupStatusCompleted
 
+	// Persist table health report if available (MySQL auto-repair + partial tracking)
+	if backup.HealthReport != nil {
+		reportJSON, marshalErr := json.Marshal(backup.HealthReport)
+		if marshalErr != nil {
+			n.logger.Error("Failed to marshal table health report", "error", marshalErr)
+		} else {
+			rawJSON := json.RawMessage(reportJSON)
+			backup.TableHealthReportJSON = &rawJSON
+		}
+	}
+
 	if err := n.backupRepository.Save(backup); err != nil {
 		n.logger.Error("Failed to save backup", "error", err)
 		return
@@ -423,6 +434,36 @@ func (n *BackuperNode) SendBackupNotification(
 				durationStr,
 				sizeStr,
 			)
+
+			// Append table health report summary if available
+			if backup.TableHealthReportJSON != nil {
+				var healthData struct {
+					TotalTables   int      `json:"totalTables"`
+					DumpedTables  int      `json:"dumpedTables"`
+					RepairedCount int      `json:"repairedCount"`
+					FailedRepairs int      `json:"failedRepairs"`
+					MissingTables []string `json:"missingTables"`
+				}
+
+				if json.Unmarshal(*backup.TableHealthReportJSON, &healthData) == nil {
+					if healthData.RepairedCount > 0 {
+						message += fmt.Sprintf("\n\nAuto-repaired %d crashed tables before backup.", healthData.RepairedCount)
+					}
+
+					if healthData.FailedRepairs > 0 {
+						message += fmt.Sprintf("\n⚠️ %d tables could not be repaired.", healthData.FailedRepairs)
+					}
+
+					if len(healthData.MissingTables) > 0 {
+						message += fmt.Sprintf(
+							"\n⚠️ Partial backup: %d/%d tables dumped. Missing: %s",
+							healthData.DumpedTables,
+							healthData.TotalTables,
+							strings.Join(healthData.MissingTables, ", "),
+						)
+					}
+				}
+			}
 		}
 
 		n.notificationSender.SendNotification(

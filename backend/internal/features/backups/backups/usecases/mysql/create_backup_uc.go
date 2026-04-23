@@ -78,9 +78,41 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
+	// Pre-backup: check and auto-repair crashed tables
+	healthReport, healthErr := common.PreBackupHealthCheck(
+		ctx,
+		uc.logger,
+		my.Host,
+		my.Port,
+		my.Username,
+		decryptedPassword,
+		*my.Database,
+		my.IsHttps,
+	)
+	if healthErr != nil {
+		uc.logger.Warn("pre-backup health check failed, proceeding with backup",
+			"database_id", db.ID,
+			"error", healthErr,
+		)
+	} else if healthReport.RepairedCount > 0 {
+		uc.logger.Info(
+			fmt.Sprintf("pre-backup health check repaired %d tables", healthReport.RepairedCount),
+			"database_id", db.ID,
+		)
+	}
+	if healthReport != nil && healthReport.FailedRepairs > 0 {
+		uc.logger.Warn(
+			fmt.Sprintf("pre-backup health check: %d tables could not be repaired", healthReport.FailedRepairs),
+			"database_id", db.ID,
+		)
+	}
+
+	// Store health report on backup for later persistence
+	backup.HealthReport = healthReport
+
 	args := uc.buildMysqldumpArgs(my)
 
-	return uc.streamToStorage(
+	metadata, err := uc.streamToStorage(
 		ctx,
 		backup,
 		backupConfig,
@@ -96,6 +128,21 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 		backupProgressListener,
 		my,
 	)
+
+	// Post-backup: verify dump completeness using stderr output
+	if healthReport != nil && backup.StderrOutput != "" {
+		common.VerifyDumpCompleteness(healthReport, backup.StderrOutput)
+
+		if len(healthReport.MissingTables) > 0 {
+			uc.logger.Warn(
+				fmt.Sprintf("partial backup detected: %d tables missing from dump", len(healthReport.MissingTables)),
+				"database_id", db.ID,
+				"missing_tables", strings.Join(healthReport.MissingTables, ", "),
+			)
+		}
+	}
+
+	return metadata, err
 }
 
 func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatabase) []string {
@@ -278,6 +325,9 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 
 	saveErr := <-saveErrCh
 	stderrOutput := <-stderrCh
+
+	// Store stderr on backup for post-backup verification
+	backup.StderrOutput = string(stderrOutput)
 
 	if waitErr == nil && copyErr == nil && saveErr == nil && backupProgressListener != nil {
 		sizeMB := float64(bytesWritten) / (1024 * 1024)
