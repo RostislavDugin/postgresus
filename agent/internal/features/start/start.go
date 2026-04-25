@@ -73,7 +73,7 @@ func RunDaemon(cfg *config.Config, agentVersion string, isDev bool, log *slog.Lo
 	}
 	go watcher.Run(ctx)
 
-	apiClient := api.NewClient(cfg.DatabasusHost, cfg.Token, log)
+	apiClient := api.NewClient(cfg.DatabasusHost, cfg.Token, cfg.InsecureSkipVerify, log)
 
 	var backgroundUpgrader *upgrade.BackgroundUpgrader
 	if agentVersion != "dev" && runtime.GOOS != "windows" {

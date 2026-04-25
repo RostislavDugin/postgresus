@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,7 +42,7 @@ type Client struct {
 	log        *slog.Logger
 }
 
-func NewClient(host, token string, log *slog.Logger) *Client {
+func NewClient(host, token string, isInsecureSkipVerify bool, log *slog.Logger) *Client {
 	setAuth := func(_ *resty.Client, req *resty.Request) error {
 		if token != "" {
 			req.SetHeader("Authorization", token)
@@ -60,9 +61,32 @@ func NewClient(host, token string, log *slog.Logger) *Client {
 		}).
 		OnBeforeRequest(setAuth)
 
+	if isInsecureSkipVerify {
+		tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec // user opt-in for self-signed servers
+		jsonClient.SetTLSClientConfig(tlsConfig)
+
+		if log != nil {
+			log.Warn("TLS certificate verification is disabled for Databasus API; use only with self-signed or non-production servers")
+		}
+	}
+
+	streamHTTP := &http.Client{}
+	if isInsecureSkipVerify {
+		transport, isOk := http.DefaultTransport.(*http.Transport)
+		if isOk {
+			cloned := transport.Clone()
+			cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			streamHTTP.Transport = cloned
+		} else {
+			streamHTTP.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			}
+		}
+	}
+
 	return &Client{
 		json:       jsonClient,
-		streamHTTP: &http.Client{},
+		streamHTTP: streamHTTP,
 		host:       host,
 		token:      token,
 		log:        log,

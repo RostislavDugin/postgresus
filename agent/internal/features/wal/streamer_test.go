@@ -145,7 +145,7 @@ func Test_UploadSegment_DeleteEnabled_FileRemovedAfterUpload(t *testing.T) {
 	isDeleteEnabled := true
 	cfg := createTestConfig(walDir, server.URL)
 	cfg.IsDeleteWalAfterUpload = &isDeleteEnabled
-	apiClient := api.NewClient(server.URL, cfg.Token, logger.GetLogger())
+	apiClient := api.NewClient(server.URL, cfg.Token, false, logger.GetLogger())
 	streamer := NewStreamer(cfg, apiClient, logger.GetLogger())
 
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
@@ -173,7 +173,7 @@ func Test_UploadSegment_DeleteDisabled_FileKeptAfterUpload(t *testing.T) {
 	isDeleteDisabled := false
 	cfg := createTestConfig(walDir, server.URL)
 	cfg.IsDeleteWalAfterUpload = &isDeleteDisabled
-	apiClient := api.NewClient(server.URL, cfg.Token, logger.GetLogger())
+	apiClient := api.NewClient(server.URL, cfg.Token, false, logger.GetLogger())
 	streamer := NewStreamer(cfg, apiClient, logger.GetLogger())
 
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
@@ -334,7 +334,7 @@ func Test_UploadSegment_WhenUploadStalls_FailsWithIdleTimeout(t *testing.T) {
 
 func newTestStreamer(walDir, serverURL string) *Streamer {
 	cfg := createTestConfig(walDir, serverURL)
-	apiClient := api.NewClient(serverURL, cfg.Token, logger.GetLogger())
+	apiClient := api.NewClient(serverURL, cfg.Token, false, logger.GetLogger())
 
 	return NewStreamer(cfg, apiClient, logger.GetLogger())
 }

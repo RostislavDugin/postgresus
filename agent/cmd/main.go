@@ -62,7 +62,7 @@ func runStart(args []string) {
 	log := logger.GetLogger()
 
 	isDev := checkIsDevelopment()
-	runUpdateCheck(cfg.DatabasusHost, *isSkipUpdate, isDev, log)
+	runUpdateCheck(cfg, *isSkipUpdate, isDev, log)
 
 	if err := start.Start(cfg, Version, isDev, log); err != nil {
 		if errors.Is(err, upgrade.ErrUpgradeRestart) {
@@ -132,7 +132,7 @@ func runRestore(args []string) {
 	log := logger.GetLogger()
 
 	isDev := checkIsDevelopment()
-	runUpdateCheck(cfg.DatabasusHost, *isSkipUpdate, isDev, log)
+	runUpdateCheck(cfg, *isSkipUpdate, isDev, log)
 
 	if *pgDataDir == "" {
 		fmt.Fprintln(os.Stderr, "Error: --target-dir is required")
@@ -149,7 +149,7 @@ func runRestore(args []string) {
 		os.Exit(1)
 	}
 
-	apiClient := api.NewClient(cfg.DatabasusHost, cfg.Token, log)
+	apiClient := api.NewClient(cfg.DatabasusHost, cfg.Token, cfg.InsecureSkipVerify, log)
 	restorer := restore.NewRestorer(apiClient, log, *pgDataDir, *backupID, *targetTime, cfg.PgType)
 
 	ctx := context.Background()
@@ -170,16 +170,16 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  version  Print agent version")
 }
 
-func runUpdateCheck(host string, isSkipUpdate, isDev bool, log *slog.Logger) {
+func runUpdateCheck(cfg *config.Config, isSkipUpdate, isDev bool, log *slog.Logger) {
 	if isSkipUpdate {
 		return
 	}
 
-	if host == "" {
+	if cfg.DatabasusHost == "" {
 		return
 	}
 
-	apiClient := api.NewClient(host, "", log)
+	apiClient := api.NewClient(cfg.DatabasusHost, "", cfg.InsecureSkipVerify, log)
 
 	isUpgraded, err := upgrade.CheckAndUpdate(apiClient, Version, isDev, log)
 	if err != nil {

@@ -227,6 +227,39 @@ func Test_LoadFromJSONAndArgs_DefaultsApplied_WhenNoJSONAndNoArgs(t *testing.T) 
 	assert.Equal(t, "host", cfg.PgType)
 	require.NotNil(t, cfg.IsDeleteWalAfterUpload)
 	assert.Equal(t, true, *cfg.IsDeleteWalAfterUpload)
+	assert.Equal(t, false, cfg.InsecureSkipVerify)
+}
+
+func Test_LoadFromJSONAndArgs_InsecureSkipVerifyLoadedFromJSON(t *testing.T) {
+	dir := setupTempDir(t)
+	writeConfigJSON(t, dir, Config{
+		DatabasusHost:      "https://json-host:4005",
+		DbID:               "id",
+		Token:              "token",
+		InsecureSkipVerify: true,
+	})
+
+	cfg := &Config{}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg.LoadFromJSONAndArgs(fs, []string{})
+
+	assert.Equal(t, true, cfg.InsecureSkipVerify)
+}
+
+func Test_LoadFromJSONAndArgs_InsecureSkipVerifyFromArgsOverridesJSON(t *testing.T) {
+	dir := setupTempDir(t)
+	writeConfigJSON(t, dir, Config{
+		DatabasusHost:      "https://json-host:4005",
+		DbID:               "id",
+		Token:              "token",
+		InsecureSkipVerify: false,
+	})
+
+	cfg := &Config{}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg.LoadFromJSONAndArgs(fs, []string{"-insecure-skip-verify", "true"})
+
+	assert.Equal(t, true, cfg.InsecureSkipVerify)
 }
 
 func Test_SaveToJSON_PgFieldsSavedCorrectly(t *testing.T) {

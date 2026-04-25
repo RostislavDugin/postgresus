@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"databasus-agent/internal/logger"
 )
@@ -26,6 +27,7 @@ type Config struct {
 	PgDockerContainerName  string `json:"pgDockerContainerName"`
 	PgWalDir               string `json:"pgWalDir"`
 	IsDeleteWalAfterUpload *bool  `json:"deleteWalAfterUpload"`
+	InsecureSkipVerify     bool   `json:"insecureSkipVerify,omitempty"`
 
 	flags parsedFlags
 }
@@ -52,12 +54,17 @@ func (c *Config) LoadFromJSONAndArgs(fs *flag.FlagSet, args []string) {
 	c.flags.pgHostBinDir = fs.String("pg-host-bin-dir", "", "Path to PG bin directory (host mode)")
 	c.flags.pgDockerContainerName = fs.String("pg-docker-container-name", "", "Docker container name (docker mode)")
 	c.flags.pgWalDir = fs.String("pg-wal-dir", "", "Path to WAL queue directory")
+	c.flags.insecureSkipVerify = fs.Bool(
+		"insecure-skip-verify",
+		false,
+		"Skip TLS certificate verification for HTTPS to Databasus (self-signed or dev only; reduces security)",
+	)
 
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
 
-	c.applyFlags()
+	c.applyFlags(fs)
 	log.Info("========= Loading config ============")
 	c.logConfigSources()
 	log.Info("========= Config has been loaded ====")
@@ -110,7 +117,8 @@ func (c *Config) applyDefaults() {
 	}
 
 	if c.IsDeleteWalAfterUpload == nil {
-		c.IsDeleteWalAfterUpload = new(true)
+		c.IsDeleteWalAfterUpload = new(bool)
+		*c.IsDeleteWalAfterUpload = true
 	}
 }
 
@@ -126,8 +134,9 @@ func (c *Config) initSources() {
 		"pg-type":                  "not configured",
 		"pg-host-bin-dir":          "not configured",
 		"pg-docker-container-name": "not configured",
-		"pg-wal-dir":               "not configured",
-		"delete-wal-after-upload":  "not configured",
+		"pg-wal-dir":              "not configured",
+		"delete-wal-after-upload": "not configured",
+		"insecure-skip-verify":    "default (false)",
 	}
 
 	if c.DatabasusHost != "" {
@@ -174,9 +183,13 @@ func (c *Config) initSources() {
 
 	// IsDeleteWalAfterUpload always has a value after applyDefaults
 	c.flags.sources["delete-wal-after-upload"] = configFileName
+
+	if c.InsecureSkipVerify {
+		c.flags.sources["insecure-skip-verify"] = configFileName
+	}
 }
 
-func (c *Config) applyFlags() {
+func (c *Config) applyFlags(fs *flag.FlagSet) {
 	if c.flags.databasusHost != nil && *c.flags.databasusHost != "" {
 		c.DatabasusHost = *c.flags.databasusHost
 		c.flags.sources["databasus-host"] = "command line args"
@@ -231,6 +244,20 @@ func (c *Config) applyFlags() {
 		c.PgWalDir = *c.flags.pgWalDir
 		c.flags.sources["pg-wal-dir"] = "command line args"
 	}
+
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name != "insecure-skip-verify" {
+			return
+		}
+
+		val, err := strconv.ParseBool(f.Value.String())
+		if err != nil {
+			return
+		}
+
+		c.InsecureSkipVerify = val
+		c.flags.sources["insecure-skip-verify"] = "command line args"
+	})
 }
 
 func (c *Config) logConfigSources() {
@@ -257,6 +284,13 @@ func (c *Config) logConfigSources() {
 		fmt.Sprintf("%v", *c.IsDeleteWalAfterUpload),
 		"source",
 		c.flags.sources["delete-wal-after-upload"],
+	)
+	log.Info(
+		"insecure-skip-verify",
+		"value",
+		fmt.Sprintf("%v", c.InsecureSkipVerify),
+		"source",
+		c.flags.sources["insecure-skip-verify"],
 	)
 }
 

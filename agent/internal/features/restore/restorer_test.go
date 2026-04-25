@@ -697,7 +697,7 @@ func createZstdData(t *testing.T, data []byte) []byte {
 }
 
 func newTestRestorer(serverURL, targetPgDataDir, backupID, targetTime, pgType string) *Restorer {
-	apiClient := api.NewClient(serverURL, "test-token", logger.GetLogger())
+	apiClient := api.NewClient(serverURL, "test-token", false, logger.GetLogger())
 
 	return NewRestorer(apiClient, logger.GetLogger(), targetPgDataDir, backupID, targetTime, pgType)
 }
