@@ -645,7 +645,7 @@ func newTestFullBackuper(serverURL string) *FullBackuper {
 		PgType:        "host",
 	}
 
-	apiClient := api.NewClient(serverURL, cfg.Token, logger.GetLogger())
+	apiClient := api.NewClient(serverURL, cfg.Token, false, logger.GetLogger())
 
 	return NewFullBackuper(cfg, apiClient, logger.GetLogger())
 }

@@ -12,6 +12,7 @@ type parsedFlags struct {
 	pgHostBinDir          *string
 	pgDockerContainerName *string
 	pgWalDir              *string
+	insecureSkipVerify    *bool
 
 	sources map[string]string
 }
