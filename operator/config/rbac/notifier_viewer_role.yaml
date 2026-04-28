@@ -1,0 +1,29 @@
+# This rule is not used by the project databasus-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants read-only access to databasus.databasus.io resources.
+# This role is intended for users who need visibility into these resources
+# without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: databasus-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: notifier-viewer-role
+rules:
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers/status
+  verbs:
+  - get

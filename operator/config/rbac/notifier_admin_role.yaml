@@ -1,0 +1,27 @@
+# This rule is not used by the project databasus-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants full permissions ('*') over databasus.databasus.io.
+# This role is intended for users authorized to modify roles and bindings within the cluster,
+# enabling them to delegate specific permissions to other users or groups as needed.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: databasus-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: notifier-admin-role
+rules:
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers
+  verbs:
+  - '*'
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers/status
+  verbs:
+  - get

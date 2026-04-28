@@ -1,0 +1,6 @@
+## Append samples of your project ##
+resources:
+- databasus_v1alpha1_storage.yaml
+- databasus_v1alpha1_notifier.yaml
+- databasus_v1alpha1_databasebackup.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

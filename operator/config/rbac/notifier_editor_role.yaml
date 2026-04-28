@@ -1,0 +1,33 @@
+# This rule is not used by the project databasus-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants permissions to create, update, and delete resources within the databasus.databasus.io.
+# This role is intended for users who need to manage these resources
+# but should not control RBAC or manage permissions for others.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: databasus-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: notifier-editor-role
+rules:
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - notifiers/status
+  verbs:
+  - get
