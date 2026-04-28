@@ -1,89 +1,151 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// +kubebuilder:validation:Enum=LOCAL;S3;GOOGLE_DRIVE;NAS;AZURE_BLOB;FTP;SFTP;RCLONE
+type StorageType string
 
-// StorageSpec defines the desired state of Storage
+const (
+	StorageTypeLocal       StorageType = "LOCAL"
+	StorageTypeS3          StorageType = "S3"
+	StorageTypeGoogleDrive StorageType = "GOOGLE_DRIVE"
+	StorageTypeNAS         StorageType = "NAS"
+	StorageTypeAzureBlob   StorageType = "AZURE_BLOB"
+	StorageTypeFTP         StorageType = "FTP"
+	StorageTypeSFTP        StorageType = "SFTP"
+	StorageTypeRclone      StorageType = "RCLONE"
+)
+
 type StorageSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+	// +kubebuilder:validation:Required
+	Type StorageType `json:"type"`
 
-	// foo is an example field of Storage. Edit storage_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	S3          *S3StorageSpec          `json:"s3,omitempty"`
+	SFTP        *SFTPStorageSpec        `json:"sftp,omitempty"`
+	AzureBlob   *AzureBlobStorageSpec   `json:"azureBlob,omitempty"`
+	Local       *LocalStorageSpec       `json:"local,omitempty"`
+	FTP         *FTPStorageSpec         `json:"ftp,omitempty"`
+	Rclone      *RcloneStorageSpec      `json:"rclone,omitempty"`
+	NAS         *NASStorageSpec         `json:"nas,omitempty"`
+	GoogleDrive *GoogleDriveStorageSpec `json:"googleDrive,omitempty"`
 }
 
-// StorageStatus defines the observed state of Storage.
+type S3StorageSpec struct {
+	Bucket             string       `json:"bucket"`
+	Region             string       `json:"region"`
+	Endpoint           string       `json:"endpoint,omitempty"`
+	Prefix             string       `json:"prefix,omitempty"`
+	AccessKeySecretRef SecretKeyRef `json:"accessKeySecretRef"`
+	SecretKeySecretRef SecretKeyRef `json:"secretKeySecretRef"`
+
+	// +kubebuilder:default=false
+	IsUseVirtualHostedStyle bool `json:"isUseVirtualHostedStyle,omitempty"`
+	// +kubebuilder:default=false
+	IsSkipTLSVerify bool `json:"isSkipTLSVerify,omitempty"`
+	// +kubebuilder:validation:Enum="";STANDARD;STANDARD_IA;ONEZONE_IA;INTELLIGENT_TIERING;REDUCED_REDUNDANCY;GLACIER_IR
+	StorageClass string `json:"storageClass,omitempty"`
+}
+
+type SFTPStorageSpec struct {
+	Host string `json:"host"`
+	// +kubebuilder:default=22
+	Port                int           `json:"port,omitempty"`
+	Username            string        `json:"username"`
+	PasswordSecretRef   *SecretKeyRef `json:"passwordSecretRef,omitempty"`
+	PrivateKeySecretRef *SecretKeyRef `json:"privateKeySecretRef,omitempty"`
+	Path                string        `json:"path,omitempty"`
+	// +kubebuilder:default=false
+	IsSkipHostKeyVerify bool `json:"isSkipHostKeyVerify,omitempty"`
+}
+
+type AzureBlobStorageSpec struct {
+	// +kubebuilder:validation:Enum=CONNECTION_STRING;ACCOUNT_KEY
+	AuthMethod                string        `json:"authMethod"`
+	ConnectionStringSecretRef *SecretKeyRef `json:"connectionStringSecretRef,omitempty"`
+	AccountName               string        `json:"accountName,omitempty"`
+	AccountKeySecretRef       *SecretKeyRef `json:"accountKeySecretRef,omitempty"`
+	ContainerName             string        `json:"containerName"`
+	Endpoint                  string        `json:"endpoint,omitempty"`
+	Prefix                    string        `json:"prefix,omitempty"`
+}
+
+type LocalStorageSpec struct {
+	Path string `json:"path"`
+}
+
+type FTPStorageSpec struct {
+	Host string `json:"host"`
+	// +kubebuilder:default=21
+	Port              int          `json:"port,omitempty"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	Path              string       `json:"path,omitempty"`
+	// +kubebuilder:default=false
+	IsUseSSL bool `json:"isUseSsl,omitempty"`
+	// +kubebuilder:default=false
+	IsSkipTLSVerify bool `json:"isSkipTlsVerify,omitempty"`
+}
+
+type RcloneStorageSpec struct {
+	ConfigContentSecretRef SecretKeyRef `json:"configContentSecretRef"`
+	RemotePath             string       `json:"remotePath,omitempty"`
+}
+
+type NASStorageSpec struct {
+	Host string `json:"host"`
+	// +kubebuilder:default=445
+	Port              int          `json:"port,omitempty"`
+	Share             string       `json:"share"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	// +kubebuilder:default=false
+	IsUseSSL bool   `json:"isUseSsl,omitempty"`
+	Domain   string `json:"domain,omitempty"`
+	Path     string `json:"path,omitempty"`
+}
+
+type GoogleDriveStorageSpec struct {
+	ClientIDSecretRef     SecretKeyRef `json:"clientIdSecretRef"`
+	ClientSecretSecretRef SecretKeyRef `json:"clientSecretSecretRef"`
+	TokenJSONSecretRef    SecretKeyRef `json:"tokenJsonSecretRef"`
+}
+
 type StorageStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ID assigned by the databasus API.
+	ID string `json:"id,omitempty"`
+	// ObservedGeneration is the most recent generation observed.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the Storage resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
-	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// Storage is the Schema for the storages API
+// Storage is the Schema for the storages API.
 type Storage struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// metadata is a standard object metadata
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitzero"`
-
-	// spec defines the desired state of Storage
-	// +required
-	Spec StorageSpec `json:"spec"`
-
-	// status defines the observed state of Storage
-	// +optional
-	Status StorageStatus `json:"status,omitzero"`
+	Spec   StorageSpec   `json:"spec"`
+	Status StorageStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// StorageList contains a list of Storage
+// StorageList contains a list of Storage.
 type StorageList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitzero"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Storage `json:"items"`
 }
 

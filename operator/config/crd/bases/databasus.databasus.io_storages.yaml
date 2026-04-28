@@ -1,0 +1,447 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: storages.databasus.databasus.io
+spec:
+  group: databasus.databasus.io
+  names:
+    kind: Storage
+    listKind: StorageList
+    plural: storages
+    singular: storage
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: Type
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Storage is the Schema for the storages API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              azureBlob:
+                properties:
+                  accountKeySecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  accountName:
+                    type: string
+                  authMethod:
+                    enum:
+                    - CONNECTION_STRING
+                    - ACCOUNT_KEY
+                    type: string
+                  connectionStringSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  containerName:
+                    type: string
+                  endpoint:
+                    type: string
+                  prefix:
+                    type: string
+                required:
+                - authMethod
+                - containerName
+                type: object
+              ftp:
+                properties:
+                  host:
+                    type: string
+                  isSkipTlsVerify:
+                    default: false
+                    type: boolean
+                  isUseSsl:
+                    default: false
+                    type: boolean
+                  passwordSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  path:
+                    type: string
+                  port:
+                    default: 21
+                    type: integer
+                  username:
+                    type: string
+                required:
+                - host
+                - passwordSecretRef
+                - username
+                type: object
+              googleDrive:
+                properties:
+                  clientIdSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  clientSecretSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  tokenJsonSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                required:
+                - clientIdSecretRef
+                - clientSecretSecretRef
+                - tokenJsonSecretRef
+                type: object
+              local:
+                properties:
+                  path:
+                    type: string
+                required:
+                - path
+                type: object
+              name:
+                type: string
+              nas:
+                properties:
+                  domain:
+                    type: string
+                  host:
+                    type: string
+                  isUseSsl:
+                    default: false
+                    type: boolean
+                  passwordSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  path:
+                    type: string
+                  port:
+                    default: 445
+                    type: integer
+                  share:
+                    type: string
+                  username:
+                    type: string
+                required:
+                - host
+                - passwordSecretRef
+                - share
+                - username
+                type: object
+              rclone:
+                properties:
+                  configContentSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  remotePath:
+                    type: string
+                required:
+                - configContentSecretRef
+                type: object
+              s3:
+                properties:
+                  accessKeySecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  bucket:
+                    type: string
+                  endpoint:
+                    type: string
+                  isSkipTLSVerify:
+                    default: false
+                    type: boolean
+                  isUseVirtualHostedStyle:
+                    default: false
+                    type: boolean
+                  prefix:
+                    type: string
+                  region:
+                    type: string
+                  secretKeySecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  storageClass:
+                    enum:
+                    - ""
+                    - STANDARD
+                    - STANDARD_IA
+                    - ONEZONE_IA
+                    - INTELLIGENT_TIERING
+                    - REDUCED_REDUNDANCY
+                    - GLACIER_IR
+                    type: string
+                required:
+                - accessKeySecretRef
+                - bucket
+                - region
+                - secretKeySecretRef
+                type: object
+              sftp:
+                properties:
+                  host:
+                    type: string
+                  isSkipHostKeyVerify:
+                    default: false
+                    type: boolean
+                  passwordSecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  path:
+                    type: string
+                  port:
+                    default: 22
+                    type: integer
+                  privateKeySecretRef:
+                    description: SecretKeyRef references a key within a Kubernetes
+                      Secret.
+                    properties:
+                      key:
+                        description: Key within the Secret data.
+                        type: string
+                      name:
+                        description: Name of the Secret in the same namespace.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  username:
+                    type: string
+                required:
+                - host
+                - username
+                type: object
+              type:
+                enum:
+                - LOCAL
+                - S3
+                - GOOGLE_DRIVE
+                - NAS
+                - AZURE_BLOB
+                - FTP
+                - SFTP
+                - RCLONE
+                type: string
+            required:
+            - name
+            - type
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              id:
+                description: ID assigned by the databasus API.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the most recent generation observed.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

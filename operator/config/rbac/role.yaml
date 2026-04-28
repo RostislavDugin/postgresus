@@ -1,11 +1,38 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/name: databasus-operator
-    app.kubernetes.io/managed-by: kustomize
   name: manager-role
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - databasebackups
+  - notifiers
+  - storages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - databasebackups/finalizers
+  - notifiers/finalizers
+  - storages/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - databasus.databasus.io
+  resources:
+  - databasebackups/status
+  - notifiers/status
+  - storages/status
+  verbs:
+  - get
+  - patch
+  - update

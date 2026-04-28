@@ -1,89 +1,246 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// +kubebuilder:validation:Enum=POSTGRES;MYSQL;MARIADB;MONGODB
+type DatabaseType string
 
-// DatabaseBackupSpec defines the desired state of DatabaseBackup
+const (
+	DatabaseTypePostgres DatabaseType = "POSTGRES"
+	DatabaseTypeMysql    DatabaseType = "MYSQL"
+	DatabaseTypeMariadb  DatabaseType = "MARIADB"
+	DatabaseTypeMongodb  DatabaseType = "MONGODB"
+)
+
+// +kubebuilder:validation:Enum=HOURLY;DAILY;WEEKLY;MONTHLY;CRON
+type IntervalType string
+
+const (
+	IntervalHourly  IntervalType = "HOURLY"
+	IntervalDaily   IntervalType = "DAILY"
+	IntervalWeekly  IntervalType = "WEEKLY"
+	IntervalMonthly IntervalType = "MONTHLY"
+	IntervalCron    IntervalType = "CRON"
+)
+
+// +kubebuilder:validation:Enum=TIME_PERIOD;COUNT;GFS
+type RetentionPolicyType string
+
+const (
+	RetentionPolicyTypeTimePeriod RetentionPolicyType = "TIME_PERIOD"
+	RetentionPolicyTypeCount     RetentionPolicyType = "COUNT"
+	RetentionPolicyTypeGFS       RetentionPolicyType = "GFS"
+)
+
+// +kubebuilder:validation:Enum=NONE;ENCRYPTED
+type BackupEncryption string
+
+const (
+	BackupEncryptionNone      BackupEncryption = "NONE"
+	BackupEncryptionEncrypted BackupEncryption = "ENCRYPTED"
+)
+
+// +kubebuilder:validation:Enum=BACKUP_FAILED;BACKUP_SUCCESS
+type BackupNotificationType string
+
+const (
+	NotificationBackupFailed  BackupNotificationType = "BACKUP_FAILED"
+	NotificationBackupSuccess BackupNotificationType = "BACKUP_SUCCESS"
+)
+
+// DatabaseBackupSpec defines the desired state of a managed database backup.
 type DatabaseBackupSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of DatabaseBackup. Edit databasebackup_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	Database    DatabaseSpec    `json:"database"`
+	Backup      BackupSpec      `json:"backup"`
+	Healthcheck *HealthcheckSpec `json:"healthcheck,omitempty"`
 }
 
-// DatabaseBackupStatus defines the observed state of DatabaseBackup.
+// --- Database section ---
+
+type DatabaseSpec struct {
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+	// +kubebuilder:validation:Required
+	Type DatabaseType `json:"type"`
+
+	Postgresql *PostgresqlDatabaseSpec `json:"postgresql,omitempty"`
+	Mysql      *MysqlDatabaseSpec      `json:"mysql,omitempty"`
+	Mariadb    *MariadbDatabaseSpec    `json:"mariadb,omitempty"`
+	Mongodb    *MongodbDatabaseSpec    `json:"mongodb,omitempty"`
+
+	// Names of Notifier CRDs in the same namespace to attach to this database.
+	NotifierRefs []string `json:"notifierRefs,omitempty"`
+}
+
+type PostgresqlDatabaseSpec struct {
+	Version           string       `json:"version"`
+	Host              string       `json:"host"`
+	Port              int          `json:"port"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	Database          string       `json:"database,omitempty"`
+	// +kubebuilder:default=false
+	IsHttps bool `json:"isHttps,omitempty"`
+	// +kubebuilder:validation:Enum=PG_DUMP;WAL_V1
+	// +kubebuilder:default=PG_DUMP
+	BackupType     string   `json:"backupType,omitempty"`
+	IncludeSchemas []string `json:"includeSchemas,omitempty"`
+	// +kubebuilder:default=1
+	CpuCount int `json:"cpuCount,omitempty"`
+}
+
+type MysqlDatabaseSpec struct {
+	Version           string       `json:"version"`
+	Host              string       `json:"host"`
+	Port              int          `json:"port"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	Database          string       `json:"database,omitempty"`
+	// +kubebuilder:default=false
+	IsHttps bool `json:"isHttps,omitempty"`
+}
+
+type MariadbDatabaseSpec struct {
+	Version           string       `json:"version"`
+	Host              string       `json:"host"`
+	Port              int          `json:"port"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	Database          string       `json:"database,omitempty"`
+	// +kubebuilder:default=false
+	IsHttps bool `json:"isHttps,omitempty"`
+}
+
+type MongodbDatabaseSpec struct {
+	Version           string       `json:"version"`
+	Host              string       `json:"host"`
+	Port              *int         `json:"port,omitempty"`
+	Username          string       `json:"username"`
+	PasswordSecretRef SecretKeyRef `json:"passwordSecretRef"`
+	Database          string       `json:"database"`
+	AuthDatabase      string       `json:"authDatabase,omitempty"`
+	// +kubebuilder:default=false
+	IsHttps bool `json:"isHttps,omitempty"`
+	// +kubebuilder:default=false
+	IsSrv bool `json:"isSrv,omitempty"`
+	// +kubebuilder:default=false
+	IsDirectConnection bool `json:"isDirectConnection,omitempty"`
+	// +kubebuilder:default=1
+	CpuCount int `json:"cpuCount,omitempty"`
+}
+
+// --- Backup section ---
+
+type BackupSpec struct {
+	// +kubebuilder:default=true
+	IsEnabled bool `json:"isEnabled"`
+
+	Interval        BackupIntervalSpec  `json:"interval"`
+	RetentionPolicy RetentionPolicySpec `json:"retentionPolicy"`
+
+	// Name of the Storage CRD in the same namespace.
+	StorageRef string `json:"storageRef"`
+
+	SendNotificationsOn []BackupNotificationType `json:"sendNotificationsOn,omitempty"`
+
+	// +kubebuilder:default=false
+	IsRetryIfFailed     bool `json:"isRetryIfFailed,omitempty"`
+	MaxFailedTriesCount int  `json:"maxFailedTriesCount,omitempty"`
+
+	// +kubebuilder:validation:Enum=NONE;ENCRYPTED
+	// +kubebuilder:default=NONE
+	Encryption BackupEncryption `json:"encryption,omitempty"`
+}
+
+type BackupIntervalSpec struct {
+	// +kubebuilder:validation:Required
+	Type IntervalType `json:"type"`
+	// Time in "HH:MM" format (required for DAILY, WEEKLY, MONTHLY).
+	TimeOfDay *string `json:"timeOfDay,omitempty"`
+	// Day of week 0-6, Sunday=0 (required for WEEKLY).
+	Weekday *int `json:"weekday,omitempty"`
+	// Day of month 1-31 (required for MONTHLY).
+	DayOfMonth *int `json:"dayOfMonth,omitempty"`
+	// 5-field cron expression (required for CRON).
+	CronExpression *string `json:"cronExpression,omitempty"`
+}
+
+type RetentionPolicySpec struct {
+	// +kubebuilder:validation:Required
+	Type RetentionPolicyType `json:"type"`
+	// Duration string e.g. "7d", "30d", "3m", "1y" (for TIME_PERIOD).
+	TimePeriod string `json:"timePeriod,omitempty"`
+	// Number of backups to keep (for COUNT).
+	Count int `json:"count,omitempty"`
+
+	// GFS retention fields.
+	GfsHours  int `json:"gfsHours,omitempty"`
+	GfsDays   int `json:"gfsDays,omitempty"`
+	GfsWeeks  int `json:"gfsWeeks,omitempty"`
+	GfsMonths int `json:"gfsMonths,omitempty"`
+	GfsYears  int `json:"gfsYears,omitempty"`
+}
+
+// --- Healthcheck section ---
+
+type HealthcheckSpec struct {
+	// +kubebuilder:default=true
+	IsEnabled bool `json:"isEnabled"`
+	// +kubebuilder:default=false
+	IsSentNotificationWhenUnavailable bool `json:"isSentNotificationWhenUnavailable,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	IntervalMinutes int `json:"intervalMinutes"`
+	// +kubebuilder:validation:Minimum=1
+	AttemptsBeforeConsideredAsDown int `json:"attemptsBeforeConsideredAsDown"`
+	// +kubebuilder:validation:Minimum=1
+	StoreAttemptsDays int `json:"storeAttemptsDays"`
+}
+
+// --- Status ---
+
 type DatabaseBackupStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// IDs assigned by the databasus API.
+	DatabaseID     string `json:"databaseId,omitempty"`
+	BackupConfigID string `json:"backupConfigId,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// +kubebuilder:validation:Enum=AVAILABLE;UNAVAILABLE;UNKNOWN;""
+	HealthStatus string `json:"healthStatus,omitempty"`
 
-	// conditions represent the current state of the DatabaseBackup resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
+	LastBackupTime         *metav1.Time `json:"lastBackupTime,omitempty"`
+	LastBackupErrorMessage string       `json:"lastBackupErrorMessage,omitempty"`
+
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// +listType=map
 	// +listMapKey=type
-	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="DB Type",type=string,JSONPath=`.spec.database.type`
+// +kubebuilder:printcolumn:name="Health",type=string,JSONPath=`.status.healthStatus`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Last Backup",type=date,JSONPath=`.status.lastBackupTime`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// DatabaseBackup is the Schema for the databasebackups API
+// DatabaseBackup is the Schema for the databasebackups API.
 type DatabaseBackup struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// metadata is a standard object metadata
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitzero"`
-
-	// spec defines the desired state of DatabaseBackup
-	// +required
-	Spec DatabaseBackupSpec `json:"spec"`
-
-	// status defines the observed state of DatabaseBackup
-	// +optional
-	Status DatabaseBackupStatus `json:"status,omitzero"`
+	Spec   DatabaseBackupSpec   `json:"spec"`
+	Status DatabaseBackupStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// DatabaseBackupList contains a list of DatabaseBackup
+// DatabaseBackupList contains a list of DatabaseBackup.
 type DatabaseBackupList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitzero"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DatabaseBackup `json:"items"`
 }
 
