@@ -10,10 +10,13 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -63,41 +66,25 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	// Initialize databasus API client from env vars
+	// Databasus API URL from env
 	databasusAPIURL := os.Getenv("DATABASUS_API_URL")
 	if databasusAPIURL == "" {
-		setupLog.Error(fmt.Errorf("DATABASUS_API_URL is required"), "missing env var")
-		os.Exit(1)
+		databasusAPIURL = "http://databasus-service.databasus.svc.cluster.local:4005"
 	}
 
-	databasusToken := os.Getenv("DATABASUS_TOKEN")
-	if databasusToken == "" {
-		setupLog.Error(fmt.Errorf("DATABASUS_TOKEN is required"), "missing env var")
-		os.Exit(1)
+	// Credentials secret name and namespace
+	credentialsSecretName := os.Getenv("DATABASUS_CREDENTIALS_SECRET")
+	if credentialsSecretName == "" {
+		credentialsSecretName = "databasus-operator-credentials"
 	}
 
-	databasusWorkspaceID := os.Getenv("DATABASUS_WORKSPACE_ID")
-	if databasusWorkspaceID == "" {
-		setupLog.Error(fmt.Errorf("DATABASUS_WORKSPACE_ID is required"), "missing env var")
-		os.Exit(1)
+	credentialsSecretNamespace := os.Getenv("DATABASUS_CREDENTIALS_NAMESPACE")
+	if credentialsSecretNamespace == "" {
+		credentialsSecretNamespace = os.Getenv("POD_NAMESPACE")
 	}
-
-	apiClient := dbclient.New(dbclient.Config{
-		BaseURL:     databasusAPIURL,
-		Token:       databasusToken,
-		WorkspaceID: databasusWorkspaceID,
-	})
-
-	// Verify connectivity to databasus API
-	healthCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := apiClient.HealthCheck(healthCtx); err != nil {
-		setupLog.Error(err, "failed to connect to databasus API", "url", databasusAPIURL)
-		os.Exit(1)
+	if credentialsSecretNamespace == "" {
+		credentialsSecretNamespace = "databasus"
 	}
-
-	setupLog.Info("connected to databasus API", "url", databasusAPIURL, "workspace_id", databasusWorkspaceID)
 
 	// Disable HTTP/2 by default due to CVEs
 	if !enableHTTP2 {
@@ -142,6 +129,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Read credentials from K8s Secret
+	setupLog.Info("reading credentials", "secret", credentialsSecretName, "namespace", credentialsSecretNamespace)
+
+	apiClient, err := authenticateFromSecret(mgr, databasusAPIURL, credentialsSecretNamespace, credentialsSecretName)
+	if err != nil {
+		setupLog.Error(err, "failed to authenticate with databasus")
+		os.Exit(1)
+	}
+
+	setupLog.Info("authenticated with databasus",
+		"url", databasusAPIURL,
+		"workspace_id", apiClient.WorkspaceID(),
+	)
+
 	if err := (&controller.StorageReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -184,4 +185,75 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// authenticateFromSecret reads the credentials Secret and authenticates with databasus.
+// Secret expected keys:
+//   - email: databasus user email
+//   - password: databasus user password
+//   - workspaceName (optional): workspace to use, defaults to first available
+//   - workspaceId (optional): explicit workspace UUID (takes precedence over workspaceName)
+func authenticateFromSecret(mgr ctrl.Manager, apiURL, namespace, secretName string) (*dbclient.DatabasusClient, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Use a direct client (the manager cache isn't started yet)
+	directClient, err := client.New(mgr.GetConfig(), client.Options{Scheme: mgr.GetScheme()})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct client: %w", err)
+	}
+
+	var secret corev1.Secret
+	if err := directClient.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      secretName,
+	}, &secret); err != nil {
+		return nil, fmt.Errorf("failed to read credentials secret %s/%s: %w", namespace, secretName, err)
+	}
+
+	email := string(secret.Data["email"])
+	password := string(secret.Data["password"])
+
+	if email == "" || password == "" {
+		return nil, fmt.Errorf("credentials secret must contain 'email' and 'password' keys")
+	}
+
+	// Authenticate
+	token, err := dbclient.SignIn(ctx, apiURL, email, password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign in: %w", err)
+	}
+
+	// Resolve workspace
+	workspaceID := string(secret.Data["workspaceId"])
+
+	if workspaceID == "" {
+		workspaceName := string(secret.Data["workspaceName"])
+
+		tempClient := dbclient.New(dbclient.Config{
+			BaseURL:     apiURL,
+			Token:       token,
+			WorkspaceID: "",
+		})
+
+		resolvedID, err := tempClient.ResolveWorkspace(ctx, workspaceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve workspace: %w", err)
+		}
+
+		workspaceID = resolvedID
+	}
+
+	apiClient := dbclient.New(dbclient.Config{
+		BaseURL:     apiURL,
+		Token:       token,
+		WorkspaceID: workspaceID,
+	})
+
+	// Verify connectivity
+	if err := apiClient.HealthCheck(ctx); err != nil {
+		return nil, fmt.Errorf("health check failed after auth: %w", err)
+	}
+
+	return apiClient, nil
 }
