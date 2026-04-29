@@ -1,0 +1,12 @@
+apiVersion: databasus.databasus.io/v1alpha1
+kind: Notifier
+metadata:
+  name: discord-monitoring
+  namespace: databasus
+spec:
+  name: Discord Monitoring Channel
+  type: DISCORD
+  discord:
+    webhookURLSecretRef:
+      name: discord-webhook
+      key: url

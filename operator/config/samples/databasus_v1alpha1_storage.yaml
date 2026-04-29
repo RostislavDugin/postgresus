@@ -1,9 +1,0 @@
-apiVersion: databasus.databasus.io/v1alpha1
-kind: Storage
-metadata:
-  labels:
-    app.kubernetes.io/name: databasus-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: storage-sample
-spec:
-  # TODO(user): Add fields here

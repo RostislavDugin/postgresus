@@ -1,0 +1,42 @@
+apiVersion: databasus.databasus.io/v1alpha1
+kind: DatabaseBackup
+metadata:
+  name: gitea
+  namespace: databasus
+spec:
+  database:
+    name: gitea
+    type: POSTGRES
+    notifierRefs:
+      - discord-monitoring
+    postgresql:
+      version: "18"
+      host: postgres-postgresql.postgres.svc.cluster.local
+      port: 5432
+      username: gitea
+      passwordSecretRef:
+        name: gitea-db-credentials
+        key: password
+      database: gitea
+      isHttps: false
+      backupType: PG_DUMP
+  backup:
+    isEnabled: true
+    interval:
+      type: DAILY
+      timeOfDay: "09:00"
+    retentionPolicy:
+      type: TIME_PERIOD
+      timePeriod: "90d"
+    storageRef: rustfs
+    encryption: ENCRYPTED
+    isRetryIfFailed: true
+    maxFailedTriesCount: 3
+    sendNotificationsOn:
+      - BACKUP_FAILED
+  healthcheck:
+    isEnabled: true
+    isSentNotificationWhenUnavailable: true
+    intervalMinutes: 1
+    attemptsBeforeConsideredAsDown: 3
+    storeAttemptsDays: 7

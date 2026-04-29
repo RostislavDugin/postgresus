@@ -1,0 +1,18 @@
+apiVersion: databasus.databasus.io/v1alpha1
+kind: Storage
+metadata:
+  name: rustfs
+  namespace: databasus
+spec:
+  name: rustfs
+  type: S3
+  s3:
+    bucket: databasus-backups
+    region: us-east-1
+    endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
+    accessKeySecretRef:
+      name: rustfs-credentials
+      key: access-key
+    secretKeySecretRef:
+      name: rustfs-credentials
+      key: secret-key
