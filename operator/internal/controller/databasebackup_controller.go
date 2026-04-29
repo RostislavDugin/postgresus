@@ -393,7 +393,7 @@ func (r *DatabaseBackupReconciler) buildBackupConfigRequest(dbBackup *databasusv
 		RetentionGfsWeeks:   backup.RetentionPolicy.GfsWeeks,
 		RetentionGfsMonths:  backup.RetentionPolicy.GfsMonths,
 		RetentionGfsYears:   backup.RetentionPolicy.GfsYears,
-		StorageID:           storageID,
+		Storage:             &dbclient.StorageRef{ID: storageID},
 		BackupInterval: &dbclient.IntervalRequest{
 			Interval:       string(backup.Interval.Type),
 			TimeOfDay:      backup.Interval.TimeOfDay,

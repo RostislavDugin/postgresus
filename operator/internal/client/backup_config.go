@@ -19,7 +19,7 @@ type BackupConfigRequest struct {
 	RetentionGfsMonths  int    `json:"retentionGfsMonths,omitempty"`
 	RetentionGfsYears   int    `json:"retentionGfsYears,omitempty"`
 
-	StorageID string `json:"storageId"`
+	Storage *StorageRef `json:"storage,omitempty"`
 
 	BackupInterval *IntervalRequest `json:"backupInterval"`
 
@@ -27,6 +27,10 @@ type BackupConfigRequest struct {
 	IsRetryIfFailed     bool     `json:"isRetryIfFailed"`
 	MaxFailedTriesCount int      `json:"maxFailedTriesCount"`
 	Encryption          string   `json:"encryption"`
+}
+
+type StorageRef struct {
+	ID string `json:"id"`
 }
 
 type IntervalRequest struct {
