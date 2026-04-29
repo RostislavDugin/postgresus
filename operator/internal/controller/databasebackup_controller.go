@@ -71,12 +71,10 @@ func (r *DatabaseBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	// Add finalizer if missing
+	// Add finalizer if missing — return early so re-reconcile uses fresh resourceVersion
 	if !controllerutil.ContainsFinalizer(&dbBackup, databaseBackupFinalizer) {
 		controllerutil.AddFinalizer(&dbBackup, databaseBackupFinalizer)
-		if err := r.Update(ctx, &dbBackup); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, r.Update(ctx, &dbBackup)
 	}
 
 	// Resolve Storage reference
@@ -282,7 +280,10 @@ func (r *DatabaseBackupReconciler) buildDatabaseRequest(dbBackup *databasusv1alp
 	}
 
 	for _, id := range notifierIDs {
-		req.Notifiers = append(req.Notifiers, dbclient.NotifierRef{ID: id})
+		req.Notifiers = append(req.Notifiers, dbclient.NotifierRef{
+			ID:          id,
+			WorkspaceID: r.DatabasusClient.WorkspaceID(),
+		})
 	}
 
 	switch dbBackup.Spec.Database.Type {

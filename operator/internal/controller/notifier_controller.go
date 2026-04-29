@@ -65,12 +65,10 @@ func (r *NotifierReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	// Add finalizer if missing
+	// Add finalizer if missing — return early so re-reconcile uses fresh resourceVersion
 	if !controllerutil.ContainsFinalizer(&notifier, notifierFinalizer) {
 		controllerutil.AddFinalizer(&notifier, notifierFinalizer)
-		if err := r.Update(ctx, &notifier); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, r.Update(ctx, &notifier)
 	}
 
 	// Build API request

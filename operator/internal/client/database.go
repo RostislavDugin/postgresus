@@ -23,7 +23,8 @@ type DatabaseRequest struct {
 }
 
 type NotifierRef struct {
-	ID string `json:"id"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
 }
 
 type PostgresqlRequest struct {

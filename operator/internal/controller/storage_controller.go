@@ -65,12 +65,10 @@ func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	// Add finalizer if missing
+	// Add finalizer if missing — return early so re-reconcile uses fresh resourceVersion
 	if !controllerutil.ContainsFinalizer(&storage, storageFinalizer) {
 		controllerutil.AddFinalizer(&storage, storageFinalizer)
-		if err := r.Update(ctx, &storage); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, r.Update(ctx, &storage)
 	}
 
 	// Build API request
