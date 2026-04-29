@@ -1,135 +1,226 @@
 # databasus-operator
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+A Kubernetes operator that manages databasus configuration declaratively via Custom Resource Definitions (CRDs). Instead of configuring databases, backups, storages, and notifiers through the web UI, define them as Kubernetes resources and let the operator reconcile them against the databasus API.
 
-## Getting Started
+## How it works
 
-### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+The operator watches three CRDs and syncs their state to a running databasus instance via its REST API:
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- **`Storage`** -- storage backends where backups are saved (S3, SFTP, Azure Blob, etc.)
+- **`Notifier`** -- notification channels for alerts (Discord, Slack, Telegram, etc.)
+- **`DatabaseBackup`** -- database connection + backup schedule + healthcheck config, referencing Storage and Notifier resources by name
 
-```sh
-make docker-build docker-push IMG=<some-registry>/databasus-operator:tag
+On create/update, the operator calls the databasus API to upsert resources. On delete, a finalizer ensures cleanup via the API before the Kubernetes resource is removed.
+
+## Prerequisites
+
+- A running databasus instance accessible from the cluster
+- `kubectl` configured for your cluster
+- `make`, `go 1.25+`, `docker` (for building)
+
+## Setup
+
+### 1. Create the credentials Secret
+
+The operator authenticates to databasus using an email/password stored in a Kubernetes Secret. It signs in on startup to get a JWT token and resolves the workspace automatically.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: databasus-operator-credentials
+  namespace: databasus
+type: Opaque
+stringData:
+  email: admin@example.com
+  password: your-password
+  # Optional: target a specific workspace by name (defaults to first available)
+  # workspaceName: "My Workspace"
+  # Optional: or by UUID (takes precedence over workspaceName)
+  # workspaceId: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+```bash
+kubectl apply -f credentials-secret.yaml
+```
 
-**Install the CRDs into the cluster:**
+### 2. Create Secrets for your resources
 
-```sh
+Each CRD references sensitive values via `secretKeyRef` fields pointing to Kubernetes Secrets. Create these before applying the CRDs.
+
+```bash
+# Storage credentials (e.g., S3)
+kubectl create secret generic rustfs-credentials \
+  --from-literal=access-key=YOUR_ACCESS_KEY \
+  --from-literal=secret-key=YOUR_SECRET_KEY \
+  -n databasus-operator-system
+
+# Notifier credentials (e.g., Discord webhook)
+kubectl create secret generic discord-webhook \
+  --from-literal=url=https://discord.com/api/webhooks/... \
+  -n databasus-operator-system
+
+# Database password
+kubectl create secret generic gitea-db-credentials \
+  --from-literal=password=YOUR_DB_PASSWORD \
+  -n databasus-operator-system
+```
+
+### 3. Build and deploy the operator
+
+```bash
+# Build the image
+make docker-build IMG=databasus-operator:latest
+
+# Import into k3s (if using local images)
+docker save databasus-operator:latest | sudo k3s ctr images import -
+
+# Install CRDs and deploy the operator
 make install
+make deploy IMG=databasus-operator:latest
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+### 4. Apply your resources
 
-```sh
-make deploy IMG=<some-registry>/databasus-operator:tag
+```bash
+kubectl apply -f config/samples/storage_s3.yaml
+kubectl apply -f config/samples/notifier_discord.yaml
+kubectl apply -f config/samples/databasebackup_gitea.yaml
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+### 5. Verify
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
+```bash
+kubectl get storages,notifiers,databasebackups -n databasus-operator-system
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+```
+NAME                                    TYPE   READY   AGE
+storage.databasus.databasus.io/rustfs   S3     True    5m
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+NAME                                                TYPE      READY   AGE
+notifier.databasus.databasus.io/operator-discord    DISCORD   True    5m
 
-```sh
-kubectl delete -k config/samples/
+NAME                                              DB TYPE    HEALTH      READY   LAST BACKUP   AGE
+databasebackup.databasus.databasus.io/gitea       POSTGRES   AVAILABLE   True    <timestamp>   5m
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## CRD Reference
 
-```sh
+### Storage
+
+Defines a backup storage backend. Supported types: `S3`, `SFTP`, `AZURE_BLOB`, `LOCAL`, `FTP`, `RCLONE`, `NAS`, `GOOGLE_DRIVE`.
+
+```yaml
+apiVersion: databasus.databasus.io/v1alpha1
+kind: Storage
+metadata:
+  name: my-s3-storage
+  namespace: databasus
+spec:
+  name: my-s3-storage
+  type: S3
+  s3:
+    bucket: my-backup-bucket
+    region: us-east-1
+    endpoint: http://minio.minio.svc.cluster.local:9000  # optional for AWS
+    prefix: backups/  # optional
+    accessKeySecretRef:
+      name: s3-credentials
+      key: access-key
+    secretKeySecretRef:
+      name: s3-credentials
+      key: secret-key
+    isSkipTLSVerify: false  # optional
+    storageClass: STANDARD  # optional
+```
+
+### Notifier
+
+Defines a notification channel. Supported types: `DISCORD`, `SLACK`, `TELEGRAM`, `EMAIL`, `WEBHOOK`, `TEAMS`.
+
+```yaml
+apiVersion: databasus.databasus.io/v1alpha1
+kind: Notifier
+metadata:
+  name: my-discord
+  namespace: databasus
+spec:
+  name: My Discord Channel
+  type: DISCORD
+  discord:
+    webhookURLSecretRef:
+      name: discord-webhook
+      key: url
+```
+
+### DatabaseBackup
+
+The main resource combining database connection, backup configuration, and health checks. References Storage and Notifier CRDs by their metadata name.
+
+```yaml
+apiVersion: databasus.databasus.io/v1alpha1
+kind: DatabaseBackup
+metadata:
+  name: my-database
+  namespace: databasus
+spec:
+  database:
+    name: my-database
+    type: POSTGRES  # POSTGRES, MYSQL, MARIADB, MONGODB
+    notifierRefs:
+      - my-discord  # metadata.name of a Notifier CRD
+    postgresql:
+      version: "17"
+      host: postgres.default.svc.cluster.local
+      port: 5432
+      username: myuser
+      passwordSecretRef:
+        name: db-credentials
+        key: password
+      database: mydb
+      backupType: PG_DUMP  # PG_DUMP or WAL_V1
+
+  backup:
+    isEnabled: true
+    storageRef: my-s3-storage  # metadata.name of a Storage CRD
+    encryption: ENCRYPTED      # NONE or ENCRYPTED
+    interval:
+      type: DAILY              # HOURLY, DAILY, WEEKLY, MONTHLY, CRON
+      timeOfDay: "09:00"
+    retentionPolicy:
+      type: TIME_PERIOD        # TIME_PERIOD, COUNT, GFS
+      timePeriod: "90d"
+    isRetryIfFailed: true
+    maxFailedTriesCount: 3
+    sendNotificationsOn:
+      - BACKUP_FAILED          # BACKUP_FAILED, BACKUP_SUCCESS
+
+  healthcheck:
+    isEnabled: true
+    isSentNotificationWhenUnavailable: true
+    intervalMinutes: 1
+    attemptsBeforeConsideredAsDown: 3
+    storeAttemptsDays: 7
+```
+
+## Configuration
+
+The operator reads its configuration from environment variables set in the deployment:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASUS_API_URL` | `http://databasus-service.databasus.svc.cluster.local:4005` | databasus API endpoint |
+| `DATABASUS_CREDENTIALS_SECRET` | `databasus-operator-credentials` | Name of the credentials Secret |
+| `DATABASUS_CREDENTIALS_NAMESPACE` | `databasus` | Namespace of the credentials Secret |
+
+## Uninstall
+
+```bash
+# Remove CRs (triggers finalizer cleanup via databasus API)
+kubectl delete databasebackups,notifiers,storages --all -n databasus-operator-system
+
+# Remove operator and CRDs
+make undeploy
 make uninstall
 ```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/databasus-operator:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/databasus-operator/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
