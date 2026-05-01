@@ -46,6 +46,7 @@ const createInitialEditingDatabase = (database: Database): Database => ({
   mysql: clearCredentials(database.mysql),
   mariadb: clearCredentials(database.mariadb),
   mongodb: clearCredentials(database.mongodb),
+  clickhouse: clearCredentials(database.clickhouse),
 });
 
 const getRestorePayload = (database: Database, editingDatabase: Database) => {
@@ -58,6 +59,8 @@ const getRestorePayload = (database: Database, editingDatabase: Database) => {
       return { mariadb: editingDatabase.mariadb };
     case DatabaseType.MONGODB:
       return { mongodb: editingDatabase.mongodb };
+    case DatabaseType.CLICKHOUSE:
+      return { clickhouse: editingDatabase.clickhouse };
     default:
       return {};
   }

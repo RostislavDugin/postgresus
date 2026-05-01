@@ -31,6 +31,7 @@ type MariadbDatabase struct {
 	Password        string  `json:"password"        gorm:"type:text;not null"`
 	Database        *string `json:"database"        gorm:"type:text"`
 	IsHttps         bool    `json:"isHttps"         gorm:"type:boolean;default:false"`
+	IsStrictTls     bool    `json:"isStrictTls"     gorm:"type:boolean;default:false"`
 	IsExcludeEvents bool    `json:"isExcludeEvents" gorm:"type:boolean;default:false"`
 	Privileges      string  `json:"privileges"      gorm:"column:privileges;type:text;not null;default:''"`
 }
@@ -125,6 +126,7 @@ func (m *MariadbDatabase) Update(incoming *MariadbDatabase) {
 	m.Username = incoming.Username
 	m.Database = incoming.Database
 	m.IsHttps = incoming.IsHttps
+	m.IsStrictTls = incoming.IsStrictTls
 	m.IsExcludeEvents = incoming.IsExcludeEvents
 	m.Privileges = incoming.Privileges
 
@@ -403,14 +405,18 @@ func (m *MariadbDatabase) buildDSN(password, database string) string {
 	tlsConfig := "false"
 
 	if m.IsHttps {
-		err := mysql.RegisterTLSConfig("mariadb-skip-verify", &tls.Config{
-			InsecureSkipVerify: true,
-		})
-		if err != nil {
-			// Config might already be registered, which is fine
-			_ = err
+		if m.IsStrictTls {
+			tlsConfig = "true"
+		} else {
+			err := mysql.RegisterTLSConfig("mariadb-skip-verify", &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			if err != nil {
+				// Config might already be registered, which is fine
+				_ = err
+			}
+			tlsConfig = "mariadb-skip-verify"
 		}
-		tlsConfig = "mariadb-skip-verify"
 	}
 
 	return fmt.Sprintf(

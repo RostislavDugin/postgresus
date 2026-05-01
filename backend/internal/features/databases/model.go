@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"databasus-backend/internal/features/databases/databases/clickhouse"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
@@ -29,6 +30,7 @@ type Database struct {
 	Mysql      *mysql.MysqlDatabase           `json:"mysql,omitzero"      gorm:"foreignKey:DatabaseID"`
 	Mariadb    *mariadb.MariadbDatabase       `json:"mariadb,omitzero"    gorm:"foreignKey:DatabaseID"`
 	Mongodb    *mongodb.MongodbDatabase       `json:"mongodb,omitzero"    gorm:"foreignKey:DatabaseID"`
+	Clickhouse *clickhouse.ClickhouseDatabase `json:"clickhouse,omitzero" gorm:"foreignKey:DatabaseID"`
 
 	Notifiers []notifiers.Notifier `json:"notifiers" gorm:"many2many:database_notifiers;"`
 
@@ -69,6 +71,11 @@ func (d *Database) Validate() error {
 			return errors.New("mongodb database is required")
 		}
 		return d.Mongodb.Validate()
+	case DatabaseTypeClickhouse:
+		if d.Clickhouse == nil {
+			return errors.New("clickhouse database is required")
+		}
+		return d.Clickhouse.Validate()
 	default:
 		return errors.New("invalid database type: " + string(d.Type))
 	}
@@ -114,6 +121,8 @@ func (d *Database) IsUserReadOnly(
 		return d.Mariadb.IsUserReadOnly(ctx, logger, encryptor, d.ID)
 	case DatabaseTypeMongodb:
 		return d.Mongodb.IsUserReadOnly(ctx, logger, encryptor, d.ID)
+	case DatabaseTypeClickhouse:
+		return d.Clickhouse.IsUserReadOnly(ctx, logger, encryptor, d.ID)
 	default:
 		return false, nil, errors.New("read-only check not supported for this database type")
 	}
@@ -136,6 +145,9 @@ func (d *Database) EncryptSensitiveFields(encryptor encryption.FieldEncryptor) e
 	if d.Mongodb != nil {
 		return d.Mongodb.EncryptSensitiveFields(d.ID, encryptor)
 	}
+	if d.Clickhouse != nil {
+		return d.Clickhouse.EncryptSensitiveFields(d.ID, encryptor)
+	}
 	return nil
 }
 
@@ -154,6 +166,9 @@ func (d *Database) PopulateDbData(
 	}
 	if d.Mongodb != nil {
 		return d.Mongodb.PopulateDbData(logger, encryptor, d.ID)
+	}
+	if d.Clickhouse != nil {
+		return d.Clickhouse.PopulateDbData(logger, encryptor, d.ID)
 	}
 	return nil
 }
@@ -180,6 +195,10 @@ func (d *Database) Update(incoming *Database) {
 		if d.Mongodb != nil && incoming.Mongodb != nil {
 			d.Mongodb.Update(incoming.Mongodb)
 		}
+	case DatabaseTypeClickhouse:
+		if d.Clickhouse != nil && incoming.Clickhouse != nil {
+			d.Clickhouse.Update(incoming.Clickhouse)
+		}
 	}
 }
 
@@ -199,6 +218,8 @@ func (d *Database) getSpecificDatabase() DatabaseConnector {
 		return d.Mariadb
 	case DatabaseTypeMongodb:
 		return d.Mongodb
+	case DatabaseTypeClickhouse:
+		return d.Clickhouse
 	}
 
 	panic("invalid database type: " + string(d.Type))

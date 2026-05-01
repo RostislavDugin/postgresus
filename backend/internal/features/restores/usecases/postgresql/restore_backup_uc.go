@@ -732,8 +732,12 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 
 	// Configure SSL settings
 	if shouldRequireSSL {
-		cmd.Env = append(cmd.Env, "PGSSLMODE=require")
-		uc.logger.Info("Using required SSL mode", "configuredHttps", pgConfig.IsHttps)
+		sslMode := "require"
+		if pgConfig.IsStrictTls {
+			sslMode = "verify-full"
+		}
+		cmd.Env = append(cmd.Env, "PGSSLMODE="+sslMode)
+		uc.logger.Info("Using SSL mode", "sslMode", sslMode, "configuredHttps", pgConfig.IsHttps)
 	} else {
 		cmd.Env = append(cmd.Env, "PGSSLMODE=prefer")
 		uc.logger.Info("Using preferred SSL mode", "configuredHttps", pgConfig.IsHttps)

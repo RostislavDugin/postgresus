@@ -41,7 +41,8 @@ type PostgresqlDatabase struct {
 	Username string  `json:"username" gorm:"type:text"`
 	Password string  `json:"password" gorm:"type:text"`
 	Database *string `json:"database" gorm:"type:text"`
-	IsHttps  bool    `json:"isHttps"  gorm:"type:boolean;default:false"`
+	IsHttps     bool `json:"isHttps"     gorm:"type:boolean;default:false"`
+	IsStrictTls bool `json:"isStrictTls" gorm:"type:boolean;default:false"`
 
 	// backup settings
 	IncludeSchemas       []string `json:"includeSchemas" gorm:"-"`
@@ -190,6 +191,7 @@ func (p *PostgresqlDatabase) Update(incoming *PostgresqlDatabase) {
 	p.Username = incoming.Username
 	p.Database = incoming.Database
 	p.IsHttps = incoming.IsHttps
+	p.IsStrictTls = incoming.IsStrictTls
 	p.IncludeSchemas = incoming.IncludeSchemas
 	p.CpuCount = incoming.CpuCount
 
@@ -1117,6 +1119,9 @@ func buildConnectionStringForDB(p *PostgresqlDatabase, dbName, password string) 
 	sslMode := "disable"
 	if p.IsHttps {
 		sslMode = "require"
+		if p.IsStrictTls {
+			sslMode = "verify-full"
+		}
 	}
 
 	return fmt.Sprintf(

@@ -84,7 +84,11 @@ func (uc *RestoreMariadbBackupUsecase) Execute(
 
 	if mdb.IsHttps {
 		args = append(args, "--ssl")
-		args = append(args, "--skip-ssl-verify-server-cert")
+		if mdb.IsStrictTls {
+			args = append(args, "--ssl-verify-server-cert")
+		} else {
+			args = append(args, "--skip-ssl-verify-server-cert")
+		}
 	} else {
 		args = append(args, "--skip-ssl")
 	}
@@ -318,6 +322,9 @@ port=%d
 
 	if mdbConfig.IsHttps {
 		content += "ssl=true\n"
+		if mdbConfig.IsStrictTls {
+			content += "ssl-verify-server-cert=true\n"
+		}
 	} else {
 		content += "ssl=false\n"
 	}

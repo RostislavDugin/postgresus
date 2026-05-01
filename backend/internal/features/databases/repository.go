@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"databasus-backend/internal/features/databases/databases/clickhouse"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
@@ -45,17 +46,22 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 				return errors.New("mongodb configuration is required for MongoDB database")
 			}
 			database.Mongodb.DatabaseID = &database.ID
+		case DatabaseTypeClickhouse:
+			if database.Clickhouse == nil {
+				return errors.New("clickhouse configuration is required for ClickHouse database")
+			}
+			database.Clickhouse.DatabaseID = &database.ID
 		}
 
 		if isNew {
 			if err := tx.Create(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
+				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Clickhouse", "Notifiers").
 				Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Save(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
+				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Clickhouse", "Notifiers").
 				Error; err != nil {
 				return err
 			}
@@ -110,6 +116,18 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 					return err
 				}
 			}
+		case DatabaseTypeClickhouse:
+			database.Clickhouse.DatabaseID = &database.ID
+			if database.Clickhouse.ID == uuid.Nil {
+				database.Clickhouse.ID = uuid.New()
+				if err := tx.Create(database.Clickhouse).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(database.Clickhouse).Error; err != nil {
+					return err
+				}
+			}
 		}
 
 		if err := tx.
@@ -137,6 +155,7 @@ func (r *DatabaseRepository) FindByID(id uuid.UUID) (*Database, error) {
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
+		Preload("Clickhouse").
 		Preload("Notifiers").
 		Where("id = ?", id).
 		First(&database).Error; err != nil {
@@ -155,6 +174,7 @@ func (r *DatabaseRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Databa
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
+		Preload("Clickhouse").
 		Preload("Notifiers").
 		Where("workspace_id = ?", workspaceID).
 		Order("CASE WHEN health_status = 'UNAVAILABLE' THEN 1 WHEN health_status = 'AVAILABLE' THEN 2 WHEN health_status IS NULL THEN 3 ELSE 4 END, name ASC").
@@ -203,6 +223,12 @@ func (r *DatabaseRepository) Delete(id uuid.UUID) error {
 				Delete(&mongodb.MongodbDatabase{}).Error; err != nil {
 				return err
 			}
+		case DatabaseTypeClickhouse:
+			if err := tx.
+				Where("database_id = ?", id).
+				Delete(&clickhouse.ClickhouseDatabase{}).Error; err != nil {
+				return err
+			}
 		}
 
 		if err := tx.Delete(&Database{}, id).Error; err != nil {
@@ -236,6 +262,7 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
+		Preload("Clickhouse").
 		Preload("Notifiers").
 		Find(&databases).Error; err != nil {
 		return nil, err

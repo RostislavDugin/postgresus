@@ -75,7 +75,11 @@ func (uc *RestoreMysqlBackupUsecase) Execute(
 	}
 
 	if my.IsHttps {
-		args = append(args, "--ssl-mode=REQUIRED")
+		if my.IsStrictTls {
+			args = append(args, "--ssl-mode=VERIFY_IDENTITY")
+		} else {
+			args = append(args, "--ssl-mode=REQUIRED")
+		}
 	} else {
 		args = append(args, "--ssl-mode=DISABLED")
 	}

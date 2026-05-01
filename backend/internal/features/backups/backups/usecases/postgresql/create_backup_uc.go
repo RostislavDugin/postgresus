@@ -139,6 +139,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		cmd,
 		pgpassFile,
 		db.Postgresql.IsHttps,
+		db.Postgresql.IsStrictTls,
 		password,
 		db.Postgresql.CpuCount,
 		pgBin,
@@ -431,6 +432,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
 	cmd *exec.Cmd,
 	pgpassFile string,
 	shouldRequireSSL bool,
+	isStrictTls bool,
 	password string,
 	cpuCount int,
 	pgBin string,
@@ -455,8 +457,12 @@ func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
 	)
 
 	if shouldRequireSSL {
-		cmd.Env = append(cmd.Env, "PGSSLMODE=require")
-		uc.logger.Info("Using required SSL mode", "configuredHttps", shouldRequireSSL)
+		sslMode := "require"
+		if isStrictTls {
+			sslMode = "verify-full"
+		}
+		cmd.Env = append(cmd.Env, "PGSSLMODE="+sslMode)
+		uc.logger.Info("Using SSL mode", "sslMode", sslMode, "configuredHttps", shouldRequireSSL)
 	} else {
 		cmd.Env = append(cmd.Env, "PGSSLMODE=prefer")
 		uc.logger.Info("Using preferred SSL mode", "configuredHttps", shouldRequireSSL)

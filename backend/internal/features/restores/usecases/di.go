@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	usecases_clickhouse "databasus-backend/internal/features/restores/usecases/clickhouse"
 	usecases_mariadb "databasus-backend/internal/features/restores/usecases/mariadb"
 	usecases_mongodb "databasus-backend/internal/features/restores/usecases/mongodb"
 	usecases_mysql "databasus-backend/internal/features/restores/usecases/mysql"
@@ -12,6 +13,7 @@ var restoreBackupUsecase = &RestoreBackupUsecase{
 	usecases_mysql.GetRestoreMysqlBackupUsecase(),
 	usecases_mariadb.GetRestoreMariadbBackupUsecase(),
 	usecases_mongodb.GetRestoreMongodbBackupUsecase(),
+	usecases_clickhouse.GetRestoreClickhouseBackupUsecase(),
 }
 
 func GetRestoreBackupUsecase() *RestoreBackupUsecase {

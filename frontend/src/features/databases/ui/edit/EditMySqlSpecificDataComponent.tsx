@@ -1,5 +1,5 @@
-import { CopyOutlined } from '@ant-design/icons';
-import { App, Button, Input, InputNumber, Switch } from 'antd';
+import { CopyOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { App, Button, Input, InputNumber, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { IS_CLOUD } from '../../../../constants';
@@ -327,6 +327,30 @@ export const EditMySqlSpecificDataComponent = ({
           size="small"
         />
       </div>
+
+      {editingDatabase.mysql?.isHttps && (
+        <div className="mb-3 flex w-full items-center">
+          <div className="min-w-[150px]">
+            Strict TLS verify{' '}
+            <Tooltip title="Reject self-signed and untrusted certs (--ssl-mode=VERIFY_IDENTITY). Defaults off.">
+              <InfoCircleOutlined className="ml-1 text-gray-400" />
+            </Tooltip>
+          </div>
+          <Switch
+            checked={editingDatabase.mysql?.isStrictTls ?? false}
+            onChange={(checked) => {
+              if (!editingDatabase.mysql) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                mysql: { ...editingDatabase.mysql, isStrictTls: checked },
+              });
+              setIsConnectionTested(false);
+            }}
+            size="small"
+          />
+        </div>
+      )}
 
       <div className="mt-5 flex">
         {isShowCancelButton && (

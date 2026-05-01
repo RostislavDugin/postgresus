@@ -32,6 +32,7 @@ export const CreateReadOnlyComponent = ({
   const isMysql = database.type === DatabaseType.MYSQL;
   const isMariadb = database.type === DatabaseType.MARIADB;
   const isMongodb = database.type === DatabaseType.MONGODB;
+  const isClickhouse = database.type === DatabaseType.CLICKHOUSE;
   const databaseTypeName = isPostgres
     ? 'PostgreSQL'
     : isMysql
@@ -40,7 +41,9 @@ export const CreateReadOnlyComponent = ({
         ? 'MariaDB'
         : isMongodb
           ? 'MongoDB'
-          : 'database';
+          : isClickhouse
+            ? 'ClickHouse'
+            : 'database';
 
   const privilegesLabel = isMongodb ? 'roles' : 'privileges';
 
@@ -87,6 +90,9 @@ export const CreateReadOnlyComponent = ({
       } else if (isMongodb && database.mongodb) {
         database.mongodb.username = response.username;
         database.mongodb.password = response.password;
+      } else if (isClickhouse && database.clickhouse) {
+        database.clickhouse.username = response.username;
+        database.clickhouse.password = response.password;
       }
 
       onReadOnlyUserUpdated(database);

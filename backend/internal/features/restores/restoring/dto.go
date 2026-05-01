@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"databasus-backend/internal/features/databases/databases/clickhouse"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
@@ -16,6 +17,7 @@ type RestoreDatabaseCache struct {
 	MysqlDatabase      *mysql.MysqlDatabase           `json:"mysqlDatabase,omitzero"`
 	MariadbDatabase    *mariadb.MariadbDatabase       `json:"mariadbDatabase,omitzero"`
 	MongodbDatabase    *mongodb.MongodbDatabase       `json:"mongodbDatabase,omitzero"`
+	ClickhouseDatabase *clickhouse.ClickhouseDatabase `json:"clickhouseDatabase,omitzero"`
 }
 
 type RestoreToNodeRelation struct {

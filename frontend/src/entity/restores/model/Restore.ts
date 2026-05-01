@@ -1,4 +1,4 @@
-import type { PostgresqlDatabase } from '../../databases';
+import type { ClickhouseDatabase, PostgresqlDatabase } from '../../databases';
 import { RestoreStatus } from './RestoreStatus';
 
 export interface Restore {
@@ -6,6 +6,7 @@ export interface Restore {
   status: RestoreStatus;
 
   postgresql?: PostgresqlDatabase;
+  clickhouse?: ClickhouseDatabase;
 
   failMessage?: string;
 

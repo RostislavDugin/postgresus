@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	backups_core "databasus-backend/internal/features/backups/backups/core"
+	"databasus-backend/internal/features/databases/databases/clickhouse"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
@@ -23,6 +24,7 @@ type Restore struct {
 	MysqlDatabase      *mysql.MysqlDatabase           `json:"mysqlDatabase"      gorm:"-"`
 	MariadbDatabase    *mariadb.MariadbDatabase       `json:"mariadbDatabase"    gorm:"-"`
 	MongodbDatabase    *mongodb.MongodbDatabase       `json:"mongodbDatabase"    gorm:"-"`
+	ClickhouseDatabase *clickhouse.ClickhouseDatabase `json:"clickhouseDatabase" gorm:"-"`
 
 	FailMessage *string `json:"failMessage" gorm:"column:fail_message"`
 

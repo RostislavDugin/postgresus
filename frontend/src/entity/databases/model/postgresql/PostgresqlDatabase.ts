@@ -13,6 +13,7 @@ export interface PostgresqlDatabase {
   password: string;
   database?: string;
   isHttps: boolean;
+  isStrictTls?: boolean;
 
   // backup settings
   includeSchemas?: string[];

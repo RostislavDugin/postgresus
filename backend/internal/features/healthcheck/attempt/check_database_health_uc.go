@@ -196,6 +196,10 @@ func (uc *CheckDatabaseHealthUseCase) validateDatabase(
 		if database.Mongodb == nil {
 			return fmt.Errorf("database MongoDB config is not set")
 		}
+	case databases.DatabaseTypeClickhouse:
+		if database.Clickhouse == nil {
+			return fmt.Errorf("database ClickHouse config is not set")
+		}
 	default:
 		return fmt.Errorf("unsupported database type: %s", database.Type)
 	}

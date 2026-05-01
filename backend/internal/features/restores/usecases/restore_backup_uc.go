@@ -8,6 +8,7 @@ import (
 	backups_config "databasus-backend/internal/features/backups/config"
 	"databasus-backend/internal/features/databases"
 	restores_core "databasus-backend/internal/features/restores/core"
+	usecases_clickhouse "databasus-backend/internal/features/restores/usecases/clickhouse"
 	usecases_mariadb "databasus-backend/internal/features/restores/usecases/mariadb"
 	usecases_mongodb "databasus-backend/internal/features/restores/usecases/mongodb"
 	usecases_mysql "databasus-backend/internal/features/restores/usecases/mysql"
@@ -20,6 +21,7 @@ type RestoreBackupUsecase struct {
 	restoreMysqlBackupUsecase      *usecases_mysql.RestoreMysqlBackupUsecase
 	restoreMariadbBackupUsecase    *usecases_mariadb.RestoreMariadbBackupUsecase
 	restoreMongodbBackupUsecase    *usecases_mongodb.RestoreMongodbBackupUsecase
+	restoreClickhouseBackupUsecase *usecases_clickhouse.RestoreClickhouseBackupUsecase
 }
 
 func (uc *RestoreBackupUsecase) Execute(
@@ -66,6 +68,16 @@ func (uc *RestoreBackupUsecase) Execute(
 		)
 	case databases.DatabaseTypeMongodb:
 		return uc.restoreMongodbBackupUsecase.Execute(
+			ctx,
+			originalDB,
+			restoringToDB,
+			backupConfig,
+			restore,
+			backup,
+			storage,
+		)
+	case databases.DatabaseTypeClickhouse:
+		return uc.restoreClickhouseBackupUsecase.Execute(
 			ctx,
 			originalDB,
 			restoringToDB,

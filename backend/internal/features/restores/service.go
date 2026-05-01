@@ -166,6 +166,7 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		MysqlDatabase:      requestDTO.MysqlDatabase,
 		MariadbDatabase:    requestDTO.MariadbDatabase,
 		MongodbDatabase:    requestDTO.MongodbDatabase,
+		ClickhouseDatabase: requestDTO.ClickhouseDatabase,
 	}
 
 	if err := s.restoreRepository.Save(&restore); err != nil {
@@ -178,6 +179,7 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		MysqlDatabase:      requestDTO.MysqlDatabase,
 		MariadbDatabase:    requestDTO.MariadbDatabase,
 		MongodbDatabase:    requestDTO.MongodbDatabase,
+		ClickhouseDatabase: requestDTO.ClickhouseDatabase,
 	}
 
 	// Trigger restore via scheduler
@@ -295,6 +297,16 @@ func (s *RestoreService) validateVersionCompatibility(
 			return err
 		}
 	}
+	if requestDTO.ClickhouseDatabase != nil {
+		err := requestDTO.ClickhouseDatabase.PopulateVersion(
+			s.logger,
+			s.fieldEncryptor,
+			backupDatabase.ID,
+		)
+		if err != nil {
+			return err
+		}
+	}
 
 	switch backupDatabase.Type {
 	case databases.DatabaseTypePostgres:
@@ -344,6 +356,18 @@ func (s *RestoreService) validateVersionCompatibility(
 			return errors.New(`backup database version is higher than restore database version. ` +
 				`Should be restored to the same version as the backup database or higher. ` +
 				`For example, you can restore MongoDB 6.0 backup to MongoDB 6.0, 7.0 or higher. But cannot restore to 5.0`)
+		}
+	case databases.DatabaseTypeClickhouse:
+		if requestDTO.ClickhouseDatabase == nil {
+			return errors.New("clickhouse database configuration is required for restore")
+		}
+		if tools.IsClickhouseBackupVersionHigherThanRestoreVersion(
+			backupDatabase.Clickhouse.Version,
+			requestDTO.ClickhouseDatabase.Version,
+		) {
+			return errors.New(`backup database version is higher than restore database version. ` +
+				`Should be restored to the same version as the backup database or higher. ` +
+				`For example, you can restore ClickHouse 23.8 backup to 24.4, 24.8 or higher. But cannot restore to a lower version`)
 		}
 	}
 

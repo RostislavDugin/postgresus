@@ -2,6 +2,7 @@ import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
 import {
+  type ClickhouseDatabase,
   type Database,
   DatabaseType,
   type MariadbDatabase,
@@ -30,6 +31,7 @@ const databaseTypeOptions = [
   { value: DatabaseType.MYSQL, label: 'MySQL' },
   { value: DatabaseType.MARIADB, label: 'MariaDB' },
   { value: DatabaseType.MONGODB, label: 'MongoDB' },
+  { value: DatabaseType.CLICKHOUSE, label: 'ClickHouse' },
 ];
 
 export const EditDatabaseBaseInfoComponent = ({
@@ -61,6 +63,7 @@ export const EditDatabaseBaseInfoComponent = ({
       mysql: undefined,
       mariadb: undefined,
       mongodb: undefined,
+      clickhouse: undefined,
     };
 
     switch (newType) {
@@ -76,6 +79,10 @@ export const EditDatabaseBaseInfoComponent = ({
         break;
       case DatabaseType.MONGODB:
         updatedDatabase.mongodb = editingDatabase.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase);
+        break;
+      case DatabaseType.CLICKHOUSE:
+        updatedDatabase.clickhouse =
+          editingDatabase.clickhouse ?? ({ port: 9000, username: 'default' } as ClickhouseDatabase);
         break;
     }
 

@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	usecases_clickhouse "databasus-backend/internal/features/backups/backups/usecases/clickhouse"
 	usecases_mariadb "databasus-backend/internal/features/backups/backups/usecases/mariadb"
 	usecases_mongodb "databasus-backend/internal/features/backups/backups/usecases/mongodb"
 	usecases_mysql "databasus-backend/internal/features/backups/backups/usecases/mysql"
@@ -12,6 +13,7 @@ var createBackupUsecase = &CreateBackupUsecase{
 	usecases_mysql.GetCreateMysqlBackupUsecase(),
 	usecases_mariadb.GetCreateMariadbBackupUsecase(),
 	usecases_mongodb.GetCreateMongodbBackupUsecase(),
+	usecases_clickhouse.GetCreateClickhouseBackupUsecase(),
 }
 
 func GetCreateBackupUsecase() *CreateBackupUsecase {

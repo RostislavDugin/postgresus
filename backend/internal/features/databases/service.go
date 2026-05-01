@@ -13,6 +13,7 @@ import (
 
 	"databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	"databasus-backend/internal/features/databases/databases/clickhouse"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
@@ -513,6 +514,20 @@ func (s *DatabaseService) CopyDatabase(
 				CpuCount:     existingDatabase.Mongodb.CpuCount,
 			}
 		}
+	case DatabaseTypeClickhouse:
+		if existingDatabase.Clickhouse != nil {
+			newDatabase.Clickhouse = &clickhouse.ClickhouseDatabase{
+				ID:         uuid.Nil,
+				DatabaseID: nil,
+				Version:    existingDatabase.Clickhouse.Version,
+				Host:       existingDatabase.Clickhouse.Host,
+				Port:       existingDatabase.Clickhouse.Port,
+				Username:   existingDatabase.Clickhouse.Username,
+				Password:   existingDatabase.Clickhouse.Password,
+				Database:   existingDatabase.Clickhouse.Database,
+				IsHttps:    existingDatabase.Clickhouse.IsHttps,
+			}
+		}
 	}
 
 	if err := newDatabase.Validate(); err != nil {
@@ -823,6 +838,10 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		)
 	case DatabaseTypeMongodb:
 		username, password, err = usingDatabase.Mongodb.CreateReadOnlyUser(
+			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
+		)
+	case DatabaseTypeClickhouse:
+		username, password, err = usingDatabase.Clickhouse.CreateReadOnlyUser(
 			ctx, s.logger, s.fieldEncryptor, usingDatabase.ID,
 		)
 	default:

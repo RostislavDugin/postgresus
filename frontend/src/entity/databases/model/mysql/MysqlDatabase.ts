@@ -10,4 +10,5 @@ export interface MysqlDatabase {
   password: string;
   database?: string;
   isHttps: boolean;
+  isStrictTls?: boolean;
 }

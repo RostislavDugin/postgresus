@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/backups';
 import {
+  type ClickhouseDatabase,
   type Database,
   DatabaseType,
   type MariadbDatabase,
@@ -50,6 +51,7 @@ const initializeDatabaseTypeData = (db: Database): Database => {
     mysql: undefined,
     mariadb: undefined,
     mongodb: undefined,
+    clickhouse: undefined,
   };
 
   switch (db.type) {
@@ -69,6 +71,11 @@ const initializeDatabaseTypeData = (db: Database): Database => {
       return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
     case DatabaseType.MONGODB:
       return { ...base, mongodb: db.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase) };
+    case DatabaseType.CLICKHOUSE:
+      return {
+        ...base,
+        clickhouse: db.clickhouse ?? ({ port: 9000, username: 'default' } as ClickhouseDatabase),
+      };
     default:
       return db;
   }

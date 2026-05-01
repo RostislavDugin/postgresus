@@ -31,6 +31,7 @@ type MysqlDatabase struct {
 	Password        string  `json:"password"        gorm:"type:text;not null"`
 	Database        *string `json:"database"        gorm:"type:text"`
 	IsHttps         bool    `json:"isHttps"         gorm:"type:boolean;default:false"`
+	IsStrictTls     bool    `json:"isStrictTls"     gorm:"type:boolean;default:false"`
 	Privileges      string  `json:"privileges"      gorm:"column:privileges;type:text;not null;default:''"`
 	IsZstdSupported bool    `json:"isZstdSupported" gorm:"column:is_zstd_supported;type:boolean;not null;default:true"`
 }
@@ -126,6 +127,7 @@ func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
 	m.Username = incoming.Username
 	m.Database = incoming.Database
 	m.IsHttps = incoming.IsHttps
+	m.IsStrictTls = incoming.IsStrictTls
 	m.Privileges = incoming.Privileges
 	m.IsZstdSupported = incoming.IsZstdSupported
 
@@ -408,15 +410,19 @@ func (m *MysqlDatabase) buildDSN(password, database string) string {
 	allowCleartext := ""
 
 	if m.IsHttps {
-		err := mysql.RegisterTLSConfig("mysql-skip-verify", &tls.Config{
-			InsecureSkipVerify: true,
-		})
-		if err != nil {
-			// Config might already be registered, which is fine
-			_ = err
-		}
+		if m.IsStrictTls {
+			tlsConfig = "true"
+		} else {
+			err := mysql.RegisterTLSConfig("mysql-skip-verify", &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			if err != nil {
+				// Config might already be registered, which is fine
+				_ = err
+			}
 
-		tlsConfig = "mysql-skip-verify"
+			tlsConfig = "mysql-skip-verify"
+		}
 		allowCleartext = "&allowCleartextPasswords=1"
 	}
 

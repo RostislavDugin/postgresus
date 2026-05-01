@@ -238,6 +238,26 @@ RUN apt-get update && \
   ln -sf /usr/bin/mongorestore /usr/local/mongodb-database-tools/bin/mongorestore; \
   fi
 
+# ========= Install ClickHouse Client =========
+# clickhouse-client is the ClickHouse multicall binary invoked via symlink; it speaks
+# the native protocol and is forward + backward compatible with ClickHouse server
+# versions 23.x through 26.x. Pinned to v25.8 LTS. The release-published .sha512
+# sidecar is used by sha512sum -c to verify the tarball before extraction.
+ARG CLICKHOUSE_VERSION=25.8.22.28
+RUN set -eux; \
+  arch_suffix=$(case "$TARGETARCH" in amd64) echo amd64 ;; arm64) echo arm64 ;; *) echo "unsupported arch $TARGETARCH" >&2; exit 1 ;; esac); \
+  tarball="clickhouse-common-static-${CLICKHOUSE_VERSION}-${arch_suffix}.tgz"; \
+  base="https://github.com/ClickHouse/ClickHouse/releases/download/v${CLICKHOUSE_VERSION}-lts/${tarball}"; \
+  cd /tmp; \
+  wget -q "$base" -O "$tarball"; \
+  wget -q "${base}.sha512" -O "${tarball}.sha512"; \
+  sha512sum -c "${tarball}.sha512"; \
+  tar -xzf "$tarball" -C /tmp; \
+  install -m 0755 "/tmp/clickhouse-common-static-${CLICKHOUSE_VERSION}/usr/bin/clickhouse" /usr/bin/clickhouse; \
+  mkdir -p /usr/local/clickhouse/bin; \
+  ln -sf /usr/bin/clickhouse /usr/local/clickhouse/bin/clickhouse-client; \
+  rm -rf "/tmp/clickhouse-common-static-${CLICKHOUSE_VERSION}" "/tmp/${tarball}" "/tmp/${tarball}.sha512"
+
 # Create postgres user and set up directories
 RUN groupadd -g 999 postgres || true && \
   useradd -m -s /bin/bash -u 999 -g 999 postgres || true && \

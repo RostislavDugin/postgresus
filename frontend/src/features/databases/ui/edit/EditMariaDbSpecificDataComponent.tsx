@@ -331,6 +331,30 @@ export const EditMariaDbSpecificDataComponent = ({
         />
       </div>
 
+      {editingDatabase.mariadb?.isHttps && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">
+            Strict TLS verify{' '}
+            <Tooltip title="Reject self-signed and untrusted certs (--ssl-verify-server-cert). Defaults off.">
+              <InfoCircleOutlined className="ml-1 text-gray-400" />
+            </Tooltip>
+          </div>
+          <Switch
+            checked={editingDatabase.mariadb?.isStrictTls ?? false}
+            onChange={(checked) => {
+              if (!editingDatabase.mariadb) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                mariadb: { ...editingDatabase.mariadb, isStrictTls: checked },
+              });
+              setIsConnectionTested(false);
+            }}
+            size="small"
+          />
+        </div>
+      )}
+
       <div className="mt-4 mb-1 flex items-center">
         <div
           className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"

@@ -1,6 +1,7 @@
 import type { Notifier } from '../../notifiers';
 import type { DatabaseType } from './DatabaseType';
 import type { HealthStatus } from './HealthStatus';
+import type { ClickhouseDatabase } from './clickhouse/ClickhouseDatabase';
 import type { MariadbDatabase } from './mariadb/MariadbDatabase';
 import type { MongodbDatabase } from './mongodb/MongodbDatabase';
 import type { MysqlDatabase } from './mysql/MysqlDatabase';
@@ -16,6 +17,7 @@ export interface Database {
   mysql?: MysqlDatabase;
   mariadb?: MariadbDatabase;
   mongodb?: MongodbDatabase;
+  clickhouse?: ClickhouseDatabase;
 
   notifiers: Notifier[];
 

@@ -439,6 +439,30 @@ export const EditPostgreSqlSpecificDataComponent = ({
           />
         </div>
 
+        {editingDatabase.postgresql?.isHttps && (
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">
+              Strict TLS verify{' '}
+              <Tooltip title="Reject self-signed and untrusted certs (sslmode=verify-full). Defaults off (sslmode=require, encryption only).">
+                <InfoCircleOutlined className="ml-1 text-gray-400" />
+              </Tooltip>
+            </div>
+            <Switch
+              checked={editingDatabase.postgresql?.isStrictTls ?? false}
+              onChange={(checked) => {
+                if (!editingDatabase.postgresql) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  postgresql: { ...editingDatabase.postgresql, isStrictTls: checked },
+                });
+                setIsConnectionTested(false);
+              }}
+              size="small"
+            />
+          </div>
+        )}
+
         {isRestoreMode && !IS_CLOUD && (
           <div className="mb-5 flex w-full items-center">
             <div className="min-w-[150px]">CPU count</div>

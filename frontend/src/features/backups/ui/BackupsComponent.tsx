@@ -379,7 +379,9 @@ export const BackupsComponent = ({
                           ? 'Download backup file. It can be restored manually via mariadb client (from SQL dump)'
                           : database.type === DatabaseType.MONGODB
                             ? 'Download backup file. It can be restored manually via mongorestore (from archive)'
-                            : 'Download backup file'
+                            : database.type === DatabaseType.CLICKHOUSE
+                              ? 'Download backup tar archive. Each table is a Native-format dump under tables/<id>/native; replay with clickhouse-client INSERT FORMAT Native after applying the rewritten DDL'
+                              : 'Download backup file'
                   }
                 >
                   {downloadingBackupId === record.id ? (

@@ -126,7 +126,11 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 	}
 
 	if my.IsHttps {
-		args = append(args, "--ssl-mode=REQUIRED")
+		if my.IsStrictTls {
+			args = append(args, "--ssl-mode=VERIFY_IDENTITY")
+		} else {
+			args = append(args, "--ssl-mode=REQUIRED")
+		}
 	} else {
 		args = append(args, "--ssl-mode=DISABLED")
 	}
@@ -322,7 +326,11 @@ port=%d
 `, myConfig.Username, tools.EscapeMysqlPassword(password), myConfig.Host, myConfig.Port)
 
 	if myConfig.IsHttps {
-		content += "ssl-mode=REQUIRED\n"
+		if myConfig.IsStrictTls {
+			content += "ssl-mode=VERIFY_IDENTITY\n"
+		} else {
+			content += "ssl-mode=REQUIRED\n"
+		}
 	} else {
 		content += "ssl-mode=DISABLED\n"
 	}

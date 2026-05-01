@@ -6,6 +6,7 @@ import (
 
 	common "databasus-backend/internal/features/backups/backups/common"
 	backups_core "databasus-backend/internal/features/backups/backups/core"
+	usecases_clickhouse "databasus-backend/internal/features/backups/backups/usecases/clickhouse"
 	usecases_mariadb "databasus-backend/internal/features/backups/backups/usecases/mariadb"
 	usecases_mongodb "databasus-backend/internal/features/backups/backups/usecases/mongodb"
 	usecases_mysql "databasus-backend/internal/features/backups/backups/usecases/mysql"
@@ -20,6 +21,7 @@ type CreateBackupUsecase struct {
 	CreateMysqlBackupUsecase      *usecases_mysql.CreateMysqlBackupUsecase
 	CreateMariadbBackupUsecase    *usecases_mariadb.CreateMariadbBackupUsecase
 	CreateMongodbBackupUsecase    *usecases_mongodb.CreateMongodbBackupUsecase
+	CreateClickhouseBackupUsecase *usecases_clickhouse.CreateClickhouseBackupUsecase
 }
 
 func (uc *CreateBackupUsecase) Execute(
@@ -63,6 +65,16 @@ func (uc *CreateBackupUsecase) Execute(
 
 	case databases.DatabaseTypeMongodb:
 		return uc.CreateMongodbBackupUsecase.Execute(
+			ctx,
+			backup,
+			backupConfig,
+			database,
+			storage,
+			backupProgressListener,
+		)
+
+	case databases.DatabaseTypeClickhouse:
+		return uc.CreateClickhouseBackupUsecase.Execute(
 			ctx,
 			backup,
 			backupConfig,

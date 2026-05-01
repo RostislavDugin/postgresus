@@ -10,6 +10,8 @@ export const getDatabaseLogoFromType = (type: DatabaseType) => {
       return '/icons/databases/mariadb.svg';
     case DatabaseType.MONGODB:
       return '/icons/databases/mongodb.svg';
+    case DatabaseType.CLICKHOUSE:
+      return '/icons/databases/clickhouse.svg';
     default:
       return '';
   }

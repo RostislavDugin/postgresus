@@ -12,5 +12,7 @@ export { type MariadbDatabase } from './model/mariadb/MariadbDatabase';
 export { MariadbVersion } from './model/mariadb/MariadbVersion';
 export { type MongodbDatabase } from './model/mongodb/MongodbDatabase';
 export { MongodbVersion } from './model/mongodb/MongodbVersion';
+export { type ClickhouseDatabase } from './model/clickhouse/ClickhouseDatabase';
+export { ClickhouseVersion } from './model/clickhouse/ClickhouseVersion';
 export { type IsReadOnlyResponse } from './model/IsReadOnlyResponse';
 export { type CreateReadOnlyUserResponse } from './model/CreateReadOnlyUserResponse';

@@ -9,5 +9,6 @@ export interface MariadbDatabase {
   password: string;
   database?: string;
   isHttps: boolean;
+  isStrictTls?: boolean;
   isExcludeEvents?: boolean;
 }

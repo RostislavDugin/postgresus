@@ -29,6 +29,7 @@ type EnvVariables struct {
 	MysqlInstallDir      string            `env:"MYSQL_INSTALL_DIR"`
 	MariadbInstallDir    string            `env:"MARIADB_INSTALL_DIR"`
 	MongodbInstallDir    string            `env:"MONGODB_INSTALL_DIR"`
+	ClickhouseInstallDir string            `env:"CLICKHOUSE_INSTALL_DIR"`
 
 	// Internal database
 	DatabaseDsn string `env:"DATABASE_DSN" required:"true"`
@@ -276,6 +277,14 @@ func loadEnvVariables() {
 		log,
 		env.EnvMode,
 		env.MongodbInstallDir,
+		env.ShowDbInstallationVerificationLogs,
+	)
+
+	env.ClickhouseInstallDir = filepath.Join(backendRoot, "tools", "clickhouse")
+	tools.VerifyClickhouseInstallation(
+		log,
+		env.EnvMode,
+		env.ClickhouseInstallDir,
 		env.ShowDbInstallationVerificationLogs,
 	)
 

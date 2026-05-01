@@ -32,6 +32,7 @@ type MongodbDatabase struct {
 	Database           string `json:"database"           gorm:"type:text;not null"`
 	AuthDatabase       string `json:"authDatabase"       gorm:"type:text;not null;default:'admin'"`
 	IsHttps            bool   `json:"isHttps"            gorm:"type:boolean;default:false"`
+	IsStrictTls        bool   `json:"isStrictTls"        gorm:"type:boolean;default:false"`
 	IsSrv              bool   `json:"isSrv"              gorm:"column:is_srv;type:boolean;not null;default:false"`
 	IsDirectConnection bool   `json:"isDirectConnection" gorm:"column:is_direct_connection;type:boolean;not null;default:false"`
 	CpuCount           int    `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
@@ -132,6 +133,7 @@ func (m *MongodbDatabase) Update(incoming *MongodbDatabase) {
 	m.Database = incoming.Database
 	m.AuthDatabase = incoming.AuthDatabase
 	m.IsHttps = incoming.IsHttps
+	m.IsStrictTls = incoming.IsStrictTls
 	m.IsSrv = incoming.IsSrv
 	m.IsDirectConnection = incoming.IsDirectConnection
 	m.CpuCount = incoming.CpuCount
@@ -460,7 +462,10 @@ func (m *MongodbDatabase) BuildMongodumpURI(password string) string {
 
 	extraParams := ""
 	if m.IsHttps {
-		extraParams += "&tls=true&tlsInsecure=true"
+		extraParams += "&tls=true"
+		if !m.IsStrictTls {
+			extraParams += "&tlsInsecure=true"
+		}
 	} else {
 		extraParams += "&tls=false"
 	}
@@ -504,7 +509,10 @@ func (m *MongodbDatabase) buildConnectionURI(password string) string {
 
 	extraParams := ""
 	if m.IsHttps {
-		extraParams += "&tls=true&tlsInsecure=true"
+		extraParams += "&tls=true"
+		if !m.IsStrictTls {
+			extraParams += "&tlsInsecure=true"
+		}
 	} else {
 		extraParams += "&tls=false"
 	}

@@ -351,6 +351,30 @@ export const EditMongoDbSpecificDataComponent = ({
         />
       </div>
 
+      {editingDatabase.mongodb?.isHttps && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">
+            Strict TLS verify{' '}
+            <Tooltip title="Verify server cert chain (omit tlsInsecure). Defaults off (tlsInsecure=true).">
+              <InfoCircleOutlined className="ml-1 text-gray-400" />
+            </Tooltip>
+          </div>
+          <Switch
+            checked={editingDatabase.mongodb?.isStrictTls ?? false}
+            onChange={(checked) => {
+              if (!editingDatabase.mongodb) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                mongodb: { ...editingDatabase.mongodb, isStrictTls: checked },
+              });
+              setIsConnectionTested(false);
+            }}
+            size="small"
+          />
+        </div>
+      )}
+
       <div className="mb-5 flex w-full items-center">
         <div className="min-w-[150px]">CPU count</div>
         <div className="flex items-center">

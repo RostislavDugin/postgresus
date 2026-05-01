@@ -114,6 +114,7 @@ func (s *RestoresScheduler) StartRestore(restoreID uuid.UUID, dbCache *RestoreDa
 			MysqlDatabase:      restore.MysqlDatabase,
 			MariadbDatabase:    restore.MariadbDatabase,
 			MongodbDatabase:    restore.MongodbDatabase,
+			ClickhouseDatabase: restore.ClickhouseDatabase,
 		}
 	}
 

@@ -2,6 +2,7 @@ import { getApplicationServer } from '../../../constants';
 import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
 import type {
+  ClickhouseDatabase,
   MariadbDatabase,
   MongodbDatabase,
   MysqlDatabase,
@@ -24,12 +25,14 @@ export const restoreApi = {
     mysql,
     mariadb,
     mongodb,
+    clickhouse,
   }: {
     backupId: string;
     postgresql?: PostgresqlDatabase;
     mysql?: MysqlDatabase;
     mariadb?: MariadbDatabase;
     mongodb?: MongodbDatabase;
+    clickhouse?: ClickhouseDatabase;
   }) {
     const requestOptions: RequestOptions = new RequestOptions();
     requestOptions.setBody(
@@ -38,6 +41,7 @@ export const restoreApi = {
         mysqlDatabase: mysql,
         mariadbDatabase: mariadb,
         mongodbDatabase: mongodb,
+        clickhouseDatabase: clickhouse,
       }),
     );
 

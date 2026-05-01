@@ -8,6 +8,7 @@ import {
   databaseApi,
 } from '../../../../entity/databases';
 import { CreateReadOnlyComponent } from './CreateReadOnlyComponent';
+import { EditClickhouseSpecificDataComponent } from './EditClickhouseSpecificDataComponent';
 import { EditMariaDbSpecificDataComponent } from './EditMariaDbSpecificDataComponent';
 import { EditMongoDbSpecificDataComponent } from './EditMongoDbSpecificDataComponent';
 import { EditMySqlSpecificDataComponent } from './EditMySqlSpecificDataComponent';
@@ -140,6 +141,8 @@ export const EditDatabaseSpecificDataComponent = ({
       return <EditMariaDbSpecificDataComponent {...commonProps} />;
     case DatabaseType.MONGODB:
       return <EditMongoDbSpecificDataComponent {...commonProps} />;
+    case DatabaseType.CLICKHOUSE:
+      return <EditClickhouseSpecificDataComponent {...commonProps} isRestoreMode={isRestoreMode} />;
     default:
       return null;
   }
