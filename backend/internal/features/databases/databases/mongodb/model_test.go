@@ -28,7 +28,6 @@ func Test_TestConnection_InsufficientPermissions_ReturnsError(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
@@ -94,7 +93,6 @@ func Test_TestConnection_SufficientPermissions_Success(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
@@ -164,7 +162,6 @@ func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
@@ -237,7 +234,6 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},

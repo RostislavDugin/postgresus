@@ -42,7 +42,7 @@ func (s *HTTPTelemetrySender) Send(ctx context.Context, req *CollectRequest) err
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", "Postgresus-Telemetry/"+s.appVersion)
+	httpReq.Header.Set("User-Agent", "Databasus-Telemetry/"+s.appVersion)
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {

@@ -2,14 +2,13 @@ package tools
 
 import (
 	"fmt"
-	"log/slog"
-	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
-
-	env_utils "databasus-backend/internal/util/env"
 )
+
+var clickhouseRequired = []string{
+	string(ClickhouseExecutableClient),
+}
 
 type ClickhouseVersion string
 
@@ -26,102 +25,30 @@ const (
 	ClickhouseExecutableClient ClickhouseExecutable = "clickhouse-client"
 )
 
-// GetClickhouseExecutable returns the full path to a ClickHouse executable.
-// ClickHouse client uses a single binary that is backward and forward compatible
-// across server versions (within reasonable major-version drift).
-func GetClickhouseExecutable(
-	executable ClickhouseExecutable,
-	envMode env_utils.EnvMode,
-	clickhouseInstallDir string,
-) string {
-	basePath := getClickhouseBasePath(envMode, clickhouseInstallDir)
-	executableName := string(executable)
-
-	if runtime.GOOS == "windows" {
-		executableName += ".exe"
-	}
-
-	return filepath.Join(basePath, executableName)
+// GetClickhouseExecutable returns the absolute path to a ClickHouse client
+// binary. ClickHouse client uses a single multicall binary that is forward
+// and backward compatible across server versions (within reasonable major-
+// version drift), so the path is version-independent.
+func GetClickhouseExecutable(executable ClickhouseExecutable) string {
+	return filepath.Join(getClickhouseBinDir(), withExeOnWindows(string(executable)))
 }
 
-// VerifyClickhouseInstallation verifies that the bundled clickhouse-client binary
-// is present. Like MongoDB tools, ClickHouse uses a single client binary that is
-// compatible with multiple server versions.
-func VerifyClickhouseInstallation(
-	logger *slog.Logger,
-	envMode env_utils.EnvMode,
-	clickhouseInstallDir string,
-	isShowLogs bool,
-) {
-	binDir := getClickhouseBasePath(envMode, clickhouseInstallDir)
+func getClickhouseBinDir() string {
+	return filepath.Join(AssetsToolsDir(), "clickhouse", "bin")
+}
 
-	if isShowLogs {
-		logger.Info(
-			"Verifying ClickHouse client installation",
-			"path", binDir,
-		)
-	}
+// checkClickhouse verifies the bundled clickhouse-client binary. Non-fatal —
+// a missing bundle disables ClickHouse support.
+func checkClickhouse() []ToolCheckResult {
+	binDir := getClickhouseBinDir()
 
-	if _, err := os.Stat(binDir); os.IsNotExist(err) {
-		if envMode == env_utils.EnvModeDevelopment {
-			logger.Warn(
-				"ClickHouse bin directory not found. ClickHouse support will be disabled. Read ./tools/readme.md for details",
-				"path",
-				binDir,
-			)
-		} else {
-			logger.Warn(
-				"ClickHouse bin directory not found. ClickHouse support will be disabled.",
-				"path", binDir,
-			)
-		}
-
-		return
-	}
-
-	requiredCommands := []ClickhouseExecutable{
-		ClickhouseExecutableClient,
-	}
-
-	for _, cmd := range requiredCommands {
-		cmdPath := GetClickhouseExecutable(cmd, envMode, clickhouseInstallDir)
-
-		if isShowLogs {
-			logger.Info(
-				"Checking for ClickHouse command",
-				"command", cmd,
-				"path", cmdPath,
-			)
-		}
-
-		if _, err := os.Stat(cmdPath); os.IsNotExist(err) {
-			if envMode == env_utils.EnvModeDevelopment {
-				logger.Warn(
-					"ClickHouse command not found. ClickHouse support will be disabled. Read ./tools/readme.md for details",
-					"command",
-					cmd,
-					"path",
-					cmdPath,
-				)
-			} else {
-				logger.Warn(
-					"ClickHouse command not found. ClickHouse support will be disabled.",
-					"command", cmd,
-					"path", cmdPath,
-				)
-			}
-
-			continue
-		}
-
-		if isShowLogs {
-			logger.Info("ClickHouse command found", "command", cmd)
-		}
-	}
-
-	if isShowLogs {
-		logger.Info("ClickHouse client verification completed!")
-	}
+	return []ToolCheckResult{{
+		Db:      "clickhouse",
+		Version: "client",
+		BinDir:  binDir,
+		Errors:  checkBinDir(binDir, clickhouseRequired),
+		IsFatal: false,
+	}}
 }
 
 // IsClickhouseBackupVersionHigherThanRestoreVersion checks if backup was made with
@@ -171,15 +98,4 @@ func GetClickhouseVersionEnum(version string) ClickhouseVersion {
 			return ClickhouseVersion254
 		}
 	}
-}
-
-func getClickhouseBasePath(
-	envMode env_utils.EnvMode,
-	clickhouseInstallDir string,
-) string {
-	if envMode == env_utils.EnvModeDevelopment {
-		return filepath.Join(clickhouseInstallDir, "bin")
-	}
-	// Production: single client binary in /usr/local/clickhouse/bin
-	return "/usr/local/clickhouse/bin"
 }

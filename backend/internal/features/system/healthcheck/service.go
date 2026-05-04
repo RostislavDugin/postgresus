@@ -10,6 +10,7 @@ import (
 	"databasus-backend/internal/features/disk"
 	"databasus-backend/internal/storage"
 	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/tools"
 )
 
 type HealthcheckService struct {
@@ -40,6 +41,10 @@ func (s *HealthcheckService) performHealthCheck() error {
 
 	if float64(diskUsage.UsedSpaceBytes) >= float64(diskUsage.TotalSpaceBytes)*0.95 {
 		return errors.New("more than 95% of the disk is used")
+	}
+
+	if err := tools.ClientToolsHealthError(); err != nil {
+		return err
 	}
 
 	db := storage.GetDb()

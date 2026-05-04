@@ -100,12 +100,7 @@ func (uc *RestoreMariadbBackupUsecase) Execute(
 	return uc.restoreFromStorage(
 		parentCtx,
 		originalDB,
-		tools.GetMariadbExecutable(
-			tools.MariadbExecutableMariadb,
-			mdb.Version,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MariadbInstallDir,
-		),
+		tools.GetMariadbExecutable(mdb.Version, tools.MariadbExecutableMariadb),
 		args,
 		mdb.Password,
 		backup,

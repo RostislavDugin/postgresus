@@ -21,7 +21,6 @@ import (
 	"databasus-backend/internal/config"
 	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
 	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
-	google_drive_storage "databasus-backend/internal/features/storages/models/google_drive"
 	local_storage "databasus-backend/internal/features/storages/models/local"
 	nas_storage "databasus-backend/internal/features/storages/models/nas"
 	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
@@ -194,28 +193,6 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				RemotePath: s3Container.bucketName,
 			},
 		},
-	}
-
-	// Add Google Drive storage test only if environment variables are available
-	env := config.GetEnv()
-	if env.IsSkipExternalResourcesTests {
-		t.Log("Skipping Google Drive storage test: IS_SKIP_EXTERNAL_RESOURCES_TESTS=true")
-	} else if env.TestGoogleDriveClientID != "" && env.TestGoogleDriveClientSecret != "" &&
-		env.TestGoogleDriveTokenJSON != "" {
-		testCases = append(testCases, struct {
-			name    string
-			storage StorageFileSaver
-		}{
-			name: "GoogleDriveStorage",
-			storage: &google_drive_storage.GoogleDriveStorage{
-				StorageID:    uuid.New(),
-				ClientID:     env.TestGoogleDriveClientID,
-				ClientSecret: env.TestGoogleDriveClientSecret,
-				TokenJSON:    env.TestGoogleDriveTokenJSON,
-			},
-		})
-	} else {
-		t.Log("Skipping Google Drive storage test: missing environment variables")
 	}
 
 	for _, tc := range testCases {

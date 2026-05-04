@@ -162,11 +162,7 @@ func (uc *CreateClickhouseBackupUsecase) Execute(
 		saveErrCh <- saveErr
 	}()
 
-	cliBin := tools.GetClickhouseExecutable(
-		tools.ClickhouseExecutableClient,
-		config.GetEnv().EnvMode,
-		config.GetEnv().ClickhouseInstallDir,
-	)
+	cliBin := tools.GetClickhouseExecutable(tools.ClickhouseExecutableClient)
 	if _, err := exec.LookPath(cliBin); err != nil {
 		return nil, uc.failPipeline(storageWriter, encryptionWriter, saveErrCh,
 			fmt.Errorf("clickhouse-client binary not accessible at %s: %w", cliBin, err))
@@ -276,10 +272,11 @@ func (uc *CreateClickhouseBackupUsecase) Execute(
 }
 
 // dumpTableEntries handles all four tar entries for one table:
-//   tables/<id>/ddl.sql           — original DDL
-//   tables/<id>/restore.sql       — DDL with ON CLUSTER + UUID stripped
-//   tables/<id>/native.meta.json  — written BEFORE native bytes for restore-side validation
-//   tables/<id>/native            — raw Native bytes (via temp file)
+//
+//	tables/<id>/ddl.sql           — original DDL
+//	tables/<id>/restore.sql       — DDL with ON CLUSTER + UUID stripped
+//	tables/<id>/native.meta.json  — written BEFORE native bytes for restore-side validation
+//	tables/<id>/native            — raw Native bytes (via temp file)
 func (uc *CreateClickhouseBackupUsecase) dumpTableEntries(
 	ctx context.Context,
 	conn driver.Conn,
@@ -639,4 +636,3 @@ func (uc *CreateClickhouseBackupUsecase) closeWriters(
 	}
 	return nil
 }
-

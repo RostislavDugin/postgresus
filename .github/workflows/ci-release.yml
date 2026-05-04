@@ -62,31 +62,38 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Check if prettier was run
         run: |
           cd frontend
-          npm run format
-          git diff --exit-code || (echo "Prettier made changes, please run 'npm run format' and commit the changes" && exit 1)
+          pnpm format
+          git diff --exit-code || (echo "Prettier made changes, please run 'pnpm format' and commit the changes" && exit 1)
 
       - name: Check if linter was run
         run: |
           cd frontend
-          npm run lint
+          pnpm lint
 
       - name: Build frontend
         run: |
           cd frontend
-          npm run build
+          pnpm build
 
   lint-agent:
     if: github.ref != 'refs/heads/develop'
@@ -130,20 +137,27 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Run frontend tests
         run: |
           cd frontend
-          npm run test
+          pnpm test
 
   test-agent:
     if: github.ref != 'refs/heads/develop'
@@ -246,101 +260,29 @@ jobs:
 
       - name: Create .env file for testing
         run: |
-          cd backend
-          cat > .env << EOF
-          # docker-compose.yml
-          DEV_DB_NAME=databasus
-          DEV_DB_USERNAME=postgres
-          DEV_DB_PASSWORD=Q1234567
-          #app
-          ENV_MODE=development
-          # db - using 172.17.0.1 to access host from container
+          cp .env.example .env
+          cat >> .env << EOF
+          # CI overrides — host=172.17.0.1 reaches host from container
           DATABASE_DSN=host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable
           DATABASE_URL=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
-          # migrations
-          GOOSE_DRIVER=postgres
           GOOSE_DBSTRING=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
-          GOOSE_MIGRATION_DIR=./migrations
-          # testing 
           TEST_LOCALHOST=172.17.0.1
-          IS_SKIP_EXTERNAL_RESOURCES_TESTS=true
-          # to get Google Drive env variables: add storage in UI and copy data from added storage here 
-          TEST_GOOGLE_DRIVE_CLIENT_ID=${{ secrets.TEST_GOOGLE_DRIVE_CLIENT_ID }}
-          TEST_GOOGLE_DRIVE_CLIENT_SECRET=${{ secrets.TEST_GOOGLE_DRIVE_CLIENT_SECRET }}
-          TEST_GOOGLE_DRIVE_TOKEN_JSON=${{ secrets.TEST_GOOGLE_DRIVE_TOKEN_JSON }}
-          # testing DBs
-          TEST_POSTGRES_12_PORT=5000
-          TEST_POSTGRES_13_PORT=5001
-          TEST_POSTGRES_14_PORT=5002
-          TEST_POSTGRES_15_PORT=5003
-          TEST_POSTGRES_16_PORT=5004
-          TEST_POSTGRES_17_PORT=5005
-          TEST_POSTGRES_18_PORT=5006
-          # testing S3
-          TEST_MINIO_PORT=9000
-          TEST_MINIO_CONSOLE_PORT=9001
-          # testing Azure Blob
-          TEST_AZURITE_BLOB_PORT=10000
-          # testing NAS
-          TEST_NAS_PORT=7006
-          # testing FTP
-          TEST_FTP_PORT=7007
-          # testing SFTP
-          TEST_SFTP_PORT=7008
-          # testing MySQL
-          TEST_MYSQL_57_PORT=33057
-          TEST_MYSQL_80_PORT=33080
-          TEST_MYSQL_84_PORT=33084
-          TEST_MYSQL_90_PORT=33090
-          # testing MariaDB
-          TEST_MARIADB_55_PORT=33055
-          TEST_MARIADB_101_PORT=33101
-          TEST_MARIADB_102_PORT=33102
-          TEST_MARIADB_103_PORT=33103
-          TEST_MARIADB_104_PORT=33104
-          TEST_MARIADB_105_PORT=33105
-          TEST_MARIADB_106_PORT=33106
-          TEST_MARIADB_1011_PORT=33111
-          TEST_MARIADB_114_PORT=33114
-          TEST_MARIADB_118_PORT=33118
-          TEST_MARIADB_120_PORT=33120
-          # supabase
-          TEST_SUPABASE_HOST=${{ secrets.TEST_SUPABASE_HOST }}
-          TEST_SUPABASE_PORT=${{ secrets.TEST_SUPABASE_PORT }}
-          TEST_SUPABASE_USERNAME=${{ secrets.TEST_SUPABASE_USERNAME }}
-          TEST_SUPABASE_PASSWORD=${{ secrets.TEST_SUPABASE_PASSWORD }}
-          TEST_SUPABASE_DATABASE=${{ secrets.TEST_SUPABASE_DATABASE }}
-          # testing MongoDB
-          TEST_MONGODB_40_PORT=27040
-          TEST_MONGODB_42_PORT=27042
-          TEST_MONGODB_44_PORT=27044
-          TEST_MONGODB_50_PORT=27050
-          TEST_MONGODB_60_PORT=27060
-          TEST_MONGODB_70_PORT=27070
-          TEST_MONGODB_82_PORT=27082
-          # Valkey (cache) - using 172.17.0.1
-          VALKEY_HOST=172.17.0.1
-          VALKEY_PORT=6379
-          VALKEY_USERNAME=
-          VALKEY_PASSWORD=
-          VALKEY_IS_SSL=false
-          # Host for test databases (container -> host)
           TEST_DB_HOST=172.17.0.1
+          VALKEY_HOST=172.17.0.1
           EOF
 
       - name: Start test containers
         run: |
-          cd backend
-          docker compose -f docker-compose.yml.example up -d
+          docker compose -f docker-compose.example.yml up -d
 
       - name: Wait for containers to be ready
         run: |
           # Wait for main dev database
-          timeout 60 bash -c 'until docker exec dev-db pg_isready -h localhost -p 5437 -U postgres; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec backend-db pg_isready -h localhost -p 5437 -U postgres; do sleep 2; done'
 
           # Wait for Valkey (cache)
           echo "Waiting for Valkey..."
-          timeout 60 bash -c 'until docker exec dev-valkey valkey-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec backend-valkey valkey-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
           echo "Valkey is ready!"
 
           # Wait for test databases (using 172.17.0.1 from container)
@@ -397,9 +339,7 @@ jobs:
           echo "Waiting for MariaDB 12.0..."
           timeout 120 bash -c 'until docker exec test-mariadb-120 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
 
-          # Wait for MongoDB containers
-          echo "Waiting for MongoDB 4.0..."
-          timeout 120 bash -c 'until docker exec test-mongodb-40 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
+          # Wait for MongoDB containers 
           echo "Waiting for MongoDB 4.2..."
           timeout 120 bash -c 'until docker exec test-mongodb-42 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
           echo "Waiting for MongoDB 4.4..."
@@ -427,93 +367,11 @@ jobs:
           ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
           ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
 
-      - name: Setup PostgreSQL, MySQL and MariaDB client tools from pre-built assets
-        run: |
-          cd backend/tools
-
-          # Create directory structure
-          mkdir -p postgresql mysql mariadb mongodb/bin
-
-          # Copy PostgreSQL client tools (12-18) from pre-built assets
-          for version in 12 13 14 15 16 17 18; do
-            mkdir -p postgresql/postgresql-$version
-            cp -r ../../assets/tools/x64/postgresql/postgresql-$version/bin postgresql/postgresql-$version/
-          done
-
-          # Copy MySQL client tools (5.7, 8.0, 8.4, 9) from pre-built assets
-          for version in 5.7 8.0 8.4 9; do
-            mkdir -p mysql/mysql-$version
-            cp -r ../../assets/tools/x64/mysql/mysql-$version/bin mysql/mysql-$version/
-          done
-
-          # Copy MariaDB client tools (10.6, 12.1) from pre-built assets
-          for version in 10.6 12.1; do
-            mkdir -p mariadb/mariadb-$version
-            cp -r ../../assets/tools/x64/mariadb/mariadb-$version/bin mariadb/mariadb-$version/
-          done
-
-          # Make all binaries executable
-          chmod +x postgresql/*/bin/*
-          chmod +x mysql/*/bin/*
-          chmod +x mariadb/*/bin/*
-
-          echo "Pre-built client tools setup complete"
-
-      - name: Install MongoDB Database Tools
-        run: |
-          cd backend/tools
-
-          # MongoDB Database Tools must be downloaded (not in pre-built assets)
-          # They are backward compatible - single version supports all servers (4.0-8.0)
-          MONGODB_TOOLS_URL="https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb"
-
-          echo "Downloading MongoDB Database Tools..."
-          wget -q "$MONGODB_TOOLS_URL" -O /tmp/mongodb-database-tools.deb
-
-          echo "Installing MongoDB Database Tools..."
-          dpkg -i /tmp/mongodb-database-tools.deb || apt-get install -f -y --no-install-recommends
-
-          # Create symlinks to tools directory
-          ln -sf /usr/bin/mongodump mongodb/bin/mongodump
-          ln -sf /usr/bin/mongorestore mongodb/bin/mongorestore
-
-          rm -f /tmp/mongodb-database-tools.deb
-          echo "MongoDB Database Tools installed successfully"
-
-      - name: Verify MariaDB client tools exist
-        run: |
-          cd backend/tools
-          echo "Checking MariaDB client tools..."
-          if [ -f "mariadb/mariadb-10.6/bin/mariadb-dump" ]; then
-            echo "MariaDB 10.6 client tools found"
-            ls -la mariadb/mariadb-10.6/bin/
-          else
-            echo "MariaDB 10.6 client tools NOT found"
-          fi
-          if [ -f "mariadb/mariadb-12.1/bin/mariadb-dump" ]; then
-            echo "MariaDB 12.1 client tools found"
-            ls -la mariadb/mariadb-12.1/bin/
-          else
-            echo "MariaDB 12.1 client tools NOT found"
-          fi
-
-      - name: Verify MongoDB Database Tools exist
-        run: |
-          cd backend/tools
-          echo "Checking MongoDB Database Tools..."
-          if [ -f "mongodb/bin/mongodump" ]; then
-            echo "MongoDB Database Tools found"
-            ls -la mongodb/bin/
-            mongodb/bin/mongodump --version || true
-          else
-            echo "MongoDB Database Tools NOT found"
-          fi
-
       - name: Run database migrations
         run: |
           cd backend
           go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
-          goose up
+          goose -env ../.env -dir ./migrations up
 
       - name: Run Go tests
         run: |
@@ -523,9 +381,8 @@ jobs:
       - name: Stop test containers
         if: always()
         run: |
-          cd backend
           # Stop and remove containers (keeping images for next run)
-          docker compose -f docker-compose.yml.example down -v
+          docker compose -f docker-compose.example.yml down -v
 
           # Clean up all data directories created by docker-compose
           echo "Cleaning up data directories..."
@@ -533,17 +390,84 @@ jobs:
           rm -rf valkey-data || true
           rm -rf mysqldata || true
           rm -rf mariadbdata || true
+          rm -rf wal-queue || true
           rm -rf temp/nas || true
-          rm -rf databasus-data || true
-
-          # Also clean root-level databasus-data if exists
-          cd ..
           rm -rf databasus-data || true
 
           echo "Cleanup complete"
 
-  build-and-push-dev:
+  build-dev-image:
     runs-on: self-hosted
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    steps:
+      - name: Clean workspace
+        run: |
+          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
+          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (enables multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build amd64 dev image and load locally
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/amd64
+          cache-to: type=gha,mode=min,scope=dev-build
+          cache-from: type=gha,scope=dev-build
+          build-args: |
+            APP_VERSION=dev-${{ github.sha }}
+          tags: |
+            databasus-dev:smoke-${{ github.sha }}
+
+      - name: Run smoke pings against dev image
+        run: |
+          mkdir -p /tmp/databasus-dev-smoke-data
+          docker run -d --name databasus-dev-smoke \
+            -p 4005:4005 \
+            -v /tmp/databasus-dev-smoke-data:/databasus-data \
+            databasus-dev:smoke-${{ github.sha }}
+
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4005/system/health || true)
+            if [ "$code" = "200" ]; then
+              echo "healthcheck OK after ${i} attempt(s)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "healthcheck never returned 200 (last code: ${code})"
+              docker logs databasus-dev-smoke
+              exit 1
+            fi
+            sleep 2
+          done
+
+          body=$(curl -sf http://localhost:4005/)
+          if ! echo "$body" | grep -q 'id="root"'; then
+            echo "index.html did not contain React root div"
+            echo "$body"
+            exit 1
+          fi
+          echo "index.html OK"
+
+      - name: Cleanup smoke container
+        if: always()
+        run: |
+          docker rm -f databasus-dev-smoke || true
+          docker rmi databasus-dev:smoke-${{ github.sha }} || true
+          rm -rf /tmp/databasus-dev-smoke-data || true
+
+  push-dev-image:
+    runs-on: self-hosted
+    needs: [build-dev-image]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     steps:
       - name: Clean workspace
@@ -572,11 +496,82 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=dev-build
           build-args: |
             APP_VERSION=dev-${{ github.sha }}
           tags: |
             databasus/databasus-dev:latest
             databasus/databasus-dev:${{ github.sha }}
+
+  build-image:
+    if: github.ref != 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    needs: [lint-backend, lint-frontend, lint-agent]
+    steps:
+      - name: Clean workspace
+        run: |
+          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
+          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (enables multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build amd64 image and load locally
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/amd64
+          cache-to: type=gha,mode=max,scope=release-build
+          cache-from: type=gha,scope=release-build
+          build-args: |
+            APP_VERSION=ci-${{ github.sha }}
+          tags: |
+            databasus:smoke-${{ github.sha }}
+
+      - name: Run smoke pings against built image
+        run: |
+          mkdir -p /tmp/databasus-smoke-data
+          docker run -d --name databasus-smoke \
+            -p 4005:4005 \
+            -v /tmp/databasus-smoke-data:/databasus-data \
+            databasus:smoke-${{ github.sha }}
+
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4005/system/health || true)
+            if [ "$code" = "200" ]; then
+              echo "healthcheck OK after ${i} attempt(s)"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "healthcheck never returned 200 (last code: ${code})"
+              docker logs databasus-smoke
+              exit 1
+            fi
+            sleep 2
+          done
+
+          body=$(curl -sf http://localhost:4005/)
+          if ! echo "$body" | grep -q 'id="root"'; then
+            echo "index.html did not contain React root div"
+            echo "$body"
+            exit 1
+          fi
+          echo "index.html OK"
+
+      - name: Cleanup smoke container
+        if: always()
+        run: |
+          docker rm -f databasus-smoke || true
+          docker rmi databasus:smoke-${{ github.sha }} || true
+          rm -rf /tmp/databasus-smoke-data || true
 
   determine-version:
     runs-on: self-hosted
@@ -673,9 +668,9 @@ jobs:
             echo "No version bump needed"
           fi
 
-  build-and-push:
-    runs-on: self-hosted
-    needs: [determine-version]
+  push-image:
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: write
@@ -706,6 +701,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=release-build
           build-args: |
             APP_VERSION=${{ needs.determine-version.outputs.new_version }}
           tags: |
@@ -717,7 +713,7 @@ jobs:
     runs-on: self-hosted
     container:
       image: node:20
-    needs: [determine-version, build-and-push]
+    needs: [determine-version, push-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: write
@@ -752,8 +748,13 @@ jobs:
             COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
           fi
 
-          # Create changelog
-          CHANGELOG="# Changelog\n\n## [${NEW_VERSION}] - $(date +%Y-%m-%d)\n\n"
+          # Build the changelog with real newlines (NL) instead of \n literals
+          # so we don't have to round-trip through `echo -e`. echo -e interprets
+          # backslash sequences inside commit subjects (e.g. "\c" suppresses
+          # further output) which can silently truncate the changelog and break
+          # the GitHub Actions multiline-output heredoc parser.
+          NL=$'\n'
+          CHANGELOG="# Changelog${NL}${NL}## [${NEW_VERSION}] - $(date +%Y-%m-%d)${NL}${NL}"
 
           # Group commits by type and area
           FEATURES=""
@@ -766,7 +767,7 @@ jobs:
               COMMIT_MSG=$(echo "$line" | cut -d'|' -f1)
               COMMIT_HASH=$(echo "$line" | cut -d'|' -f2)
               SHORT_HASH=${COMMIT_HASH:0:7}
-              
+
               # Parse commit message format: TYPE (area): description
               if [[ "$COMMIT_MSG" == FEATURE* ]]; then
                 TEMP="${COMMIT_MSG#FEATURE}"
@@ -774,7 +775,7 @@ jobs:
                 if [[ "$TEMP" == \(* ]]; then
                   AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
                   DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
-                  FEATURES="${FEATURES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                  FEATURES="${FEATURES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               elif [[ "$COMMIT_MSG" == FIX* ]]; then
                 TEMP="${COMMIT_MSG#FIX}"
@@ -782,7 +783,7 @@ jobs:
                 if [[ "$TEMP" == \(* ]]; then
                   AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
                   DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
-                  FIXES="${FIXES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                  FIXES="${FIXES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               elif [[ "$COMMIT_MSG" == REFACTOR* ]]; then
                 TEMP="${COMMIT_MSG#REFACTOR}"
@@ -790,7 +791,7 @@ jobs:
                 if [[ "$TEMP" == \(* ]]; then
                   AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
                   DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
-                  REFACTORS="${REFACTORS}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                  REFACTORS="${REFACTORS}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               fi
             fi
@@ -798,28 +799,31 @@ jobs:
 
           # Build changelog sections
           if [ -n "$FEATURES" ]; then
-            CHANGELOG="${CHANGELOG}### ✨ Features\n${FEATURES}\n"
+            CHANGELOG="${CHANGELOG}### ✨ Features${NL}${FEATURES}${NL}"
           fi
 
           if [ -n "$FIXES" ]; then
-            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n${FIXES}\n"
+            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes${NL}${FIXES}${NL}"
           fi
 
           if [ -n "$REFACTORS" ]; then
-            CHANGELOG="${CHANGELOG}### 🔨 Refactoring\n${REFACTORS}\n"
+            CHANGELOG="${CHANGELOG}### 🔨 Refactoring${NL}${REFACTORS}${NL}"
           fi
 
           # Add Docker image info
-          CHANGELOG="${CHANGELOG}### 🐳 Docker\n"
-          CHANGELOG="${CHANGELOG}- **Image**: \`databasus/databasus:v${NEW_VERSION}\`\n"
-          CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64, linux/arm64\n\n"
+          CHANGELOG="${CHANGELOG}### 🐳 Docker${NL}"
+          CHANGELOG="${CHANGELOG}- **Image**: \`databasus/databasus:v${NEW_VERSION}\`${NL}"
+          CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64, linux/arm64${NL}"
 
-          # Set output for GitHub release
+          # Use a random delimiter so any literal "EOF" line inside the
+          # changelog (e.g. inside a commit subject) cannot prematurely
+          # terminate the multiline output heredoc.
+          DELIMITER="EOF_$(openssl rand -hex 16)"
           {
-            echo 'changelog<<EOF'
-            echo -e "$CHANGELOG"
-            echo EOF
-          } >> $GITHUB_OUTPUT
+            printf '%s<<%s\n' 'changelog' "$DELIMITER"
+            printf '%s\n' "$CHANGELOG"
+            printf '%s\n' "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
@@ -838,7 +842,7 @@ jobs:
       image: alpine:3.19
       volumes:
         - /runner-cache/apk-cache:/etc/apk/cache
-    needs: [determine-version, build-and-push]
+    needs: [determine-version, push-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: read

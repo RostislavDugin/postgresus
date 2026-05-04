@@ -84,12 +84,7 @@ func (uc *CreateMariadbBackupUsecase) Execute(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetMariadbExecutable(
-			tools.MariadbExecutableMariadbDump,
-			mdb.Version,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MariadbInstallDir,
-		),
+		tools.GetMariadbExecutable(mdb.Version, tools.MariadbExecutableMariadbDump),
 		args,
 		decryptedPassword,
 		storage,

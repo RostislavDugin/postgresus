@@ -91,12 +91,7 @@ func (uc *RestoreMysqlBackupUsecase) Execute(
 	return uc.restoreFromStorage(
 		parentCtx,
 		originalDB,
-		tools.GetMysqlExecutable(
-			my.Version,
-			tools.MysqlExecutableMysql,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MysqlInstallDir,
-		),
+		tools.GetMysqlExecutable(my.Version, tools.MysqlExecutableMysql),
 		args,
 		my.Password,
 		backup,

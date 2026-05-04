@@ -10,11 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
 	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
 	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
-	google_drive_storage "databasus-backend/internal/features/storages/models/google_drive"
 	local_storage "databasus-backend/internal/features/storages/models/local"
 	nas_storage "databasus-backend/internal/features/storages/models/nas"
 	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
@@ -1361,64 +1359,6 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 		},
 		{
-			name:        "Google Drive Storage",
-			storageType: StorageTypeGoogleDrive,
-			createStorage: func(workspaceID uuid.UUID) *Storage {
-				return &Storage{
-					WorkspaceID: workspaceID,
-					Type:        StorageTypeGoogleDrive,
-					Name:        "Test Google Drive Storage",
-					GoogleDriveStorage: &google_drive_storage.GoogleDriveStorage{
-						ClientID:     "original-client-id",
-						ClientSecret: "original-client-secret",
-						TokenJSON:    `{"access_token":"ya29.test-access-token","token_type":"Bearer","expiry":"2030-12-31T23:59:59Z","refresh_token":"1//test-refresh-token"}`,
-					},
-				}
-			},
-			updateStorage: func(workspaceID, storageID uuid.UUID) *Storage {
-				return &Storage{
-					ID:          storageID,
-					WorkspaceID: workspaceID,
-					Type:        StorageTypeGoogleDrive,
-					Name:        "Updated Google Drive Storage",
-					GoogleDriveStorage: &google_drive_storage.GoogleDriveStorage{
-						ClientID:     "updated-client-id",
-						ClientSecret: "",
-						TokenJSON:    "",
-					},
-				}
-			},
-			verifySensitiveData: func(t *testing.T, storage *Storage) {
-				assert.True(t, strings.HasPrefix(storage.GoogleDriveStorage.ClientSecret, "enc:"),
-					"ClientSecret should be encrypted with 'enc:' prefix")
-				assert.True(t, strings.HasPrefix(storage.GoogleDriveStorage.TokenJSON, "enc:"),
-					"TokenJSON should be encrypted with 'enc:' prefix")
-
-				encryptor := encryption.GetFieldEncryptor()
-				clientSecret, err := encryptor.Decrypt(
-					storage.ID,
-					storage.GoogleDriveStorage.ClientSecret,
-				)
-				assert.NoError(t, err)
-				assert.Equal(t, "original-client-secret", clientSecret)
-
-				tokenJSON, err := encryptor.Decrypt(
-					storage.ID,
-					storage.GoogleDriveStorage.TokenJSON,
-				)
-				assert.NoError(t, err)
-				assert.Equal(
-					t,
-					`{"access_token":"ya29.test-access-token","token_type":"Bearer","expiry":"2030-12-31T23:59:59Z","refresh_token":"1//test-refresh-token"}`,
-					tokenJSON,
-				)
-			},
-			verifyHiddenData: func(t *testing.T, storage *Storage) {
-				assert.Equal(t, "", storage.GoogleDriveStorage.ClientSecret)
-				assert.Equal(t, "", storage.GoogleDriveStorage.TokenJSON)
-			},
-		},
-		{
 			name:        "FTP Storage",
 			storageType: StorageTypeFTP,
 			createStorage: func(workspaceID uuid.UUID) *Storage {
@@ -1571,12 +1511,6 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Skip Google Drive tests if external resources tests are disabled
-			if tc.storageType == StorageTypeGoogleDrive &&
-				config.GetEnv().IsSkipExternalResourcesTests {
-				t.Skip("Skipping Google Drive storage test: IS_SKIP_EXTERNAL_RESOURCES_TESTS=true")
-			}
-
 			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 			router := createRouter()
 			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)

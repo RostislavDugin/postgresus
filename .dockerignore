@@ -8,7 +8,6 @@ node_modules
 **/node_modules
 
 # Backend - exclude everything except what's needed for build
-backend/tools
 backend/mysqldata
 backend/pgdata
 backend/mariadbdata
@@ -20,7 +19,6 @@ backend/*.exe
 
 # Scripts and data directories
 scripts
-postgresus-data
 databasus-data
 
 # IDE and editor files
@@ -62,9 +60,10 @@ LICENSE
 CITATION.cff
 *.md
 
-# Assets - exclude SVGs but keep tools
+# Assets - exclude SVGs and Windows-only tool binaries (used only for native Windows dev,
+# never copied into the Docker image — see Dockerfile)
 assets/*.svg
-assets/tools/download_postgresql.sh
+assets/tools/win-x64
 
 # Python cache
 **/__pycache__

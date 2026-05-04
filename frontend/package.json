@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -13,6 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ant-design/icons": "^5.6.1",
     "@tailwindcss/vite": "^4.1.7",
     "antd": "^5.25.1",
     "cron-parser": "^5.4.0",

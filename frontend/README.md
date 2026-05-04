@@ -1,11 +1,19 @@
 # Frontend Development
 
+## Setup
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
 ## Development
 
 To run the development server:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ## Build
@@ -13,7 +21,7 @@ npm run dev
 To build the project for production:
 
 ```bash
-npm run build
+pnpm build
 ```
 
 This will compile TypeScript and create an optimized production build.
@@ -25,7 +33,7 @@ This will compile TypeScript and create an optimized production build.
 To check for linting errors:
 
 ```bash
-npm run lint
+pnpm lint
 ```
 
 ### Formatting
@@ -33,7 +41,7 @@ npm run lint
 To format code using Prettier:
 
 ```bash
-npm run format
+pnpm format
 ```
 
 This will automatically format all TypeScript, JavaScript, JSON, CSS, and Markdown files.

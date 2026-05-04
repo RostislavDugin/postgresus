@@ -72,12 +72,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		)
 	}
 
-	pgBin := tools.GetPostgresqlExecutable(
-		pg.Version,
-		"pg_restore",
-		config.GetEnv().EnvMode,
-		config.GetEnv().PostgresesInstallDir,
-	)
+	pgBin := tools.GetPostgresqlExecutable(pg.Version, "pg_restore")
 
 	// All PostgreSQL backups are now custom format (-Fc)
 	return uc.restoreCustomType(

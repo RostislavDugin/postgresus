@@ -78,11 +78,7 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetMongodbExecutable(
-			tools.MongodbExecutableMongodump,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MongodbInstallDir,
-		),
+		tools.GetMongodbExecutable(tools.MongodbExecutableMongodump),
 		args,
 		storage,
 		backupProgressListener,

@@ -1,4 +1,4 @@
-.PHONY: run build test lint e2e e2e-clean e2e-backup-restore e2e-backup-restore-clean
+.PHONY: run build test lint wal-generator e2e e2e-clean e2e-backup-restore e2e-backup-restore-clean
 
 -include .env
 export
@@ -13,9 +13,12 @@ run:
 		--pg-user devuser \
 		--pg-password devpassword \
 		--pg-type docker \
-		--pg-docker-container-name dev-postgres \
-		--pg-wal-dir ./wal-queue \
+		--pg-docker-container-name agent-db \
+		--pg-wal-dir ../wal-queue \
 		--skip-update
+
+wal-generator:
+	go run cmd/wal-generator/main.go
 
 build:
 	CGO_ENABLED=0 go build -ldflags "-X main.Version=$(VERSION)" -o databasus-agent ./cmd/main.go

@@ -2,14 +2,19 @@ package tools
 
 import (
 	"fmt"
-	"log/slog"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-
-	env_utils "databasus-backend/internal/util/env"
 )
+
+var mariadbClientVersions = []MariadbClientVersion{
+	MariadbClientLegacy,
+	MariadbClientModern,
+}
+
+var mariadbRequired = []string{
+	string(MariadbExecutableMariadbDump),
+	string(MariadbExecutableMariadb),
+}
 
 type MariadbVersion string
 
@@ -27,14 +32,14 @@ const (
 	MariadbVersion120  MariadbVersion = "12.0"
 )
 
-// MariadbClientVersion represents the client tool version to use
+// MariadbClientVersion is the client tool version installed in assets.
 type MariadbClientVersion string
 
 const (
-	// MariadbClientLegacy is used for older MariaDB servers (5.5, 10.1) that don't support
-	// the generation_expression column in information_schema.columns
+	// MariadbClientLegacy is used for older MariaDB servers (5.5, 10.1) that
+	// don't have the generation_expression column in information_schema.columns.
 	MariadbClientLegacy MariadbClientVersion = "10.6"
-	// MariadbClientModern is used for newer MariaDB servers (10.2+)
+	// MariadbClientModern is used for newer MariaDB servers (10.2+).
 	MariadbClientModern MariadbClientVersion = "12.1"
 )
 
@@ -45,10 +50,10 @@ const (
 	MariadbExecutableMariadb     MariadbExecutable = "mariadb"
 )
 
-// GetMariadbClientVersionForServer returns the appropriate client version to use
-// for a given server version. MariaDB 12.1 client uses SQL queries that reference
-// the generation_expression column which was added in MariaDB 10.2, so older
-// servers (5.5, 10.1) need the legacy 10.6 client.
+// GetMariadbClientVersionForServer returns the client version that talks to
+// the given server version. The 12.1 client uses queries referencing
+// generation_expression (added in MariaDB 10.2), so older servers (5.5, 10.1)
+// need the 10.6 legacy client.
 func GetMariadbClientVersionForServer(serverVersion MariadbVersion) MariadbClientVersion {
 	switch serverVersion {
 	case MariadbVersion55, MariadbVersion101:
@@ -58,128 +63,47 @@ func GetMariadbClientVersionForServer(serverVersion MariadbVersion) MariadbClien
 	}
 }
 
-// GetMariadbExecutable returns the full path to a MariaDB executable.
-// The serverVersion parameter determines which client tools to use:
-// - For MariaDB 5.5 and 10.1: uses legacy 10.6 client (compatible with older servers)
-// - For MariaDB 10.2+: uses modern 12.1 client
+// GetMariadbExecutable returns the absolute path to a MariaDB client binary
+// appropriate for the given server version.
 func GetMariadbExecutable(
-	executable MariadbExecutable,
 	serverVersion MariadbVersion,
-	envMode env_utils.EnvMode,
-	mariadbInstallDir string,
+	executable MariadbExecutable,
 ) string {
 	clientVersion := GetMariadbClientVersionForServer(serverVersion)
-	basePath := getMariadbBasePath(clientVersion, envMode, mariadbInstallDir)
-	executableName := string(executable)
-
-	if runtime.GOOS == "windows" {
-		executableName += ".exe"
-	}
-
-	return filepath.Join(basePath, executableName)
+	return filepath.Join(getMariadbBinDir(clientVersion), withExeOnWindows(string(executable)))
 }
 
-// VerifyMariadbInstallation verifies that MariaDB client tools are installed.
-// MariaDB uses two client versions:
-// - Legacy (10.6) for older servers (5.5, 10.1)
-// - Modern (12.1) for newer servers (10.2+)
-func VerifyMariadbInstallation(
-	logger *slog.Logger,
-	envMode env_utils.EnvMode,
-	mariadbInstallDir string,
-	isShowLogs bool,
-) {
-	clientVersions := []MariadbClientVersion{MariadbClientLegacy, MariadbClientModern}
-
-	for _, clientVersion := range clientVersions {
-		binDir := getMariadbBasePath(clientVersion, envMode, mariadbInstallDir)
-
-		if isShowLogs {
-			logger.Info(
-				"Verifying MariaDB installation",
-				"clientVersion", clientVersion,
-				"path", binDir,
-			)
-		}
-
-		if _, err := os.Stat(binDir); os.IsNotExist(err) {
-			if envMode == env_utils.EnvModeDevelopment {
-				logger.Warn(
-					"MariaDB bin directory not found. Some MariaDB versions may not be supported. Read ./tools/readme.md for details",
-					"clientVersion",
-					clientVersion,
-					"path",
-					binDir,
-				)
-			} else {
-				logger.Warn(
-					"MariaDB bin directory not found. Some MariaDB versions may not be supported.",
-					"clientVersion", clientVersion,
-					"path", binDir,
-				)
-			}
-			continue
-		}
-
-		requiredCommands := []MariadbExecutable{
-			MariadbExecutableMariadbDump,
-			MariadbExecutableMariadb,
-		}
-
-		for _, cmd := range requiredCommands {
-			// Use a dummy server version that maps to this client version
-			var dummyServerVersion MariadbVersion
-			if clientVersion == MariadbClientLegacy {
-				dummyServerVersion = MariadbVersion55
-			} else {
-				dummyServerVersion = MariadbVersion102
-			}
-			cmdPath := GetMariadbExecutable(cmd, dummyServerVersion, envMode, mariadbInstallDir)
-
-			if isShowLogs {
-				logger.Info(
-					"Checking for MariaDB command",
-					"clientVersion", clientVersion,
-					"command", cmd,
-					"path", cmdPath,
-				)
-			}
-
-			if _, err := os.Stat(cmdPath); os.IsNotExist(err) {
-				if envMode == env_utils.EnvModeDevelopment {
-					logger.Warn(
-						"MariaDB command not found. Some MariaDB versions may not be supported. Read ./tools/readme.md for details",
-						"clientVersion",
-						clientVersion,
-						"command",
-						cmd,
-						"path",
-						cmdPath,
-					)
-				} else {
-					logger.Warn(
-						"MariaDB command not found. Some MariaDB versions may not be supported.",
-						"clientVersion", clientVersion,
-						"command", cmd,
-						"path", cmdPath,
-					)
-				}
-				continue
-			}
-
-			if isShowLogs {
-				logger.Info("MariaDB command found", "clientVersion", clientVersion, "command", cmd)
-			}
-		}
-	}
-
-	if isShowLogs {
-		logger.Info("MariaDB client tools verification completed!")
-	}
+func getMariadbBinDir(clientVersion MariadbClientVersion) string {
+	return filepath.Join(
+		AssetsToolsDir(),
+		"mariadb",
+		fmt.Sprintf("mariadb-%s", clientVersion),
+		"bin",
+	)
 }
 
-// IsMariadbBackupVersionHigherThanRestoreVersion checks if backup was made with
-// a newer MariaDB version than the restore target
+// checkMariadb verifies the legacy and modern MariaDB client bundles.
+// Non-fatal — missing bundles disable that client tier.
+func checkMariadb() []ToolCheckResult {
+	results := make([]ToolCheckResult, 0, len(mariadbClientVersions))
+
+	for _, cv := range mariadbClientVersions {
+		binDir := getMariadbBinDir(cv)
+
+		results = append(results, ToolCheckResult{
+			Db:      "mariadb",
+			Version: string(cv),
+			BinDir:  binDir,
+			Errors:  checkBinDir(binDir, mariadbRequired),
+			IsFatal: false,
+		})
+	}
+
+	return results
+}
+
+// IsMariadbBackupVersionHigherThanRestoreVersion reports whether a backup
+// produced on backupVersion would be downgrade-restoring onto restoreVersion.
 func IsMariadbBackupVersionHigherThanRestoreVersion(
 	backupVersion, restoreVersion MariadbVersion,
 ) bool {
@@ -199,7 +123,6 @@ func IsMariadbBackupVersionHigherThanRestoreVersion(
 	return versionOrder[backupVersion] > versionOrder[restoreVersion]
 }
 
-// GetMariadbVersionEnum converts a version string to MariadbVersion enum
 func GetMariadbVersionEnum(version string) MariadbVersion {
 	switch version {
 	case "5.5":
@@ -229,22 +152,10 @@ func GetMariadbVersionEnum(version string) MariadbVersion {
 	}
 }
 
-// EscapeMariadbPassword escapes special characters for MariaDB .my.cnf file format.
+// EscapeMariadbPassword escapes special characters for the MariaDB .my.cnf
+// file format.
 func EscapeMariadbPassword(password string) string {
 	password = strings.ReplaceAll(password, "\\", "\\\\")
 	password = strings.ReplaceAll(password, "\"", "\\\"")
 	return password
-}
-
-func getMariadbBasePath(
-	clientVersion MariadbClientVersion,
-	envMode env_utils.EnvMode,
-	mariadbInstallDir string,
-) string {
-	if envMode == env_utils.EnvModeDevelopment {
-		// Development: tools/mariadb/mariadb-{version}/bin
-		return filepath.Join(mariadbInstallDir, fmt.Sprintf("mariadb-%s", clientVersion), "bin")
-	}
-	// Production: /usr/local/mariadb-{version}/bin
-	return fmt.Sprintf("/usr/local/mariadb-%s/bin", clientVersion)
 }

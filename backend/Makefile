@@ -1,3 +1,5 @@
+-include ../.env
+
 run:
 	go run cmd/main.go
 
@@ -8,13 +10,13 @@ lint:
 	golangci-lint fmt ./cmd/... ./internal/... && golangci-lint run ./cmd/... ./internal/...
 
 migration-create:
-	goose create $(name) sql
+	goose -dir ./migrations create $(name) sql
 
 migration-up:
-	goose up
+	goose -dir ./migrations postgres "$(GOOSE_DBSTRING)" up
 
 migration-down:
-	goose down
+	goose -dir ./migrations postgres "$(GOOSE_DBSTRING)" down
 
 swagger:
 	swag init -g ./cmd/main.go -o swagger

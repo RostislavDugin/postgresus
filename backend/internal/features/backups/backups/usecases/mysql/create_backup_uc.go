@@ -84,12 +84,7 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetMysqlExecutable(
-			my.Version,
-			tools.MysqlExecutableMysqldump,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MysqlInstallDir,
-		),
+		tools.GetMysqlExecutable(my.Version, tools.MysqlExecutableMysqldump),
 		args,
 		decryptedPassword,
 		storage,

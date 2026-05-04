@@ -1,9 +1,13 @@
 ansible/
-postgresus_data/
-postgresus-data/
 databasus-data/
 .env
 pgdata/
+mysqldata/
+mariadbdata/
+valkey-data/
+victoria-logs-data/
+wal-queue/
+temp/
 docker-compose.yml
 !agent/e2e/docker-compose.yml
 node_modules/

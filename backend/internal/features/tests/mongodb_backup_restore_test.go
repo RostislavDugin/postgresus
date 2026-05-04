@@ -57,7 +57,6 @@ func Test_BackupAndRestoreMongodb_RestoreIsSuccessful(t *testing.T) {
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
@@ -81,7 +80,6 @@ func Test_BackupAndRestoreMongodbWithEncryption_RestoreIsSuccessful(t *testing.T
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},
@@ -105,7 +103,6 @@ func Test_BackupAndRestoreMongodb_WithReadOnlyUser_RestoreIsSuccessful(t *testin
 		version tools.MongodbVersion
 		port    string
 	}{
-		{"MongoDB 4.0", tools.MongodbVersion4, env.TestMongodb40Port},
 		{"MongoDB 4.2", tools.MongodbVersion4, env.TestMongodb42Port},
 		{"MongoDB 4.4", tools.MongodbVersion4, env.TestMongodb44Port},
 		{"MongoDB 5.0", tools.MongodbVersion5, env.TestMongodb50Port},

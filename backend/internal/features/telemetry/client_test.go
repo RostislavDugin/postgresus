@@ -49,7 +49,7 @@ func Test_Send_PostsCorrectBodyAndHeaders(t *testing.T) {
 
 	assert.Equal(t, http.MethodPost, captureMethod)
 	assert.Equal(t, "application/json", captureContentType)
-	assert.True(t, strings.HasPrefix(captureUserAgent, "Postgresus-Telemetry/"))
+	assert.True(t, strings.HasPrefix(captureUserAgent, "Databasus-Telemetry/"))
 	assert.Contains(t, captureUserAgent, "9.9.9")
 	assert.Equal(t, *req, captured)
 }

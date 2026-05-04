@@ -67,14 +67,14 @@ type mvEntry struct {
 // at the granularity of the entire archive: target is untouched until every
 // byte and every checksum has been verified.
 type restoreState struct {
-	header        chmanifest.Header
-	footer        chmanifest.Footer
-	headerLoaded  bool
-	footerLoaded  bool
-	pending       map[string]*pendingTable
-	mvDDLPending  []mvEntry
-	mvAppliedSet  map[string]bool
-	seenTarNames  map[string]bool
+	header       chmanifest.Header
+	footer       chmanifest.Footer
+	headerLoaded bool
+	footerLoaded bool
+	pending      map[string]*pendingTable
+	mvDDLPending []mvEntry
+	mvAppliedSet map[string]bool
+	seenTarNames map[string]bool
 }
 
 func (uc *RestoreClickhouseBackupUsecase) Execute(
@@ -134,11 +134,7 @@ func (uc *RestoreClickhouseBackupUsecase) Execute(
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
-	cliBin := tools.GetClickhouseExecutable(
-		tools.ClickhouseExecutableClient,
-		config.GetEnv().EnvMode,
-		config.GetEnv().ClickhouseInstallDir,
-	)
+	cliBin := tools.GetClickhouseExecutable(tools.ClickhouseExecutableClient)
 	if _, err := exec.LookPath(cliBin); err != nil {
 		return fmt.Errorf("clickhouse-client binary not accessible at %s: %w", cliBin, err)
 	}

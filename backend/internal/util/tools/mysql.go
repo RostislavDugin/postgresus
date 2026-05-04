@@ -2,14 +2,21 @@ package tools
 
 import (
 	"fmt"
-	"log/slog"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-
-	env_utils "databasus-backend/internal/util/env"
 )
+
+var mysqlVersions = []MysqlVersion{
+	MysqlVersion57,
+	MysqlVersion80,
+	MysqlVersion84,
+	MysqlVersion9,
+}
+
+var mysqlRequired = []string{
+	string(MysqlExecutableMysqldump),
+	string(MysqlExecutableMysql),
+}
 
 type MysqlVersion string
 
@@ -27,156 +34,43 @@ const (
 	MysqlExecutableMysql     MysqlExecutable = "mysql"
 )
 
-// GetMysqlExecutable returns the full path to a specific MySQL executable
-// for the given version. Common executables include: mysqldump, mysql.
-// On Windows, automatically appends .exe extension.
-func GetMysqlExecutable(
-	version MysqlVersion,
-	executable MysqlExecutable,
-	envMode env_utils.EnvMode,
-	mysqlInstallDir string,
-) string {
-	basePath := getMysqlBasePath(version, envMode, mysqlInstallDir)
-	executableName := string(executable)
-
-	if runtime.GOOS == "windows" {
-		executableName += ".exe"
-	}
-
-	return filepath.Join(basePath, executableName)
+// GetMysqlExecutable returns the absolute path to a MySQL client binary for
+// the given version (mysqldump or mysql).
+func GetMysqlExecutable(version MysqlVersion, executable MysqlExecutable) string {
+	return filepath.Join(getMysqlBinDir(version), withExeOnWindows(string(executable)))
 }
 
-// VerifyMysqlInstallation verifies that MySQL versions 5.7, 8.0, 8.4, 9 are installed
-// in the current environment. Each version should be installed with the required
-// client tools (mysqldump, mysql) available.
-// In development: ./tools/mysql/mysql-{VERSION}/bin
-// In production: /usr/local/mysql-{VERSION}/bin
-func VerifyMysqlInstallation(
-	logger *slog.Logger,
-	envMode env_utils.EnvMode,
-	mysqlInstallDir string,
-	isShowLogs bool,
-) {
-	versions := []MysqlVersion{
-		MysqlVersion57,
-		MysqlVersion80,
-		MysqlVersion84,
-		MysqlVersion9,
-	}
-
-	requiredCommands := []MysqlExecutable{
-		MysqlExecutableMysqldump,
-		MysqlExecutableMysql,
-	}
-
-	for _, version := range versions {
-		binDir := getMysqlBasePath(version, envMode, mysqlInstallDir)
-
-		if isShowLogs {
-			logger.Info(
-				"Verifying MySQL installation",
-				"version",
-				string(version),
-				"path",
-				binDir,
-			)
-		}
-
-		if _, err := os.Stat(binDir); os.IsNotExist(err) {
-			if envMode == env_utils.EnvModeDevelopment {
-				logger.Warn(
-					"MySQL bin directory not found. MySQL support will be disabled. Read ./tools/readme.md for details",
-					"version",
-					string(version),
-					"path",
-					binDir,
-				)
-			} else {
-				logger.Warn(
-					"MySQL bin directory not found. MySQL support will be disabled.",
-					"version",
-					string(version),
-					"path",
-					binDir,
-				)
-			}
-			continue
-		}
-
-		for _, cmd := range requiredCommands {
-			cmdPath := GetMysqlExecutable(
-				version,
-				cmd,
-				envMode,
-				mysqlInstallDir,
-			)
-
-			if isShowLogs {
-				logger.Info(
-					"Checking for MySQL command",
-					"command",
-					cmd,
-					"version",
-					string(version),
-					"path",
-					cmdPath,
-				)
-			}
-
-			if _, err := os.Stat(cmdPath); os.IsNotExist(err) {
-				if envMode == env_utils.EnvModeDevelopment {
-					logger.Warn(
-						"MySQL command not found. MySQL support for this version will be disabled. Read ./tools/readme.md for details",
-						"command",
-						cmd,
-						"version",
-						string(version),
-						"path",
-						cmdPath,
-					)
-				} else {
-					logger.Warn(
-						"MySQL command not found. MySQL support for this version will be disabled.",
-						"command",
-						cmd,
-						"version",
-						string(version),
-						"path",
-						cmdPath,
-					)
-				}
-				continue
-			}
-
-			if isShowLogs {
-				logger.Info(
-					"MySQL command found",
-					"command",
-					cmd,
-					"version",
-					string(version),
-				)
-			}
-		}
-
-		if isShowLogs {
-			logger.Info(
-				"Installation of MySQL verified",
-				"version",
-				string(version),
-				"path",
-				binDir,
-			)
-		}
-	}
-
-	if isShowLogs {
-		logger.Info("MySQL version-specific client tools verification completed!")
-	}
+func getMysqlBinDir(version MysqlVersion) string {
+	return filepath.Join(
+		AssetsToolsDir(),
+		"mysql",
+		fmt.Sprintf("mysql-%s", version),
+		"bin",
+	)
 }
 
-// IsMysqlBackupVersionHigherThanRestoreVersion checks if backup was made with
-// a newer MySQL version than the restore target
+// checkMysql verifies every supported MySQL version's bin directory. MySQL
+// is non-fatal — a missing bundle disables that version's support.
+func checkMysql() []ToolCheckResult {
+	results := make([]ToolCheckResult, 0, len(mysqlVersions))
+
+	for _, v := range mysqlVersions {
+		binDir := getMysqlBinDir(v)
+
+		results = append(results, ToolCheckResult{
+			Db:      "mysql",
+			Version: string(v),
+			BinDir:  binDir,
+			Errors:  checkBinDir(binDir, mysqlRequired),
+			IsFatal: false,
+		})
+	}
+
+	return results
+}
+
+// IsMysqlBackupVersionHigherThanRestoreVersion reports whether a backup
+// produced on backupVersion would be downgrade-restoring onto restoreVersion.
 func IsMysqlBackupVersionHigherThanRestoreVersion(
 	backupVersion, restoreVersion MysqlVersion,
 ) bool {
@@ -189,16 +83,14 @@ func IsMysqlBackupVersionHigherThanRestoreVersion(
 	return versionOrder[backupVersion] > versionOrder[restoreVersion]
 }
 
-// EscapeMysqlPassword escapes special characters for MySQL .my.cnf file format.
-// In .my.cnf, passwords with special chars should be quoted.
-// Escape backslash and quote characters.
+// EscapeMysqlPassword escapes special characters for the MySQL .my.cnf file
+// format (passwords with special chars are double-quoted).
 func EscapeMysqlPassword(password string) string {
 	password = strings.ReplaceAll(password, "\\", "\\\\")
 	password = strings.ReplaceAll(password, "\"", "\\\"")
 	return password
 }
 
-// GetMysqlVersionEnum converts a version string to MysqlVersion enum
 func GetMysqlVersionEnum(version string) MysqlVersion {
 	switch version {
 	case "5.7":
@@ -212,19 +104,4 @@ func GetMysqlVersionEnum(version string) MysqlVersion {
 	default:
 		panic(fmt.Sprintf("invalid mysql version: %s", version))
 	}
-}
-
-func getMysqlBasePath(
-	version MysqlVersion,
-	envMode env_utils.EnvMode,
-	mysqlInstallDir string,
-) string {
-	if envMode == env_utils.EnvModeDevelopment {
-		return filepath.Join(
-			mysqlInstallDir,
-			fmt.Sprintf("mysql-%s", string(version)),
-			"bin",
-		)
-	}
-	return fmt.Sprintf("/usr/local/mysql-%s/bin", string(version))
 }

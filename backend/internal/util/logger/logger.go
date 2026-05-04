@@ -79,14 +79,12 @@ func tryInitVictoriaLogs() *VictoriaLogsWriter {
 }
 
 var ensureEnvLoaded = sync.OnceFunc(func() {
-	// Get current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("Warning: could not get current working directory: %v\n", err)
 		cwd = "."
 	}
 
-	// Find backend root by looking for go.mod
 	backendRoot := cwd
 	for {
 		if _, err := os.Stat(filepath.Join(backendRoot, "go.mod")); err == nil {
@@ -101,20 +99,14 @@ var ensureEnvLoaded = sync.OnceFunc(func() {
 		backendRoot = parent
 	}
 
-	// Try to load .env from various locations
-	envPaths := []string{
-		filepath.Join(cwd, ".env"),
-		filepath.Join(backendRoot, ".env"),
+	envPath := filepath.Join(filepath.Dir(backendRoot), ".env")
+
+	if err := godotenv.Load(envPath); err == nil {
+		fmt.Printf("Logger: loaded .env from %s\n", envPath)
+		return
 	}
 
-	for _, path := range envPaths {
-		if err := godotenv.Load(path); err == nil {
-			fmt.Printf("Logger: loaded .env from %s\n", path)
-			return
-		}
-	}
-
-	fmt.Println("Logger: .env file not found, using existing environment variables")
+	fmt.Println("Logger: .env file not found at repo root, using existing environment variables")
 })
 
 func getVictoriaLogsURL() string {

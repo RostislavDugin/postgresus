@@ -78,11 +78,7 @@ func (uc *RestoreMongodbBackupUsecase) Execute(
 
 	return uc.restoreFromStorage(
 		parentCtx,
-		tools.GetMongodbExecutable(
-			tools.MongodbExecutableMongorestore,
-			config.GetEnv().EnvMode,
-			config.GetEnv().MongodbInstallDir,
-		),
+		tools.GetMongodbExecutable(tools.MongodbExecutableMongorestore),
 		args,
 		backup,
 		storage,

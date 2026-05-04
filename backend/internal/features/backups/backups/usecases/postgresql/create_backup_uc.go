@@ -90,12 +90,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetPostgresqlExecutable(
-			pg.Version,
-			"pg_dump",
-			config.GetEnv().EnvMode,
-			config.GetEnv().PostgresesInstallDir,
-		),
+		tools.GetPostgresqlExecutable(pg.Version, "pg_dump"),
 		args,
 		decryptedPassword,
 		storage,
