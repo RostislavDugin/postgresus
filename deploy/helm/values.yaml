@@ -4,6 +4,7 @@
 image:
   repository: databasus/databasus
   tag: null
+  digest: ""
   pullPolicy: Always
 
 imagePullSecrets: []
