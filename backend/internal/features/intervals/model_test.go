@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInterval_ShouldTriggerBackup_Hourly(t *testing.T) {
@@ -652,6 +653,32 @@ func TestInterval_Validate(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("Daily interval with invalid time of day is invalid", func(t *testing.T) {
+		timeOfDay := "25:00"
+		interval := &Interval{
+			ID:        uuid.New(),
+			Interval:  IntervalDaily,
+			TimeOfDay: &timeOfDay,
+		}
+		err := interval.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid time of day")
+	})
+
+	t.Run("Weekly interval with invalid weekday is invalid", func(t *testing.T) {
+		timeOfDay := "09:00"
+		weekday := 8
+		interval := &Interval{
+			ID:        uuid.New(),
+			Interval:  IntervalWeekly,
+			TimeOfDay: &timeOfDay,
+			Weekday:   &weekday,
+		}
+		err := interval.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "weekday must be between 0 and 7")
+	})
+
 	t.Run("Valid monthly interval", func(t *testing.T) {
 		timeOfDay := "09:00"
 		dayOfMonth := 15
@@ -663,6 +690,20 @@ func TestInterval_Validate(t *testing.T) {
 		}
 		err := interval.Validate()
 		assert.NoError(t, err)
+	})
+
+	t.Run("Monthly interval with invalid day of month is invalid", func(t *testing.T) {
+		timeOfDay := "09:00"
+		dayOfMonth := 0
+		interval := &Interval{
+			ID:         uuid.New(),
+			Interval:   IntervalMonthly,
+			TimeOfDay:  &timeOfDay,
+			DayOfMonth: &dayOfMonth,
+		}
+		err := interval.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "day of month must be between 1 and 31")
 	})
 
 	t.Run("Cron interval requires cron expression", func(t *testing.T) {
