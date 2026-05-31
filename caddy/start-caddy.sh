@@ -36,7 +36,7 @@ else
           -nodes \
           -sha256 \
           -days 3650 \
-          -subj "/CN=localhost" \
+          -subj "/CN=databasus" \
           -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
           -keyout /databasus-data/caddy/self-signed.key \
           -out /databasus-data/caddy/self-signed.crt
