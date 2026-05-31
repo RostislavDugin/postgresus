@@ -475,6 +475,8 @@ jobs:
           timeout 120 bash -c 'until docker exec test-mysql-ssl mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
           echo "Waiting for MongoDB SSL..."
           timeout 120 bash -c 'until docker exec test-mongodb-ssl mongosh --tls --tlsAllowInvalidCertificates -u root -p rootpassword --authenticationDatabase admin --eval "db.adminCommand(\"ping\")" 2>/dev/null; do sleep 2; done'
+          echo "Waiting for Databasus HTTPS..."
+          timeout 120 bash -c 'until docker compose -f docker-compose.yml exec -T test-databasus-https curl -kfsS https://127.0.0.1:4006/api/v1/system/health >/dev/null 2>&1; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |

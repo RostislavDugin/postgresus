@@ -117,6 +117,11 @@ services:
     image: databasus/databasus:latest
     ports:
       - "4005:4005"
+      - "4006:4006"
+    environment:
+      - DATABASUS_TLS_ENABLED=${DATABASUS_TLS_ENABLED:-false}
+      - DATABASUS_TLS_CERT_PATH=${DATABASUS_TLS_CERT_PATH:-}
+      - DATABASUS_TLS_KEY_PATH=${DATABASUS_TLS_KEY_PATH:-}
     volumes:
       - ./databasus-data:/databasus-data
     restart: unless-stopped

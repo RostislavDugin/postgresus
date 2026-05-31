@@ -1,0 +1,8 @@
+{
+	auto_https disable_redirects
+}
+
+:4006 {
+	tls {$DATABASUS_TLS_CERT_PATH} {$DATABASUS_TLS_KEY_PATH}
+	reverse_proxy 127.0.0.1:4005
+}

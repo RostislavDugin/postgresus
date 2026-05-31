@@ -124,6 +124,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
     -o /verification-agent-binaries/databasus-verification-agent-linux-arm64 ./cmd
 
 
+# ========= CADDY =========
+FROM caddy:2-alpine AS caddy
+
+
 # ========= RUNTIME =========
 FROM debian:bookworm-slim
 
@@ -144,7 +148,7 @@ ENV ENV_MODE=production
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils \
+      wget ca-certificates gnupg lsb-release sudo gosu curl unzip xz-utils openssl \
       libncurses5 libncurses6 rclone \
       libmariadb3 \
       libgnutls30; \
@@ -189,6 +193,12 @@ WORKDIR /app
 
 # Copy Goose from build stage
 COPY --from=backend-build /usr/local/bin/goose /usr/local/bin/goose
+
+# Copy Caddy for optional self-signed HTTPS termination
+COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+COPY caddy/Caddyfile /app/Caddyfile
+COPY caddy/Caddyfile.custom-cert /app/Caddyfile.custom-cert
+COPY caddy/start-caddy.sh /app/start-caddy.sh
 
 # Copy app binary 
 COPY --from=backend-build /app/main .
@@ -475,14 +485,16 @@ if [ -n "\${DANGEROUS_VALKEY_HOST:-}" ]; then
     echo ""
 fi
 
+/app/start-caddy.sh
+
 exec gosu databasus ./main
 EOF
 
 LABEL org.opencontainers.image.source="https://github.com/databasus/databasus"
 
-RUN chmod +x /app/start.sh
+RUN chmod +x /app/start.sh /app/start-caddy.sh
 
-EXPOSE 4005
+EXPOSE 4005 4006
 
 # Volume for PostgreSQL data
 VOLUME ["/databasus-data"]

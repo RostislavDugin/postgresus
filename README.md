@@ -178,6 +178,11 @@ services:
     image: databasus/databasus:latest
     ports:
       - "4005:4005"
+      - "4006:4006"
+    environment:
+      - DATABASUS_TLS_ENABLED=${DATABASUS_TLS_ENABLED:-false}
+      - DATABASUS_TLS_CERT_PATH=${DATABASUS_TLS_CERT_PATH:-}
+      - DATABASUS_TLS_KEY_PATH=${DATABASUS_TLS_KEY_PATH:-}
     volumes:
       - ./databasus-data:/databasus-data
     restart: unless-stopped
@@ -188,6 +193,48 @@ Then run:
 ```bash
 docker compose up -d
 ```
+
+### Optional HTTPS
+
+To enable the built-in Caddy HTTPS reverse proxy, publish port `4006` and set
+`DATABASUS_TLS_ENABLED=true`. The regular HTTP endpoint remains available on
+port `4005`.
+
+```bash
+docker run -d \
+  --name databasus \
+  -p 4005:4005 \
+  -p 4006:4006 \
+  -e DATABASUS_TLS_ENABLED=true \
+  -v ./databasus-data:/databasus-data \
+  --restart unless-stopped \
+  databasus/databasus:latest
+```
+
+Access the TLS endpoint at `https://localhost:4006`, or use the server IP such
+as `https://10.10.64.115:4006`. The generated certificate is self-signed, so
+browsers and API clients will report it as untrusted. The certificate is stored
+under `/databasus-data/caddy` and reused across restarts.
+
+To use your own certificate, mount the PEM certificate and private key into the
+container and set both paths:
+
+```bash
+docker run -d \
+  --name databasus \
+  -p 4005:4005 \
+  -p 4006:4006 \
+  -e DATABASUS_TLS_ENABLED=true \
+  -e DATABASUS_TLS_CERT_PATH=/certs/fullchain.pem \
+  -e DATABASUS_TLS_KEY_PATH=/certs/privkey.pem \
+  -v ./certs:/certs:ro \
+  -v ./databasus-data:/databasus-data \
+  --restart unless-stopped \
+  databasus/databasus:latest
+```
+
+Both files must be PEM encoded and readable by the container. The certificate
+must include the hostname clients use to access Databasus.
 
 ### Option 4: Kubernetes with Helm
 

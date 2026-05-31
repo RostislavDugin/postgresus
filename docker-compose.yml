@@ -13,6 +13,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "4005:4005"
+      - "4006:4006"
+    environment:
+      - DATABASUS_TLS_ENABLED=${DATABASUS_TLS_ENABLED:-false}
+      - DATABASUS_TLS_CERT_PATH=${DATABASUS_TLS_CERT_PATH:-}
+      - DATABASUS_TLS_KEY_PATH=${DATABASUS_TLS_KEY_PATH:-}
     volumes:
       - ./databasus-data:/databasus-data
     container_name: databasus-local
@@ -781,3 +786,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # ================================================================
+  # Databasus HTTPS image tests
+  # ================================================================
+
+  test-databasus-https:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASUS_TLS_ENABLED=true
+    tmpfs:
+      - /databasus-data
+    healthcheck:
+      test: ["CMD", "curl", "-kfsS", "https://127.0.0.1:4006/api/v1/system/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
