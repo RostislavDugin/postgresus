@@ -26,6 +26,7 @@ import (
 	mysqltypes "databasus-backend/internal/features/databases/databases/mysql"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	restores_core "databasus-backend/internal/features/restores/core"
+	"databasus-backend/internal/features/restores/sqldumpfilter"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
@@ -150,7 +151,17 @@ func (uc *RestoreMysqlBackupUsecase) restoreFromStorage(
 		}
 	}()
 
-	return uc.executeMysqlRestore(ctx, database, mysqlBin, args, myCnfFile, rawReader, backup)
+	return uc.executeMysqlRestore(
+		ctx,
+		database,
+		mysqlBin,
+		args,
+		myCnfFile,
+		rawReader,
+		backup,
+		myConfig.RestoreIncludeTables,
+		myConfig.RestoreExcludeTables,
+	)
 }
 
 func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
@@ -161,6 +172,8 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	myCnfFile string,
 	backupReader io.ReadCloser,
 	backup *backups_core_logical.LogicalBackup,
+	restoreIncludeTables []string,
+	restoreExcludeTables []string,
 ) error {
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
 
@@ -183,7 +196,7 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	}
 	defer zstdReader.Close()
 
-	cmd.Stdin = zstdReader
+	cmd.Stdin = sqldumpfilter.NewTableFilterReader(zstdReader, restoreIncludeTables, restoreExcludeTables)
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,

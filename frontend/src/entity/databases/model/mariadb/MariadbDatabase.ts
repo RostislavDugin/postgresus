@@ -13,4 +13,7 @@ export interface MariadbDatabase {
   isUseExtendedInsert?: boolean;
   isSkipGaleraDisable?: boolean;
   excludeTables?: string[];
+  includeTables?: string[];
+  restoreIncludeTables?: string[];
+  restoreExcludeTables?: string[];
 }

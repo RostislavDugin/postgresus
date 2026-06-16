@@ -135,7 +135,7 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 		args = append(args, "--events")
 	}
 
-	if my.Database != nil && *my.Database != "" {
+	if my.Database != nil && *my.Database != "" && len(my.IncludeTables) == 0 {
 		for _, table := range my.ExcludeTables {
 			args = append(args, "--ignore-table="+*my.Database+"."+table)
 		}
@@ -153,6 +153,7 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 
 	if my.Database != nil && *my.Database != "" {
 		args = append(args, *my.Database)
+		args = append(args, my.IncludeTables...)
 	}
 
 	return args

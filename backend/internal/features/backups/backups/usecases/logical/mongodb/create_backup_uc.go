@@ -112,8 +112,14 @@ func (uc *CreateMongodbBackupUsecase) buildMongodumpArgs(
 		"--gzip",
 	}
 
-	for _, collection := range mdb.ExcludeCollections {
-		args = append(args, "--excludeCollection="+collection)
+	if len(mdb.IncludeCollections) > 0 {
+		for _, collection := range mdb.IncludeCollections {
+			args = append(args, fmt.Sprintf("--nsInclude=%s.%s", mdb.Database, collection))
+		}
+	} else {
+		for _, collection := range mdb.ExcludeCollections {
+			args = append(args, "--excludeCollection="+collection)
+		}
 	}
 
 	// Use numParallelCollections based on CPU count

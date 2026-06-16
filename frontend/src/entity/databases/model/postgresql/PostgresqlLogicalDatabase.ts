@@ -21,6 +21,7 @@ export interface PostgresqlLogicalDatabase {
   // backup settings
   includeSchemas?: string[];
   excludeTables?: string[];
+  includeTables?: string[];
   cpuCount: number;
   isSkipUserMappings?: boolean;
 
@@ -28,4 +29,6 @@ export interface PostgresqlLogicalDatabase {
   isExcludeExtensions?: boolean;
   isRestoreOwnership?: boolean;
   isRestorePrivileges?: boolean;
+  restoreIncludeTables?: string[];
+  restoreExcludeTables?: string[];
 }

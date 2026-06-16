@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,30 +27,37 @@ type MongodbDatabase struct {
 
 	Version tools.MongodbVersion `json:"version" gorm:"type:text;not null"`
 
-	Host                     string   `json:"host"               gorm:"type:text;not null"`
-	Port                     *int     `json:"port"               gorm:"type:int"`
-	Username                 string   `json:"username"           gorm:"type:text;not null"`
-	Password                 string   `json:"password"           gorm:"type:text;not null"`
-	Database                 string   `json:"database"           gorm:"type:text;not null"`
-	AuthDatabase             string   `json:"authDatabase"       gorm:"type:text;not null;default:'admin'"`
-	IsHttps                  bool     `json:"isHttps"            gorm:"type:boolean;default:false"`
-	IsSrv                    bool     `json:"isSrv"              gorm:"column:is_srv;type:boolean;not null;default:false"`
-	IsDirectConnection       bool     `json:"isDirectConnection" gorm:"column:is_direct_connection;type:boolean;not null;default:false"`
-	CpuCount                 int      `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
-	ExcludeCollections       []string `json:"excludeCollections" gorm:"-"`
-	ExcludeCollectionsString string   `json:"-"                  gorm:"column:exclude_collections;type:text;not null;default:''"`
+	Host                      string   `json:"host"                      gorm:"type:text;not null"`
+	Port                      *int     `json:"port"                      gorm:"type:int"`
+	Username                  string   `json:"username"                  gorm:"type:text;not null"`
+	Password                  string   `json:"password"                  gorm:"type:text;not null"`
+	Database                  string   `json:"database"                  gorm:"type:text;not null"`
+	AuthDatabase              string   `json:"authDatabase"              gorm:"type:text;not null;default:'admin'"`
+	IsHttps                   bool     `json:"isHttps"                   gorm:"type:boolean;default:false"`
+	IsSrv                     bool     `json:"isSrv"                     gorm:"column:is_srv;type:boolean;not null;default:false"`
+	IsDirectConnection        bool     `json:"isDirectConnection"        gorm:"column:is_direct_connection;type:boolean;not null;default:false"`
+	CpuCount                  int      `json:"cpuCount"                  gorm:"column:cpu_count;type:int;not null;default:1"`
+	ExcludeCollections        []string `json:"excludeCollections"        gorm:"-"`
+	ExcludeCollectionsString  string   `json:"-"                         gorm:"column:exclude_collections;type:text;not null;default:''"`
+	IncludeCollections        []string `json:"includeCollections"        gorm:"-"`
+	IncludeCollectionsString  string   `json:"-"                         gorm:"column:include_collections;type:text;not null;default:''"`
+	RestoreIncludeCollections []string `json:"restoreIncludeCollections" gorm:"-"`
+	RestoreExcludeCollections []string `json:"restoreExcludeCollections" gorm:"-"`
 }
 
 func (m *MongodbDatabase) TableName() string {
 	return "mongodb_databases"
 }
 
+func filterCollectionNames(collections []string) []string {
+	return slices.DeleteFunc(slices.Clone(collections), func(c string) bool {
+		return strings.TrimSpace(c) == ""
+	})
+}
+
 func (m *MongodbDatabase) BeforeSave(_ *gorm.DB) error {
-	if len(m.ExcludeCollections) > 0 {
-		m.ExcludeCollectionsString = strings.Join(m.ExcludeCollections, ",")
-	} else {
-		m.ExcludeCollectionsString = ""
-	}
+	m.ExcludeCollectionsString = strings.Join(filterCollectionNames(m.ExcludeCollections), ",")
+	m.IncludeCollectionsString = strings.Join(filterCollectionNames(m.IncludeCollections), ",")
 
 	return nil
 }
@@ -59,6 +67,12 @@ func (m *MongodbDatabase) AfterFind(_ *gorm.DB) error {
 		m.ExcludeCollections = strings.Split(m.ExcludeCollectionsString, ",")
 	} else {
 		m.ExcludeCollections = []string{}
+	}
+
+	if m.IncludeCollectionsString != "" {
+		m.IncludeCollections = strings.Split(m.IncludeCollectionsString, ",")
+	} else {
+		m.IncludeCollections = []string{}
 	}
 
 	return nil
@@ -200,6 +214,7 @@ func (m *MongodbDatabase) Update(incoming *MongodbDatabase) {
 	m.IsDirectConnection = incoming.IsDirectConnection
 	m.CpuCount = incoming.CpuCount
 	m.ExcludeCollections = incoming.ExcludeCollections
+	m.IncludeCollections = incoming.IncludeCollections
 
 	if incoming.Password != "" {
 		m.Password = incoming.Password

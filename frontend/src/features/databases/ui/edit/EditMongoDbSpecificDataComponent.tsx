@@ -22,6 +22,7 @@ interface Props {
   onSaved: (database: Database) => void;
 
   isShowDbName?: boolean;
+  isRestoreMode?: boolean;
 }
 
 export const EditMongoDbSpecificDataComponent = ({
@@ -37,6 +38,7 @@ export const EditMongoDbSpecificDataComponent = ({
   isSaveToApi,
   onSaved,
   isShowDbName = true,
+  isRestoreMode = false,
 }: Props) => {
   const { message } = App.useApp();
 
@@ -51,7 +53,11 @@ export const EditMongoDbSpecificDataComponent = ({
     !!database.mongodb?.authDatabase ||
     !!database.mongodb?.isSrv ||
     !!database.mongodb?.isDirectConnection ||
-    !!database.mongodb?.excludeCollections?.length;
+    !!database.mongodb?.excludeCollections?.length ||
+    !!database.mongodb?.includeCollections?.length ||
+    (isRestoreMode &&
+      (!!database.mongodb?.restoreIncludeCollections?.length ||
+        !!database.mongodb?.restoreExcludeCollections?.length));
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [isShowPasteModal, setIsShowPasteModal] = useState(false);
@@ -466,32 +472,123 @@ export const EditMongoDbSpecificDataComponent = ({
             />
           </div>
 
-          <div className="mb-1 flex w-full items-center">
-            <div className="min-w-[150px]">Exclude collections</div>
-            <Select
-              mode="tags"
-              value={editingDatabase.mongodb?.excludeCollections || []}
-              onChange={(values) => {
-                if (!editingDatabase.mongodb) return;
+          {!isRestoreMode && (
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px]">Exclude collections</div>
+              <Select
+                mode="tags"
+                disabled={!!editingDatabase.mongodb?.includeCollections?.length}
+                value={editingDatabase.mongodb?.excludeCollections || []}
+                onChange={(values) => {
+                  if (!editingDatabase.mongodb) return;
 
-                setEditingDatabase({
-                  ...editingDatabase,
-                  mongodb: { ...editingDatabase.mongodb, excludeCollections: values },
-                });
-              }}
-              size="small"
-              className="max-w-[200px] grow"
-              placeholder="No collections excluded"
-              tokenSeparators={[',']}
-            />
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mongodb: { ...editingDatabase.mongodb, excludeCollections: values },
+                  });
+                }}
+                size="small"
+                className="max-w-[200px] grow"
+                placeholder="No collections excluded"
+                tokenSeparators={[',']}
+              />
 
-            <Tooltip
-              className="cursor-pointer"
-              title="Collection names to exclude from the backup."
-            >
-              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-            </Tooltip>
-          </div>
+              <Tooltip
+                className="cursor-pointer"
+                title="Collection names to exclude from the backup. Ignored when Limit to collections is set."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          )}
+
+          {!isRestoreMode && (
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px]">Limit to collections</div>
+              <Select
+                mode="tags"
+                value={editingDatabase.mongodb?.includeCollections || []}
+                onChange={(values) => {
+                  if (!editingDatabase.mongodb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mongodb: { ...editingDatabase.mongodb, includeCollections: values },
+                  });
+                }}
+                size="small"
+                className="max-w-[200px] grow"
+                placeholder="All collections backed up"
+                tokenSeparators={[',']}
+              />
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Back up only these collections. When set, Exclude collections is ignored."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          )}
+
+          {isRestoreMode && (
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px]">Limit to collections</div>
+              <Select
+                mode="tags"
+                value={editingDatabase.mongodb?.restoreIncludeCollections || []}
+                onChange={(values) => {
+                  if (!editingDatabase.mongodb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mongodb: { ...editingDatabase.mongodb, restoreIncludeCollections: values },
+                  });
+                }}
+                size="small"
+                className="max-w-[200px] grow"
+                placeholder="All collections restored"
+                tokenSeparators={[',']}
+              />
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Restore only these collections. When set, Exclude collections is ignored."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          )}
+
+          {isRestoreMode && (
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px]">Exclude collections</div>
+              <Select
+                mode="tags"
+                disabled={!!editingDatabase.mongodb?.restoreIncludeCollections?.length}
+                value={editingDatabase.mongodb?.restoreExcludeCollections || []}
+                onChange={(values) => {
+                  if (!editingDatabase.mongodb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mongodb: { ...editingDatabase.mongodb, restoreExcludeCollections: values },
+                  });
+                }}
+                size="small"
+                className="max-w-[200px] grow"
+                placeholder="No collections excluded"
+                tokenSeparators={[',']}
+              />
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Skip these collections during restore. Ignored when Limit to collections is set."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          )}
         </>
       )}
 

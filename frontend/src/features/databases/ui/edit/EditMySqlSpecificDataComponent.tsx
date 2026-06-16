@@ -22,6 +22,7 @@ interface Props {
   onSaved: (database: Database) => void;
 
   isShowDbName?: boolean;
+  isRestoreMode?: boolean;
 }
 
 export const EditMySqlSpecificDataComponent = ({
@@ -37,6 +38,7 @@ export const EditMySqlSpecificDataComponent = ({
   isSaveToApi,
   onSaved,
   isShowDbName = true,
+  isRestoreMode = false,
 }: Props) => {
   const { message } = App.useApp();
 
@@ -47,8 +49,12 @@ export const EditMySqlSpecificDataComponent = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
-  const hasAdvancedValues =
-    !!database.mysql?.isUseExtendedInsert || !!database.mysql?.excludeTables?.length;
+  const hasAdvancedValues = isRestoreMode
+    ? !!database.mysql?.restoreIncludeTables?.length ||
+      !!database.mysql?.restoreExcludeTables?.length
+    : !!database.mysql?.isUseExtendedInsert ||
+      !!database.mysql?.excludeTables?.length ||
+      !!database.mysql?.includeTables?.length;
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [isShowPasteModal, setIsShowPasteModal] = useState(false);
@@ -346,7 +352,66 @@ export const EditMySqlSpecificDataComponent = ({
         </div>
       </div>
 
-      {isShowAdvanced && (
+      {isShowAdvanced && isRestoreMode && (
+        <>
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Limit to tables</div>
+            <Select
+              mode="tags"
+              value={editingDatabase.mysql?.restoreIncludeTables || []}
+              onChange={(values) => {
+                if (!editingDatabase.mysql) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  mysql: { ...editingDatabase.mysql, restoreIncludeTables: values },
+                });
+              }}
+              size="small"
+              className="max-w-[200px] grow"
+              placeholder="All tables restored"
+              tokenSeparators={[',']}
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Restore only these tables. When set, Exclude tables is ignored."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Exclude tables</div>
+            <Select
+              mode="tags"
+              disabled={!!editingDatabase.mysql?.restoreIncludeTables?.length}
+              value={editingDatabase.mysql?.restoreExcludeTables || []}
+              onChange={(values) => {
+                if (!editingDatabase.mysql) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  mysql: { ...editingDatabase.mysql, restoreExcludeTables: values },
+                });
+              }}
+              size="small"
+              className="max-w-[200px] grow"
+              placeholder="No tables excluded"
+              tokenSeparators={[',']}
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Skip these tables during restore. Ignored when Limit to tables is set."
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+        </>
+      )}
+
+      {isShowAdvanced && !isRestoreMode && (
         <>
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Use extended inserts</div>
@@ -390,6 +455,7 @@ export const EditMySqlSpecificDataComponent = ({
                   mysql: { ...editingDatabase.mysql, excludeTables: values },
                 });
               }}
+              disabled={!!editingDatabase.mysql?.includeTables?.length}
               size="small"
               className="max-w-[200px] grow"
               placeholder="No tables excluded"
@@ -397,6 +463,33 @@ export const EditMySqlSpecificDataComponent = ({
             />
 
             <Tooltip className="cursor-pointer" title="Table names to exclude from the backup.">
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Limit to tables</div>
+            <Select
+              mode="tags"
+              value={editingDatabase.mysql?.includeTables || []}
+              onChange={(values) => {
+                if (!editingDatabase.mysql) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  mysql: { ...editingDatabase.mysql, includeTables: values },
+                });
+              }}
+              size="small"
+              className="max-w-[200px] grow"
+              placeholder="All tables backed up"
+              tokenSeparators={[',']}
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Back up only these tables. When set, Exclude tables is ignored."
+            >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
           </div>

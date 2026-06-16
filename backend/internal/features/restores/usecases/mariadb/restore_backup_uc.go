@@ -1,6 +1,7 @@
 package usecases_mariadb
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +28,7 @@ import (
 	mariadbtypes "databasus-backend/internal/features/databases/databases/mariadb"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	restores_core "databasus-backend/internal/features/restores/core"
+	"databasus-backend/internal/features/restores/sqldumpfilter"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
@@ -169,6 +172,8 @@ func (uc *RestoreMariadbBackupUsecase) restoreFromStorage(
 		myCnfFile,
 		rawReader,
 		backup,
+		mdbConfig.RestoreIncludeTables,
+		mdbConfig.RestoreExcludeTables,
 	)
 }
 
@@ -180,6 +185,8 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	myCnfFile string,
 	backupReader io.ReadCloser,
 	backup *backups_core_logical.LogicalBackup,
+	restoreIncludeTables []string,
+	restoreExcludeTables []string,
 ) error {
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
 
@@ -202,7 +209,11 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	}
 	defer zstdReader.Close()
 
-	cmd.Stdin = zstdReader
+	cmd.Stdin = sqldumpfilter.NewTableFilterReader(
+		newWsrepFilterReader(zstdReader),
+		restoreIncludeTables,
+		restoreExcludeTables,
+	)
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
@@ -285,6 +296,37 @@ func (uc *RestoreMariadbBackupUsecase) setupDecryption(
 
 	uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
 	return decryptReader, nil
+}
+
+// wsrepLineRe matches SET statements for wsrep_on produced by mariadb-dump
+// when backing up a Galera Cluster node. These statements fail on standard
+// (non-Galera) MariaDB servers with "Unknown system variable 'wsrep_on'".
+var wsrepLineRe = regexp.MustCompile(`(?i)^\s*(\/\*![\d]+\s+)?SET\s+(SESSION\s+|@@(SESSION\.)?)?wsrep_on\b`)
+
+// newWsrepFilterReader wraps r and strips wsrep_on SET lines from the SQL
+// stream. Uses a 64 MB line buffer to handle large INSERT rows safely.
+func newWsrepFilterReader(r io.Reader) io.Reader {
+	pr, pw := io.Pipe()
+
+	go func() {
+		scanner := bufio.NewScanner(r)
+		scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
+
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if wsrepLineRe.Match(line) {
+				continue
+			}
+			if _, err := pw.Write(append(line, '\n')); err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
+
+		pw.CloseWithError(scanner.Err())
+	}()
+
+	return pr
 }
 
 func (uc *RestoreMariadbBackupUsecase) createTempMyCnfFile(

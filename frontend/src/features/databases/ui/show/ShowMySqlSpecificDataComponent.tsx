@@ -61,6 +61,13 @@ export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
           <div>{database.mysql.excludeTables.join(', ')}</div>
         </div>
       )}
+
+      {!!database.mysql?.includeTables?.length && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Limit to tables</div>
+          <div>{database.mysql.includeTables.join(', ')}</div>
+        </div>
+      )}
     </div>
   );
 };

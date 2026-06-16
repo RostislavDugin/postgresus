@@ -26,6 +26,7 @@ import (
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	restores_core "databasus-backend/internal/features/restores/core"
+	"databasus-backend/internal/features/restores/sqldumpfilter"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
@@ -81,6 +82,14 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	)
 }
 
+// appendTableArgs appends --table=<name> flags to args for each table in the list.
+func appendTableArgs(args, tables []string) []string {
+	for _, table := range tables {
+		args = append(args, "--table="+table)
+	}
+	return args
+}
+
 // restoreCustomType restores a backup in custom type (-Fc)
 func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 	parentCtx context.Context,
@@ -99,12 +108,12 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 		pg.CpuCount,
 	)
 
-	// File-based restore for parallel jobs (multiple CPUs) or any TOC filtering (extension exclusion
-	// or skipping user mappings needs a TOC file); otherwise stream directly via stdin. A timescaledb
-	// backup uses whichever path applies — the pre/post hooks wrap it the same way (they only set a
-	// database-level GUC, so streaming is kept).
+	// File-based restore for parallel jobs (multiple CPUs) or any TOC filtering (extension exclusion,
+	// skipping user mappings, or table filtering needs a TOC file); otherwise stream directly via stdin.
+	// A timescaledb backup uses whichever path applies — the pre/post hooks wrap it the same way.
 	runRestore := func() error {
-		if options.IsExcludeExtensions || options.IsSkipUserMappings || pg.CpuCount > 1 {
+		if options.IsExcludeExtensions || options.IsSkipUserMappings || pg.CpuCount > 1 ||
+			len(pg.RestoreIncludeTables) > 0 || len(pg.RestoreExcludeTables) > 0 {
 			return uc.restoreViaFile(parentCtx, originalDB, pgBin, backup, storage, pg, options)
 		}
 
@@ -182,6 +191,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	if !pg.IsRestorePrivileges {
 		args = append(args, "--no-acl")
 	}
+	args = appendTableArgs(args, pg.RestoreIncludeTables)
 
 	ctx, cancel := context.WithTimeout(parentCtx, 23*time.Hour)
 	defer cancel()
@@ -420,6 +430,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 	if !pg.IsRestorePrivileges {
 		args = append(args, "--no-acl")
 	}
+	args = appendTableArgs(args, pg.RestoreIncludeTables)
 
 	return uc.restoreFromStorage(
 		parentCtx,
@@ -516,8 +527,20 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 			_ = os.Remove(tocListFile)
 		}()
 
-		// Add -L flag to use the filtered list
 		args = append(args, "-L", tocListFile)
+	}
+
+	// Table exclusion: compute the complement (all tables minus excluded) and pass as
+	// --table= flags. Using pg_restore --table= is correct here because it handles all
+	// associated objects (CONSTRAINT, INDEX, SEQUENCE, TRIGGER) automatically. TOC-level
+	// filtering cannot do this — those entries don't carry the parent table name.
+	// Exclude is ignored when RestoreIncludeTables is already set (same semantics as backup time).
+	if len(pgConfig.RestoreExcludeTables) > 0 && len(pgConfig.RestoreIncludeTables) == 0 {
+		includedTables, err := uc.computeIncludedTables(ctx, pgBin, tempBackupFile, credentials, pgConfig)
+		if err != nil {
+			return fmt.Errorf("failed to compute included tables for restore: %w", err)
+		}
+		args = appendTableArgs(args, includedTables)
 	}
 
 	// Add the temporary backup file as the last argument to pg_restore
@@ -916,6 +939,24 @@ func containsIgnoreCase(str, substr string) bool {
 	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
 }
 
+// parseTocTableName extracts the table name and schema-qualified name from a
+// pg_restore TOC line for TABLE or TABLE DATA entries.
+// TOC line format: "id; oid dumpid TABLE schema name owner"
+//
+//	"id; oid dumpid TABLE DATA schema name owner"
+//
+// Returns (bareName, schema.bareName) so callers can match against either form.
+func parseTocTableName(line string) (string, string, bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 6 || fields[3] != "TABLE" {
+		return "", "", false
+	}
+	if fields[4] == "DATA" && len(fields) >= 7 {
+		return fields[6], fields[5] + "." + fields[6], true
+	}
+	return fields[5], fields[4] + "." + fields[5], true
+}
+
 // generateFilteredTocList writes a pg_restore TOC list (for -L) with the object classes selected
 // by options dropped, so pg_restore skips them.
 func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
@@ -996,4 +1037,52 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 	)
 
 	return tocFilePath, nil
+}
+
+// computeIncludedTables lists all TABLE entries in the dump TOC and returns those
+// not in pgConfig.RestoreExcludeTables as schema-qualified names.
+//
+// We use the complement rather than TOC-level filtering because CONSTRAINT, INDEX,
+// SEQUENCE, and TRIGGER entries in the TOC do not carry the parent table name, so
+// they cannot be filtered reliably. pg_restore --table= handles all associated
+// objects automatically, making this the correct approach.
+//
+// Limitation: table names containing spaces (e.g. "order details") are not handled
+// correctly because strings.Fields splits on whitespace. Such names are unusual in
+// practice; users should use bare names without spaces.
+func (uc *RestorePostgresqlBackupUsecase) computeIncludedTables(
+	ctx context.Context,
+	pgBin string,
+	backupFile string,
+	credentials *postgresql_shared.CredentialTempFiles,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
+) ([]string, error) {
+	listCmd := exec.CommandContext(ctx, pgBin, "-l", backupFile)
+	uc.setupPgRestoreEnvironment(listCmd, credentials, pgConfig)
+
+	tocOutput, err := listCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list dump TOC: %w", err)
+	}
+
+	excludeSet := sqldumpfilter.MakeTableSet(pgConfig.RestoreExcludeTables)
+
+	seen := make(map[string]bool)
+	var includedTables []string
+
+	for line := range strings.SplitSeq(string(tocOutput), "\n") {
+		bareName, qualifiedName, ok := parseTocTableName(strings.TrimSpace(line))
+		if !ok {
+			continue
+		}
+		if excludeSet[bareName] || excludeSet[qualifiedName] {
+			continue
+		}
+		if !seen[qualifiedName] {
+			seen[qualifiedName] = true
+			includedTables = append(includedTables, qualifiedName)
+		}
+	}
+
+	return includedTables, nil
 }

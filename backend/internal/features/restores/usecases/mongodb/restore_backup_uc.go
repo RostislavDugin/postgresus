@@ -100,11 +100,32 @@ func (uc *RestoreMongodbBackupUsecase) buildMongorestoreArgs(
 		"--drop",
 	}
 
-	if sourceDatabase != "" && sourceDatabase != mdb.Database {
+	switch {
+	case len(mdb.RestoreIncludeCollections) > 0:
+		if sourceDatabase != "" && sourceDatabase != mdb.Database {
+			for _, collection := range mdb.RestoreIncludeCollections {
+				args = append(args, fmt.Sprintf("--nsFrom=%s.%s", sourceDatabase, collection))
+				args = append(args, fmt.Sprintf("--nsTo=%s.%s", mdb.Database, collection))
+			}
+		} else {
+			for _, collection := range mdb.RestoreIncludeCollections {
+				args = append(args, fmt.Sprintf("--nsInclude=%s.%s", mdb.Database, collection))
+			}
+		}
+	case sourceDatabase != "" && sourceDatabase != mdb.Database:
 		args = append(args, "--nsFrom="+sourceDatabase+".*")
 		args = append(args, "--nsTo="+mdb.Database+".*")
-	} else if mdb.Database != "" {
+	case mdb.Database != "":
 		args = append(args, "--nsInclude="+mdb.Database+".*")
+	}
+
+	// Exclude is ignored when include is set: mongorestore docs say that when
+	// a namespace matches both --nsInclude and --nsExclude, the namespace is excluded,
+	// which would silently restore nothing for the included collections.
+	if len(mdb.RestoreIncludeCollections) == 0 {
+		for _, collection := range mdb.RestoreExcludeCollections {
+			args = append(args, fmt.Sprintf("--nsExclude=%s.%s", mdb.Database, collection))
+		}
 	}
 
 	// Use numInsertionWorkersPerCollection based on CPU count

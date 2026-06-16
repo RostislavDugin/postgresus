@@ -14,4 +14,7 @@ export interface MongodbDatabase {
   isDirectConnection: boolean;
   cpuCount: number;
   excludeCollections?: string[];
+  includeCollections?: string[];
+  restoreIncludeCollections?: string[];
+  restoreExcludeCollections?: string[];
 }

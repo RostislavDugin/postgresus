@@ -87,10 +87,13 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
     (isRestoreMode
       ? !!database.postgresqlLogical?.isExcludeExtensions ||
         !!database.postgresqlLogical?.isRestoreOwnership ||
-        !!database.postgresqlLogical?.isRestorePrivileges
+        !!database.postgresqlLogical?.isRestorePrivileges ||
+        !!database.postgresqlLogical?.isSkipUserMappings ||
+        !!database.postgresqlLogical?.restoreIncludeTables?.length ||
+        !!database.postgresqlLogical?.restoreExcludeTables?.length
       : !!database.postgresqlLogical?.includeSchemas?.length ||
         !!database.postgresqlLogical?.excludeTables?.length ||
-        !!database.postgresqlLogical?.isSkipUserMappings);
+        !!database.postgresqlLogical?.includeTables?.length);
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [hasAutoAddedPublicSchema, setHasAutoAddedPublicSchema] = useState(false);
@@ -662,6 +665,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
                 <div className="min-w-[150px]">Exclude tables</div>
                 <Select
                   mode="tags"
+                  disabled={!!editingDatabase.postgresqlLogical?.includeTables?.length}
                   value={editingDatabase.postgresqlLogical?.excludeTables || []}
                   onChange={(values) => {
                     if (!editingDatabase.postgresqlLogical) return;
@@ -682,7 +686,36 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
 
                 <Tooltip
                   className="cursor-pointer"
-                  title="Tables to exclude from the backup. Use 'tablename' or 'schema.tablename'. Glob patterns are supported (e.g. 'logs_*')."
+                  title="Tables to exclude from the backup. Use 'tablename' or 'schema.tablename'. Glob patterns are supported (e.g. 'logs_*'). Ignored when Limit to tables is set."
+                >
+                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                </Tooltip>
+              </div>
+            )}
+
+            {!isRestoreMode && (
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">Limit to tables</div>
+                <Select
+                  mode="tags"
+                  value={editingDatabase.postgresqlLogical?.includeTables || []}
+                  onChange={(values) => {
+                    if (!editingDatabase.postgresqlLogical) return;
+
+                    setEditingDatabase({
+                      ...editingDatabase,
+                      postgresqlLogical: { ...editingDatabase.postgresqlLogical, includeTables: values },
+                    });
+                  }}
+                  size="small"
+                  className="max-w-[200px] grow"
+                  placeholder="All tables backed up"
+                  tokenSeparators={[',']}
+                />
+
+                <Tooltip
+                  className="cursor-pointer"
+                  title="Back up only these tables. When set, Exclude tables is ignored."
                 >
                   <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
                 </Tooltip>
@@ -798,6 +831,65 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
                     });
                   }}
                 />
+              </div>
+            )}
+
+            {isRestoreMode && (
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">Limit to tables</div>
+                <Select
+                  mode="tags"
+                  value={editingDatabase.postgresqlLogical?.restoreIncludeTables || []}
+                  onChange={(values) => {
+                    if (!editingDatabase.postgresqlLogical) return;
+
+                    setEditingDatabase({
+                      ...editingDatabase,
+                      postgresqlLogical: { ...editingDatabase.postgresqlLogical, restoreIncludeTables: values },
+                    });
+                  }}
+                  size="small"
+                  className="max-w-[200px] grow"
+                  placeholder="All tables restored"
+                  tokenSeparators={[',']}
+                />
+
+                <Tooltip
+                  className="cursor-pointer"
+                  title="Restore only these tables. When set, Exclude tables is ignored."
+                >
+                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                </Tooltip>
+              </div>
+            )}
+
+            {isRestoreMode && (
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">Exclude tables</div>
+                <Select
+                  mode="tags"
+                  disabled={!!editingDatabase.postgresqlLogical?.restoreIncludeTables?.length}
+                  value={editingDatabase.postgresqlLogical?.restoreExcludeTables || []}
+                  onChange={(values) => {
+                    if (!editingDatabase.postgresqlLogical) return;
+
+                    setEditingDatabase({
+                      ...editingDatabase,
+                      postgresqlLogical: { ...editingDatabase.postgresqlLogical, restoreExcludeTables: values },
+                    });
+                  }}
+                  size="small"
+                  className="max-w-[200px] grow"
+                  placeholder="No tables excluded"
+                  tokenSeparators={[',']}
+                />
+
+                <Tooltip
+                  className="cursor-pointer"
+                  title="Skip these tables during restore. Ignored when Limit to tables is set."
+                >
+                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                </Tooltip>
               </div>
             )}
 

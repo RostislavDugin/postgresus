@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,17 +44,27 @@ type PostgresqlLogicalDatabase struct {
 	IncludeSchemasString string   `json:"-"                  gorm:"column:include_schemas;type:text;not null;default:''"`
 	ExcludeTables        []string `json:"excludeTables"      gorm:"-"`
 	ExcludeTablesString  string   `json:"-"                  gorm:"column:exclude_tables;type:text;not null;default:''"`
+	IncludeTables        []string `json:"includeTables"      gorm:"-"`
+	IncludeTablesString  string   `json:"-"                  gorm:"column:include_tables;type:text;not null;default:''"`
 	CpuCount             int      `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
 	IsSkipUserMappings   bool     `json:"isSkipUserMappings" gorm:"column:is_skip_user_mappings;type:bool;not null;default:false"`
 
 	// restore settings (not saved to DB)
-	IsExcludeExtensions bool `json:"isExcludeExtensions" gorm:"-"`
-	IsRestoreOwnership  bool `json:"isRestoreOwnership"  gorm:"-"`
-	IsRestorePrivileges bool `json:"isRestorePrivileges" gorm:"-"`
+	IsExcludeExtensions  bool     `json:"isExcludeExtensions"  gorm:"-"`
+	IsRestoreOwnership   bool     `json:"isRestoreOwnership"   gorm:"-"`
+	IsRestorePrivileges  bool     `json:"isRestorePrivileges"  gorm:"-"`
+	RestoreIncludeTables []string `json:"restoreIncludeTables" gorm:"-"`
+	RestoreExcludeTables []string `json:"restoreExcludeTables" gorm:"-"`
 }
 
 func (p *PostgresqlLogicalDatabase) TableName() string {
 	return "postgresql_logical_databases"
+}
+
+func filterTableNames(tables []string) []string {
+	return slices.DeleteFunc(slices.Clone(tables), func(t string) bool {
+		return strings.TrimSpace(t) == ""
+	})
 }
 
 func (p *PostgresqlLogicalDatabase) BeforeSave(_ *gorm.DB) error {
@@ -63,11 +74,8 @@ func (p *PostgresqlLogicalDatabase) BeforeSave(_ *gorm.DB) error {
 		p.IncludeSchemasString = ""
 	}
 
-	if len(p.ExcludeTables) > 0 {
-		p.ExcludeTablesString = strings.Join(p.ExcludeTables, ",")
-	} else {
-		p.ExcludeTablesString = ""
-	}
+	p.ExcludeTablesString = strings.Join(filterTableNames(p.ExcludeTables), ",")
+	p.IncludeTablesString = strings.Join(filterTableNames(p.IncludeTables), ",")
 
 	return nil
 }
@@ -83,6 +91,12 @@ func (p *PostgresqlLogicalDatabase) AfterFind(_ *gorm.DB) error {
 		p.ExcludeTables = strings.Split(p.ExcludeTablesString, ",")
 	} else {
 		p.ExcludeTables = []string{}
+	}
+
+	if p.IncludeTablesString != "" {
+		p.IncludeTables = strings.Split(p.IncludeTablesString, ",")
+	} else {
+		p.IncludeTables = []string{}
 	}
 
 	return nil
@@ -219,6 +233,7 @@ func (p *PostgresqlLogicalDatabase) Update(incoming *PostgresqlLogicalDatabase) 
 	p.SslRootCert = incoming.SslRootCert
 	p.IncludeSchemas = incoming.IncludeSchemas
 	p.ExcludeTables = incoming.ExcludeTables
+	p.IncludeTables = incoming.IncludeTables
 	p.CpuCount = incoming.CpuCount
 	p.IsSkipUserMappings = incoming.IsSkipUserMappings
 

@@ -12,4 +12,7 @@ export interface MysqlDatabase {
   isHttps: boolean;
   isUseExtendedInsert?: boolean;
   excludeTables?: string[];
+  includeTables?: string[];
+  restoreIncludeTables?: string[];
+  restoreExcludeTables?: string[];
 }
