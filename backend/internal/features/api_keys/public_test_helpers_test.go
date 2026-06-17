@@ -26,25 +26,13 @@ import (
 	"databasus-backend/internal/util/tools"
 )
 
-func createDatabaseWithEnabledBackups(
+func createTestDatabaseNoStorage(
 	t *testing.T,
 	workspace *workspaces_models.Workspace,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
-) (*databases.Database, *storages.Storage) {
+) *databases.Database {
 	t.Helper()
-
-	storage := &storages.Storage{
-		WorkspaceID:  workspace.ID,
-		Type:         storages.StorageTypeLocal,
-		Name:         "API Key Test Storage " + uuid.New().String(),
-		LocalStorage: &local_storage.LocalStorage{},
-	}
-	savedStorage, err := (&storages.StorageRepository{}).Save(storage)
-	if err != nil {
-		t.Fatalf("failed to save storage: %v", err)
-	}
-	t.Cleanup(func() { storages.RemoveTestStorage(savedStorage.ID) })
 
 	testDbName := "testdb"
 	env := config.GetEnv()
@@ -52,6 +40,7 @@ func createDatabaseWithEnabledBackups(
 	if parseErr != nil {
 		t.Fatalf("failed to parse test postgres port: %v", parseErr)
 	}
+
 	createRequest := databases.Database{
 		Name:        "API Key Test DB",
 		WorkspaceID: &workspace.ID,
@@ -84,6 +73,31 @@ func createDatabaseWithEnabledBackups(
 	}
 	t.Cleanup(func() { databases.RemoveTestDatabase(&database) })
 
+	return &database
+}
+
+func createDatabaseWithEnabledBackups(
+	t *testing.T,
+	workspace *workspaces_models.Workspace,
+	owner *users_dto.SignInResponseDTO,
+	router *gin.Engine,
+) (*databases.Database, *storages.Storage) {
+	t.Helper()
+
+	storage := &storages.Storage{
+		WorkspaceID:  workspace.ID,
+		Type:         storages.StorageTypeLocal,
+		Name:         "API Key Test Storage " + uuid.New().String(),
+		LocalStorage: &local_storage.LocalStorage{},
+	}
+	savedStorage, err := (&storages.StorageRepository{}).Save(storage)
+	if err != nil {
+		t.Fatalf("failed to save storage: %v", err)
+	}
+	t.Cleanup(func() { storages.RemoveTestStorage(savedStorage.ID) })
+
+	database := createTestDatabaseNoStorage(t, workspace, owner, router)
+
 	configService := backups_config.GetBackupConfigService()
 	backupConfig, err := configService.GetBackupConfigByDbId(database.ID)
 	if err != nil {
@@ -96,7 +110,7 @@ func createDatabaseWithEnabledBackups(
 		t.Fatalf("failed to save backup config: %v", err)
 	}
 
-	return &database, savedStorage
+	return database, savedStorage
 }
 
 func insertInProgressBackupForDatabase(t *testing.T, databaseID, storageID uuid.UUID) *backups_core.Backup {

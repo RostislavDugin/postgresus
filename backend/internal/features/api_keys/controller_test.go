@@ -142,6 +142,21 @@ func Test_PublicTriggerBackup_WhenBackupStaysInProgress_Returns202(t *testing.T)
 	assert.Equal(t, backups_core.BackupStatusInProgress, response.Status)
 }
 
+func Test_PublicTriggerBackup_WhenDatabaseHasNoBackupStorage_Returns422(t *testing.T) {
+	router := CreateApiKeyPublicTestRouter()
+	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace("No Storage WS", admin, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+
+	database := createTestDatabaseNoStorage(t, workspace, admin, router)
+	token := createAdminApiKeyToken(t)
+
+	request := TriggerBackupRequestDTO{DatabaseID: database.ID}
+	test_utils.MakePostRequest(
+		t, router, "/api/v1/public/backups", "Bearer "+token, request, http.StatusUnprocessableEntity,
+	)
+}
+
 func Test_PublicTriggerBackup_WhenTokenInvalid_Returns401(t *testing.T) {
 	router := CreateApiKeyPublicTestRouter()
 

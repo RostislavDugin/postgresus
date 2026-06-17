@@ -156,7 +156,7 @@ func (c *ApiKeyController) RevokeApiKey(ctx *gin.Context) {
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Failure 422 {object} map[string]string
+// @Failure 422 {object} TriggerBackupResponseDTO
 // @Router /public/backups [post]
 func (c *ApiKeyController) TriggerBackup(ctx *gin.Context) {
 	principalValue, exists := ctx.Get(PrincipalContextKey)
@@ -195,6 +195,15 @@ func (c *ApiKeyController) TriggerBackup(ctx *gin.Context) {
 		return
 	case errors.Is(err, ErrDatabaseWithoutWorkspace):
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+
+		return
+	case errors.Is(err, backups_services.ErrBackupNotStarted):
+		ctx.JSON(
+			http.StatusUnprocessableEntity,
+			gin.H{
+				"error": "backup could not be started for this database (check that backups and storage are configured)",
+			},
+		)
 
 		return
 	case err != nil:
