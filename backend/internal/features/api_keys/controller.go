@@ -103,6 +103,7 @@ func (c *ApiKeyController) ListApiKeys(ctx *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "API key ID"
 // @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string

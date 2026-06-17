@@ -34,9 +34,12 @@ func Test_CreateApiKey_WhenUserIsMember_ReturnsForbidden(t *testing.T) {
 	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
 
 	request := CreateApiKeyRequestDTO{Name: "Nope", Role: users_enums.UserRoleAdmin}
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/api-keys", "Bearer "+member.Token, request, http.StatusForbidden,
+	var errorResponse map[string]string
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/api-keys", "Bearer "+member.Token, request, http.StatusForbidden, &errorResponse,
 	)
+
+	assert.Equal(t, ErrAdminOnly.Error(), errorResponse["error"])
 }
 
 func Test_CreateApiKey_WhenMemberRoleWithoutWorkspaces_ReturnsBadRequest(t *testing.T) {
@@ -44,9 +47,12 @@ func Test_CreateApiKey_WhenMemberRoleWithoutWorkspaces_ReturnsBadRequest(t *test
 	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
 
 	request := CreateApiKeyRequestDTO{Name: "No grants", Role: users_enums.UserRoleMember}
-	test_utils.MakePostRequest(
-		t, router, "/api/v1/api-keys", "Bearer "+admin.Token, request, http.StatusBadRequest,
+	var errorResponse map[string]string
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/api-keys", "Bearer "+admin.Token, request, http.StatusBadRequest, &errorResponse,
 	)
+
+	assert.Equal(t, ErrWorkspacesRequired.Error(), errorResponse["error"])
 }
 
 func Test_ListAndRevokeApiKey_WhenUserIsAdmin_Works(t *testing.T) {
