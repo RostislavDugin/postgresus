@@ -35,8 +35,6 @@ export function ApiKeysComponent({ contentHeight, workspaces }: Props) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | undefined>(undefined);
-  const [form] = Form.useForm<CreateApiKeyRequest & { role: ApiKeyRole }>();
-  const selectedRole = Form.useWatch('role', form);
 
   const loadApiKeys = async () => {
     setIsLoading(true);
@@ -49,10 +47,6 @@ export function ApiKeysComponent({ contentHeight, workspaces }: Props) {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadApiKeys();
-  }, []);
 
   const handleCreate = async () => {
     const values = await form.validateFields();
@@ -86,6 +80,13 @@ export function ApiKeysComponent({ contentHeight, workspaces }: Props) {
     }
   };
 
+  const [form] = Form.useForm<CreateApiKeyRequest & { role: ApiKeyRole }>();
+  const selectedRole = Form.useWatch('role', form);
+
+  useEffect(() => {
+    loadApiKeys();
+  }, []);
+
   const columns: ColumnsType<ApiKey> = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Role', dataIndex: 'role', key: 'role' },
@@ -99,8 +100,8 @@ export function ApiKeysComponent({ contentHeight, workspaces }: Props) {
       title: 'Workspaces',
       dataIndex: 'workspaceIds',
       key: 'workspaceIds',
-      render: (ids: string[], record: ApiKey) =>
-        record.role === ApiKeyRole.ADMIN ? 'All' : `${ids.length} workspace(s)`,
+      render: (ids: string[] | undefined, record: ApiKey) =>
+        record.role === ApiKeyRole.ADMIN ? 'All' : `${(ids ?? []).length} workspace(s)`,
     },
     {
       title: 'Last used',
@@ -113,6 +114,12 @@ export function ApiKeysComponent({ contentHeight, workspaces }: Props) {
       dataIndex: 'expiresAt',
       key: 'expiresAt',
       render: (v?: string) => (v ? dayjs(v).format('YYYY-MM-DD') : 'Never'),
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (v: string) => dayjs(v).format('YYYY-MM-DD'),
     },
     {
       title: 'Actions',
