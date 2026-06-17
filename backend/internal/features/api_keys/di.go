@@ -18,3 +18,7 @@ var apiKeyService = &ApiKeyService{
 }
 
 func GetApiKeyService() *ApiKeyService { return apiKeyService }
+
+var apiKeyController = &ApiKeyController{apiKeyService}
+
+func GetApiKeyController() *ApiKeyController { return apiKeyController }
