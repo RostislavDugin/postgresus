@@ -12,6 +12,7 @@ import {
   userApi,
 } from '../../entity/users';
 import { type WorkspaceResponse, workspaceApi } from '../../entity/workspaces';
+import { ApiKeysComponent } from '../../features/api-keys/ui/ApiKeysComponent';
 import { DatabasesComponent } from '../../features/databases/ui/DatabasesComponent';
 import { NotifiersComponent } from '../../features/notifiers/ui/NotifiersComponent';
 import { SettingsComponent } from '../../features/settings';
@@ -42,7 +43,14 @@ export const MainScreenComponent = () => {
   const contentHeight = screenHeight - (isMobile ? 70 : 95);
 
   const [selectedTab, setSelectedTab] = useState<
-    'notifiers' | 'storages' | 'databases' | 'profile' | 'databasus-settings' | 'users' | 'settings'
+    | 'notifiers'
+    | 'storages'
+    | 'databases'
+    | 'profile'
+    | 'databasus-settings'
+    | 'users'
+    | 'settings'
+    | 'api-keys'
   >('databases');
   const [diskUsage, setDiskUsage] = useState<DiskUsage | undefined>(undefined);
   const [user, setUser] = useState<UserProfile | undefined>(undefined);
@@ -196,6 +204,16 @@ export const MainScreenComponent = () => {
       marginTop: '0px',
       isVisible: true,
     },
+    {
+      text: 'API keys',
+      name: 'api-keys',
+      icon: '/icons/menu/user-card-gray.svg',
+      selectedIcon: '/icons/menu/user-card-white.svg',
+      onClick: () => setSelectedTab('api-keys'),
+      isAdminOnly: true,
+      marginTop: '0px',
+      isVisible: true,
+    },
   ];
 
   return (
@@ -332,6 +350,12 @@ export const MainScreenComponent = () => {
           {selectedTab === 'users' && (
             <div className="flex-1 md:pl-4">
               <UsersComponent contentHeight={contentHeight} />
+            </div>
+          )}
+
+          {selectedTab === 'api-keys' && (
+            <div className="flex-1 md:pl-4">
+              <ApiKeysComponent contentHeight={contentHeight} workspaces={workspaces} />
             </div>
           )}
 
