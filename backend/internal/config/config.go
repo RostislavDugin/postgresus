@@ -134,6 +134,10 @@ type EnvVariables struct {
 
 	// Application URL (optional) - used for email links
 	DatabasusURL string `env:"DATABASUS_URL"`
+
+	// ApiBackupSyncTimeoutRaw is the raw env value; ApiBackupSyncTimeout is the parsed duration.
+	ApiBackupSyncTimeoutRaw string        `env:"DATABASUS_API_BACKUP_SYNC_TIMEOUT"`
+	ApiBackupSyncTimeout    time.Duration `env:"-"`
 }
 
 var env EnvVariables
@@ -378,6 +382,16 @@ func loadEnvVariables() {
 	env.TrialDuration = 24 * time.Hour
 	env.TrialStorageGB = 20
 	env.GracePeriod = 30 * 24 * time.Hour
+
+	env.ApiBackupSyncTimeout = 30 * time.Minute
+	if env.ApiBackupSyncTimeoutRaw != "" {
+		parsedTimeout, parseErr := time.ParseDuration(env.ApiBackupSyncTimeoutRaw)
+		if parseErr != nil {
+			log.Error("invalid DATABASUS_API_BACKUP_SYNC_TIMEOUT, using default 30m", "error", parseErr)
+		} else {
+			env.ApiBackupSyncTimeout = parsedTimeout
+		}
+	}
 
 	log.Info("Environment variables loaded successfully!")
 }
