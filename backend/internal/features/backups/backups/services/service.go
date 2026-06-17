@@ -1,6 +1,7 @@
 package backups_services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -502,6 +503,44 @@ func (s *BackupService) UnregisterDownload(userID uuid.UUID) {
 	s.downloadTokenService.UnregisterDownload(userID)
 }
 
+const backupPollInterval = 2 * time.Second
+
+func (s *BackupService) TriggerBackupAndWait(
+	ctx context.Context,
+	database *databases.Database,
+	timeout time.Duration,
+) (*backups_core.Backup, error) {
+	before, err := s.backupRepository.FindByDatabaseID(database.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var previousNewestID uuid.UUID
+	if len(before) > 0 {
+		previousNewestID = before[0].ID
+	}
+
+	s.backupSchedulerService.StartBackup(database, true)
+
+	after, err := s.backupRepository.FindByDatabaseID(database.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(after) == 0 {
+		return nil, ErrBackupNotStarted
+	}
+
+	targetBackup := after[0]
+	isNewBackup := targetBackup.ID != previousNewestID
+	isExistingInProgress := targetBackup.Status == backups_core.BackupStatusInProgress
+	if !isNewBackup && !isExistingInProgress {
+		return nil, ErrBackupNotStarted
+	}
+
+	return s.waitForBackupTerminal(ctx, targetBackup.ID, timeout)
+}
+
 func (s *BackupService) deleteDbBackups(databaseID uuid.UUID) error {
 	dbBackupsInProgress, err := s.backupRepository.FindByDatabaseIdAndStatus(
 		databaseID,
@@ -552,5 +591,37 @@ func (s *BackupService) getBackupExtension(dbType databases.DatabaseType) string
 		return ".archive"
 	default:
 		return ".backup"
+	}
+}
+
+func (s *BackupService) waitForBackupTerminal(
+	ctx context.Context,
+	backupID uuid.UUID,
+	timeout time.Duration,
+) (*backups_core.Backup, error) {
+	deadline := time.Now().UTC().Add(timeout)
+
+	ticker := time.NewTicker(backupPollInterval)
+	defer ticker.Stop()
+
+	for {
+		backup, err := s.backupRepository.FindByID(backupID)
+		if err != nil {
+			return nil, err
+		}
+
+		if backup.Status != backups_core.BackupStatusInProgress {
+			return backup, nil
+		}
+
+		if time.Now().UTC().After(deadline) {
+			return backup, ErrBackupWaitTimeout
+		}
+
+		select {
+		case <-ctx.Done():
+			return backup, ctx.Err()
+		case <-ticker.C:
+		}
 	}
 }
