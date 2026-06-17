@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_services "databasus-backend/internal/features/backups/backups/services"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 )
 
@@ -20,6 +22,12 @@ func (c *ApiKeyController) RegisterRoutes(router *gin.RouterGroup) {
 	apiKeyRoutes.POST("", c.CreateApiKey)
 	apiKeyRoutes.GET("", c.ListApiKeys)
 	apiKeyRoutes.DELETE("/:id", c.RevokeApiKey)
+}
+
+func (c *ApiKeyController) RegisterPublicRoutes(router *gin.RouterGroup) {
+	publicRoutes := router.Group("/public")
+
+	publicRoutes.POST("/backups", c.TriggerBackup)
 }
 
 // CreateApiKey
@@ -134,4 +142,80 @@ func (c *ApiKeyController) RevokeApiKey(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "API key revoked"})
+}
+
+// TriggerBackup
+// @Summary Trigger a database backup (API key auth)
+// @Description Start a backup and block until it finishes or the configured timeout elapses. Auth via API key in the Authorization header.
+// @Tags api-keys
+// @Accept json
+// @Produce json
+// @Param request body TriggerBackupRequestDTO true "Database to back up"
+// @Success 200 {object} TriggerBackupResponseDTO "Backup completed"
+// @Success 202 {object} TriggerBackupResponseDTO "Backup still running after timeout"
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 422 {object} map[string]string
+// @Router /public/backups [post]
+func (c *ApiKeyController) TriggerBackup(ctx *gin.Context) {
+	principalValue, exists := ctx.Get(PrincipalContextKey)
+	principal, isOk := principalValue.(*Principal)
+	if !exists || !isOk {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "API key authentication required"})
+
+		return
+	}
+
+	request := &TriggerBackupRequestDTO{}
+	if err := ctx.ShouldBindJSON(request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+
+		return
+	}
+
+	backup, err := c.apiKeyService.TriggerBackupForPrincipal(
+		ctx.Request.Context(),
+		principal,
+		request.DatabaseID,
+	)
+
+	switch {
+	case errors.Is(err, backups_services.ErrBackupWaitTimeout):
+		ctx.JSON(http.StatusAccepted, toTriggerBackupResponse(backup))
+
+		return
+	case errors.Is(err, ErrForbidden):
+		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+
+		return
+	case errors.Is(err, ErrDatabaseNotFound):
+		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+
+		return
+	case errors.Is(err, ErrDatabaseWithoutWorkspace):
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+
+		return
+	case err != nil:
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to trigger backup"})
+
+		return
+	}
+
+	if backup.Status == backups_core.BackupStatusCompleted {
+		ctx.JSON(http.StatusOK, toTriggerBackupResponse(backup))
+
+		return
+	}
+
+	ctx.JSON(http.StatusUnprocessableEntity, toTriggerBackupResponse(backup))
+}
+
+func toTriggerBackupResponse(backup *backups_core.Backup) TriggerBackupResponseDTO {
+	return TriggerBackupResponseDTO{
+		BackupID:    backup.ID,
+		Status:      backup.Status,
+		FailMessage: backup.FailMessage,
+	}
 }

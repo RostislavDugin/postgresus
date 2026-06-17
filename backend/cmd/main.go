@@ -22,6 +22,7 @@ import (
 
 	"databasus-backend/internal/config"
 	api_keys "databasus-backend/internal/features/api_keys"
+	api_keys_middleware "databasus-backend/internal/features/api_keys/middleware"
 	"databasus-backend/internal/features/audit_logs"
 	"databasus-backend/internal/features/backups/backups/backuping"
 	backups_controllers "databasus-backend/internal/features/backups/backups/controllers"
@@ -237,6 +238,11 @@ func setUpRoutes(r *gin.Engine) {
 	if config.GetEnv().IsCloud {
 		billing_paddle.GetPaddleBillingController().RegisterPublicRoutes(v1)
 	}
+
+	apiKeyAuthMiddleware := api_keys_middleware.ApiKeyAuthMiddleware(api_keys.GetApiKeyService())
+	publicApi := v1.Group("")
+	publicApi.Use(apiKeyAuthMiddleware)
+	api_keys.GetApiKeyController().RegisterPublicRoutes(publicApi)
 
 	// Setup auth middleware
 	userService := users_services.GetUserService()
