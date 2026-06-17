@@ -1,6 +1,7 @@
 package api_keys
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,13 +22,7 @@ func (p *Principal) CanAccessWorkspace(workspaceID uuid.UUID) bool {
 		return true
 	}
 
-	for _, granted := range p.WorkspaceIDs {
-		if granted == workspaceID {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(p.WorkspaceIDs, workspaceID)
 }
 
 type CreateApiKeyRequestDTO struct {
