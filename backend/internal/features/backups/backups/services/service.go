@@ -53,6 +53,8 @@ type BackupService struct {
 	backupCleaner          *backuping.BackupCleaner
 }
 
+const backupPollInterval = 2 * time.Second
+
 func (s *BackupService) AddBackupRemoveListener(listener backups_core.BackupRemoveListener) {
 	s.backupRemoveListeners = append(s.backupRemoveListeners, listener)
 }
@@ -502,8 +504,6 @@ func (s *BackupService) IsDownloadInProgress(userID uuid.UUID) bool {
 func (s *BackupService) UnregisterDownload(userID uuid.UUID) {
 	s.downloadTokenService.UnregisterDownload(userID)
 }
-
-const backupPollInterval = 2 * time.Second
 
 func (s *BackupService) TriggerBackupAndWait(
 	ctx context.Context,

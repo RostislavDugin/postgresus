@@ -43,6 +43,8 @@ func insertInProgressBackup(t *testing.T) *backups_core.Backup {
 	t.Cleanup(func() {
 		_ = repo.DeleteByID(backup.ID)
 		databases.RemoveTestDatabase(database)
+		// RemoveTestDatabase triggers an async cascade (backup config cleanup);
+		// wait briefly so dependent resources (storage, notifier) are not removed first.
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
 		storages.RemoveTestStorage(storage.ID)
