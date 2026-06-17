@@ -1,0 +1,74 @@
+package api_keys
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+
+	backups_core "databasus-backend/internal/features/backups/backups/core"
+	users_enums "databasus-backend/internal/features/users/enums"
+)
+
+type Principal struct {
+	ApiKeyID     uuid.UUID
+	Name         string
+	Role         users_enums.UserRole
+	WorkspaceIDs []uuid.UUID
+}
+
+func (p *Principal) CanAccessWorkspace(workspaceID uuid.UUID) bool {
+	if p.Role == users_enums.UserRoleAdmin {
+		return true
+	}
+
+	for _, granted := range p.WorkspaceIDs {
+		if granted == workspaceID {
+			return true
+		}
+	}
+
+	return false
+}
+
+type CreateApiKeyRequestDTO struct {
+	Name         string               `json:"name"         binding:"required"`
+	Role         users_enums.UserRole `json:"role"         binding:"required"`
+	ExpiresAt    *time.Time           `json:"expiresAt"`
+	WorkspaceIDs []uuid.UUID          `json:"workspaceIds"`
+}
+
+type CreateApiKeyResponseDTO struct {
+	ID           uuid.UUID            `json:"id"`
+	Name         string               `json:"name"`
+	Role         users_enums.UserRole `json:"role"`
+	Token        string               `json:"token"`
+	TokenPrefix  string               `json:"tokenPrefix"`
+	WorkspaceIDs []uuid.UUID          `json:"workspaceIds"`
+	ExpiresAt    *time.Time           `json:"expiresAt"`
+	CreatedAt    time.Time            `json:"createdAt"`
+}
+
+type ApiKeyResponseDTO struct {
+	ID           uuid.UUID            `json:"id"`
+	Name         string               `json:"name"`
+	Role         users_enums.UserRole `json:"role"`
+	TokenPrefix  string               `json:"tokenPrefix"`
+	WorkspaceIDs []uuid.UUID          `json:"workspaceIds"`
+	LastUsedAt   *time.Time           `json:"lastUsedAt"`
+	ExpiresAt    *time.Time           `json:"expiresAt"`
+	CreatedAt    time.Time            `json:"createdAt"`
+}
+
+type ListApiKeysResponseDTO struct {
+	ApiKeys []*ApiKeyResponseDTO `json:"apiKeys"`
+}
+
+type TriggerBackupRequestDTO struct {
+	DatabaseID uuid.UUID `json:"databaseId" binding:"required"`
+}
+
+type TriggerBackupResponseDTO struct {
+	BackupID    uuid.UUID                 `json:"backupId"`
+	Status      backups_core.BackupStatus `json:"status"`
+	FailMessage *string                   `json:"failMessage,omitempty"`
+}
