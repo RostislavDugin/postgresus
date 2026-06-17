@@ -42,7 +42,7 @@ func generateToken() (plain, hashed, prefix string, err error) {
 
 	plain = TokenPrefix + base64.RawURLEncoding.EncodeToString(raw)
 	hashed = hashToken(plain)
-	prefix = plain[:12]
+	prefix = plain[:tokenPrefixLength]
 
 	return plain, hashed, prefix, nil
 }
@@ -203,7 +203,7 @@ func (s *ApiKeyService) TriggerBackupForPrincipal(
 	)
 
 	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Backup triggered via API key '%s' for database: %s", principal.Name, database.Name),
+		fmt.Sprintf("Backup trigger requested via API key '%s' for database: %s", principal.Name, database.Name),
 		nil,
 		database.WorkspaceID,
 	)
