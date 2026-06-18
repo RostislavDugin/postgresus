@@ -50,6 +50,20 @@ func (p *PostgresqlPhysicalDatabase) TableName() string {
 	return "postgresql_physical_databases"
 }
 
+// GetParentDatabaseID returns the owning databases.id — the value every physical_*
+// child table FKs to (fk_physical_*_database_id REFERENCES databases(id)). For a
+// persisted/preloaded row DatabaseID is always set (it is the has-one join key);
+// the ID fallback only guards a not-yet-associated in-memory row. Use this —
+// never p.ID — for any catalog row keyed by database_id, mirroring
+// receivewalApplicationName's existing fallback.
+func (p *PostgresqlPhysicalDatabase) GetParentDatabaseID() uuid.UUID {
+	if p.DatabaseID != nil {
+		return *p.DatabaseID
+	}
+
+	return p.ID
+}
+
 func (p *PostgresqlPhysicalDatabase) Validate() error {
 	if p.SslMode == "" {
 		p.SslMode = postgresql_shared.PostgresSslModeDisable

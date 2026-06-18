@@ -83,7 +83,7 @@ func CheckTimelineCompatibility(
 		}, nil
 	}
 
-	knownTLI, err := newestKnownTimeline(db.ID, fullRepo, historyRepo)
+	knownTLI, err := newestKnownTimeline(db.GetParentDatabaseID(), fullRepo, historyRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -176,14 +176,16 @@ func UploadHistoryFile(
 	fieldEncryptor util_encryption.FieldEncryptor,
 	logger *slog.Logger,
 ) (*physical_models.PhysicalWalHistoryFile, error) {
-	existing, err := historyRepo.FindByDatabaseTimeline(db.ID, timelineID)
+	parentDatabaseID := db.GetParentDatabaseID()
+
+	existing, err := historyRepo.FindByDatabaseTimeline(parentDatabaseID, timelineID)
 	if err != nil {
 		return nil, fmt.Errorf("query existing history row: %w", err)
 	}
 
 	if existing != nil {
 		logger.Debug("history file already in catalog",
-			"database_id", db.ID,
+			"database_id", parentDatabaseID,
 			"timeline_id", timelineID)
 
 		return existing, nil
@@ -197,7 +199,7 @@ func UploadHistoryFile(
 	}
 
 	historyFileID := uuid.New()
-	storageObjectName := fmt.Sprintf("%s-HIST-tl%d.history.zst", db.ID, timelineID)
+	storageObjectName := fmt.Sprintf("%s-HIST-tl%d.history.zst", parentDatabaseID, timelineID)
 
 	artifactReader, encryptionSalt, encryptionIV, err := buildHistoryArtifactReader(
 		body, encryption, masterKey, historyFileID,
@@ -216,7 +218,7 @@ func UploadHistoryFile(
 
 	sidecar := physical_dto.PhysicalWalHistoryMetadata{
 		WalHistoryFileID:    historyFileID,
-		DatabaseID:          db.ID,
+		DatabaseID:          parentDatabaseID,
 		TimelineID:          timelineID,
 		HistoryFilename:     historyFilename,
 		CompressedSizeBytes: compressedSizeBytes,
@@ -248,7 +250,7 @@ func UploadHistoryFile(
 
 	row := &physical_models.PhysicalWalHistoryFile{
 		ID:               historyFileID,
-		DatabaseID:       db.ID,
+		DatabaseID:       parentDatabaseID,
 		StorageID:        storageID,
 		TimelineID:       timelineID,
 		FileName:         storageObjectName,
@@ -260,10 +262,10 @@ func UploadHistoryFile(
 	if err := historyRepo.Insert(row); err != nil {
 		if isUniqueViolation(err) {
 			logger.Debug("history row inserted by concurrent caller",
-				"database_id", db.ID,
+				"database_id", parentDatabaseID,
 				"timeline_id", timelineID)
 
-			return historyRepo.FindByDatabaseTimeline(db.ID, timelineID)
+			return historyRepo.FindByDatabaseTimeline(parentDatabaseID, timelineID)
 		}
 
 		return nil, fmt.Errorf("insert history row: %w", err)

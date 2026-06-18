@@ -72,7 +72,7 @@ func (uc *CreateFullBackupUsecase) Execute(ctx context.Context, spec FullBackupS
 		}
 
 		validation, valErr := ValidateStartLsnAgainstHistory(
-			spec.SourceDB.ID,
+			spec.SourceDB.GetParentDatabaseID(),
 			streamResult.TimelineID,
 			streamResult.StartLSN,
 			spec.HistoryRepo,
