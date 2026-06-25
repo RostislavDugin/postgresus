@@ -1,6 +1,7 @@
 package api_keys
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,10 +10,68 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_services "databasus-backend/internal/features/backups/backups/services"
+	"databasus-backend/internal/features/databases"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 )
+
+func Test_BuildTriggerAuditMessage_AlwaysAttributesApiKeyAndReflectsOutcome(t *testing.T) {
+	principal := &Principal{
+		ApiKeyID: uuid.New(),
+		Name:     "ci-key",
+		Role:     users_enums.UserRoleAdmin,
+	}
+	database := &databases.Database{Name: "prod-db"}
+
+	completedBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusCompleted}
+	failedBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusFailed}
+	canceledBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusCanceled}
+	inProgressBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusInProgress}
+
+	t.Run("completed reports success with backup id", func(t *testing.T) {
+		message := buildTriggerAuditMessage(principal, database, completedBackup, nil)
+
+		assert.Contains(t, message, principal.ApiKeyID.String())
+		assert.Contains(t, message, "completed")
+		assert.Contains(t, message, completedBackup.ID.String())
+	})
+
+	t.Run("timeout is not reported as success", func(t *testing.T) {
+		message := buildTriggerAuditMessage(principal, database, inProgressBackup, backups_services.ErrBackupWaitTimeout)
+
+		assert.Contains(t, message, principal.ApiKeyID.String())
+		assert.Contains(t, message, "timeout")
+		assert.NotContains(t, message, "completed")
+	})
+
+	t.Run("generic error is not reported as success", func(t *testing.T) {
+		message := buildTriggerAuditMessage(principal, database, nil, errors.New("connection refused"))
+
+		assert.Contains(t, message, principal.ApiKeyID.String())
+		assert.Contains(t, message, "failed")
+		assert.Contains(t, message, "connection refused")
+		assert.NotContains(t, message, "completed")
+	})
+
+	t.Run("terminal failed is not reported as success", func(t *testing.T) {
+		message := buildTriggerAuditMessage(principal, database, failedBackup, nil)
+
+		assert.Contains(t, message, principal.ApiKeyID.String())
+		assert.Contains(t, message, string(backups_core.BackupStatusFailed))
+		assert.NotContains(t, message, "completed")
+	})
+
+	t.Run("terminal canceled is not reported as success", func(t *testing.T) {
+		message := buildTriggerAuditMessage(principal, database, canceledBackup, nil)
+
+		assert.Contains(t, message, principal.ApiKeyID.String())
+		assert.Contains(t, message, string(backups_core.BackupStatusCanceled))
+		assert.NotContains(t, message, "completed")
+	})
+}
 
 func Test_GenerateToken_ProducesPrefixedTokenAndMatchingHash(t *testing.T) {
 	plain, hashed, prefix, err := generateToken()

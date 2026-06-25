@@ -67,6 +67,16 @@ import (
 // @host localhost:4005
 // @BasePath /api/v1
 // @schemes http
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Session auth. Type "Bearer " followed by your user JWT.
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
+// @description Public API auth. Type "Bearer " followed by an API key token (dbs_...).
 func main() {
 	log := logger.GetLogger()
 
@@ -239,9 +249,8 @@ func setUpRoutes(r *gin.Engine) {
 		billing_paddle.GetPaddleBillingController().RegisterPublicRoutes(v1)
 	}
 
-	apiKeyAuthMiddleware := api_keys_middleware.ApiKeyAuthMiddleware(api_keys.GetApiKeyService())
 	publicApi := v1.Group("")
-	publicApi.Use(apiKeyAuthMiddleware)
+	publicApi.Use(api_keys_middleware.GetApiKeyAuthMiddleware())
 	api_keys.GetApiKeyController().RegisterPublicRoutes(publicApi)
 
 	// Setup auth middleware

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -178,12 +179,130 @@ func (s *ApiKeyService) AuthenticateToken(token string) (*Principal, error) {
 	}, nil
 }
 
+func resolveSyncTimeout(requestedSeconds *int) time.Duration {
+	maxTimeout := config.GetEnv().ApiBackupSyncTimeout
+	if requestedSeconds == nil {
+		return maxTimeout
+	}
+
+	// Clamp the seconds before converting to Duration to avoid int64 overflow on huge inputs.
+	maxSeconds := int(maxTimeout / time.Second)
+	if *requestedSeconds < 1 {
+		return time.Second
+	}
+	if *requestedSeconds >= maxSeconds {
+		return maxTimeout
+	}
+
+	return time.Duration(*requestedSeconds) * time.Second
+}
+
 func (s *ApiKeyService) TriggerBackupForPrincipal(
 	ctx context.Context,
 	principal *Principal,
 	databaseID uuid.UUID,
+	requestedTimeoutSeconds *int,
 ) (*backups_core.Backup, error) {
+	logger := s.logger.With("api_key_id", principal.ApiKeyID, "database_id", databaseID)
+
 	database, err := s.databaseService.GetDatabaseByID(databaseID)
+	if err != nil {
+		logger.Warn("api key backup trigger: database not found", "error", err)
+
+		return nil, ErrDatabaseNotFound
+	}
+
+	if database.WorkspaceID == nil {
+		return nil, ErrDatabaseWithoutWorkspace
+	}
+
+	if !principal.CanAccessWorkspace(*database.WorkspaceID) {
+		logger.Warn("api key backup trigger: workspace access denied", "workspace_id", *database.WorkspaceID)
+
+		return nil, ErrForbidden
+	}
+
+	backup, triggerErr := s.backupService.TriggerBackupAndWait(
+		ctx,
+		database,
+		resolveSyncTimeout(requestedTimeoutSeconds),
+	)
+
+	s.auditLogService.WriteAuditLog(
+		buildTriggerAuditMessage(principal, database, backup, triggerErr),
+		nil,
+		database.WorkspaceID,
+	)
+
+	logTriggerOutcome(logger, backup, triggerErr)
+
+	return backup, triggerErr
+}
+
+// buildTriggerAuditMessage always records the api key id (forensic control if a key leaks)
+// and never reports success unless the backup actually completed.
+func buildTriggerAuditMessage(
+	principal *Principal,
+	database *databases.Database,
+	backup *backups_core.Backup,
+	triggerErr error,
+) string {
+	outcome := describeTriggerOutcome(backup, triggerErr)
+	if backup != nil {
+		return fmt.Sprintf(
+			"API key backup trigger for database '%s' by key '%s' (%s): %s (backup %s)",
+			database.Name, principal.Name, principal.ApiKeyID, outcome, backup.ID,
+		)
+	}
+
+	return fmt.Sprintf(
+		"API key backup trigger for database '%s' by key '%s' (%s): %s",
+		database.Name, principal.Name, principal.ApiKeyID, outcome,
+	)
+}
+
+func describeTriggerOutcome(backup *backups_core.Backup, triggerErr error) string {
+	switch {
+	case errors.Is(triggerErr, backups_services.ErrBackupWaitTimeout):
+		return "still running after sync timeout"
+	case triggerErr != nil:
+		return fmt.Sprintf("trigger failed: %v", triggerErr)
+	case backup != nil && backup.Status == backups_core.BackupStatusCompleted:
+		return "completed"
+	case backup != nil:
+		return fmt.Sprintf("finished with status %s", backup.Status)
+	default:
+		return "no backup produced"
+	}
+}
+
+func logTriggerOutcome(logger *slog.Logger, backup *backups_core.Backup, triggerErr error) {
+	if backup != nil {
+		logger = logger.With("backup_id", backup.ID)
+	}
+
+	switch {
+	case errors.Is(triggerErr, backups_services.ErrBackupWaitTimeout):
+		logger.Warn("api key backup still running after sync timeout")
+	case triggerErr != nil:
+		logger.Error("api key backup trigger failed", "error", triggerErr)
+	case backup != nil && backup.Status == backups_core.BackupStatusCompleted:
+		logger.Info("api key backup completed")
+	case backup != nil:
+		logger.Warn(fmt.Sprintf("api key backup finished with status %s", backup.Status))
+	}
+}
+
+func (s *ApiKeyService) GetBackupStatusForPrincipal(
+	principal *Principal,
+	backupID uuid.UUID,
+) (*backups_core.Backup, error) {
+	backup, err := s.backupService.GetBackup(backupID)
+	if err != nil {
+		return nil, ErrBackupNotFound
+	}
+
+	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
 	if err != nil {
 		return nil, ErrDatabaseNotFound
 	}
@@ -196,17 +315,5 @@ func (s *ApiKeyService) TriggerBackupForPrincipal(
 		return nil, ErrForbidden
 	}
 
-	backup, triggerErr := s.backupService.TriggerBackupAndWait(
-		ctx,
-		database,
-		config.GetEnv().ApiBackupSyncTimeout,
-	)
-
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Backup trigger requested via API key '%s' for database: %s", principal.Name, database.Name),
-		nil,
-		database.WorkspaceID,
-	)
-
-	return backup, triggerErr
+	return backup, nil
 }

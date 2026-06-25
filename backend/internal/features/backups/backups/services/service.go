@@ -510,6 +510,10 @@ func (s *BackupService) TriggerBackupAndWait(
 	database *databases.Database,
 	timeout time.Duration,
 ) (*backups_core.Backup, error) {
+	if database.IsAgentManagedBackup() {
+		return nil, ErrAgentManagedBackup
+	}
+
 	before, err := s.backupRepository.FindByDatabaseID(database.ID)
 	if err != nil {
 		return nil, err

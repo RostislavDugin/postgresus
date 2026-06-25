@@ -11,4 +11,5 @@ var (
 	ErrWorkspacesRequired       = errors.New("workspaceIds are required for MEMBER api keys")
 	ErrDatabaseNotFound         = errors.New("database not found")
 	ErrDatabaseWithoutWorkspace = errors.New("database does not belong to a workspace")
+	ErrBackupNotFound           = errors.New("backup not found")
 )

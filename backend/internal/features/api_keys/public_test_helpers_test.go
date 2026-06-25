@@ -76,6 +76,45 @@ func createTestDatabaseNoStorage(
 	return &database
 }
 
+func createWalV1Database(
+	t *testing.T,
+	workspace *workspaces_models.Workspace,
+	owner *users_dto.SignInResponseDTO,
+	router *gin.Engine,
+) *databases.Database {
+	t.Helper()
+
+	createRequest := databases.Database{
+		Name:        "API Key WAL DB",
+		WorkspaceID: &workspace.ID,
+		Type:        databases.DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			BackupType: postgresql.PostgresBackupTypeWalV1,
+			Version:    tools.PostgresqlVersion16,
+			CpuCount:   1,
+		},
+	}
+
+	w := workspaces_testing.MakeAPIRequest(
+		router,
+		"POST",
+		"/api/v1/databases/create",
+		"Bearer "+owner.Token,
+		createRequest,
+	)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("failed to create WAL_V1 database: %d %s", w.Code, w.Body.String())
+	}
+
+	var database databases.Database
+	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
+		t.Fatalf("failed to decode database: %v", err)
+	}
+	t.Cleanup(func() { databases.RemoveTestDatabase(&database) })
+
+	return &database
+}
+
 func createDatabaseWithEnabledBackups(
 	t *testing.T,
 	workspace *workspaces_models.Workspace,
