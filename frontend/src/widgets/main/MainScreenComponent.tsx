@@ -12,6 +12,7 @@ import {
   userApi,
 } from '../../entity/users';
 import { type WorkspaceResponse, workspaceApi } from '../../entity/workspaces';
+import { ApiDocsComponent } from '../../features/api-docs/ui/ApiDocsComponent';
 import { ApiKeysComponent } from '../../features/api-keys/ui/ApiKeysComponent';
 import { DatabasesComponent } from '../../features/databases/ui/DatabasesComponent';
 import { NotifiersComponent } from '../../features/notifiers/ui/NotifiersComponent';
@@ -51,6 +52,7 @@ export const MainScreenComponent = () => {
     | 'users'
     | 'settings'
     | 'api-keys'
+    | 'api-docs'
   >('databases');
   const [diskUsage, setDiskUsage] = useState<DiskUsage | undefined>(undefined);
   const [user, setUser] = useState<UserProfile | undefined>(undefined);
@@ -207,11 +209,21 @@ export const MainScreenComponent = () => {
     {
       text: 'API keys',
       name: 'api-keys',
-      icon: '/icons/menu/user-card-gray.svg',
-      selectedIcon: '/icons/menu/user-card-white.svg',
+      icon: '/icons/menu/key-gray.svg',
+      selectedIcon: '/icons/menu/key-white.svg',
       onClick: () => setSelectedTab('api-keys'),
       isAdminOnly: true,
       marginTop: '0px',
+      isVisible: true,
+    },
+    {
+      text: 'API docs',
+      name: 'api-docs',
+      icon: '/icons/menu/api-docs-gray.svg',
+      selectedIcon: '/icons/menu/api-docs-white.svg',
+      onClick: () => setSelectedTab('api-docs'),
+      isAdminOnly: false,
+      marginTop: '25px',
       isVisible: true,
     },
   ];
@@ -356,6 +368,12 @@ export const MainScreenComponent = () => {
           {selectedTab === 'api-keys' && (
             <div className="flex-1 md:pl-4">
               <ApiKeysComponent contentHeight={contentHeight} workspaces={workspaces} />
+            </div>
+          )}
+
+          {selectedTab === 'api-docs' && (
+            <div className="flex-1 md:pl-4">
+              <ApiDocsComponent contentHeight={contentHeight} />
             </div>
           )}
 

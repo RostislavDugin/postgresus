@@ -5,7 +5,7 @@ import {
   DeleteOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
-import { Button, Input } from 'antd';
+import { Button, Input, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
 import { backupConfigApi } from '../../../entity/backups';
@@ -16,6 +16,7 @@ import {
   databaseApi,
 } from '../../../entity/databases';
 import type { UserProfile } from '../../../entity/users';
+import { ClipboardHelper } from '../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
 import { EditBackupConfigComponent, ShowBackupConfigComponent } from '../../backups';
@@ -81,6 +82,21 @@ export const DatabaseConfigComponent = ({
     setDatabase(undefined);
     setEditDatabase(undefined);
     databaseApi.getDatabase(database.id).then(setDatabase);
+  };
+
+  const copyDatabaseId = async () => {
+    try {
+      await ClipboardHelper.copyToClipboard(database.id);
+      ToastHelper.showToast({
+        title: 'Copied',
+        description: 'Database ID copied to clipboard',
+      });
+    } catch {
+      ToastHelper.showToast({
+        title: 'Copy failed',
+        description: 'Could not copy Database ID',
+      });
+    }
   };
 
   const copyDatabase = () => {
@@ -259,6 +275,21 @@ export const DatabaseConfigComponent = ({
           )}
         </div>
       )}
+
+      <div className="mb-5 flex items-center text-sm text-gray-500 dark:text-gray-400">
+        <span className="mr-1">Database ID:</span>
+        <code className="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-gray-700">
+          {database.id}
+        </code>
+        <Tooltip title="Copy">
+          <button
+            className="ml-1 cursor-pointer rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-white"
+            onClick={copyDatabaseId}
+          >
+            <CopyOutlined style={{ fontSize: 12 }} />
+          </button>
+        </Tooltip>
+      </div>
 
       {database.lastBackupErrorMessage && (
         <div className="mb-4 max-w-full rounded border border-red-600 px-3 py-3 sm:max-w-[400px]">
