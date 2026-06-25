@@ -2,7 +2,6 @@ import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant
 import { App, Button, Checkbox, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { IS_CLOUD } from '../../../../constants';
 import { type Database, databaseApi } from '../../../../entity/databases';
 import { MariadbConnectionStringParser } from '../../../../entity/databases/model/mariadb/MariadbConnectionStringParser';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
@@ -49,7 +48,10 @@ export const EditMariaDbSpecificDataComponent = ({
   const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
   const hasAdvancedValues =
-    !!database.mariadb?.isExcludeEvents || !!database.mariadb?.excludeTables?.length;
+    !!database.mariadb?.isExcludeEvents ||
+    !!database.mariadb?.isUseExtendedInsert ||
+    !!database.mariadb?.isSkipGaleraDisable ||
+    !!database.mariadb?.excludeTables?.length;
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [isShowPasteModal, setIsShowPasteModal] = useState(false);
@@ -214,7 +216,7 @@ export const EditMariaDbSpecificDataComponent = ({
         />
       </div>
 
-      {isLocalhostDb && !IS_CLOUD && (
+      {isLocalhostDb && (
         <div className="mb-1 flex">
           <div className="min-w-[150px]" />
           <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
@@ -379,6 +381,64 @@ export const EditMariaDbSpecificDataComponent = ({
           </div>
 
           <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Use extended inserts</div>
+            <div className="flex items-center">
+              <Checkbox
+                checked={editingDatabase.mariadb?.isUseExtendedInsert || false}
+                onChange={(e) => {
+                  if (!editingDatabase.mariadb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mariadb: {
+                      ...editingDatabase.mariadb,
+                      isUseExtendedInsert: e.target.checked,
+                    },
+                  });
+                }}
+              >
+                Enable extended inserts
+              </Checkbox>
+
+              <Tooltip
+                className="cursor-pointer"
+                title="Batch multiple rows per INSERT for much faster restores. Off by default because it uses more memory during backup - enable only if restores are slow and your server has enough memory."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[150px]">Galera replication</div>
+            <div className="flex items-center">
+              <Checkbox
+                checked={editingDatabase.mariadb?.isSkipGaleraDisable || false}
+                onChange={(e) => {
+                  if (!editingDatabase.mariadb) return;
+
+                  setEditingDatabase({
+                    ...editingDatabase,
+                    mariadb: {
+                      ...editingDatabase.mariadb,
+                      isSkipGaleraDisable: e.target.checked,
+                    },
+                  });
+                }}
+              >
+                Skip disabling on restore
+              </Checkbox>
+
+              <Tooltip
+                className="cursor-pointer"
+                title="By default Databasus runs SET SESSION wsrep_on=OFF during restore to avoid Galera writeset-size errors. That requires the SUPER privilege. Enable this to skip it if your managed provider denies SUPER - large restores may then hit Galera writeset limits."
+              >
+                <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Exclude tables</div>
             <Select
               mode="tags"
@@ -442,7 +502,7 @@ export const EditMariaDbSpecificDataComponent = ({
         )}
       </div>
 
-      {isConnectionFailed && !IS_CLOUD && (
+      {isConnectionFailed && (
         <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
           If your database uses IP whitelist, make sure Databasus server IP is added to the allowed
           list.

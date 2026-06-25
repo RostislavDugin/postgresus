@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,12 +17,12 @@ import (
 
 	env_config "databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	backups_controllers "databasus-backend/internal/features/backups/backups/controllers"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_controllers_logical "databasus-backend/internal/features/backups/backups/controllers/logical"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/databases/databases/mysql"
-	"databasus-backend/internal/features/databases/databases/postgresql"
+	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	"databasus-backend/internal/features/notifiers"
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/restores/restoring"
@@ -38,6 +37,7 @@ import (
 	cache_utils "databasus-backend/internal/util/cache"
 	util_encryption "databasus-backend/internal/util/encryption"
 	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -114,9 +114,6 @@ func Test_GetRestores_WhenUserIsGlobalAdmin_RestoresReturned(t *testing.T) {
 func Test_RestoreBackup_WhenUserIsWorkspaceMember_RestoreInitiated(t *testing.T) {
 	router := createTestRouter()
 
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
-
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -125,7 +122,7 @@ func Test_RestoreBackup_WhenUserIsWorkspaceMember_RestoreInitiated(t *testing.T)
 	defer cleanupDatabaseWithBackup(database, backup)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -158,7 +155,7 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -182,9 +179,6 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T) {
 	router := createTestRouter()
 
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
-
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -193,7 +187,7 @@ func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T
 	defer cleanupDatabaseWithBackup(database, backup)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:             tools.PostgresqlVersion16,
 			Host:                env_config.GetEnv().TestLocalhost,
 			Port:                5432,
@@ -218,9 +212,6 @@ func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T
 func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	router := createTestRouter()
 
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
-
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -229,7 +220,7 @@ func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	defer cleanupDatabaseWithBackup(database, backup)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -279,13 +270,13 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 	}{
 		{
 			name:                "PostgreSQL_CPU4_SpaceValidated",
-			dbType:              databases.DatabaseTypePostgres,
+			dbType:              databases.DatabaseTypePostgresLogical,
 			cpuCount:            4,
 			expectDiskValidated: true,
 		},
 		{
 			name:                "PostgreSQL_CPU1_SpaceNotValidated",
-			dbType:              databases.DatabaseTypePostgres,
+			dbType:              databases.DatabaseTypePostgresLogical,
 			cpuCount:            1,
 			expectDiskValidated: false,
 		},
@@ -301,26 +292,20 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			router := createTestRouter()
 
-			// Setup mock node for tests that skip disk validation and reach scheduler
-			if !tc.expectDiskValidated {
-				_, cleanup := SetupMockRestoreNode(t)
-				defer cleanup()
-			}
-
 			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 			defer workspaces_testing.RemoveTestWorkspace(workspace, router)
 
 			var database *databases.Database
-			var backup *backups_core.Backup
+			var backup *backups_core_logical.LogicalBackup
 			var storage *storages.Storage
 			var request restores_core.RestoreBackupRequest
 
-			if tc.dbType == databases.DatabaseTypePostgres {
+			if tc.dbType == databases.DatabaseTypePostgresLogical {
 				database, backup = createTestDatabaseWithBackupForRestore(workspace, owner, router)
 				defer cleanupDatabaseWithBackup(database, backup)
 				request = restores_core.RestoreBackupRequest{
-					PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+					PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 						Version:  tools.PostgresqlVersion16,
 						Host:     env_config.GetEnv().TestLocalhost,
 						Port:     5432,
@@ -331,6 +316,7 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 				}
 			} else {
 				mysqlDB := createTestMySQLDatabase(
+					t,
 					"Test MySQL DB",
 					workspace.ID,
 					owner.Token,
@@ -347,7 +333,7 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 					storages.RemoveTestStorage(storage.ID)
 				}()
 
-				configService := backups_config.GetBackupConfigService()
+				configService := backups_config_logical.GetBackupConfigService()
 				config, err := configService.GetBackupConfigByDbId(mysqlDB.ID)
 				assert.NoError(t, err)
 
@@ -371,7 +357,7 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 			}
 
 			// Set huge backup size (10 TB) that would fail disk validation if checked
-			repo := &backups_core.BackupRepository{}
+			repo := &backups_core_logical.BackupRepository{}
 			backup.BackupSizeMb = 10485760.0
 			err := repo.Save(backup)
 			assert.NoError(t, err)
@@ -414,7 +400,7 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	defer func() {
-		backupRepo := backups_core.BackupRepository{}
+		backupRepo := backups_core_logical.BackupRepository{}
 		backups, _ := backupRepo.FindByDatabaseID(database.ID)
 		for _, backup := range backups {
 			backupRepo.DeleteByID(backup.ID)
@@ -439,21 +425,21 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 		cache_utils.ClearAllCache()
 	}()
 
-	backups_config.EnableBackupsForTestDatabase(database.ID, storage)
-	backup := backups_controllers.CreateTestBackup(database.ID, storage.ID)
+	backups_config_logical.EnableBackupsForTestDatabase(database.ID, storage)
+	backup := backups_controllers_logical.CreateTestBackup(database.ID, storage.ID)
 
 	mockUsecase := &restoring.MockBlockingRestoreUsecase{
 		StartedChan: make(chan bool, 1),
 	}
-	restorerNode := restoring.CreateTestRestorerNodeWithUsecase(mockUsecase)
+	restorer := restoring.CreateTestRestorerWithUsecase(mockUsecase)
 
-	cancelNode := restoring.StartRestorerNodeForTest(t, restorerNode)
-	defer cancelNode()
+	cancelRestorer := restoring.StartRestorerForTest(t, restorer)
+	defer cancelRestorer()
 
 	time.Sleep(200 * time.Millisecond)
 
 	restoreRequest := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -541,9 +527,6 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T) {
 	router := createTestRouter()
 
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
-
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -552,7 +535,7 @@ func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T)
 	defer cleanupDatabaseWithBackup(database, backup)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -591,11 +574,11 @@ func createTestDatabaseWithBackupForRestore(
 	workspace *workspaces_models.Workspace,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
-) (*databases.Database, *backups_core.Backup) {
+) (*databases.Database, *backups_core_logical.LogicalBackup) {
 	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
 	storage := createTestStorage(workspace.ID)
 
-	configService := backups_config.GetBackupConfigService()
+	configService := backups_config_logical.GetBackupConfigService()
 	config, err := configService.GetBackupConfigByDbId(database.ID)
 	if err != nil {
 		panic(err)
@@ -621,10 +604,10 @@ func createTestDatabase(
 	router *gin.Engine,
 ) *databases.Database {
 	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql:  databases.GetTestPostgresConfig(),
+		WorkspaceID:       &workspaceID,
+		Name:              name,
+		Type:              databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: databases.GetTestPostgresConfig(),
 	}
 
 	w := workspaces_testing.MakeAPIRequest(
@@ -650,21 +633,13 @@ func createTestDatabase(
 }
 
 func createTestMySQLDatabase(
+	t *testing.T,
 	name string,
 	workspaceID uuid.UUID,
 	token string,
 	router *gin.Engine,
 ) *databases.Database {
-	env := env_config.GetEnv()
-	portStr := env.TestMysql80Port
-	if portStr == "" {
-		portStr = "33080"
-	}
-
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to parse TEST_MYSQL_80_PORT: %v", err))
-	}
+	endpoint := containers.StartMysql(t, "mysql:8.0")
 
 	testDbName := "testdb"
 	request := databases.Database{
@@ -673,10 +648,10 @@ func createTestMySQLDatabase(
 		Type:        databases.DatabaseTypeMysql,
 		Mysql: &mysql.MysqlDatabase{
 			Version:  tools.MysqlVersion80,
-			Host:     env_config.GetEnv().TestLocalhost,
-			Port:     port,
-			Username: "testuser",
-			Password: "testpassword",
+			Host:     endpoint.Host,
+			Port:     endpoint.Port,
+			Username: containers.MysqlUsername,
+			Password: containers.MysqlPassword,
 			Database: &testDbName,
 		},
 	}
@@ -727,20 +702,20 @@ func createTestStorage(workspaceID uuid.UUID) *storages.Storage {
 func createTestBackup(
 	database *databases.Database,
 	storage *storages.Storage,
-) *backups_core.Backup {
+) *backups_core_logical.LogicalBackup {
 	fieldEncryptor := util_encryption.GetFieldEncryptor()
 
-	backup := &backups_core.Backup{
+	backup := &backups_core_logical.LogicalBackup{
 		ID:               uuid.New(),
 		DatabaseID:       database.ID,
 		StorageID:        storage.ID,
-		Status:           backups_core.BackupStatusCompleted,
+		Status:           backups_core_logical.BackupStatusCompleted,
 		BackupSizeMb:     10.5,
 		BackupDurationMs: 1000,
 		CreatedAt:        time.Now().UTC(),
 	}
 
-	repo := &backups_core.BackupRepository{}
+	repo := &backups_core_logical.BackupRepository{}
 	if err := repo.Save(backup); err != nil {
 		panic(err)
 	}
@@ -761,97 +736,22 @@ func createTestBackup(
 	return backup
 }
 
-func cleanupDatabaseWithBackup(database *databases.Database, backup *backups_core.Backup) {
+func cleanupDatabaseWithBackup(database *databases.Database, backup *backups_core_logical.LogicalBackup) {
 	// Clean up in reverse dependency order
 	cleanupBackup(backup)
 	databases.RemoveTestDatabase(database)
 	time.Sleep(50 * time.Millisecond)
 
 	// Clean up storage last (after database and backup are removed)
-	configService := backups_config.GetBackupConfigService()
+	configService := backups_config_logical.GetBackupConfigService()
 	config, err := configService.GetBackupConfigByDbId(database.ID)
 	if err == nil && config.StorageID != nil {
 		storages.RemoveTestStorage(*config.StorageID)
 	}
 }
 
-func Test_RestoreBackup_WhenCloudAndCpuCountMoreThanOne_ReturnsBadRequest(t *testing.T) {
+func Test_RestoreBackup_WithCpuCountMoreThanOne_RestoreInitiated(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
-
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
-
-	enableCloud(t)
-
-	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
-			Version:  tools.PostgresqlVersion16,
-			Host:     env_config.GetEnv().TestLocalhost,
-			Port:     5432,
-			Username: "postgres",
-			Password: "postgres",
-			CpuCount: 4,
-		},
-	}
-
-	testResp := test_utils.MakePostRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
-		"Bearer "+owner.Token,
-		request,
-		http.StatusBadRequest,
-	)
-
-	assert.Contains(t, string(testResp.Body), "multi-thread restore is not supported in cloud mode")
-}
-
-func Test_RestoreBackup_WhenCloudAndCpuCountIsOne_RestoreInitiated(t *testing.T) {
-	router := createTestRouter()
-
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
-
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
-
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
-
-	enableCloud(t)
-
-	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
-			Version:  tools.PostgresqlVersion16,
-			Host:     env_config.GetEnv().TestLocalhost,
-			Port:     5432,
-			Username: "postgres",
-			Password: "postgres",
-			CpuCount: 1,
-		},
-	}
-
-	testResp := test_utils.MakePostRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
-		"Bearer "+owner.Token,
-		request,
-		http.StatusOK,
-	)
-
-	assert.Contains(t, string(testResp.Body), "restore started successfully")
-}
-
-func Test_RestoreBackup_WhenNotCloudAndCpuCountMoreThanOne_RestoreInitiated(t *testing.T) {
-	router := createTestRouter()
-
-	_, cleanup := SetupMockRestoreNode(t)
-	defer cleanup()
 
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
@@ -861,7 +761,7 @@ func Test_RestoreBackup_WhenNotCloudAndCpuCountMoreThanOne_RestoreInitiated(t *t
 	defer cleanupDatabaseWithBackup(database, backup)
 
 	request := restores_core.RestoreBackupRequest{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env_config.GetEnv().TestLocalhost,
 			Port:     5432,
@@ -883,15 +783,7 @@ func Test_RestoreBackup_WhenNotCloudAndCpuCountMoreThanOne_RestoreInitiated(t *t
 	assert.Contains(t, string(testResp.Body), "restore started successfully")
 }
 
-func cleanupBackup(backup *backups_core.Backup) {
-	repo := &backups_core.BackupRepository{}
+func cleanupBackup(backup *backups_core_logical.LogicalBackup) {
+	repo := &backups_core_logical.BackupRepository{}
 	repo.DeleteByID(backup.ID)
-}
-
-func enableCloud(t *testing.T) {
-	t.Helper()
-	env_config.GetEnv().IsCloud = true
-	t.Cleanup(func() {
-		env_config.GetEnv().IsCloud = false
-	})
 }

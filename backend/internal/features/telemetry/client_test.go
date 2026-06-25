@@ -40,7 +40,7 @@ func Test_Send_PostsCorrectBodyAndHeaders(t *testing.T) {
 		OS:          "linux",
 		Arch:        "amd64",
 		InstalledAt: "2026-04-29",
-		Databases:   []DatabaseEntry{{Type: "POSTGRES", Version: "16"}},
+		Databases:   []DatabaseEntry{{Type: "POSTGRES_LOGICAL", Version: "16"}},
 		Storages:    []string{"S3"},
 		Notifiers:   []string{"EMAIL"},
 	}

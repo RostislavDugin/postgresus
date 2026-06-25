@@ -51,10 +51,6 @@ func (s *HealthcheckConfigService) Save(
 		return errors.New("insufficient permissions to modify healthcheck config")
 	}
 
-	if database.IsAgentManagedBackup() && configDTO.IsHealthcheckEnabled {
-		return errors.New("healthcheck cannot be enabled for agent-managed databases")
-	}
-
 	healthcheckConfig := configDTO.ToDTO()
 	s.logger.Info("healthcheck config", "config", healthcheckConfig)
 
@@ -137,20 +133,9 @@ func (s *HealthcheckConfigService) GetDatabasesWithEnabledHealthcheck() (
 func (s *HealthcheckConfigService) initializeDefaultConfig(
 	databaseID uuid.UUID,
 ) error {
-	isHealthcheckEnabled := true
-
-	database, err := s.databaseService.GetDatabaseByID(databaseID)
-	if err != nil {
-		return err
-	}
-
-	if database.IsAgentManagedBackup() {
-		isHealthcheckEnabled = false
-	}
-
 	return s.healthcheckConfigRepository.Save(&HealthcheckConfig{
 		DatabaseID:                        databaseID,
-		IsHealthcheckEnabled:              isHealthcheckEnabled,
+		IsHealthcheckEnabled:              true,
 		IsSentNotificationWhenUnavailable: true,
 		IntervalMinutes:                   1,
 		AttemptsBeforeConcideredAsDown:    3,

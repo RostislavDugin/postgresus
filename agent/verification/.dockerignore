@@ -6,7 +6,6 @@ databasus-verification.lock
 databasus-verification.json
 
 # Local build artifacts (host binaries)
-*.exe
 databasus-verification-agent
 
 # E2E working directories

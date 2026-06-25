@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	"databasus-backend/internal/storage"
 )
 
@@ -83,11 +83,11 @@ func (r *VerificationRepository) CountByDatabaseID(databaseID uuid.UUID) (int64,
 
 func (r *VerificationRepository) ListRunningBackupsByAgentID(
 	agentID uuid.UUID,
-) ([]*backups_core.Backup, error) {
-	backups := make([]*backups_core.Backup, 0)
+) ([]*backups_core_logical.LogicalBackup, error) {
+	backups := make([]*backups_core_logical.LogicalBackup, 0)
 
 	err := storage.GetDb().
-		Table("backups b").
+		Table("logical_backups b").
 		Select("b.*").
 		Joins("JOIN restore_verifications v ON v.backup_id = b.id").
 		Where("v.agent_id = ? AND v.status = ?", agentID, VerificationStatusRunning).
@@ -100,7 +100,7 @@ func (r *VerificationRepository) ListRunningBackupsByAgentID(
 // the disk-fit check in Go without re-fetching the backup row.
 type ClaimCandidate struct {
 	Verification *RestoreVerification
-	Backup       *backups_core.Backup
+	Backup       *backups_core_logical.LogicalBackup
 }
 
 // FindOldestPendingClaimablesTop100 locks up to 100 oldest PENDING verification rows
@@ -132,12 +132,12 @@ func (r *VerificationRepository) FindOldestPendingClaimablesTop100(
 		backupIDs[i] = verification.BackupID
 	}
 
-	var backups []*backups_core.Backup
+	var backups []*backups_core_logical.LogicalBackup
 	if err := tx.Where("id IN ?", backupIDs).Find(&backups).Error; err != nil {
 		return nil, err
 	}
 
-	backupByID := make(map[uuid.UUID]*backups_core.Backup, len(backups))
+	backupByID := make(map[uuid.UUID]*backups_core_logical.LogicalBackup, len(backups))
 	for _, backup := range backups {
 		backupByID[backup.ID] = backup
 	}

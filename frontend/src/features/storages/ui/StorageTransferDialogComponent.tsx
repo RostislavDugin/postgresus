@@ -1,7 +1,7 @@
 import { Button, Modal, Select, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { backupConfigApi } from '../../../entity/backups';
+import { logicalBackupConfigApi } from '../../../entity/backups/logical';
 import { type Storage, storageApi } from '../../../entity/storages';
 import { type WorkspaceResponse, workspaceApi } from '../../../entity/workspaces';
 
@@ -22,7 +22,7 @@ export const StorageTransferDialogComponent = ({ storage, onClose, onTransferred
     setIsLoading(true);
 
     try {
-      const isUsing = await backupConfigApi.isStorageUsing(storage.id);
+      const isUsing = await logicalBackupConfigApi.isStorageUsing(storage.id);
       setIsStorageInUse(isUsing);
 
       if (!isUsing) {

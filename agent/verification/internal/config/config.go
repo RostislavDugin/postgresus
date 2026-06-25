@@ -18,17 +18,31 @@ const configFileName = "databasus-verification.json"
 
 const minRAMMbPerJob = 512
 
-type Config struct {
-	DatabasusHost     string `json:"databasusHost"`
-	AgentID           string `json:"agentId"`
-	Token             string `json:"token"`
-	MaxCPU            int    `json:"maxCpu"`
-	MaxRAMMb          int    `json:"maxRamMb"`
-	MaxDiskGb         int    `json:"maxDiskGb"`
-	MaxConcurrentJobs int    `json:"maxConcurrentJobs"`
-	AllowInsecureHTTP bool   `json:"allowInsecureHttp"`
+// DefaultVerificationPgImageRepo bundles common extensions so a dump's CREATE
+// EXTENSION statements succeed during verification; override via
+// verificationPgImageRepo (e.g. a private registry, or "postgres" for stock).
+const DefaultVerificationPgImageRepo = "databasus/verification-postgres"
 
-	flags parsedFlags
+type Config struct {
+	DatabasusHost           string `json:"databasusHost"`
+	AgentID                 string `json:"agentId"`
+	Token                   string `json:"token"`
+	MaxCPU                  int    `json:"maxCpu"`
+	MaxRAMMb                int    `json:"maxRamMb"`
+	MaxDiskGb               int    `json:"maxDiskGb"`
+	MaxConcurrentJobs       int    `json:"maxConcurrentJobs"`
+	AllowInsecureHTTP       bool   `json:"allowInsecureHttp"`
+	VerificationPgImageRepo string `json:"verificationPgImageRepo"`
+
+	flagSources map[string]string
+}
+
+func (c *Config) GetVerificationPgImageRepo() string {
+	if c.VerificationPgImageRepo == "" {
+		return DefaultVerificationPgImageRepo
+	}
+
+	return c.VerificationPgImageRepo
 }
 
 type Capacity struct {
@@ -45,32 +59,25 @@ type Capacity struct {
 // and overrides JSON values with any explicitly provided CLI flags.
 func (c *Config) LoadFromJSONAndArgs(fs *flag.FlagSet, args []string) {
 	c.loadFromJSON()
-	c.initSources()
 
-	c.flags.databasusHost = fs.String(
-		"databasus-host",
-		"",
-		"Databasus server URL (e.g. https://your-server:4005)",
-	)
-	c.flags.agentID = fs.String("agent-id", "", "Verification agent ID")
-	c.flags.token = fs.String("token", "", "Verification agent token")
-	c.flags.maxCPU = fs.Int("max-cpu", 0, "Total CPU cores available to the agent")
-	c.flags.maxRAMMb = fs.Int("max-ram-mb", 0, "Total RAM in MB available to the agent")
-	c.flags.maxDiskGb = fs.Int("max-disk-gb", 0, "Total scratch disk in GB available to the agent")
-	c.flags.maxConcurrentJobs = fs.Int("max-concurrent-jobs", 0, "Number of verifications to run in parallel")
-	c.flags.allowInsecureHTTP = fs.Bool(
-		"allow-insecure-http",
-		false,
-		"Permit a plain http:// databasus-host (token and backup data sent unencrypted)",
-	)
+	bindings := c.flagBindings()
+	c.flagSources = sourcesFromConfig(bindings, c)
+
+	appliers := make([]func(*Config, map[string]string), 0, len(bindings))
+	for _, binding := range bindings {
+		appliers = append(appliers, binding.register(fs))
+	}
 
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
 
-	c.applyFlags()
+	for _, apply := range appliers {
+		apply(c, c.flagSources)
+	}
+
 	log.Info("========= Loading config ============")
-	c.logConfigSources()
+	c.logConfigSources(bindings)
 	log.Info("========= Config has been loaded ====")
 }
 
@@ -195,119 +202,6 @@ func (c *Config) loadFromJSON() {
 	}
 
 	log.Info("Configuration loaded from " + configFileName)
-}
-
-func (c *Config) initSources() {
-	c.flags.sources = map[string]string{
-		"databasus-host":      "not configured",
-		"agent-id":            "not configured",
-		"token":               "not configured",
-		"max-cpu":             "not configured",
-		"max-ram-mb":          "not configured",
-		"max-disk-gb":         "not configured",
-		"max-concurrent-jobs": "not configured",
-		"allow-insecure-http": "not configured",
-	}
-
-	if c.DatabasusHost != "" {
-		c.flags.sources["databasus-host"] = configFileName
-	}
-
-	if c.AgentID != "" {
-		c.flags.sources["agent-id"] = configFileName
-	}
-
-	if c.Token != "" {
-		c.flags.sources["token"] = configFileName
-	}
-
-	if c.MaxCPU != 0 {
-		c.flags.sources["max-cpu"] = configFileName
-	}
-
-	if c.MaxRAMMb != 0 {
-		c.flags.sources["max-ram-mb"] = configFileName
-	}
-
-	if c.MaxDiskGb != 0 {
-		c.flags.sources["max-disk-gb"] = configFileName
-	}
-
-	if c.MaxConcurrentJobs != 0 {
-		c.flags.sources["max-concurrent-jobs"] = configFileName
-	}
-
-	if c.AllowInsecureHTTP {
-		c.flags.sources["allow-insecure-http"] = configFileName
-	}
-}
-
-func (c *Config) applyFlags() {
-	if c.flags.databasusHost != nil && *c.flags.databasusHost != "" {
-		c.DatabasusHost = *c.flags.databasusHost
-		c.flags.sources["databasus-host"] = "command line args"
-	}
-
-	if c.flags.agentID != nil && *c.flags.agentID != "" {
-		c.AgentID = *c.flags.agentID
-		c.flags.sources["agent-id"] = "command line args"
-	}
-
-	if c.flags.token != nil && *c.flags.token != "" {
-		c.Token = *c.flags.token
-		c.flags.sources["token"] = "command line args"
-	}
-
-	if c.flags.maxCPU != nil && *c.flags.maxCPU != 0 {
-		c.MaxCPU = *c.flags.maxCPU
-		c.flags.sources["max-cpu"] = "command line args"
-	}
-
-	if c.flags.maxRAMMb != nil && *c.flags.maxRAMMb != 0 {
-		c.MaxRAMMb = *c.flags.maxRAMMb
-		c.flags.sources["max-ram-mb"] = "command line args"
-	}
-
-	if c.flags.maxDiskGb != nil && *c.flags.maxDiskGb != 0 {
-		c.MaxDiskGb = *c.flags.maxDiskGb
-		c.flags.sources["max-disk-gb"] = "command line args"
-	}
-
-	if c.flags.maxConcurrentJobs != nil && *c.flags.maxConcurrentJobs != 0 {
-		c.MaxConcurrentJobs = *c.flags.maxConcurrentJobs
-		c.flags.sources["max-concurrent-jobs"] = "command line args"
-	}
-
-	// --allow-insecure-http is a presence flag: passing it (or a persisted
-	// true) latches on; it is never turned back off from the CLI so a
-	// restart under systemd does not re-prompt.
-	if c.flags.allowInsecureHTTP != nil && *c.flags.allowInsecureHTTP {
-		c.AllowInsecureHTTP = true
-		c.flags.sources["allow-insecure-http"] = "command line args"
-	}
-}
-
-func (c *Config) logConfigSources() {
-	log.Info("databasus-host", "value", c.DatabasusHost, "source", c.flags.sources["databasus-host"])
-	log.Info("agent-id", "value", c.AgentID, "source", c.flags.sources["agent-id"])
-	log.Info("token", "value", maskSensitive(c.Token), "source", c.flags.sources["token"])
-	log.Info("max-cpu", "value", c.MaxCPU, "source", c.flags.sources["max-cpu"])
-	log.Info("max-ram-mb", "value", c.MaxRAMMb, "source", c.flags.sources["max-ram-mb"])
-	log.Info("max-disk-gb", "value", c.MaxDiskGb, "source", c.flags.sources["max-disk-gb"])
-	log.Info(
-		"max-concurrent-jobs",
-		"value",
-		c.MaxConcurrentJobs,
-		"source",
-		c.flags.sources["max-concurrent-jobs"],
-	)
-	log.Info(
-		"allow-insecure-http",
-		"value",
-		fmt.Sprintf("%v", c.AllowInsecureHTTP),
-		"source",
-		c.flags.sources["allow-insecure-http"],
-	)
 }
 
 func (c *Config) consentToInsecureHTTP(isStdinTTY bool, in *bufio.Reader) error {

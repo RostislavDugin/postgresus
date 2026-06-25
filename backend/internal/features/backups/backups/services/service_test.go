@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
@@ -17,7 +17,7 @@ import (
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 )
 
-func insertInProgressBackup(t *testing.T) *backups_core.Backup {
+func insertInProgressBackup(t *testing.T) *backups_core_logical.LogicalBackup {
 	t.Helper()
 
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
@@ -28,16 +28,16 @@ func insertInProgressBackup(t *testing.T) *backups_core.Backup {
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
-	backup := &backups_core.Backup{
+	backup := &backups_core_logical.LogicalBackup{
 		ID:         uuid.New(),
 		DatabaseID: database.ID,
 		StorageID:  storage.ID,
-		Status:     backups_core.BackupStatusInProgress,
+		Status:     backups_core_logical.BackupStatusInProgress,
 		CreatedAt:  time.Now().UTC(),
 	}
 	backup.GenerateFilename("waittest")
 
-	repo := backups_core.GetBackupRepository()
+	repo := backups_core_logical.GetBackupRepository()
 	require.NoError(t, repo.Save(backup))
 
 	t.Cleanup(func() {
@@ -56,18 +56,18 @@ func insertInProgressBackup(t *testing.T) *backups_core.Backup {
 
 func Test_WaitForBackupTerminal_WhenBackupCompletes_ReturnsCompleted(t *testing.T) {
 	backup := insertInProgressBackup(t)
-	repo := backups_core.GetBackupRepository()
+	repo := backups_core_logical.GetBackupRepository()
 
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		backup.Status = backups_core.BackupStatusCompleted
+		backup.Status = backups_core_logical.BackupStatusCompleted
 		_ = repo.Save(backup)
 	}()
 
 	finished, err := GetBackupService().waitForBackupTerminal(t.Context(), backup.ID, 30*time.Second)
 
 	require.NoError(t, err)
-	assert.Equal(t, backups_core.BackupStatusCompleted, finished.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusCompleted, finished.Status)
 }
 
 func Test_WaitForBackupTerminal_WhenBackupStaysInProgress_ReturnsTimeout(t *testing.T) {
@@ -76,5 +76,5 @@ func Test_WaitForBackupTerminal_WhenBackupStaysInProgress_ReturnsTimeout(t *test
 	finished, err := GetBackupService().waitForBackupTerminal(t.Context(), backup.ID, 1*time.Second)
 
 	assert.ErrorIs(t, err, ErrBackupWaitTimeout)
-	assert.Equal(t, backups_core.BackupStatusInProgress, finished.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusInProgress, finished.Status)
 }

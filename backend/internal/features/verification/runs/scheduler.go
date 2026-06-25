@@ -27,7 +27,7 @@ type VerificationScheduler struct {
 	service                  *VerificationService
 	verificaionConfigService *verification_config.VerificationConfigService
 	agentService             *verification_agents.AgentService
-	backupService            *backups_services.BackupService
+	backupService            *backups_services.LogicalBackupService
 	databaseService          *databases.DatabaseService
 	logger                   *slog.Logger
 
@@ -241,7 +241,9 @@ func (s *VerificationScheduler) sweepCanceledByDisabledConfig() error {
 	}
 
 	for _, row := range rows {
-		if cancelErr := s.repo.MarkTerminal(nil, row.ID, VerificationStatusCanceled, nil); cancelErr != nil {
+		if cancelErr := s.repo.MarkTerminal(nil, row.ID, VerificationStatusCanceled, map[string]any{
+			"fail_message": cancelMessageScheduleDisabled,
+		}); cancelErr != nil {
 			s.logger.Error(
 				"failed to mark verification CANCELED",
 				"error", cancelErr,

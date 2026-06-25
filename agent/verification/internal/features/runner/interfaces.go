@@ -39,6 +39,8 @@ type Restorer interface {
 		conn dbconn.Conn,
 		parallelJobs int,
 	) (restore.Result, error)
+	RunTimescalePreRestore(ctx context.Context, conn dbconn.Conn) error
+	RunTimescalePostRestore(ctx context.Context, conn dbconn.Conn) error
 }
 
 type StatsCollector interface {

@@ -20,7 +20,7 @@ export const ShowDatabaseBaseInfoComponent = ({ database, isShowName, isShowType
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Database type</div>
           <div className="flex items-center">
-            <span>{database.type === 'POSTGRES' ? 'PostgreSQL' : 'MySQL'}</span>
+            <span>{database.type === 'POSTGRES_LOGICAL' ? 'PostgreSQL' : 'MySQL'}</span>
             <img
               src={getDatabaseLogoFromType(database.type)}
               alt="databaseIcon"

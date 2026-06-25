@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	users_enums "databasus-backend/internal/features/users/enums"
 )
 
@@ -77,9 +77,9 @@ type TriggerBackupRequestDTO struct {
 }
 
 type TriggerBackupResponseDTO struct {
-	BackupID                  uuid.UUID                              `json:"backupId"`
-	Status                    backups_core.BackupStatus              `json:"status,omitempty"`
-	FailMessage               *string                                `json:"failMessage,omitempty"`
-	RestoreVerificationStatus backups_core.RestoreVerificationStatus `json:"restoreVerificationStatus,omitempty"`
-	Error                     *string                                `json:"error,omitempty"`
+	BackupID                  uuid.UUID                                      `json:"backupId"`
+	Status                    backups_core_logical.BackupStatus              `json:"status,omitempty"`
+	FailMessage               *string                                        `json:"failMessage,omitempty"`
+	RestoreVerificationStatus backups_core_logical.RestoreVerificationStatus `json:"restoreVerificationStatus,omitempty"`
+	Error                     *string                                        `json:"error,omitempty"`
 }

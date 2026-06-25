@@ -17,11 +17,13 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/config"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	"databasus-backend/internal/features/backups/backups/encryption"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
-	pgtypes "databasus-backend/internal/features/databases/databases/postgresql"
+	pgtypes "databasus-backend/internal/features/databases/databases/postgresql/logical"
+	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
@@ -38,13 +40,13 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 	parentCtx context.Context,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
-	if originalDB.Type != databases.DatabaseTypePostgres {
+	if originalDB.Type != databases.DatabaseTypePostgresLogical {
 		return errors.New("database type not supported")
 	}
 
@@ -56,20 +58,13 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		backup.ID,
 	)
 
-	pg := restoringToDB.Postgresql
+	pg := restoringToDB.PostgresqlLogical
 	if pg == nil {
 		return fmt.Errorf("postgresql configuration is required for restore")
 	}
 
 	if pg.Database == nil || *pg.Database == "" {
 		return fmt.Errorf("target database name is required for pg_restore")
-	}
-
-	// Validate CPU count constraint for cloud environments
-	if config.GetEnv().IsCloud && pg.CpuCount > 1 {
-		return fmt.Errorf(
-			"parallel restore (CPU count > 1) is not supported in cloud mode due to storage constraints. Please use CPU count = 1",
-		)
 	}
 
 	pgBin := tools.GetPostgresqlExecutable(pg.Version, "pg_restore")
@@ -82,7 +77,7 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		backup,
 		storage,
 		pg,
-		isExcludeExtensions,
+		options,
 	)
 }
 
@@ -91,10 +86,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 	parentCtx context.Context,
 	originalDB *databases.Database,
 	pgBin string,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	pg *pgtypes.PostgresqlDatabase,
-	isExcludeExtensions bool,
+	pg *pgtypes.PostgresqlLogicalDatabase,
+	options restores_core.RestoreOptions,
 ) error {
 	uc.logger.Info(
 		"Restoring backup in custom type (-Fc)",
@@ -104,22 +99,56 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 		pg.CpuCount,
 	)
 
-	// If excluding extensions, we must use file-based restore (requires TOC file generation)
-	// Also use file-based restore for parallel jobs (multiple CPUs)
-	if isExcludeExtensions || pg.CpuCount > 1 {
-		return uc.restoreViaFile(
-			parentCtx,
-			originalDB,
-			pgBin,
-			backup,
-			storage,
-			pg,
-			isExcludeExtensions,
-		)
+	// File-based restore for parallel jobs (multiple CPUs) or any TOC filtering (extension exclusion
+	// or skipping user mappings needs a TOC file); otherwise stream directly via stdin. A timescaledb
+	// backup uses whichever path applies — the pre/post hooks wrap it the same way (they only set a
+	// database-level GUC, so streaming is kept).
+	runRestore := func() error {
+		if options.IsExcludeExtensions || options.IsSkipUserMappings || pg.CpuCount > 1 {
+			return uc.restoreViaFile(parentCtx, originalDB, pgBin, backup, storage, pg, options)
+		}
+
+		return uc.restoreViaStdin(parentCtx, originalDB, pgBin, backup, storage, pg)
 	}
 
-	// Single CPU without extension exclusion: stream directly via stdin
-	return uc.restoreViaStdin(parentCtx, originalDB, pgBin, backup, storage, pg)
+	if backup.TimescaledbVersion != "" {
+		return uc.withTimescaleHooks(parentCtx, pg, runRestore)
+	}
+
+	return runRestore()
+}
+
+// withTimescaleHooks wraps a restore in the TimescaleDB procedure: ensure the extension exists and
+// enter restoring mode before pg_restore, then leave restoring mode after — unconditionally, so a
+// failed restore never leaves the target stuck in restoring mode. See timescaledb.go for why the
+// database-level GUC set here is inherited by the separate pg_restore process.
+func (uc *RestorePostgresqlBackupUsecase) withTimescaleHooks(
+	ctx context.Context,
+	pg *pgtypes.PostgresqlLogicalDatabase,
+	runRestore func() error,
+) (err error) {
+	encryptor := util_encryption.GetFieldEncryptor()
+
+	if err := pg.RunTimescaleDBPreRestore(ctx, encryptor); err != nil {
+		return fmt.Errorf("timescaledb_pre_restore failed: %w", err)
+	}
+
+	uc.logger.Info("entered timescaledb restoring mode")
+
+	defer func() {
+		if postErr := pg.RunTimescaleDBPostRestore(ctx, encryptor); postErr != nil {
+			uc.logger.Error(
+				"timescaledb_post_restore failed; target database may be left in restoring mode",
+				"error", postErr,
+			)
+
+			if err == nil {
+				err = fmt.Errorf("timescaledb_post_restore failed: %w", postErr)
+			}
+		}
+	}()
+
+	return runRestore()
 }
 
 // restoreViaStdin streams backup via stdin for single CPU restore
@@ -127,9 +156,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	parentCtx context.Context,
 	originalDB *databases.Database,
 	pgBin string,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	pg *pgtypes.PostgresqlDatabase,
+	pg *pgtypes.PostgresqlLogicalDatabase,
 ) error {
 	uc.logger.Info("Restoring via stdin streaming (CPU=1)", "backupId", backup.ID)
 
@@ -141,8 +170,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		"-U", pg.Username,
 		"-d", *pg.Database,
 		"--verbose",
-		"--clean",
-		"--if-exists",
+	}
+	// --clean would DROP EXTENSION timescaledb, taking the catalog tables that pre_restore needs
+	// with it; TimescaleDB restores into a clean target without it. Non-timescaledb keeps --clean.
+	if backup.TimescaledbVersion == "" {
+		args = append(args, "--clean", "--if-exists")
 	}
 	if !pg.IsRestoreOwnership {
 		args = append(args, "--no-owner")
@@ -182,7 +214,8 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("failed to decrypt password: %w", err)
 	}
 
-	credentials, err := pgtypes.WriteCredentialFiles(pg, decryptedPassword, fieldEncryptor)
+	credentials, err := postgresql_shared.WriteCredentialFilesToTempDir(
+		pg.CredentialSpec(), decryptedPassword, fieldEncryptor)
 	if err != nil {
 		return fmt.Errorf("failed to create credential files: %w", err)
 	}
@@ -200,7 +233,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	}()
 
 	var backupReader io.Reader = rawReader
-	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
+	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
 		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			return fmt.Errorf("backup is encrypted but missing encryption metadata")
@@ -343,10 +376,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 	parentCtx context.Context,
 	originalDB *databases.Database,
 	pgBin string,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	pg *pgtypes.PostgresqlDatabase,
-	isExcludeExtensions bool,
+	pg *pgtypes.PostgresqlLogicalDatabase,
+	options restores_core.RestoreOptions,
 ) error {
 	uc.logger.Info(
 		"Restoring via file with parallel jobs",
@@ -356,9 +389,15 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 		pg.CpuCount,
 	)
 
-	// Use parallel jobs based on CPU count
-	// Cap between 1 and 8 to avoid overwhelming the server
+	isTimescale := backup.TimescaledbVersion != ""
+
+	// TimescaleDB restores single-threaded: with -j the parallel loop loads dependent
+	// _timescaledb_catalog rows (chunk_constraint, chunk_index) before the chunk rows they reference,
+	// tripping the catalog's own foreign keys. Otherwise cap between 1 and 8.
 	parallelJobs := max(1, min(pg.CpuCount, 8))
+	if isTimescale {
+		parallelJobs = 1
+	}
 
 	args := []string{
 		"-Fc",                            // expect custom type
@@ -369,8 +408,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 		"-U", pg.Username,
 		"-d", *pg.Database,
 		"--verbose",
-		"--clean",
-		"--if-exists",
+	}
+	// --clean would DROP EXTENSION timescaledb, taking the catalog tables that pre_restore needs
+	// with it; TimescaleDB restores into a clean target without it. Non-timescaledb keeps --clean.
+	if !isTimescale {
+		args = append(args, "--clean", "--if-exists")
 	}
 	if !pg.IsRestoreOwnership {
 		args = append(args, "--no-owner")
@@ -388,7 +430,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 		backup,
 		storage,
 		pg,
-		isExcludeExtensions,
+		options,
 	)
 }
 
@@ -399,10 +441,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	pgBin string,
 	args []string,
 	password string,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	pgConfig *pgtypes.PostgresqlDatabase,
-	isExcludeExtensions bool,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
+	options restores_core.RestoreOptions,
 ) error {
 	uc.logger.Info(
 		"Restoring PostgreSQL backup from storage via temporary file",
@@ -411,7 +453,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 		"args",
 		args,
 		"isExcludeExtensions",
-		isExcludeExtensions,
+		options.IsExcludeExtensions,
+		"isSkipUserMappings",
+		options.IsSkipUserMappings,
 	)
 
 	ctx, cancel := context.WithTimeout(parentCtx, 23*time.Hour)
@@ -439,8 +483,8 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	}()
 
 	// Materialize connection credentials (.pgpass + optional client certificates)
-	credentials, err := pgtypes.WriteCredentialFiles(
-		pgConfig,
+	credentials, err := postgresql_shared.WriteCredentialFilesToTempDir(
+		pgConfig.CredentialSpec(),
 		password,
 		util_encryption.GetFieldEncryptor(),
 	)
@@ -456,14 +500,14 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	}
 	defer cleanupFunc()
 
-	// If excluding extensions, generate filtered TOC list and use it
-	if isExcludeExtensions {
+	if options.IsExcludeExtensions || options.IsSkipUserMappings {
 		tocListFile, err := uc.generateFilteredTocList(
 			ctx,
 			pgBin,
 			tempBackupFile,
 			credentials,
 			pgConfig,
+			options,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to generate filtered TOC list: %w", err)
@@ -485,7 +529,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 // downloadBackupToTempFile downloads backup data from storage to a temporary file
 func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	ctx context.Context,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
 ) (string, func(), error) {
 	// Create temporary directory for backup data
@@ -508,7 +552,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		"tempFile",
 		tempBackupFile,
 		"encrypted",
-		backup.Encryption == backups_config.BackupEncryptionEncrypted,
+		backup.Encryption == backups_core_enums.BackupEncryptionEncrypted,
 	)
 
 	fieldEncryptor := util_encryption.GetFieldEncryptor()
@@ -526,7 +570,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 
 	// Create a reader that handles decryption if needed
 	var backupReader io.Reader = rawReader
-	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
+	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
 		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			cleanupFunc()
@@ -602,8 +646,8 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 	database *databases.Database,
 	pgBin string,
 	args []string,
-	credentials *pgtypes.CredentialFiles,
-	pgConfig *pgtypes.PostgresqlDatabase,
+	credentials *postgresql_shared.CredentialTempFiles,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
 ) error {
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 	uc.logger.Info("Executing PostgreSQL restore command", "command", cmd.String())
@@ -679,8 +723,8 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 // setupPgRestoreEnvironment configures environment variables for pg_restore
 func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	cmd *exec.Cmd,
-	credentials *pgtypes.CredentialFiles,
-	pgConfig *pgtypes.PostgresqlDatabase,
+	credentials *postgresql_shared.CredentialTempFiles,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
 ) {
 	cmd.Env = os.Environ()
 
@@ -699,7 +743,7 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 
 	sslMode := pgConfig.SslMode
 	if sslMode == "" {
-		sslMode = pgtypes.PostgresSslModeDisable
+		sslMode = postgresql_shared.PostgresSslModeDisable
 	}
 
 	cmd.Env = append(cmd.Env,
@@ -719,7 +763,7 @@ func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
 	stderrOutput []byte,
 	pgBin string,
 	args []string,
-	pgConfig *pgtypes.PostgresqlDatabase,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
 ) error {
 	// Enhanced error handling for PostgreSQL connection and restore issues
 	stderrStr := string(stderrOutput)
@@ -792,8 +836,8 @@ func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
 				)
 			case containsIgnoreCase(stderrStr, "database") && containsIgnoreCase(stderrStr, "does not exist"):
 				backupDbName := "unknown"
-				if database.Postgresql != nil && database.Postgresql.Database != nil {
-					backupDbName = *database.Postgresql.Database
+				if database.PostgresqlLogical != nil && database.PostgresqlLogical.Database != nil {
+					backupDbName = *database.PostgresqlLogical.Database
 				}
 
 				targetDbName := "unknown"
@@ -872,16 +916,17 @@ func containsIgnoreCase(str, substr string) bool {
 	return strings.Contains(strings.ToLower(str), strings.ToLower(substr))
 }
 
-// generateFilteredTocList generates a pg_restore TOC list file with extensions filtered out.
-// This is used when isExcludeExtensions is true to skip CREATE EXTENSION statements.
+// generateFilteredTocList writes a pg_restore TOC list (for -L) with the object classes selected
+// by options dropped, so pg_restore skips them.
 func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 	ctx context.Context,
 	pgBin string,
 	backupFile string,
-	credentials *pgtypes.CredentialFiles,
-	pgConfig *pgtypes.PostgresqlDatabase,
+	credentials *postgresql_shared.CredentialTempFiles,
+	pgConfig *pgtypes.PostgresqlLogicalDatabase,
+	options restores_core.RestoreOptions,
 ) (string, error) {
-	uc.logger.Info("Generating filtered TOC list to exclude extensions", "backupFile", backupFile)
+	uc.logger.Info("Generating filtered TOC list", "backupFile", backupFile)
 
 	// Run pg_restore -l to get the TOC list
 	listCmd := exec.CommandContext(ctx, pgBin, "-l", backupFile)
@@ -892,7 +937,17 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 		return "", fmt.Errorf("failed to generate TOC list: %w", err)
 	}
 
-	// Filter out EXTENSION-related lines (both CREATE EXTENSION and COMMENT ON EXTENSION)
+	// " EXTENSION " catches both CREATE EXTENSION ("3420; 0 0 EXTENSION - uuid-ossp") and
+	// COMMENT ON EXTENSION ("3462; 0 0 COMMENT - EXTENSION "uuid-ossp"") entries.
+	isExtensionEntry := func(upperLine string) bool {
+		return strings.Contains(upperLine, " EXTENSION ")
+	}
+	// " USER MAPPING " catches CREATE USER MAPPING entries
+	// ("18239; 0 0 USER MAPPING - platform SERVER oracle_tb_server").
+	isUserMappingEntry := func(upperLine string) bool {
+		return strings.Contains(upperLine, " USER MAPPING ")
+	}
+
 	var filteredLines []string
 	for line := range strings.SplitSeq(string(tocOutput), "\n") {
 		trimmedLine := strings.TrimSpace(line)
@@ -902,11 +957,13 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 
 		upperLine := strings.ToUpper(trimmedLine)
 
-		// Skip lines that contain " EXTENSION " - this catches both:
-		// - CREATE EXTENSION entries: "3420; 0 0 EXTENSION - uuid-ossp"
-		// - COMMENT ON EXTENSION entries: "3462; 0 0 COMMENT - EXTENSION "uuid-ossp""
-		if strings.Contains(upperLine, " EXTENSION ") {
+		if options.IsExcludeExtensions && isExtensionEntry(upperLine) {
 			uc.logger.Info("Excluding extension-related entry from restore", "tocLine", trimmedLine)
+			continue
+		}
+
+		if options.IsSkipUserMappings && isUserMappingEntry(upperLine) {
+			uc.logger.Info("Excluding user mapping entry from restore", "tocLine", trimmedLine)
 			continue
 		}
 

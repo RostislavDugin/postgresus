@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"databasus-backend/internal/config"
-	"databasus-backend/internal/features/backups/backups/backuping"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
 	"databasus-backend/internal/features/disk"
 	verification_agents "databasus-backend/internal/features/verification/agents"
 	verification_runs "databasus-backend/internal/features/verification/runs"
@@ -19,8 +18,7 @@ import (
 
 type HealthcheckService struct {
 	diskService             *disk.DiskService
-	backupBackgroundService *backuping.BackupsScheduler
-	backuperNode            *backuping.BackuperNode
+	backupBackgroundService *backuping_logical.BackupsScheduler
 	agentService            *verification_agents.AgentService
 }
 
@@ -58,37 +56,25 @@ func (s *HealthcheckService) performHealthCheck() error {
 		return errors.New("cannot connect to the database")
 	}
 
-	if config.GetEnv().IsPrimaryNode {
-		if !s.backupBackgroundService.IsSchedulerRunning() {
-			return errors.New("backups are not running for more than 5 minutes")
-		}
-
-		if !s.backupBackgroundService.IsBackupNodesAvailable() {
-			return errors.New("no backup nodes available")
-		}
-
-		staleAgents, err := s.agentService.GetStaleAgents(verification_runs.StaleAgentThreshold)
-		if err != nil {
-			return errors.New("cannot query verification agents")
-		}
-
-		if len(staleAgents) > 0 {
-			names := make([]string, len(staleAgents))
-			for i, agent := range staleAgents {
-				names[i] = agent.Name
-			}
-
-			return fmt.Errorf(
-				"verification agents not seen for more than 5 minutes: %s",
-				strings.Join(names, ", "),
-			)
-		}
+	if !s.backupBackgroundService.IsSchedulerRunning() {
+		return errors.New("backups are not running for more than 5 minutes")
 	}
 
-	if config.GetEnv().IsProcessingNode {
-		if !s.backuperNode.IsBackuperRunning() {
-			return errors.New("backuper node is not running for more than 5 minutes")
+	staleAgents, err := s.agentService.GetStaleAgents(verification_runs.StaleAgentThreshold)
+	if err != nil {
+		return errors.New("cannot query verification agents")
+	}
+
+	if len(staleAgents) > 0 {
+		names := make([]string, len(staleAgents))
+		for i, agent := range staleAgents {
+			names[i] = agent.Name
 		}
+
+		return fmt.Errorf(
+			"verification agents not seen for more than 5 minutes: %s",
+			strings.Join(names, ", "),
+		)
 	}
 
 	return nil

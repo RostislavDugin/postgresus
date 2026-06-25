@@ -38,6 +38,27 @@ extraEnvFrom: []
 # - configMapRef:
 #     name: databasus-extras-cm
 
+# Extra volumes and volume mounts for the databasus container.
+# Use emptyDir mounts here to satisfy `securityContext.readOnlyRootFilesystem: true`
+# -- PostgreSQL and Valkey need writable /tmp, sockets and runtime dirs.
+extraVolumes: []
+# - name: tmp
+#   emptyDir: {}
+extraVolumeMounts: []
+# - name: tmp
+#   mountPath: /tmp
+
+# ServiceAccount for the pod.
+# Defaults keep backward-compatible behavior (namespace `default` SA) while
+# disabling token automounting -- on a hardened cluster this clears the
+# AutomountServiceAccountTokenTrueAndDefaultSA finding. Set `create: true` to
+# provision a dedicated ServiceAccount instead.
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
 # Service configuration
 service:
   type: ClusterIP

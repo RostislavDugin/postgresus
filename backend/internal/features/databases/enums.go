@@ -3,10 +3,11 @@ package databases
 type DatabaseType string
 
 const (
-	DatabaseTypePostgres DatabaseType = "POSTGRES"
-	DatabaseTypeMysql    DatabaseType = "MYSQL"
-	DatabaseTypeMariadb  DatabaseType = "MARIADB"
-	DatabaseTypeMongodb  DatabaseType = "MONGODB"
+	DatabaseTypePostgresLogical  DatabaseType = "POSTGRES_LOGICAL"
+	DatabaseTypePostgresPhysical DatabaseType = "POSTGRES_PHYSICAL"
+	DatabaseTypeMysql            DatabaseType = "MYSQL"
+	DatabaseTypeMariadb          DatabaseType = "MARIADB"
+	DatabaseTypeMongodb          DatabaseType = "MONGODB"
 )
 
 type HealthStatus string

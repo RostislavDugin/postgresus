@@ -1,7 +1,6 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { IS_CLOUD } from '../../../../constants';
 import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
 
 interface Props {
@@ -28,21 +27,24 @@ export const CreateReadOnlyComponent = ({
   const [privileges, setPrivileges] = useState<string[]>([]);
   const [isPrivilegesExpanded, setIsPrivilegesExpanded] = useState(false);
 
-  const isPostgres = database.type === DatabaseType.POSTGRES;
+  const isPostgres = database.type === DatabaseType.POSTGRES_LOGICAL;
+  const isPhysicalPostgres = database.type === DatabaseType.POSTGRES_PHYSICAL;
   const isMysql = database.type === DatabaseType.MYSQL;
   const isMariadb = database.type === DatabaseType.MARIADB;
   const isMongodb = database.type === DatabaseType.MONGODB;
-  const databaseTypeName = isPostgres
-    ? 'PostgreSQL'
-    : isMysql
-      ? 'MySQL'
-      : isMariadb
-        ? 'MariaDB'
-        : isMongodb
-          ? 'MongoDB'
-          : 'database';
+  const databaseTypeName =
+    isPostgres || isPhysicalPostgres
+      ? 'PostgreSQL'
+      : isMysql
+        ? 'MySQL'
+        : isMariadb
+          ? 'MariaDB'
+          : isMongodb
+            ? 'MongoDB'
+            : 'database';
 
   const privilegesLabel = isMongodb ? 'roles' : 'privileges';
+  const userKindNoun = isPhysicalPostgres ? 'replication-only user' : 'read-only user';
 
   const checkReadOnlyUser = async (): Promise<boolean> => {
     try {
@@ -73,11 +75,16 @@ export const CreateReadOnlyComponent = ({
     setIsCreatingReadOnlyUser(true);
 
     try {
-      const response = await databaseApi.createReadOnlyUser(database);
+      const response = isPhysicalPostgres
+        ? await databaseApi.createReplicationOnlyUser(database)
+        : await databaseApi.createReadOnlyUser(database);
 
-      if (isPostgres && database.postgresql) {
-        database.postgresql.username = response.username;
-        database.postgresql.password = response.password;
+      if (isPhysicalPostgres && database.postgresqlPhysical) {
+        database.postgresqlPhysical.username = response.username;
+        database.postgresqlPhysical.password = response.password;
+      } else if (isPostgres && database.postgresqlLogical) {
+        database.postgresqlLogical.username = response.username;
+        database.postgresqlLogical.password = response.password;
       } else if (isMysql && database.mysql) {
         database.mysql.username = response.username;
         database.mysql.password = response.password;
@@ -124,7 +131,7 @@ export const CreateReadOnlyComponent = ({
     return (
       <div className="flex items-center">
         <Spin />
-        <span className="ml-3">Checking read-only user...</span>
+        <span className="ml-3">Checking {userKindNoun}...</span>
       </div>
     );
   }
@@ -132,10 +139,10 @@ export const CreateReadOnlyComponent = ({
   return (
     <div>
       <div className="mb-5">
-        <p className="mb-3 text-lg font-bold">Create a read-only user for Databasus?</p>
+        <p className="mb-3 text-lg font-bold">Create a {userKindNoun} for Databasus?</p>
 
         <p className="mb-2">
-          A read-only user is a {databaseTypeName} user with limited permissions that can only read
+          A {userKindNoun} is a {databaseTypeName} user with limited permissions that can only read
           data from your database, not modify it. This is recommended for backup operations because:
         </p>
 
@@ -159,7 +166,7 @@ export const CreateReadOnlyComponent = ({
         </p>
 
         <p className="mt-3">
-          <b>Read-only user allows to avoid storing credentials with write access at all</b>. Even
+          <b>A {userKindNoun} allows to avoid storing credentials with write access at all</b>. Even
           in the worst case of hacking, nobody will be able to corrupt your data.
         </p>
 
@@ -194,11 +201,9 @@ export const CreateReadOnlyComponent = ({
           Back
         </Button>
 
-        {!IS_CLOUD && (
-          <Button className="mr-2 ml-auto" danger ghost onClick={handleSkip}>
-            Skip
-          </Button>
-        )}
+        <Button className="mr-2 ml-auto" danger ghost onClick={handleSkip}>
+          Skip
+        </Button>
 
         <Button
           type="primary"
@@ -206,19 +211,19 @@ export const CreateReadOnlyComponent = ({
           loading={isCreatingReadOnlyUser}
           disabled={isCreatingReadOnlyUser}
         >
-          Yes, create read-only user
+          Yes, create {userKindNoun}
         </Button>
       </div>
 
       <Modal
-        title="Skip read-only user creation?"
+        title={`Skip ${userKindNoun} creation?`}
         open={isShowSkipConfirmation}
         onCancel={() => setShowSkipConfirmation(false)}
         footer={null}
         width={450}
       >
         <div className="mb-5">
-          <p className="mb-2">Are you sure you want to skip creating a read-only user?</p>
+          <p className="mb-2">Are you sure you want to skip creating a {userKindNoun}?</p>
 
           <p className="mb-2">
             Using a user with full permissions for backups is not recommended and may pose security

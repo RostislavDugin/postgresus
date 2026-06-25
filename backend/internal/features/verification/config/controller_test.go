@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
 	"databasus-backend/internal/features/intervals"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
@@ -50,10 +49,10 @@ func createTestDatabaseViaAPI(
 	router *gin.Engine,
 ) *databases.Database {
 	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql:  databases.GetTestPostgresConfig(),
+		WorkspaceID:       &workspaceID,
+		Name:              name,
+		Type:              databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: databases.GetTestPostgresConfig(),
 	}
 
 	w := workspaces_testing.MakeAPIRequest(
@@ -66,42 +65,6 @@ func createTestDatabaseViaAPI(
 
 	if w.Code != http.StatusCreated {
 		panic("Failed to create database")
-	}
-
-	var database databases.Database
-	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
-		panic(err)
-	}
-
-	return &database
-}
-
-func createTestWalDatabaseViaAPI(
-	name string,
-	workspaceID uuid.UUID,
-	token string,
-	router *gin.Engine,
-) *databases.Database {
-	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql: &postgresql.PostgresqlDatabase{
-			BackupType: postgresql.PostgresBackupTypeWalV1,
-			CpuCount:   1,
-		},
-	}
-
-	w := workspaces_testing.MakeAPIRequest(
-		router,
-		"POST",
-		"/api/v1/databases/create",
-		"Bearer "+token,
-		request,
-	)
-
-	if w.Code != http.StatusCreated {
-		panic("Failed to create WAL database")
 	}
 
 	var database databases.Database
@@ -247,51 +210,6 @@ func Test_Save_AsViewer_RejectedWithPermissionError(t *testing.T) {
 		http.StatusBadRequest,
 	)
 	assert.Contains(t, string(resp.Body), "insufficient permissions")
-
-	databases.RemoveTestDatabase(database)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_Save_WhenIsScheduledVerificationEnabledTrue_OnWalDatabase_Rejected(t *testing.T) {
-	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	database := createTestWalDatabaseViaAPI("Test WAL Database", workspace.ID, owner.Token, router)
-
-	resp := test_utils.MakePutRequest(
-		t,
-		router,
-		"/api/v1/verification-config/"+database.ID.String(),
-		"Bearer "+owner.Token,
-		newEnabledRequest(),
-		http.StatusBadRequest,
-	)
-	assert.Contains(t, string(resp.Body), "WAL")
-
-	databases.RemoveTestDatabase(database)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_Save_WhenIsScheduledVerificationEnabledFalse_OnWalDatabase_Allowed(t *testing.T) {
-	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	database := createTestWalDatabaseViaAPI("Test WAL Database", workspace.ID, owner.Token, router)
-
-	request := newEnabledRequest()
-	request.IsScheduledVerificationEnabled = false
-
-	var response BackupVerificationConfig
-	test_utils.MakePutRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/verification-config/"+database.ID.String(),
-		"Bearer "+owner.Token,
-		request,
-		http.StatusOK,
-		&response,
-	)
-	assert.False(t, response.IsScheduledVerificationEnabled)
 
 	databases.RemoveTestDatabase(database)
 	workspaces_testing.RemoveTestWorkspace(workspace, router)

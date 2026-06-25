@@ -14,7 +14,6 @@ export interface Storage {
   name: string;
   lastSaveError?: string;
   workspaceId: string;
-  isSystem: boolean;
 
   // specific storage types
   localStorage?: LocalStorage;

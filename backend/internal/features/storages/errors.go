@@ -33,15 +33,6 @@ var (
 	ErrStorageHasOtherAttachedDatabasesCannotTransfer = errors.New(
 		"storage has other attached databases and cannot be transferred",
 	)
-	ErrSystemStorageCannotBeTransferred = errors.New(
-		"system storage cannot be transferred between workspaces",
-	)
-	ErrSystemStorageCannotBeMadePrivate = errors.New(
-		"system storage cannot be changed to non-system",
-	)
-	ErrLocalStorageNotAllowedInCloudMode = errors.New(
-		"local storage can only be managed by administrators in cloud mode",
-	)
 	// Rclone accepts a freeform config blob whose `type =` may select backends
 	// that read arbitrary local files (`local`, `alias`, `combine`, `union`,
 	// `crypt`, `chunker`, `cache`) or initiate outbound connections to arbitrary

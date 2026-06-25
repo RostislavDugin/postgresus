@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"databasus-backend/internal/features/backups/backups/backuping"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/intervals"
 	"databasus-backend/internal/features/notifiers"
@@ -128,7 +128,7 @@ func Test_SubmitReport_WhenBackupRejected_SendsFailureNotification(t *testing.T)
 
 	recorder := installRecordingNotificationSender(t)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(
 		t,
 		router,
@@ -184,7 +184,7 @@ func Test_SubmitReport_WhenRestoredTooSmall_SendsFailureNotification(t *testing.
 
 	recorder := installRecordingNotificationSender(t)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "notif-tiny-"+uuid.New().String())
 	defer verification_agents.RemoveTestVerificationAgent(t, router, owner.Token, agent.Agent.ID)
 
@@ -233,7 +233,7 @@ func Test_SubmitReport_WhenAgentSetupFailedRepeatedly_SendsFailureNotificationOn
 
 	recorder := installRecordingNotificationSender(t)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "notif-setup-"+uuid.New().String())
 	defer verification_agents.RemoveTestVerificationAgent(t, router, owner.Token, agent.Agent.ID)
 
@@ -297,7 +297,7 @@ func Test_ReapStaleRuns_WhenAgentLostContact_SendsFailureNotificationOnlyAtTermi
 
 	recorder := installRecordingNotificationSender(t)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(
 		t,
 		router,
@@ -357,7 +357,7 @@ func Test_SubmitReport_WhenFailureNotificationsDisabled_DoesNotSend(t *testing.T
 
 	recorder := installRecordingNotificationSender(t)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "notif-off-"+uuid.New().String())
 	defer verification_agents.RemoveTestVerificationAgent(t, router, owner.Token, agent.Agent.ID)
 

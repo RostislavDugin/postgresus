@@ -9,7 +9,7 @@ import { App, Button, Modal, Spin, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
-import type { Backup } from '../../../entity/backups';
+import type { LogicalBackup } from '../../../entity/backups/logical';
 import { type Database, DatabaseType } from '../../../entity/databases';
 import { type Restore, RestoreStatus, restoreApi } from '../../../entity/restores';
 import { ClipboardHelper } from '../../../shared/lib/ClipboardHelper';
@@ -19,7 +19,7 @@ import { EditDatabaseSpecificDataComponent } from '../../databases/ui/edit/EditD
 
 interface Props {
   database: Database;
-  backup: Backup;
+  backup: LogicalBackup;
 }
 
 type DatabaseCredentials = {
@@ -42,7 +42,7 @@ const clearCredentials = <T extends DatabaseCredentials>(db: T | undefined): T |
 
 const createInitialEditingDatabase = (database: Database): Database => ({
   ...database,
-  postgresql: clearCredentials(database.postgresql),
+  postgresqlLogical: clearCredentials(database.postgresqlLogical),
   mysql: clearCredentials(database.mysql),
   mariadb: clearCredentials(database.mariadb),
   mongodb: clearCredentials(database.mongodb),
@@ -50,8 +50,8 @@ const createInitialEditingDatabase = (database: Database): Database => ({
 
 const getRestorePayload = (database: Database, editingDatabase: Database) => {
   switch (database.type) {
-    case DatabaseType.POSTGRES:
-      return { postgresql: editingDatabase.postgresql };
+    case DatabaseType.POSTGRES_LOGICAL:
+      return { postgresql: editingDatabase.postgresqlLogical };
     case DatabaseType.MYSQL:
       return { mysql: editingDatabase.mysql };
     case DatabaseType.MARIADB:

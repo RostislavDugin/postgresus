@@ -1,0 +1,15 @@
+export { physicalBackupsApi } from './api/physicalBackupsApi';
+export type { TriggerPhysicalBackupType } from './api/physicalBackupsApi';
+export { physicalBackupConfigApi } from './api/physicalBackupConfigApi';
+export { PhysicalBackupStatus } from './model/PhysicalBackupStatus';
+export { PhysicalBackupType } from './model/PhysicalBackupType';
+export type { PhysicalBackupListItem } from './model/PhysicalBackupListItem';
+export type { PhysicalBackupsFilters } from './model/PhysicalBackupsFilters';
+export type { GetPhysicalBackupsResponse } from './model/GetPhysicalBackupsResponse';
+export { PhysicalRetention } from './model/PhysicalRetention';
+export { PhysicalFullBackupsPolicy } from './model/PhysicalFullBackupsPolicy';
+export { PhysicalBackupNotificationType } from './model/PhysicalBackupNotificationType';
+export type { ChainsRetention } from './model/ChainsRetention';
+export type { FullBackupsRetention } from './model/FullBackupsRetention';
+export type { PhysicalBackupConfig } from './model/PhysicalBackupConfig';
+export type { PhysicalRestoreTokenResponse } from './model/PhysicalRestoreTokenResponse';

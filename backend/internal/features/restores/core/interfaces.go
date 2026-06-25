@@ -3,8 +3,8 @@ package restores_core
 import (
 	"context"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/storages"
 )
@@ -12,12 +12,12 @@ import (
 type RestoreBackupUsecase interface {
 	Execute(
 		ctx context.Context,
-		backupConfig *backups_config.BackupConfig,
+		backupConfig *backups_config_logical.LogicalBackupConfig,
 		restore Restore,
 		originalDB *databases.Database,
 		restoringToDB *databases.Database,
-		backup *backups_core.Backup,
+		backup *backups_core_logical.LogicalBackup,
 		storage *storages.Storage,
-		isExcludeExtensions bool,
+		options RestoreOptions,
 	) error
 }

@@ -4,11 +4,16 @@ import (
 	"sync"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	"databasus-backend/internal/features/backups/backups/backuping"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
+	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
+	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	physical_core_service "databasus-backend/internal/features/backups/backups/core/physical/service"
 	backups_download "databasus-backend/internal/features/backups/backups/download"
-	"databasus-backend/internal/features/backups/backups/usecases"
-	backups_config "databasus-backend/internal/features/backups/config"
+	usecases_logical "databasus-backend/internal/features/backups/backups/usecases/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
+	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/databases"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/notifiers"
@@ -21,48 +26,57 @@ import (
 
 var taskCancelManager = task_cancellation.GetTaskCancelManager()
 
-var backupService = &BackupService{
+var backupService = &LogicalBackupService{
 	databases.GetDatabaseService(),
 	storages.GetStorageService(),
-	backups_core.GetBackupRepository(),
+	backups_core_logical.GetBackupRepository(),
 	notifiers.GetNotifierService(),
 	notifiers.GetNotifierService(),
-	backups_config.GetBackupConfigService(),
+	backups_config_logical.GetBackupConfigService(),
 	encryption_secrets.GetSecretKeyService(),
 	encryption.GetFieldEncryptor(),
-	usecases.GetCreateBackupUsecase(),
+	usecases_logical.GetCreateBackupUsecase(),
 	logger.GetLogger(),
-	[]backups_core.BackupRemoveListener{},
+	[]backups_core_logical.BackupRemoveListener{},
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	taskCancelManager,
 	backups_download.GetDownloadTokenService(),
-	backuping.GetBackupsScheduler(),
-	backuping.GetBackupCleaner(),
+	backuping_logical.GetBackupsScheduler(),
+	backuping_logical.GetBackupCleaner(),
 }
 
-func GetBackupService() *BackupService {
+func GetBackupService() *LogicalBackupService {
 	return backupService
 }
 
-var walService = &PostgreWalBackupService{
-	backups_config.GetBackupConfigService(),
-	backups_core.GetBackupRepository(),
-	encryption.GetFieldEncryptor(),
+var physicalBackupService = &PhysicalBackupService{
+	databases.GetDatabaseService(),
+	workspaces_services.GetWorkspaceService(),
+	backups_config_physical.GetBackupConfigService(),
+	chain_view.GetChainViewService(),
+	physical_core_service.GetPhysicalBackupService(),
+	physical_repositories.GetFullBackupRepository(),
+	physical_repositories.GetIncrementalBackupRepository(),
+	physical_repositories.GetWalSegmentRepository(),
+	physical_repositories.GetInFlightBackupRepository(),
+	backuping_physical.GetPhysicalBackupCanceller(),
+	backups_download.GetRestoreStreamWriter(),
+	backups_download.GetRestoreTokenService(),
 	encryption_secrets.GetSecretKeyService(),
+	audit_logs.GetAuditLogService(),
 	logger.GetLogger(),
-	backupService,
 }
 
-func GetWalService() *PostgreWalBackupService {
-	return walService
+func GetPhysicalBackupService() *PhysicalBackupService {
+	return physicalBackupService
 }
 
 var SetupDependencies = sync.OnceFunc(func() {
-	backups_config.
+	backups_config_logical.
 		GetBackupConfigService().
 		SetDatabaseStorageChangeListener(backupService)
 
 	databases.GetDatabaseService().AddDbRemoveListener(backupService)
-	databases.GetDatabaseService().AddDbCopyListener(backups_config.GetBackupConfigService())
+	databases.GetDatabaseService().AddDbCopyListener(backups_config_logical.GetBackupConfigService())
 })

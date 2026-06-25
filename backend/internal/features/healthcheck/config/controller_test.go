@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
@@ -314,52 +313,6 @@ func Test_GetHealthcheckConfig_ReturnsDefaultConfigForNewDatabase(t *testing.T) 
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_SaveHealthcheckConfig_WhenDatabaseIsAgentManaged_BlocksEnable(t *testing.T) {
-	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-
-	database := createTestWalDatabaseViaAPI("Test WAL Database", workspace.ID, owner.Token, router)
-
-	enableRequest := HealthcheckConfigDTO{
-		DatabaseID:                        database.ID,
-		IsHealthcheckEnabled:              true,
-		IsSentNotificationWhenUnavailable: true,
-		IntervalMinutes:                   5,
-		AttemptsBeforeConcideredAsDown:    3,
-		StoreAttemptsDays:                 7,
-	}
-
-	enableResp := test_utils.MakePostRequest(
-		t,
-		router,
-		"/api/v1/healthcheck-config",
-		"Bearer "+owner.Token,
-		enableRequest,
-		http.StatusBadRequest,
-	)
-	assert.Contains(t, string(enableResp.Body), "agent-managed")
-
-	disableRequest := enableRequest
-	disableRequest.IsHealthcheckEnabled = false
-
-	var disableResp map[string]string
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/healthcheck-config",
-		"Bearer "+owner.Token,
-		disableRequest,
-		http.StatusOK,
-		&disableResp,
-	)
-	assert.Contains(t, disableResp["message"], "successfully")
-
-	// Cleanup
-	databases.RemoveTestDatabase(database)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
 func createTestDatabaseViaAPI(
 	name string,
 	workspaceID uuid.UUID,
@@ -367,10 +320,10 @@ func createTestDatabaseViaAPI(
 	router *gin.Engine,
 ) *databases.Database {
 	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql:  databases.GetTestPostgresConfig(),
+		WorkspaceID:       &workspaceID,
+		Name:              name,
+		Type:              databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: databases.GetTestPostgresConfig(),
 	}
 
 	w := workspaces_testing.MakeAPIRequest(
@@ -383,41 +336,6 @@ func createTestDatabaseViaAPI(
 
 	if w.Code != http.StatusCreated {
 		panic("Failed to create database")
-	}
-
-	var database databases.Database
-	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
-		panic(err)
-	}
-	return &database
-}
-
-func createTestWalDatabaseViaAPI(
-	name string,
-	workspaceID uuid.UUID,
-	token string,
-	router *gin.Engine,
-) *databases.Database {
-	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql: &postgresql.PostgresqlDatabase{
-			BackupType: postgresql.PostgresBackupTypeWalV1,
-			CpuCount:   1,
-		},
-	}
-
-	w := workspaces_testing.MakeAPIRequest(
-		router,
-		"POST",
-		"/api/v1/databases/create",
-		"Bearer "+token,
-		request,
-	)
-
-	if w.Code != http.StatusCreated {
-		panic("Failed to create WAL database")
 	}
 
 	var database databases.Database

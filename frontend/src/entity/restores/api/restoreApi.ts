@@ -5,7 +5,7 @@ import type {
   MariadbDatabase,
   MongodbDatabase,
   MysqlDatabase,
-  PostgresqlDatabase,
+  PostgresqlLogicalDatabase,
 } from '../../databases';
 import type { Restore } from '../model/Restore';
 
@@ -26,7 +26,7 @@ export const restoreApi = {
     mongodb,
   }: {
     backupId: string;
-    postgresql?: PostgresqlDatabase;
+    postgresql?: PostgresqlLogicalDatabase;
     mysql?: MysqlDatabase;
     mariadb?: MariadbDatabase;
     mongodb?: MongodbDatabase;

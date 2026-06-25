@@ -24,13 +24,14 @@ import (
 	api_keys "databasus-backend/internal/features/api_keys"
 	api_keys_middleware "databasus-backend/internal/features/api_keys/middleware"
 	"databasus-backend/internal/features/audit_logs"
-	"databasus-backend/internal/features/backups/backups/backuping"
-	backups_controllers "databasus-backend/internal/features/backups/backups/controllers"
+	"databasus-backend/internal/features/backups/backups/backuping/logical"
+	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
+	backups_controllers_logical "databasus-backend/internal/features/backups/backups/controllers/logical"
+	backups_controllers_physical "databasus-backend/internal/features/backups/backups/controllers/physical"
 	backups_download "databasus-backend/internal/features/backups/backups/download"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
-	backups_config "databasus-backend/internal/features/backups/config"
-	"databasus-backend/internal/features/billing"
-	billing_paddle "databasus-backend/internal/features/billing/paddle"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
+	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/disk"
 	"databasus-backend/internal/features/encryption/secrets"
@@ -59,6 +60,8 @@ import (
 	_ "databasus-backend/swagger" // swagger docs
 )
 
+const serverAddr = ":4005"
+
 // @title Databasus Backend API
 // @version 1.0
 // @description API for Databasus
@@ -78,28 +81,27 @@ import (
 // @name Authorization
 // @description Public API auth. Type "Bearer " followed by an API key token (dbs_...).
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		runHealthcheckCommand() // exits the process
+		return
+	}
+
 	log := logger.GetLogger()
 
 	cache_utils.TestCacheConnection()
 
-	if config.GetEnv().IsPrimaryNode {
-		log.Info("Clearing cache...")
+	log.Info("Clearing cache...")
 
-		err := cache_utils.ClearAllCache()
-		if err != nil {
-			log.Error("Failed to clear cache", "error", err)
-			os.Exit(1)
-		}
+	err := cache_utils.ClearAllCache()
+	if err != nil {
+		log.Error("Failed to clear cache", "error", err)
+		os.Exit(1)
 	}
 
-	if config.GetEnv().IsPrimaryNode {
-		runMigrations(log)
-	} else {
-		log.Info("Skipping migrations (IS_PRIMARY_NODE is false)")
-	}
+	runMigrations(log)
 
 	// create directories that used for backups and restore
-	err := files_utils.EnsureDirectories([]string{
+	err = files_utils.EnsureDirectories([]string{
 		config.GetEnv().TempFolder,
 		config.GetEnv().DataFolder,
 	})
@@ -188,15 +190,8 @@ func resetPassword(email, newPassword string, log *slog.Logger) {
 }
 
 func startServerWithGracefulShutdown(log *slog.Logger, app *gin.Engine) {
-	host := ""
-	if config.GetEnv().EnvMode == env_utils.EnvModeDevelopment {
-		// for dev we use localhost to avoid firewall
-		// requests on each run for Windows
-		host = "127.0.0.1"
-	}
-
 	srv := &http.Server{
-		Addr:    host + ":4005",
+		Addr:    serverAddr,
 		Handler: app,
 	}
 
@@ -239,15 +234,11 @@ func setUpRoutes(r *gin.Engine) {
 	system_healthcheck.GetHealthcheckController().RegisterRoutes(v1)
 	system_version.GetVersionController().RegisterRoutes(v1)
 	system_agent.GetAgentController().RegisterRoutes(v1)
-	backups_controllers.GetBackupController().RegisterPublicRoutes(v1)
-	backups_controllers.GetPostgresWalBackupController().RegisterRoutes(v1)
+	backups_controllers_logical.GetBackupController().RegisterPublicRoutes(v1)
+	backups_controllers_physical.GetPhysicalBackupController().RegisterPublicRoutes(v1)
 	databases.GetDatabaseController().RegisterPublicRoutes(v1)
 	verification_agents.GetAgentFacingController().RegisterRoutes(v1)
 	verification_runs.GetVerificationAgentController().RegisterRoutes(v1)
-
-	if config.GetEnv().IsCloud {
-		billing_paddle.GetPaddleBillingController().RegisterPublicRoutes(v1)
-	}
 
 	publicApi := v1.Group("")
 	publicApi.Use(api_keys_middleware.GetApiKeyAuthMiddleware())
@@ -268,16 +259,17 @@ func setUpRoutes(r *gin.Engine) {
 	notifiers.GetNotifierController().RegisterRoutes(protected)
 	storages.GetStorageController().RegisterRoutes(protected)
 	databases.GetDatabaseController().RegisterRoutes(protected)
-	backups_controllers.GetBackupController().RegisterRoutes(protected)
+	backups_controllers_logical.GetBackupController().RegisterRoutes(protected)
+	backups_controllers_physical.GetPhysicalBackupController().RegisterRoutes(protected)
 	restores.GetRestoreController().RegisterRoutes(protected)
 	healthcheck_config.GetHealthcheckConfigController().RegisterRoutes(protected)
 	healthcheck_attempt.GetHealthcheckAttemptController().RegisterRoutes(protected)
-	backups_config.GetBackupConfigController().RegisterRoutes(protected)
+	backups_config_logical.GetBackupConfigController().RegisterRoutes(protected)
+	backups_config_physical.GetBackupConfigController().RegisterRoutes(protected)
 	audit_logs.GetAuditLogController().RegisterRoutes(protected)
 	api_keys.GetApiKeyController().RegisterRoutes(protected)
 	users_controllers.GetManagementController().RegisterRoutes(protected)
 	users_controllers.GetSettingsController().RegisterRoutes(protected)
-	billing.GetBillingController().RegisterRoutes(protected)
 	verification_agents.GetAgentController().RegisterRoutes(protected)
 	verification_config.GetVerificationConfigController().RegisterRoutes(protected)
 	verification_runs.GetVerificationController().RegisterRoutes(protected)
@@ -291,24 +283,17 @@ func setUpDependencies() {
 	audit_logs.SetupDependencies()
 	notifiers.SetupDependencies()
 	storages.SetupDependencies()
-	backups_config.SetupDependencies()
+	backups_config_logical.SetupDependencies()
+	backups_config_physical.SetupDependencies()
+	backuping_physical.SetupDependencies()
 	verification_config.SetupDependencies()
 	verification_runs.SetupDependencies()
 	task_cancellation.SetupDependencies()
-	billing.SetupDependencies()
-
-	if config.GetEnv().IsCloud {
-		billing_paddle.SetupDependencies()
-	}
 
 	telemetry.SetupDependencies()
 }
 
 func announceTelemetry() {
-	if !config.GetEnv().IsPrimaryNode {
-		return
-	}
-
 	if config.GetEnv().IsDisableAnonymousTelemetry {
 		return
 	}
@@ -339,71 +324,51 @@ func runBackgroundTasks(log *slog.Logger) {
 		log.Error("Failed to clean temp folder", "error", err)
 	}
 
-	if config.GetEnv().IsPrimaryNode {
-		log.Info("Starting primary node background tasks...")
+	log.Info("Starting background tasks...")
 
-		go runWithPanicLogging(log, "backup background service", func() {
-			backuping.GetBackupsScheduler().Run(ctx)
-		})
+	go runWithPanicLogging(log, "backup background service", func() {
+		backuping_logical.GetBackupsScheduler().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "verification scheduler", func() {
-			verification_runs.GetVerificationScheduler().Run(ctx)
-		})
+	go runWithPanicLogging(log, "verification scheduler", func() {
+		verification_runs.GetVerificationScheduler().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "backup cleaner background service", func() {
-			backuping.GetBackupCleaner().Run(ctx)
-		})
+	go runWithPanicLogging(log, "backup cleaner background service", func() {
+		backuping_logical.GetBackupCleaner().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "restore background service", func() {
-			restoring.GetRestoresScheduler().Run(ctx)
-		})
+	go runWithPanicLogging(log, "physical backup scheduler background service", func() {
+		backuping_physical.GetPhysicalBackupsScheduler().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "healthcheck attempt background service", func() {
-			healthcheck_attempt.GetHealthcheckAttemptBackgroundService().Run(ctx)
-		})
+	go runWithPanicLogging(log, "physical backup cleaner background service", func() {
+		backuping_physical.GetPhysicalBackupCleaner().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "audit log cleanup background service", func() {
-			audit_logs.GetAuditLogBackgroundService().Run(ctx)
-		})
+	go runWithPanicLogging(log, "restore background service", func() {
+		restoring.GetRestoresScheduler().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "download token cleanup background service", func() {
-			backups_download.GetDownloadTokenBackgroundService().Run(ctx)
-		})
+	go runWithPanicLogging(log, "healthcheck attempt background service", func() {
+		healthcheck_attempt.GetHealthcheckAttemptBackgroundService().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "backup nodes registry background service", func() {
-			backuping.GetBackupNodesRegistry().Run(ctx)
-		})
+	go runWithPanicLogging(log, "audit log cleanup background service", func() {
+		audit_logs.GetAuditLogBackgroundService().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "restore nodes registry background service", func() {
-			restoring.GetRestoreNodesRegistry().Run(ctx)
-		})
+	go runWithPanicLogging(log, "download token cleanup background service", func() {
+		backups_download.GetDownloadTokenBackgroundService().Run(ctx)
+	})
 
-		if config.GetEnv().IsCloud {
-			go runWithPanicLogging(log, "billing background service", func() {
-				billing.GetBillingService().Run(ctx, *log)
-			})
-		}
+	go runWithPanicLogging(log, "physical wal stream supervisor background service", func() {
+		backuping_physical.GetPhysicalWalStreamSupervisor().Run(ctx)
+	})
 
-		go runWithPanicLogging(log, "telemetry background service", func() {
-			telemetry.GetTelemetryBackgroundService().Run(ctx)
-		})
-	} else {
-		log.Info("Skipping primary node tasks as not primary node")
-	}
-
-	if config.GetEnv().IsProcessingNode {
-		log.Info("Starting backup node background tasks...")
-
-		go runWithPanicLogging(log, "backup node", func() {
-			backuping.GetBackuperNode().Run(ctx)
-		})
-
-		go runWithPanicLogging(log, "restore node", func() {
-			restoring.GetRestorerNode().Run(ctx)
-		})
-	} else {
-		log.Info("Skipping backup/restore node tasks as not backup node")
-	}
+	go runWithPanicLogging(log, "telemetry background service", func() {
+		telemetry.GetTelemetryBackgroundService().Run(ctx)
+	})
 }
 
 func runWithPanicLogging(log *slog.Logger, serviceName string, fn func()) {

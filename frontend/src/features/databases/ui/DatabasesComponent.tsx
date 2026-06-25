@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 
 import { databaseApi } from '../../../entity/databases';
 import type { Database } from '../../../entity/databases';
-import type { UserProfile } from '../../../entity/users';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { useIsMobile } from '../../../shared/hooks';
 import { CreateDatabaseComponent } from './CreateDatabaseComponent';
@@ -13,19 +12,19 @@ import { DatabaseComponent } from './DatabaseComponent';
 interface Props {
   contentHeight: number;
   workspace: WorkspaceResponse;
-  user: UserProfile;
   isCanManageDBs: boolean;
 }
 
 const SELECTED_DATABASE_STORAGE_KEY = 'selectedDatabaseId';
 
-export const DatabasesComponent = ({ contentHeight, workspace, user, isCanManageDBs }: Props) => {
+export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }: Props) => {
   const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isShowAddDatabase, setIsShowAddDatabase] = useState(false);
+  const [hasConnectionError, setHasConnectionError] = useState(false);
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | undefined>(undefined);
 
   const updateSelectedDatabaseId = (databaseId: string | undefined) => {
@@ -83,7 +82,14 @@ export const DatabasesComponent = ({ contentHeight, workspace, user, isCanManage
   }
 
   const addDatabaseButton = (
-    <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddDatabase(true)}>
+    <Button
+      type="primary"
+      className="mb-2 w-full"
+      onClick={() => {
+        setHasConnectionError(false);
+        setIsShowAddDatabase(true);
+      }}
+    >
       Add database
     </Button>
   );
@@ -159,7 +165,6 @@ export const DatabasesComponent = ({ contentHeight, workspace, user, isCanManage
             <DatabaseComponent
               contentHeight={isMobile ? contentHeight - 50 : contentHeight}
               databaseId={selectedDatabaseId}
-              user={user}
               onDatabaseChanged={() => {
                 loadDatabases();
               }}
@@ -183,18 +188,19 @@ export const DatabasesComponent = ({ contentHeight, workspace, user, isCanManage
           open={isShowAddDatabase}
           onCancel={() => setIsShowAddDatabase(false)}
           maskClosable={false}
-          width={420}
+          closable={!hasConnectionError}
+          width={hasConnectionError ? 640 : 420}
         >
           <div className="mt-5" />
 
           <CreateDatabaseComponent
-            user={user}
             workspaceId={workspace.id}
             onCreated={(databaseId) => {
               loadDatabases(false, databaseId);
               setIsShowAddDatabase(false);
             }}
             onClose={() => setIsShowAddDatabase(false)}
+            onConnectionErrorChange={setHasConnectionError}
           />
         </Modal>
       )}

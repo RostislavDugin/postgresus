@@ -32,7 +32,7 @@ const (
 // binary. The tools are version-agnostic — a single client supports all
 // supported server versions (4.2 – 8.x).
 func GetMongodbExecutable(executable MongodbExecutable) string {
-	return filepath.Join(getMongodbBinDir(), withExeOnWindows(string(executable)))
+	return filepath.Join(getMongodbBinDir(), string(executable))
 }
 
 func getMongodbBinDir() string {

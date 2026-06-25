@@ -117,6 +117,66 @@ export function EditTelegramNotifierComponent({ notifier, setNotifier, setUnsave
       </div>
 
       <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+        <div className="mb-1 min-w-[150px] sm:mb-0">Use proxy</div>
+        <div className="flex items-center">
+          <Switch
+            checked={notifier?.telegramNotifier?.isProxyEnabled || false}
+            onChange={(checked) => {
+              if (!notifier?.telegramNotifier) return;
+
+              setNotifier({
+                ...notifier,
+                telegramNotifier: {
+                  ...notifier.telegramNotifier,
+                  isProxyEnabled: checked,
+                  proxyUrl: checked ? notifier.telegramNotifier.proxyUrl : undefined,
+                },
+              });
+              setUnsaved();
+            }}
+            size="small"
+          />
+
+          <Tooltip className="cursor-pointer" title="Use a proxy for Telegram API requests">
+            <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+          </Tooltip>
+        </div>
+      </div>
+
+      {notifier?.telegramNotifier?.isProxyEnabled && (
+        <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
+          <div className="mb-1 min-w-[150px] sm:mb-0">Proxy URL</div>
+          <div className="flex items-center">
+            <Input
+              value={notifier?.telegramNotifier?.proxyUrl || ''}
+              onChange={(e) => {
+                if (!notifier?.telegramNotifier) return;
+
+                setNotifier({
+                  ...notifier,
+                  telegramNotifier: {
+                    ...notifier.telegramNotifier,
+                    proxyUrl: e.target.value.trim(),
+                  },
+                });
+                setUnsaved();
+              }}
+              size="small"
+              className="w-full max-w-[250px]"
+              placeholder="socks5://user:pass@host:1080"
+            />
+
+            <Tooltip
+              className="cursor-pointer"
+              title="Supports http, https, socks5, socks5h. May include username and password"
+            >
+              <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+            </Tooltip>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
         <div className="mb-1 min-w-[150px] sm:mb-0">Send to group topic</div>
         <div className="flex items-center">
           <Switch

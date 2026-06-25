@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"databasus-backend/internal/config"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	"databasus-backend/internal/features/backups/backups/encryption"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	mongodbtypes "databasus-backend/internal/features/databases/databases/mongodb"
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
@@ -39,9 +40,9 @@ func (uc *RestoreMongodbBackupUsecase) Execute(
 	parentCtx context.Context,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
 ) error {
 	if originalDB.Type != databases.DatabaseTypeMongodb {
@@ -123,7 +124,7 @@ func (uc *RestoreMongodbBackupUsecase) restoreFromStorage(
 	parentCtx context.Context,
 	mongorestoreBin string,
 	args []string,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
 ) error {
 	ctx, cancel := context.WithTimeout(parentCtx, restoreTimeout)
@@ -168,7 +169,7 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 	mongorestoreBin string,
 	args []string,
 	backupReader io.ReadCloser,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 ) error {
 	cmd := exec.CommandContext(ctx, mongorestoreBin, args...)
 
@@ -190,7 +191,7 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 
 	var inputReader io.Reader = backupReader
 
-	if backup.Encryption == backups_config.BackupEncryptionEncrypted {
+	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
 		decryptReader, err := uc.setupDecryption(backupReader, backup)
 		if err != nil {
 			return fmt.Errorf("failed to setup decryption: %w", err)
@@ -242,7 +243,7 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 
 func (uc *RestoreMongodbBackupUsecase) setupDecryption(
 	reader io.Reader,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 ) (io.Reader, error) {
 	if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 		return nil, errors.New("encrypted backup missing salt or IV")

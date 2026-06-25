@@ -158,6 +158,7 @@ func Test_SendTestNotificationDirect_NotificationSent(t *testing.T) {
 	router := createRouter()
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
+	GetWebhookStub().ResetCalls()
 	notifier := createWebhookNotifier(workspace.ID)
 
 	response := test_utils.MakePostRequest(
@@ -165,6 +166,8 @@ func Test_SendTestNotificationDirect_NotificationSent(t *testing.T) {
 	)
 
 	assert.Contains(t, string(response.Body), "successful")
+	assert.Greater(t, GetWebhookStub().CallCount(), 0)
+
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
@@ -173,6 +176,7 @@ func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
 	router := createRouter()
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
+	GetWebhookStub().ResetCalls()
 	notifier := createWebhookNotifier(workspace.ID)
 
 	var savedNotifier Notifier
@@ -196,6 +200,7 @@ func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
 	)
 
 	assert.Contains(t, string(response.Body), "successful")
+	assert.Greater(t, GetWebhookStub().CallCount(), 0)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
@@ -467,8 +472,10 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 					Name:         "Test Telegram Notifier",
 					NotifierType: NotifierTypeTelegram,
 					TelegramNotifier: &telegram_notifier.TelegramNotifier{
-						BotToken:     "original-bot-token-12345",
-						TargetChatID: "123456789",
+						BotToken:       "original-bot-token-12345",
+						TargetChatID:   "123456789",
+						IsProxyEnabled: true,
+						ProxyURL:       "socks5://user:password@proxy.example.com:1080",
 					},
 				}
 			},
@@ -479,8 +486,10 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 					Name:         "Updated Telegram Notifier",
 					NotifierType: NotifierTypeTelegram,
 					TelegramNotifier: &telegram_notifier.TelegramNotifier{
-						BotToken:     "",
-						TargetChatID: "987654321",
+						BotToken:       "",
+						TargetChatID:   "987654321",
+						IsProxyEnabled: true,
+						ProxyURL:       "",
 					},
 				}
 			},
@@ -492,9 +501,20 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 				)
 				decrypted := decryptField(t, notifier.TelegramNotifier.BotToken)
 				assert.Equal(t, "original-bot-token-12345", decrypted)
+
+				assert.True(
+					t,
+					isEncrypted(notifier.TelegramNotifier.ProxyURL),
+					"ProxyURL should be encrypted in DB",
+				)
+				decryptedProxyURL := decryptField(t, notifier.TelegramNotifier.ProxyURL)
+				assert.Equal(t, "socks5://user:password@proxy.example.com:1080", decryptedProxyURL)
+				assert.True(t, notifier.TelegramNotifier.IsProxyEnabled)
 			},
 			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
 				assert.Equal(t, "", notifier.TelegramNotifier.BotToken)
+				assert.Equal(t, "", notifier.TelegramNotifier.ProxyURL)
+				assert.True(t, notifier.TelegramNotifier.IsProxyEnabled)
 			},
 		},
 		{
@@ -818,8 +838,10 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 					Name:         "Test Telegram",
 					NotifierType: NotifierTypeTelegram,
 					TelegramNotifier: &telegram_notifier.TelegramNotifier{
-						BotToken:     "plain-telegram-token-123",
-						TargetChatID: "123456789",
+						BotToken:       "plain-telegram-token-123",
+						TargetChatID:   "123456789",
+						IsProxyEnabled: true,
+						ProxyURL:       "http://proxy.example.com:8080",
 					},
 				}
 			},
@@ -831,6 +853,14 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 				)
 				decrypted := decryptField(t, notifier.TelegramNotifier.BotToken)
 				assert.Equal(t, "plain-telegram-token-123", decrypted)
+
+				assert.True(
+					t,
+					isEncrypted(notifier.TelegramNotifier.ProxyURL),
+					"ProxyURL should be encrypted",
+				)
+				decryptedProxyURL := decryptField(t, notifier.TelegramNotifier.ProxyURL)
+				assert.Equal(t, "http://proxy.example.com:8080", decryptedProxyURL)
 			},
 		},
 		{
@@ -1240,7 +1270,7 @@ func createNewNotifier(workspaceID uuid.UUID) *Notifier {
 		Name:         "Test Notifier " + uuid.New().String(),
 		NotifierType: NotifierTypeWebhook,
 		WebhookNotifier: &webhook_notifier.WebhookNotifier{
-			WebhookURL:    "https://webhook.site/test-" + uuid.New().String(),
+			WebhookURL:    GetWebhookStub().URL() + "/test-" + uuid.New().String(),
 			WebhookMethod: webhook_notifier.WebhookMethodPOST,
 		},
 	}
@@ -1252,7 +1282,7 @@ func createWebhookNotifier(workspaceID uuid.UUID) *Notifier {
 		Name:         "Test Webhook Notifier " + uuid.New().String(),
 		NotifierType: NotifierTypeWebhook,
 		WebhookNotifier: &webhook_notifier.WebhookNotifier{
-			WebhookURL:    "https://databasus.com",
+			WebhookURL:    GetWebhookStub().URL(),
 			WebhookMethod: webhook_notifier.WebhookMethodGET,
 		},
 	}

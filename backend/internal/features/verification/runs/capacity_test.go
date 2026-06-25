@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 )
 
-func backupWithSize(archiveMb, restoredMb float64) *backups_core.Backup {
-	return &backups_core.Backup{
+func backupWithSize(archiveMb, restoredMb float64) *backups_core_logical.LogicalBackup {
+	return &backups_core_logical.LogicalBackup{
 		BackupSizeMb:      archiveMb,
 		BackupRawDbSizeMb: restoredMb,
 	}
@@ -19,8 +19,8 @@ func Test_DoesVerificationFit_AcrossScenarios_RespectsAgentBudget(t *testing.T) 
 	cases := []struct {
 		name           string
 		capacity       AgentCapacity
-		runningBackups []*backups_core.Backup
-		candidate      *backups_core.Backup
+		runningBackups []*backups_core_logical.LogicalBackup
+		candidate      *backups_core_logical.LogicalBackup
 		wantFits       bool
 	}{
 		{
@@ -48,7 +48,7 @@ func Test_DoesVerificationFit_AcrossScenarios_RespectsAgentBudget(t *testing.T) 
 		{
 			name:     "one running, room for another small",
 			capacity: AgentCapacity{MaxDiskGb: 12},
-			runningBackups: []*backups_core.Backup{
+			runningBackups: []*backups_core_logical.LogicalBackup{
 				backupWithSize(50, 200),
 			},
 			candidate: backupWithSize(50, 200),
@@ -57,7 +57,7 @@ func Test_DoesVerificationFit_AcrossScenarios_RespectsAgentBudget(t *testing.T) 
 		{
 			name:     "one running, restored size of candidate blows budget",
 			capacity: AgentCapacity{MaxDiskGb: 10},
-			runningBackups: []*backups_core.Backup{
+			runningBackups: []*backups_core_logical.LogicalBackup{
 				backupWithSize(500, 4000),
 			},
 			candidate: backupWithSize(500, 4000),
@@ -66,7 +66,7 @@ func Test_DoesVerificationFit_AcrossScenarios_RespectsAgentBudget(t *testing.T) 
 		{
 			name:     "three concurrent small jobs fit in 25 GB",
 			capacity: AgentCapacity{MaxDiskGb: 25},
-			runningBackups: []*backups_core.Backup{
+			runningBackups: []*backups_core_logical.LogicalBackup{
 				backupWithSize(100, 500),
 				backupWithSize(100, 500),
 				backupWithSize(100, 500),
@@ -77,7 +77,7 @@ func Test_DoesVerificationFit_AcrossScenarios_RespectsAgentBudget(t *testing.T) 
 		{
 			name:     "per-job gap saturation: three RUNNING already over a 5 GB agent",
 			capacity: AgentCapacity{MaxDiskGb: 5},
-			runningBackups: []*backups_core.Backup{
+			runningBackups: []*backups_core_logical.LogicalBackup{
 				backupWithSize(100, 400),
 				backupWithSize(100, 400),
 				backupWithSize(100, 400),

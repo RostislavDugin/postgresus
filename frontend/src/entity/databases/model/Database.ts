@@ -4,7 +4,8 @@ import type { HealthStatus } from './HealthStatus';
 import type { MariadbDatabase } from './mariadb/MariadbDatabase';
 import type { MongodbDatabase } from './mongodb/MongodbDatabase';
 import type { MysqlDatabase } from './mysql/MysqlDatabase';
-import type { PostgresqlDatabase } from './postgresql/PostgresqlDatabase';
+import type { PostgresqlLogicalDatabase } from './postgresql/PostgresqlLogicalDatabase';
+import type { PostgresqlPhysicalDatabase } from './postgresql/physical/PostgresqlPhysicalDatabase';
 
 export interface Database {
   id: string;
@@ -12,7 +13,8 @@ export interface Database {
   workspaceId: string;
   type: DatabaseType;
 
-  postgresql?: PostgresqlDatabase;
+  postgresqlLogical?: PostgresqlLogicalDatabase;
+  postgresqlPhysical?: PostgresqlPhysicalDatabase;
   mysql?: MysqlDatabase;
   mariadb?: MariadbDatabase;
   mongodb?: MongodbDatabase;
@@ -23,6 +25,4 @@ export interface Database {
   lastBackupErrorMessage?: string;
 
   healthStatus?: HealthStatus;
-
-  isAgentTokenGenerated: boolean;
 }

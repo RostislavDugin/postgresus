@@ -59,7 +59,6 @@ func (c *StorageController) SaveStorage(ctx *gin.Context) {
 
 	if err := c.storageService.SaveStorage(user, request.WorkspaceID, &request); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToManageStorage) ||
-			errors.Is(err, ErrLocalStorageNotAllowedInCloudMode) ||
 			errors.Is(err, ErrRcloneStorageRequiresAdmin) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
@@ -328,8 +327,7 @@ func (c *StorageController) TestStorageConnectionDirect(ctx *gin.Context) {
 	}
 
 	if err := c.storageService.TestStorageConnectionDirect(user, &request); err != nil {
-		if errors.Is(err, ErrLocalStorageNotAllowedInCloudMode) ||
-			errors.Is(err, ErrRcloneStorageRequiresAdmin) {
+		if errors.Is(err, ErrRcloneStorageRequiresAdmin) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}

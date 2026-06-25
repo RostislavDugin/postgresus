@@ -1,22 +1,20 @@
-import { Button, Input, Select } from 'antd';
+import { Button, Input } from 'antd';
 import { useEffect, useState } from 'react';
 
 import {
   type Database,
   DatabaseType,
-  type MariadbDatabase,
-  type MongodbDatabase,
-  type MysqlDatabase,
-  type PostgresqlDatabase,
   databaseApi,
   getDatabaseLogoFromType,
+  initializeDatabaseTypeData,
+  isPostgresType,
 } from '../../../../entity/databases';
 
 interface Props {
   database: Database;
 
   isShowName?: boolean;
-  isShowType?: boolean;
+  isShowEngine?: boolean;
   isShowCancelButton?: boolean;
   onCancel: () => void;
 
@@ -25,17 +23,19 @@ interface Props {
   onSaved: (db: Database) => void;
 }
 
-const databaseTypeOptions = [
-  { value: DatabaseType.POSTGRES, label: 'PostgreSQL' },
-  { value: DatabaseType.MYSQL, label: 'MySQL' },
-  { value: DatabaseType.MARIADB, label: 'MariaDB' },
-  { value: DatabaseType.MONGODB, label: 'MongoDB' },
+// PostgreSQL maps to the logical type as a tentative default; the backup-type
+// (logical vs physical) is chosen on the next step.
+const databaseEngineOptions = [
+  { type: DatabaseType.POSTGRES_LOGICAL, label: 'PostgreSQL' },
+  { type: DatabaseType.MYSQL, label: 'MySQL' },
+  { type: DatabaseType.MARIADB, label: 'MariaDB' },
+  { type: DatabaseType.MONGODB, label: 'MongoDB' },
 ];
 
 export const EditDatabaseBaseInfoComponent = ({
   database,
   isShowName,
-  isShowType,
+  isShowEngine,
   isShowCancelButton,
   onCancel,
   saveButtonText,
@@ -54,32 +54,7 @@ export const EditDatabaseBaseInfoComponent = ({
   const handleTypeChange = (newType: DatabaseType) => {
     if (!editingDatabase) return;
 
-    const updatedDatabase: Database = {
-      ...editingDatabase,
-      type: newType,
-      postgresql: undefined,
-      mysql: undefined,
-      mariadb: undefined,
-      mongodb: undefined,
-    };
-
-    switch (newType) {
-      case DatabaseType.POSTGRES:
-        updatedDatabase.postgresql =
-          editingDatabase.postgresql ?? ({ cpuCount: 1 } as PostgresqlDatabase);
-        break;
-      case DatabaseType.MYSQL:
-        updatedDatabase.mysql = editingDatabase.mysql ?? ({} as MysqlDatabase);
-        break;
-      case DatabaseType.MARIADB:
-        updatedDatabase.mariadb = editingDatabase.mariadb ?? ({} as MariadbDatabase);
-        break;
-      case DatabaseType.MONGODB:
-        updatedDatabase.mongodb = editingDatabase.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase);
-        break;
-    }
-
-    setEditingDatabase(updatedDatabase);
+    setEditingDatabase(initializeDatabaseTypeData({ ...editingDatabase, type: newType }));
     setIsUnsaved(true);
   };
 
@@ -114,37 +89,45 @@ export const EditDatabaseBaseInfoComponent = ({
   return (
     <div>
       {isShowName && (
-        <div className="mb-1 flex w-full items-center">
-          <div className="min-w-[100px] md:min-w-[150px]">Name</div>
+        <div className="mb-3 flex items-center">
+          <div className="mr-3">Name</div>
           <Input
             value={editingDatabase.name || ''}
             onChange={(e) => updateDatabase({ name: e.target.value })}
             size="small"
             placeholder="My favourite DB"
-            className="max-w-[150px] grow md:max-w-[200px]"
+            className="grow"
           />
         </div>
       )}
 
-      {isShowType && (
-        <div className="mb-1 flex w-full items-center">
-          <div className="min-w-[100px] md:min-w-[150px]">Database type</div>
+      {isShowEngine && (
+        <div className="grid grid-cols-2 gap-3">
+          {databaseEngineOptions.map((option) => {
+            const isSelected = isPostgresType(option.type)
+              ? isPostgresType(editingDatabase.type)
+              : editingDatabase.type === option.type;
 
-          <div className="flex items-center">
-            <Select
-              value={editingDatabase.type}
-              onChange={handleTypeChange}
-              options={databaseTypeOptions}
-              size="small"
-              className="w-[150px] grow md:w-[200px]"
-            />
+            return (
+              <div
+                key={option.type}
+                onClick={() => handleTypeChange(option.type)}
+                className={`flex h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border text-center text-xs transition hover:border-blue-400 ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40'
+                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                }`}
+              >
+                <img
+                  src={getDatabaseLogoFromType(option.type)}
+                  alt={option.label}
+                  className="h-7 w-7"
+                />
 
-            <img
-              src={getDatabaseLogoFromType(editingDatabase.type)}
-              alt="databaseIcon"
-              className="ml-2 h-4 w-4"
-            />
-          </div>
+                <span className="px-1 leading-tight">{option.label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -157,7 +140,7 @@ export const EditDatabaseBaseInfoComponent = ({
 
         <Button
           type="primary"
-          className={`${isShowCancelButton ? 'ml-1' : 'ml-auto'} mr-5`}
+          className={isShowCancelButton ? 'ml-1' : 'ml-auto'}
           onClick={saveDatabase}
           loading={isSaving}
           disabled={(isSaveToApi && !isUnsaved) || !isAllFieldsFilled}

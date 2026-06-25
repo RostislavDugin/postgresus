@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"databasus-backend/internal/config"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
@@ -114,7 +114,7 @@ func Test_PublicTriggerBackup_WhenKeyValidAndBackupCompletes_Returns200(t *testi
 		t, router, "/api/v1/public/backups", "Bearer "+token, request, http.StatusOK, &response,
 	)
 
-	assert.Equal(t, backups_core.BackupStatusCompleted, response.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusCompleted, response.Status)
 }
 
 func Test_PublicTriggerBackup_WhenBackupStaysInProgress_Returns202(t *testing.T) {
@@ -140,7 +140,7 @@ func Test_PublicTriggerBackup_WhenBackupStaysInProgress_Returns202(t *testing.T)
 	)
 
 	assert.Equal(t, inProgress.ID, response.BackupID)
-	assert.Equal(t, backups_core.BackupStatusInProgress, response.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusInProgress, response.Status)
 }
 
 func Test_PublicTriggerBackup_WhenPerCallTimeoutElapses_Returns202(t *testing.T) {
@@ -168,7 +168,7 @@ func Test_PublicTriggerBackup_WhenPerCallTimeoutElapses_Returns202(t *testing.T)
 	)
 
 	assert.Equal(t, inProgress.ID, response.BackupID)
-	assert.Equal(t, backups_core.BackupStatusInProgress, response.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusInProgress, response.Status)
 }
 
 func Test_PublicTriggerBackup_WhenDatabaseHasNoBackupStorage_Returns422(t *testing.T) {
@@ -211,26 +211,6 @@ func Test_PublicTriggerBackup_WhenBackupCannotStart_Returns422WithErrorEnvelope(
 	rawBody := string(response.Body)
 	assert.NotContains(t, rawBody, `"status"`)
 	assert.NotContains(t, rawBody, `"restoreVerificationStatus"`)
-}
-
-func Test_PublicTriggerBackup_WhenDatabaseIsAgentManaged_Returns422(t *testing.T) {
-	router := CreateApiKeyPublicTestRouter()
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("Agent Managed WS", admin, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
-
-	database := createWalV1Database(t, workspace, admin, router)
-	token := createAdminApiKeyToken(t)
-
-	request := TriggerBackupRequestDTO{DatabaseID: database.ID}
-	response := test_utils.MakePostRequest(
-		t, router, "/api/v1/public/backups", "Bearer "+token, request, http.StatusUnprocessableEntity,
-	)
-
-	var envelope TriggerBackupResponseDTO
-	require.NoError(t, json.Unmarshal(response.Body, &envelope))
-	require.NotNil(t, envelope.Error)
-	assert.Contains(t, *envelope.Error, "agent-managed")
 }
 
 func Test_PublicTriggerBackup_WhenTokenInvalid_Returns401(t *testing.T) {
@@ -278,7 +258,7 @@ func Test_GetBackupStatus_WhenPrincipalCanAccessWorkspace_Returns200(t *testing.
 	)
 
 	assert.Equal(t, backup.ID, response.BackupID)
-	assert.Equal(t, backups_core.BackupStatusInProgress, response.Status)
+	assert.Equal(t, backups_core_logical.BackupStatusInProgress, response.Status)
 }
 
 func Test_GetBackupStatus_WhenMemberKeyLacksWorkspaceGrant_Returns403(t *testing.T) {

@@ -1,0 +1,54 @@
+{
+  "name": "Databasus",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "workspaceFolder": "/workspaces/databasus",
+  "workspaceMount": "source=databasus-workspace,target=/workspaces/databasus,type=volume",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "latest"
+    }
+  },
+  "mounts": [
+    "source=databasus-go-mod-cache,target=/home/vscode/go/pkg/mod,type=volume",
+    "source=databasus-go-build-cache,target=/home/vscode/.cache/go-build,type=volume",
+    "source=databasus-golangci-cache,target=/home/vscode/.cache/golangci-lint,type=volume",
+    "source=databasus-pre-commit-cache,target=/home/vscode/.cache/pre-commit,type=volume",
+    "source=databasus-pnpm-store,target=/home/vscode/.local/share/pnpm,type=volume"
+  ],
+  "forwardPorts": [4005, 5173],
+  "portsAttributes": {
+    "4005": { "label": "Backend (Gin)" },
+    "5173": { "label": "Vite dev server", "onAutoForward": "openBrowser" }
+  },
+  "containerEnv": {
+    "GOCACHE": "/home/vscode/.cache/go-build",
+    "GOMODCACHE": "/home/vscode/go/pkg/mod"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.useLanguageServer": true,
+        "go.testTimeout": "15m",
+        "[go]": { "editor.formatOnSave": true },
+        "eslint.workingDirectories": [{ "directory": "frontend", "changeProcessCWD": true }]
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "containerUser": "root",
+  "remoteUser": "vscode"
+}

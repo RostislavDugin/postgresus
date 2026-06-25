@@ -272,6 +272,10 @@ func (s *UserService) CreateInitialAdmin() error {
 	return s.userRepository.CreateInitialAdmin()
 }
 
+func (s *UserService) GetUsersCount() (int64, error) {
+	return s.userRepository.GetUsersCount()
+}
+
 func (s *UserService) IsRootAdminHasPassword() (bool, error) {
 	admin, err := s.userRepository.GetUserByEmail("admin")
 	if err != nil {

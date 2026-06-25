@@ -1,6 +1,9 @@
 package config
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 
 	env_utils "databasus-backend/internal/util/env"
@@ -22,13 +26,31 @@ const (
 	AppModeBackground = "background"
 )
 
+const (
+	// defaultTestParallelWorkers is the number of parallel test workers, used
+	// when TEST_PARALLEL_WORKERS is unset. Each worker gets its own metadata DB
+	// and Valkey logical DB, so this must stay <= 16 (Valkey's default logical DB
+	// count) and equal to the `go test -p` value.
+	defaultTestParallelWorkers = 8
+
+	// testSlotAdvisoryLockBase is the first pg_advisory_lock key reserved for
+	// test-worker slot claims; slot N uses base+N.
+	testSlotAdvisoryLockBase = 945_000_000
+
+	// testSlotClaimTimeout bounds the wait for a free slot, absorbing the brief
+	// window where `go test -p` starts the next package before the previous
+	// process has exited and released its advisory lock.
+	testSlotClaimTimeout = 60 * time.Second
+)
+
 type EnvVariables struct {
 	IsTesting bool
 	EnvMode   env_utils.EnvMode `env:"ENV_MODE" required:"true"`
 
 	// Internal database
-	DatabaseDsn     string `env:"DATABASE_DSN"      required:"true"`
-	TestDatabaseDsn string `env:"TEST_DATABASE_DSN"`
+	DatabaseDsn         string `env:"DATABASE_DSN"          required:"true"`
+	TestDatabaseDsn     string `env:"TEST_DATABASE_DSN"`
+	TestParallelWorkers int    `env:"TEST_PARALLEL_WORKERS"`
 	// Internal Valkey
 	ValkeyHost     string `env:"VALKEY_HOST"     required:"true"`
 	ValkeyPort     string `env:"VALKEY_PORT"     required:"true"`
@@ -36,15 +58,17 @@ type EnvVariables struct {
 	ValkeyPassword string `env:"VALKEY_PASSWORD"`
 	ValkeyIsSsl    bool   `env:"VALKEY_IS_SSL"   required:"true"`
 
-	IsCloud       bool   `env:"IS_CLOUD"`
+	// Per-worker test isolation (computed, only set under `go test`): each test
+	// binary claims a slot 0..TestParallelWorkers-1 that selects its own metadata DB
+	// (DatabaseDsn is rewritten to dbname=<base>_w{slot}), its own Valkey logical
+	// DB (ValkeySelectDB), and a cache-key namespace ("w{slot}:"). All zero/empty in
+	// production.
+	ValkeySelectDB int
+	CacheNamespace string
+
 	TestLocalhost string `env:"TEST_LOCALHOST"`
 
 	ShowDbInstallationVerificationLogs bool `env:"SHOW_DB_INSTALLATION_VERIFICATION_LOGS"`
-
-	IsManyNodesMode          bool `env:"IS_MANY_NODES_MODE"`
-	IsPrimaryNode            bool `env:"IS_PRIMARY_NODE"`
-	IsProcessingNode         bool `env:"IS_PROCESSING_NODE"`
-	NodeNetworkThroughputMBs int  `env:"NODE_NETWORK_THROUGHPUT_MBPS"`
 
 	DataFolder            string
 	TempFolder            string
@@ -53,67 +77,16 @@ type EnvVariables struct {
 
 	IsDisableAnonymousTelemetry bool `env:"IS_DISABLE_ANONYMOUS_TELEMETRY"`
 
-	// Billing (tax-exclusive)
-	PricePerGBCents int64 `env:"PRICE_PER_GB_CENTS"`
-	MinStorageGB    int
-	MaxStorageGB    int
-	TrialDuration   time.Duration
-	TrialStorageGB  int
-	GracePeriod     time.Duration
-	// Paddle billing
-	IsPaddleSandbox     bool   `env:"IS_PADDLE_SANDBOX"`
-	PaddleApiKey        string `env:"PADDLE_API_KEY"`
-	PaddleWebhookSecret string `env:"PADDLE_WEBHOOK_SECRET"`
-	PaddlePriceID       string `env:"PADDLE_PRICE_ID"`
-	PaddleClientToken   string `env:"PADDLE_CLIENT_TOKEN"`
+	// TestLogicalPostgres16Port is the shared always-on logical-Postgres fixture used by
+	// GetTestPostgresConfig / CreateTestDatabase across the test suite. The per-version PG
+	// logical tests (14-18 + SSL + mTLS) run on testcontainers and need no fixed port.
+	TestLogicalPostgres16Port string `env:"TEST_LOGICAL_POSTGRES_16_PORT"`
 
-	TestPostgres12Port string `env:"TEST_POSTGRES_12_PORT"`
-	TestPostgres13Port string `env:"TEST_POSTGRES_13_PORT"`
-	TestPostgres14Port string `env:"TEST_POSTGRES_14_PORT"`
-	TestPostgres15Port string `env:"TEST_POSTGRES_15_PORT"`
-	TestPostgres16Port string `env:"TEST_POSTGRES_16_PORT"`
-	TestPostgres17Port string `env:"TEST_POSTGRES_17_PORT"`
-	TestPostgres18Port string `env:"TEST_POSTGRES_18_PORT"`
-
-	TestMinioPort        string `env:"TEST_MINIO_PORT"`
-	TestMinioConsolePort string `env:"TEST_MINIO_CONSOLE_PORT"`
-
-	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
-
-	TestNASPort  string `env:"TEST_NAS_PORT"`
-	TestFTPPort  string `env:"TEST_FTP_PORT"`
-	TestSFTPPort string `env:"TEST_SFTP_PORT"`
-
-	TestMysql57Port string `env:"TEST_MYSQL_57_PORT"`
-	TestMysql80Port string `env:"TEST_MYSQL_80_PORT"`
-	TestMysql84Port string `env:"TEST_MYSQL_84_PORT"`
-	TestMysql90Port string `env:"TEST_MYSQL_90_PORT"`
-
-	TestMariadb55Port   string `env:"TEST_MARIADB_55_PORT"`
-	TestMariadb101Port  string `env:"TEST_MARIADB_101_PORT"`
-	TestMariadb102Port  string `env:"TEST_MARIADB_102_PORT"`
-	TestMariadb103Port  string `env:"TEST_MARIADB_103_PORT"`
-	TestMariadb104Port  string `env:"TEST_MARIADB_104_PORT"`
-	TestMariadb105Port  string `env:"TEST_MARIADB_105_PORT"`
-	TestMariadb106Port  string `env:"TEST_MARIADB_106_PORT"`
-	TestMariadb1011Port string `env:"TEST_MARIADB_1011_PORT"`
-	TestMariadb114Port  string `env:"TEST_MARIADB_114_PORT"`
-	TestMariadb118Port  string `env:"TEST_MARIADB_118_PORT"`
-	TestMariadb120Port  string `env:"TEST_MARIADB_120_PORT"`
-
-	TestMongodb40Port string `env:"TEST_MONGODB_40_PORT"`
-	TestMongodb42Port string `env:"TEST_MONGODB_42_PORT"`
-	TestMongodb44Port string `env:"TEST_MONGODB_44_PORT"`
-	TestMongodb50Port string `env:"TEST_MONGODB_50_PORT"`
-	TestMongodb60Port string `env:"TEST_MONGODB_60_PORT"`
-	TestMongodb70Port string `env:"TEST_MONGODB_70_PORT"`
-	TestMongodb82Port string `env:"TEST_MONGODB_82_PORT"`
-
-	TestPostgresSslPort  string `env:"TEST_POSTGRES_SSL_PORT"`
-	TestPostgresMtlsPort string `env:"TEST_POSTGRES_MTLS_PORT"`
-	TestMariadbSslPort   string `env:"TEST_MARIADB_SSL_PORT"`
-	TestMysqlSslPort     string `env:"TEST_MYSQL_SSL_PORT"`
-	TestMongodbSslPort   string `env:"TEST_MONGODB_SSL_PORT"`
+	// The physical primary sources are the shared always-on fixture (like the logical PG-16
+	// fixture); the per-version, no-summary, tablespace, mTLS and restore-target containers all run
+	// on testcontainers and need no fixed port.
+	TestPhysicalPostgres17Port string `env:"TEST_PHYSICAL_POSTGRES_17_PORT"`
+	TestPhysicalPostgres18Port string `env:"TEST_PHYSICAL_POSTGRES_18_PORT"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -126,11 +99,12 @@ type EnvVariables struct {
 	CloudflareTurnstileSiteKey   string `env:"CLOUDFLARE_TURNSTILE_SITE_KEY"`
 
 	// SMTP configuration (optional)
-	SMTPHost     string `env:"SMTP_HOST"`
-	SMTPPort     int    `env:"SMTP_PORT"`
-	SMTPUser     string `env:"SMTP_USER"`
-	SMTPPassword string `env:"SMTP_PASSWORD"`
-	SMTPFrom     string `env:"SMTP_FROM"`
+	SMTPHost               string `env:"SMTP_HOST"`
+	SMTPPort               int    `env:"SMTP_PORT"`
+	SMTPUser               string `env:"SMTP_USER"`
+	SMTPPassword           string `env:"SMTP_PASSWORD"`
+	SMTPFrom               string `env:"SMTP_FROM"`
+	SMTPInsecureSkipVerify bool   `env:"SMTP_INSECURE_SKIP_VERIFY"`
 
 	// Application URL (optional) - used for email links
 	DatabasusURL string `env:"DATABASUS_URL"`
@@ -199,11 +173,6 @@ func loadEnvVariables() {
 		env.ShowDbInstallationVerificationLogs = true
 	}
 
-	// Set default value for IsCloud if not defined
-	if os.Getenv("IS_CLOUD") == "" {
-		env.IsCloud = false
-	}
-
 	for _, arg := range os.Args {
 		if strings.Contains(arg, "test") {
 			env.IsTesting = true
@@ -218,14 +187,17 @@ func loadEnvVariables() {
 		}
 
 		env.DatabaseDsn = env.TestDatabaseDsn
-	}
 
-	// Check for external database override
-	if externalDsn := os.Getenv("DANGEROUS_EXTERNAL_DATABASE_DSN"); externalDsn != "" {
-		log.Warn(
-			"Using DANGEROUS_EXTERNAL_DATABASE_DSN - connecting to external database instead of internal PostgreSQL",
-		)
-		env.DatabaseDsn = externalDsn
+		if env.TestParallelWorkers <= 0 {
+			env.TestParallelWorkers = defaultTestParallelWorkers
+		}
+
+		// Only a real `go test` binary claims a per-worker slot; the cleanup_test_db
+		// command and any other tool run with IsTesting=true must operate on all
+		// slots, so they keep the base test DSN and default Valkey DB.
+		if strings.Contains(os.Args[0], ".test") {
+			applyTestWorkerSlot()
+		}
 	}
 
 	if env.DatabaseDsn == "" {
@@ -245,15 +217,6 @@ func loadEnvVariables() {
 
 	tools.LogAndExitIfClientToolsBroken(log, env.ShowDbInstallationVerificationLogs)
 
-	if env.NodeNetworkThroughputMBs == 0 {
-		env.NodeNetworkThroughputMBs = 125 // 1 Gbit/s
-	}
-
-	if !env.IsManyNodesMode {
-		env.IsPrimaryNode = true
-		env.IsProcessingNode = true
-	}
-
 	if env.TestLocalhost == "" {
 		env.TestLocalhost = "localhost"
 	}
@@ -268,27 +231,6 @@ func loadEnvVariables() {
 		os.Exit(1)
 	}
 
-	// Check for external Valkey override
-	if externalValkeyHost := os.Getenv("DANGEROUS_VALKEY_HOST"); externalValkeyHost != "" {
-		log.Warn(
-			"Using DANGEROUS_VALKEY_* variables - connecting to external Valkey instead of internal instance",
-		)
-		env.ValkeyHost = externalValkeyHost
-
-		if externalValkeyPort := os.Getenv("DANGEROUS_VALKEY_PORT"); externalValkeyPort != "" {
-			env.ValkeyPort = externalValkeyPort
-		}
-		if externalValkeyUsername := os.Getenv("DANGEROUS_VALKEY_USERNAME"); externalValkeyUsername != "" {
-			env.ValkeyUsername = externalValkeyUsername
-		}
-		if externalValkeyPassword := os.Getenv("DANGEROUS_VALKEY_PASSWORD"); externalValkeyPassword != "" {
-			env.ValkeyPassword = externalValkeyPassword
-		}
-		if externalValkeyIsSsl := os.Getenv("DANGEROUS_VALKEY_IS_SSL"); externalValkeyIsSsl != "" {
-			env.ValkeyIsSsl = externalValkeyIsSsl == "true"
-		}
-	}
-
 	// Store the data and temp folders one level below the root
 	// (projectRoot/databasus-data -> /databasus-data)
 	env.DataFolder = filepath.Join(filepath.Dir(backendRoot), "databasus-data", "backups")
@@ -299,89 +241,19 @@ func loadEnvVariables() {
 	)
 
 	if env.IsTesting {
-		if env.TestPostgres12Port == "" {
-			log.Error("TEST_POSTGRES_12_PORT is empty")
+		if env.TestLogicalPostgres16Port == "" {
+			log.Error("TEST_LOGICAL_POSTGRES_16_PORT is empty")
 			os.Exit(1)
 		}
-		if env.TestPostgres13Port == "" {
-			log.Error("TEST_POSTGRES_13_PORT is empty")
+		if env.TestPhysicalPostgres17Port == "" {
+			log.Error("TEST_PHYSICAL_POSTGRES_17_PORT is empty")
 			os.Exit(1)
 		}
-		if env.TestPostgres14Port == "" {
-			log.Error("TEST_POSTGRES_14_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres15Port == "" {
-			log.Error("TEST_POSTGRES_15_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres16Port == "" {
-			log.Error("TEST_POSTGRES_16_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres17Port == "" {
-			log.Error("TEST_POSTGRES_17_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres18Port == "" {
-			log.Error("TEST_POSTGRES_18_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestMinioPort == "" {
-			log.Error("TEST_MINIO_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestMinioConsolePort == "" {
-			log.Error("TEST_MINIO_CONSOLE_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestAzuriteBlobPort == "" {
-			log.Error("TEST_AZURITE_BLOB_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestNASPort == "" {
-			log.Error("TEST_NAS_PORT is empty")
-			os.Exit(1)
-		}
-
-	}
-
-	// Billing
-	if env.IsCloud {
-		if env.PricePerGBCents <= 0 {
-			log.Error("PRICE_PER_GB_CENTS must be a positive integer in cloud mode", "value", env.PricePerGBCents)
-			os.Exit(1)
-		}
-
-		if env.PaddleApiKey == "" {
-			log.Error("PADDLE_API_KEY is empty")
-			os.Exit(1)
-		}
-
-		if env.PaddleWebhookSecret == "" {
-			log.Error("PADDLE_WEBHOOK_SECRET is empty")
-			os.Exit(1)
-		}
-
-		if env.PaddlePriceID == "" {
-			log.Error("PADDLE_PRICE_ID is empty")
-			os.Exit(1)
-		}
-
-		if env.PaddleClientToken == "" {
-			log.Error("PADDLE_CLIENT_TOKEN is empty")
+		if env.TestPhysicalPostgres18Port == "" {
+			log.Error("TEST_PHYSICAL_POSTGRES_18_PORT is empty")
 			os.Exit(1)
 		}
 	}
-
-	env.MinStorageGB = 20
-	env.MaxStorageGB = 10_000
-	env.TrialDuration = 24 * time.Hour
-	env.TrialStorageGB = 20
-	env.GracePeriod = 30 * 24 * time.Hour
 
 	env.ApiBackupSyncTimeout = 30 * time.Minute
 	if env.ApiBackupSyncTimeoutRaw != "" {
@@ -407,4 +279,129 @@ func unsetEmptyEnvVars() {
 			_ = os.Unsetenv(key)
 		}
 	}
+}
+
+// slotLockConn holds the system-DB connection whose session owns this worker's
+// advisory lock. It must live for the whole process: closing it (or letting it
+// be garbage-collected) releases the lock and frees the slot for another worker
+// mid-run. It is assigned-only by design — the reference itself is the point, so
+// it anchors the connection lifetime as a GC root.
+//
+//nolint:unused // assigned-only: keeps the advisory-lock connection alive for the process lifetime
+var slotLockConn *sql.Conn
+
+// applyTestWorkerSlot claims a free slot for this test binary and rewrites the
+// env so the worker runs fully isolated: its own metadata DB, Valkey logical DB,
+// and registry namespace.
+func applyTestWorkerSlot() {
+	baseDbName, _, err := RewriteDbName(env.TestDatabaseDsn, systemDbName)
+	if err != nil {
+		log.Error("could not parse TEST_DATABASE_DSN for slot isolation", "error", err)
+		os.Exit(1)
+	}
+
+	slot := claimTestWorkerSlot(env.TestDatabaseDsn, env.TestParallelWorkers)
+
+	slotDbName := fmt.Sprintf("%s_w%d", baseDbName, slot)
+	_, slotDsn, err := RewriteDbName(env.TestDatabaseDsn, slotDbName)
+	if err != nil {
+		log.Error("could not build per-slot DSN", "error", err)
+		os.Exit(1)
+	}
+
+	env.DatabaseDsn = slotDsn
+	env.ValkeySelectDB = slot
+	env.CacheNamespace = fmt.Sprintf("w%d:", slot)
+
+	log.Info("claimed test worker slot", "slot", slot, "db", slotDbName)
+}
+
+// systemDbName is the always-present database used for slot coordination and as
+// the connection target when (re)creating per-slot databases.
+const systemDbName = "postgres"
+
+// claimTestWorkerSlot acquires a session-level advisory lock for the first free
+// slot in [0,pool) on the system Postgres DB and returns it. The lock is held by
+// slotLockConn until the process exits. It retries until testSlotClaimTimeout to
+// absorb the handoff window where `go test -p` overlaps a finishing worker.
+func claimTestWorkerSlot(testDsn string, pool int) int {
+	_, systemDsn, err := RewriteDbName(testDsn, systemDbName)
+	if err != nil {
+		log.Error("could not build system DSN for slot claim", "error", err)
+		os.Exit(1)
+	}
+
+	db, err := sql.Open("pgx", systemDsn)
+	if err != nil {
+		log.Error("could not open system DB for slot claim", "error", err)
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		log.Error("could not get system DB connection for slot claim", "error", err)
+		os.Exit(1)
+	}
+
+	deadline := time.Now().Add(testSlotClaimTimeout)
+	for {
+		for slot := range pool {
+			var locked bool
+			lockErr := conn.QueryRowContext(
+				ctx,
+				"SELECT pg_try_advisory_lock($1)",
+				testSlotAdvisoryLockBase+int64(slot),
+			).Scan(&locked)
+			if lockErr != nil {
+				log.Error("advisory lock query failed during slot claim", "error", lockErr)
+				os.Exit(1)
+			}
+
+			if locked {
+				slotLockConn = conn
+				return slot
+			}
+		}
+
+		if time.Now().After(deadline) {
+			log.Error(
+				"no free test DB slot",
+				"pool", pool,
+				"hint", "TEST_PARALLEL_WORKERS must be >= the `go test -p` value",
+			)
+			os.Exit(1)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// RewriteDbName replaces the dbname= token in a keyword/value Postgres DSN,
+// returning the original dbname and the rewritten DSN. Used both to derive the
+// system DSN and to build per-slot test DSNs.
+func RewriteDbName(dsn, newDbName string) (origDbName, rewritten string, err error) {
+	parts := strings.Fields(dsn)
+	out := make([]string, 0, len(parts))
+
+	for _, p := range parts {
+		k, v, ok := strings.Cut(p, "=")
+		if !ok {
+			return "", "", fmt.Errorf("invalid DSN token: %q", p)
+		}
+
+		if k == "dbname" {
+			origDbName = v
+			out = append(out, "dbname="+newDbName)
+			continue
+		}
+
+		out = append(out, p)
+	}
+
+	if origDbName == "" {
+		return "", "", fmt.Errorf("DSN missing dbname: %q", dsn)
+	}
+
+	return origDbName, strings.Join(out, " "), nil
 }

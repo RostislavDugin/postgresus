@@ -123,6 +123,26 @@ func (i *Interval) NextTriggerTime(now time.Time, lastBackupTime *time.Time) *ti
 	}
 }
 
+// ApproxPeriod returns a coarse cadence for the interval, used only where an
+// exact next-trigger is unnecessary (e.g. sizing a bounded wait window as a
+// fraction of the cadence). Cron and unknown types return 0 so callers fall
+// back to their own cap rather than guessing a period from an arbitrary
+// expression.
+func (i *Interval) ApproxPeriod() time.Duration {
+	switch i.Type {
+	case IntervalHourly:
+		return time.Hour
+	case IntervalDaily:
+		return 24 * time.Hour
+	case IntervalWeekly:
+		return 7 * 24 * time.Hour
+	case IntervalMonthly:
+		return 30 * 24 * time.Hour
+	default:
+		return 0
+	}
+}
+
 func (i *Interval) Copy() Interval {
 	return Interval{
 		Type:           i.Type,

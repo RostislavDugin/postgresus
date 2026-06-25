@@ -2,7 +2,7 @@ import { LoadingOutlined, MenuOutlined } from '@ant-design/icons';
 import { App, Button, Spin, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { APP_VERSION, CONTAINER_ARCH, IS_CLOUD, IS_DISABLE_CLOUD_NOTICE } from '../../constants';
+import { APP_VERSION, CONTAINER_ARCH } from '../../constants';
 import { type DiskUsage, diskApi } from '../../entity/disk';
 import {
   type UserProfile,
@@ -24,12 +24,7 @@ import {
   CreateWorkspaceDialogComponent,
   WorkspaceSettingsComponent,
 } from '../../features/workspaces';
-import {
-  useIsMobile,
-  useIsNewGitHubVersionAvailable,
-  useScreenHeight,
-  useTemporaryVisibility,
-} from '../../shared/hooks';
+import { useIsMobile, useIsNewGitHubVersionAvailable, useScreenHeight } from '../../shared/hooks';
 import { StarButtonComponent } from '../../shared/ui/StarButtonComponent';
 import { ThemeToggleComponent } from '../../shared/ui/ThemeToggleComponent';
 import { SidebarComponent } from './SidebarComponent';
@@ -40,7 +35,6 @@ export const MainScreenComponent = () => {
   const screenHeight = useScreenHeight();
   const isMobile = useIsMobile();
   const isNewGitHubVersionAvailable = useIsNewGitHubVersionAvailable();
-  const isCloudPulseVisible = useTemporaryVisibility(15_000);
   const contentHeight = screenHeight - (isMobile ? 70 : 95);
 
   const [selectedTab, setSelectedTab] = useState<
@@ -249,39 +243,6 @@ export const MainScreenComponent = () => {
         </div>
 
         <div className="ml-auto hidden items-center gap-5 md:flex">
-          {!IS_CLOUD && !IS_DISABLE_CLOUD_NOTICE && (
-            <Tooltip title="99.9% uptime, 2x backup copies">
-              <a
-                className="flex items-center gap-2 !text-black hover:opacity-80 dark:!text-gray-200"
-                href="https://databasus.com/cloud"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {isCloudPulseVisible && (
-                  <span
-                    className="relative flex h-2 w-2"
-                    aria-label="99.9% uptime, 2 backup copies"
-                  >
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-                  </span>
-                )}
-                Cloud
-              </a>
-            </Tooltip>
-          )}
-
-          {!IS_CLOUD && !IS_DISABLE_CLOUD_NOTICE && (
-            <a
-              className="!text-black hover:opacity-80 dark:!text-gray-200"
-              href="https://databasus.com/labs"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Labs
-            </a>
-          )}
-
           <a
             className="!text-black hover:opacity-80 dark:!text-gray-200"
             href="https://databasus.com/installation"
@@ -411,7 +372,6 @@ export const MainScreenComponent = () => {
                     )}
                     {selectedTab === 'storages' && selectedWorkspace && (
                       <StoragesComponent
-                        user={user}
                         contentHeight={contentHeight}
                         workspace={selectedWorkspace}
                         isCanManageStorages={isCanManageDBs}
@@ -422,7 +382,6 @@ export const MainScreenComponent = () => {
                       <DatabasesComponent
                         contentHeight={contentHeight}
                         workspace={selectedWorkspace}
-                        user={user}
                         isCanManageDBs={isCanManageDBs}
                         key={`databases-${selectedWorkspace.id}`}
                       />
@@ -444,27 +403,25 @@ export const MainScreenComponent = () => {
             </>
           )}
 
-          {!IS_CLOUD && (
-            <div className="absolute bottom-1 left-2 mb-[0px] hidden text-sm text-gray-400 md:block">
-              v{APP_VERSION}
-              <br />
-              <span className="inline-flex items-center gap-1.5">
-                {CONTAINER_ARCH}
-                {isNewGitHubVersionAvailable && (
-                  <Tooltip title="New version available">
-                    <a
-                      href="https://github.com/databasus/databasus/releases/latest"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex"
-                    >
-                      <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
-                    </a>
-                  </Tooltip>
-                )}
-              </span>
-            </div>
-          )}
+          <div className="absolute bottom-1 left-2 mb-[0px] hidden text-sm text-gray-400 md:block">
+            v{APP_VERSION}
+            <br />
+            <span className="inline-flex items-center gap-1.5">
+              {CONTAINER_ARCH}
+              {isNewGitHubVersionAvailable && (
+                <Tooltip title="New version available">
+                  <a
+                    href="https://github.com/databasus/databasus/releases/latest"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex"
+                  >
+                    <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
+                  </a>
+                </Tooltip>
+              )}
+            </span>
+          </div>
         </div>
       )}
 

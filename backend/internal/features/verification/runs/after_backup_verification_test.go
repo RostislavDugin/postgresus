@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"databasus-backend/internal/features/backups/backups/backuping"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
@@ -50,7 +50,7 @@ func Test_CreateScheduledRuns_WhenScheduleTypeAfterBackup_DoesNotCreateTimeBased
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -76,7 +76,7 @@ func Test_OnBackupCompleted_WhenScheduleTypeAfterBackup_EnqueuesPendingRun(t *te
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -104,7 +104,7 @@ func Test_OnBackupCompleted_WhenPendingAfterBackupExists_CancelsOldAndEnqueuesNe
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	firstBackup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	firstBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -115,7 +115,7 @@ func Test_OnBackupCompleted_WhenPendingAfterBackupExists_CancelsOldAndEnqueuesNe
 	require.Len(t, rows, 1)
 	firstRunID := rows[0].ID
 
-	newerBackup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 150)
+	newerBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 150)
 	service.OnBackupCompleted(newerBackup.ID)
 
 	rowsAfter := ListVerificationsByDatabaseViaAPI(t, router, owner.Token, database.ID)
@@ -125,6 +125,8 @@ func Test_OnBackupCompleted_WhenPendingAfterBackupExists_CancelsOldAndEnqueuesNe
 	for _, row := range rowsAfter {
 		if row.ID == firstRunID {
 			assert.Equal(t, VerificationStatusCanceled, row.Status, "old PENDING must be canceled")
+			require.NotNil(t, row.FailMessage)
+			assert.Contains(t, *row.FailMessage, "superseded")
 			continue
 		}
 
@@ -153,7 +155,7 @@ func Test_OnBackupCompleted_WhenManualVerificationPending_LeavesItAndStillEnqueu
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -198,7 +200,7 @@ func Test_OnBackupCompleted_WhenScheduleTypeInterval_DoesNothing(t *testing.T) {
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -223,7 +225,7 @@ func Test_OnBackupCompleted_WhenDisabled_DoesNothing(t *testing.T) {
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	verification_config.SaveVerificationConfigViaAPI(t, router, owner.Token, database.ID,
 		verification_config.SaveBackupVerificationConfigDTO{
@@ -235,31 +237,6 @@ func Test_OnBackupCompleted_WhenDisabled_DoesNothing(t *testing.T) {
 
 	rows := ListVerificationsByDatabaseViaAPI(t, router, owner.Token, database.ID)
 	assert.Empty(t, rows, "disabled config must not enqueue after-backup verifications")
-}
-
-func Test_OnBackupCompleted_WhenNoVerifiableBackup_DoesNothing(t *testing.T) {
-	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
-
-	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
-
-	notifier := notifiers.CreateTestNotifier(workspace.ID)
-	defer notifiers.RemoveTestNotifier(notifier)
-
-	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
-
-	walBackup := backuping.SeedTestWalSegmentBackup(t, database.ID, testStorage.ID)
-
-	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
-
-	GetVerificationService().OnBackupCompleted(walBackup.ID)
-
-	rows := ListVerificationsByDatabaseViaAPI(t, router, owner.Token, database.ID)
-	assert.Empty(t, rows, "a WAL-only database has no verifiable backup to enqueue")
 }
 
 func Test_MakeBackup_WhenAfterBackupConfigured_SchedulesAndReplacesPendingVerification(
@@ -279,29 +256,24 @@ func Test_MakeBackup_WhenAfterBackupConfigured_SchedulesAndReplacesPendingVerifi
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backups_config.EnableBackupsForTestDatabase(database.ID, testStorage)
+	backups_config_logical.EnableBackupsForTestDatabase(database.ID, testStorage)
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
 	// Start the real backups scheduler singleton so it subscribes to the
 	// backup-completion channel — the seam the verification listener is wired
 	// onto by verification_runs.SetupDependencies (called in createTestRouter).
-	stopScheduler := backuping.StartSchedulerForTest(t, backuping.GetBackupsScheduler())
+	stopScheduler := backuping_logical.StartSchedulerForTest(t, backuping_logical.GetBackupsScheduler())
 	defer stopScheduler()
 
-	backupNode := backuping.CreateTestBackuperNodeWithUseCase(&backuping.CreateSuccessBackupUsecase{})
+	backuper := backuping_logical.CreateTestBackuperWithUseCase(&backuping_logical.CreateSuccessBackupUsecase{})
 
-	// completeBackup reproduces the BackuperNode's backupHandler exactly:
-	// MakeBackup drives the backup to COMPLETED, then completion is published on
-	// the channel. A fresh node UUID stands in for an unknown/restarted node —
-	// the listener must still fire (the fan-out runs before the node-relation
-	// bookkeeping early-returns).
+	// completeBackup reproduces the scheduler's in-process dispatch exactly:
+	// MakeBackup drives the backup to COMPLETED, then the completion hook fires
+	// the registered listeners — the seam the verification listener is wired onto.
 	completeBackup := func() uuid.UUID {
-		backup := backuping.SeedInProgressTestBackup(t, database.ID, testStorage.ID)
-		backupNode.MakeBackup(backup.ID, false)
-		require.NoError(
-			t,
-			backuping.GetBackupNodesRegistry().PublishBackupCompletion(uuid.New(), backup.ID),
-		)
+		backup := backuping_logical.SeedInProgressTestBackup(t, database.ID, testStorage.ID)
+		backuper.MakeBackup(backup.ID, false)
+		backuping_logical.TriggerBackupCompletedForTest(backup.ID)
 
 		return backup.ID
 	}

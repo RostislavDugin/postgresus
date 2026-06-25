@@ -1,29 +1,36 @@
 import { useState } from 'react';
 
-import { type BackupConfig, backupConfigApi, backupsApi } from '../../../entity/backups';
+import {
+  type LogicalBackupConfig,
+  logicalBackupConfigApi,
+  logicalBackupsApi,
+} from '../../../entity/backups/logical';
+import {
+  type PhysicalBackupConfig,
+  physicalBackupConfigApi,
+  physicalBackupsApi,
+} from '../../../entity/backups/physical';
 import {
   type Database,
   DatabaseType,
-  type MariadbDatabase,
-  type MongodbDatabase,
-  type MysqlDatabase,
   Period,
-  PostgresBackupType,
-  type PostgresqlDatabase,
   databaseApi,
+  initializeDatabaseTypeData,
+  isPostgresType,
 } from '../../../entity/databases';
-import type { UserProfile } from '../../../entity/users';
-import { EditBackupConfigComponent } from '../../backups';
+import { EditLogicalBackupConfigComponent } from '../../backups/logical';
+import { EditPhysicalBackupConfigComponent } from '../../backups/physical';
+import { ChoosePostgresBackupTypeComponent } from './edit/ChoosePostgresBackupTypeComponent';
 import { CreateReadOnlyComponent } from './edit/CreateReadOnlyComponent';
 import { EditDatabaseBaseInfoComponent } from './edit/EditDatabaseBaseInfoComponent';
 import { EditDatabaseNotifiersComponent } from './edit/EditDatabaseNotifiersComponent';
 import { EditDatabaseSpecificDataComponent } from './edit/EditDatabaseSpecificDataComponent';
 
 interface Props {
-  user: UserProfile;
   workspaceId: string;
   onCreated: (databaseId: string) => void;
   onClose: () => void;
+  onConnectionErrorChange?: (hasConnectionError: boolean) => void;
 }
 
 const createInitialDatabase = (workspaceId: string): Database =>
@@ -33,71 +40,62 @@ const createInitialDatabase = (workspaceId: string): Database =>
     workspaceId,
     storePeriod: Period.MONTH,
 
-    type: DatabaseType.POSTGRES,
+    type: DatabaseType.POSTGRES_LOGICAL,
 
     storage: {} as unknown as Storage,
 
     notifiers: [],
     sendNotificationsOn: [],
-
-    isAgentTokenGenerated: false,
   }) as Database;
 
-const initializeDatabaseTypeData = (db: Database): Database => {
-  const base = {
-    ...db,
-    postgresql: undefined,
-    mysql: undefined,
-    mariadb: undefined,
-    mongodb: undefined,
-  };
-
-  switch (db.type) {
-    case DatabaseType.POSTGRES:
-      return {
-        ...base,
-        postgresql:
-          db.postgresql ??
-          ({
-            cpuCount: 1,
-            backupType: PostgresBackupType.PG_DUMP,
-          } as PostgresqlDatabase),
-      };
-    case DatabaseType.MYSQL:
-      return { ...base, mysql: db.mysql ?? ({} as MysqlDatabase) };
-    case DatabaseType.MARIADB:
-      return { ...base, mariadb: db.mariadb ?? ({} as MariadbDatabase) };
-    case DatabaseType.MONGODB:
-      return { ...base, mongodb: db.mongodb ?? ({ cpuCount: 1 } as MongodbDatabase) };
-    default:
-      return db;
-  }
-};
-
-export const CreateDatabaseComponent = ({ user, workspaceId, onCreated, onClose }: Props) => {
+export const CreateDatabaseComponent = ({
+  workspaceId,
+  onCreated,
+  onClose,
+  onConnectionErrorChange,
+}: Props) => {
   const [isCreating, setIsCreating] = useState(false);
-  const [backupConfig, setBackupConfig] = useState<BackupConfig | undefined>();
+  const [backupConfig, setBackupConfig] = useState<LogicalBackupConfig | undefined>();
+  const [physicalBackupConfig, setPhysicalBackupConfig] = useState<
+    PhysicalBackupConfig | undefined
+  >();
   const [database, setDatabase] = useState<Database>(createInitialDatabase(workspaceId));
 
   const [step, setStep] = useState<
-    'base-info' | 'db-settings' | 'create-readonly-user' | 'backup-config' | 'notifiers'
+    | 'base-info'
+    | 'postgres-backup-type'
+    | 'db-settings'
+    | 'create-readonly-user'
+    | 'backup-config'
+    | 'notifiers'
   >('base-info');
 
-  const createDatabase = async (database: Database, backupConfig: BackupConfig) => {
+  const isPhysical = database.type === DatabaseType.POSTGRES_PHYSICAL;
+  const isPostgres = isPostgresType(database.type);
+
+  const createDatabase = async (database: Database) => {
+    if (isPhysical ? !physicalBackupConfig : !backupConfig) return;
+
     setIsCreating(true);
 
     try {
       const createdDatabase = await databaseApi.createDatabase(database);
       setDatabase({ ...createdDatabase });
 
-      backupConfig.databaseId = createdDatabase.id;
-      await backupConfigApi.saveBackupConfig(backupConfig);
+      if (isPhysical && physicalBackupConfig) {
+        physicalBackupConfig.databaseId = createdDatabase.id;
+        await physicalBackupConfigApi.savePhysicalBackupConfig(physicalBackupConfig);
 
-      if (
-        backupConfig.isBackupsEnabled &&
-        createdDatabase.postgresql?.backupType !== PostgresBackupType.WAL_V1
-      ) {
-        await backupsApi.makeBackup(createdDatabase.id);
+        if (physicalBackupConfig.isBackupsEnabled) {
+          await physicalBackupsApi.triggerPhysicalBackup(createdDatabase.id, 'auto');
+        }
+      } else if (backupConfig) {
+        backupConfig.databaseId = createdDatabase.id;
+        await logicalBackupConfigApi.saveBackupConfig(backupConfig);
+
+        if (backupConfig.isBackupsEnabled) {
+          await logicalBackupsApi.makeBackup(createdDatabase.id);
+        }
       }
 
       onCreated(createdDatabase.id);
@@ -115,17 +113,32 @@ export const CreateDatabaseComponent = ({ user, workspaceId, onCreated, onClose 
         <EditDatabaseBaseInfoComponent
           database={database}
           isShowName
-          isShowType
+          isShowEngine
           isSaveToApi={false}
           saveButtonText="Continue"
           onCancel={() => onClose()}
           onSaved={(db) => {
             const initializedDb = initializeDatabaseTypeData(db);
             setDatabase({ ...initializedDb });
-            setStep('db-settings');
+            setStep(isPostgresType(db.type) ? 'postgres-backup-type' : 'db-settings');
           }}
         />
       </div>
+    );
+  }
+
+  if (step === 'postgres-backup-type') {
+    return (
+      <ChoosePostgresBackupTypeComponent
+        database={database}
+        saveButtonText="Continue"
+        onBack={() => setStep('base-info')}
+        onSelected={(type) => {
+          const initializedDb = initializeDatabaseTypeData({ ...database, type });
+          setDatabase({ ...initializedDb });
+          setStep('db-settings');
+        }}
+      />
     );
   }
 
@@ -136,17 +149,13 @@ export const CreateDatabaseComponent = ({ user, workspaceId, onCreated, onClose 
         isShowCancelButton={false}
         onCancel={() => onClose()}
         isShowBackButton
-        onBack={() => setStep('base-info')}
+        onBack={() => setStep(isPostgres ? 'postgres-backup-type' : 'base-info')}
         saveButtonText="Continue"
         isSaveToApi={false}
+        onConnectionErrorChange={onConnectionErrorChange}
         onSaved={(database) => {
           setDatabase({ ...database });
-
-          const isWalBackup =
-            database.type === DatabaseType.POSTGRES &&
-            database.postgresql?.backupType === PostgresBackupType.WAL_V1;
-
-          setStep(isWalBackup ? 'backup-config' : 'create-readonly-user');
+          setStep('create-readonly-user');
         }}
       />
     );
@@ -168,9 +177,27 @@ export const CreateDatabaseComponent = ({ user, workspaceId, onCreated, onClose 
   }
 
   if (step === 'backup-config') {
+    if (isPhysical) {
+      return (
+        <EditPhysicalBackupConfigComponent
+          database={database}
+          initialConfig={physicalBackupConfig}
+          isShowCancelButton={false}
+          onCancel={() => onClose()}
+          isShowBackButton
+          onBack={() => setStep('db-settings')}
+          saveButtonText="Continue"
+          isSaveToApi={false}
+          onSaved={(physicalBackupConfig) => {
+            setPhysicalBackupConfig(physicalBackupConfig);
+            setStep('notifiers');
+          }}
+        />
+      );
+    }
+
     return (
-      <EditBackupConfigComponent
-        user={user}
+      <EditLogicalBackupConfigComponent
         database={database}
         isShowCancelButton={false}
         onCancel={() => onClose()}
@@ -206,7 +233,7 @@ export const CreateDatabaseComponent = ({ user, workspaceId, onCreated, onClose 
           if (isCreating) return;
 
           setDatabase({ ...database });
-          createDatabase(database, backupConfig!);
+          createDatabase(database);
         }}
       />
     );

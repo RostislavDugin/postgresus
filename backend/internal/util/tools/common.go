@@ -6,18 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
-
-// withExeOnWindows appends ".exe" when running on Windows.
-func withExeOnWindows(name string) string {
-	if runtime.GOOS == "windows" {
-		return name + ".exe"
-	}
-
-	return name
-}
 
 // ToolCheckResult is one DB-version bundle's verification outcome. A bundle
 // is considered fatal when missing/broken should crash the app at startup
@@ -31,10 +21,10 @@ type ToolCheckResult struct {
 }
 
 // checkBinDir verifies binDir exists and that every command in
-// requiredCommands is present and (on non-Windows) has the executable bit set.
-// Returns the collected errors. If the directory does not exist, returns a
-// single not-found error so callers can treat it differently for fatal vs
-// non-fatal bundles.
+// requiredCommands is present and has the executable bit set. Returns the
+// collected errors. If the directory does not exist, returns a single
+// not-found error so callers can treat it differently for fatal vs non-fatal
+// bundles.
 func checkBinDir(binDir string, requiredCommands []string) []error {
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		return []error{fmt.Errorf("client tools bin directory not found: %s", binDir)}
@@ -42,7 +32,7 @@ func checkBinDir(binDir string, requiredCommands []string) []error {
 
 	var errs []error
 	for _, cmd := range requiredCommands {
-		cmdPath := filepath.Join(binDir, withExeOnWindows(cmd))
+		cmdPath := filepath.Join(binDir, cmd)
 
 		info, err := os.Stat(cmdPath)
 		if os.IsNotExist(err) {
@@ -54,9 +44,7 @@ func checkBinDir(binDir string, requiredCommands []string) []error {
 			continue
 		}
 
-		// Windows uses extension-based execution, so the unix exec bit is
-		// meaningless there.
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		if info.Mode().Perm()&0o111 == 0 {
 			errs = append(errs, fmt.Errorf("client command not executable: %s", cmdPath))
 		}
 	}

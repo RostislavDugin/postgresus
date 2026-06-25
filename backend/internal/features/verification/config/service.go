@@ -9,7 +9,6 @@ import (
 
 	"databasus-backend/internal/features/audit_logs"
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
 	"databasus-backend/internal/features/intervals"
 	users_models "databasus-backend/internal/features/users/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -83,12 +82,6 @@ func (s *VerificationConfigService) Save(
 	}
 	if !canManage {
 		return nil, errors.New("insufficient permissions to modify verification config")
-	}
-
-	if req.IsScheduledVerificationEnabled &&
-		database.Postgresql != nil &&
-		database.Postgresql.BackupType == postgresql.PostgresBackupTypeWalV1 {
-		return nil, errors.New("verification cannot be enabled for WAL-based databases")
 	}
 
 	config, err := s.verificationConfigRepository.GetByDatabaseID(database.ID)

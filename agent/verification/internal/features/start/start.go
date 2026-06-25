@@ -73,7 +73,7 @@ func RunDaemon(cfg *config.Config, agentVersion string, isDev bool, log *slog.Lo
 		return err
 	}
 
-	containerManager := container.NewManager(engine, cfg.AgentID, log)
+	containerManager := container.NewManager(engine, cfg.AgentID, cfg.GetVerificationPgImageRepo(), log)
 	if err := containerManager.StartupSelfCheck(ctx); err != nil {
 		return err
 	}

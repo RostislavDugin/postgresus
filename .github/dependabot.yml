@@ -37,24 +37,6 @@ updates:
     commit-message:
       prefix: "REFACTOR (deps)"
 
-  - package-ecosystem: "gomod"
-    directory: "/agent/backup"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    cooldown:
-      default-days: 7
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 3
-    groups:
-      agent-minor-and-patch:
-        update-types: ["minor", "patch"]
-    labels: ["dependencies", "agent"]
-    commit-message:
-      prefix: "REFACTOR (deps)"
-
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

@@ -129,7 +129,6 @@ export function OauthStorageComponent() {
 
         <EditStorageComponent
           workspaceId={storage.workspaceId}
-          user={user}
           isShowClose={false}
           onClose={() => {}}
           isShowName={false}

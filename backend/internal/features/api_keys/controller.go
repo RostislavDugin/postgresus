@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 )
@@ -147,7 +147,7 @@ func (c *ApiKeyController) RevokeApiKey(ctx *gin.Context) {
 
 // TriggerBackup
 // @Summary Trigger a database backup (API key auth)
-// @Description Start a backup and block until it finishes or the configured timeout elapses. Auth via API key in the Authorization header. A 422 with a populated `status` reports a terminal backup outcome whose `status` is one of `FAILED` or `CANCELED` (with `failMessage`), whereas a 422 with `error` set means the backup could not be started (misconfiguration). An optional `timeoutSeconds` in the body caps how long the call blocks (clamped to [1, server max]); when it elapses you get a 202 with a `backupId`, which you poll via `GET /public/backups/{id}`. Agent-managed (Postgres WAL_V1) databases are not supported by this endpoint and return 422, since they back up through their agent.
+// @Description Start a backup and block until it finishes or the configured timeout elapses. Auth via API key in the Authorization header. A 422 with a populated `status` reports a terminal backup outcome whose `status` is one of `FAILED` or `CANCELED` (with `failMessage`), whereas a 422 with `error` set means the backup could not be started (misconfiguration). An optional `timeoutSeconds` in the body caps how long the call blocks (clamped to [1, server max]); when it elapses you get a 202 with a `backupId`, which you poll via `GET /public/backups/{id}`. Physical (POSTGRES_PHYSICAL, agent-managed) databases are not supported by this endpoint and return 422, since they back up through their agent.
 // @Tags api-keys
 // @Accept json
 // @Produce json
@@ -211,7 +211,7 @@ func (c *ApiKeyController) TriggerBackup(ctx *gin.Context) {
 		return
 	}
 
-	if backup.Status == backups_core.BackupStatusCompleted {
+	if backup.Status == backups_core_logical.BackupStatusCompleted {
 		ctx.JSON(http.StatusOK, toTriggerBackupResponse(backup))
 		return
 	}
@@ -267,7 +267,7 @@ func (c *ApiKeyController) GetBackupStatus(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, toTriggerBackupResponse(backup))
 }
 
-func toTriggerBackupResponse(backup *backups_core.Backup) TriggerBackupResponseDTO {
+func toTriggerBackupResponse(backup *backups_core_logical.LogicalBackup) TriggerBackupResponseDTO {
 	return TriggerBackupResponseDTO{
 		BackupID:                  backup.ID,
 		Status:                    backup.Status,

@@ -1,0 +1,18 @@
+# Normalize all text files to LF in the repo, regardless of host OS.
+# Prevents CRLF noise when checking out on Windows and mounting into the Linux devcontainer.
+* text=auto eol=lf
+
+# Keep genuinely binary assets untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text eol=lf
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Windows-only scripts must keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -26,16 +26,17 @@ type MysqlDatabase struct {
 
 	Version tools.MysqlVersion `json:"version" gorm:"type:text;not null"`
 
-	Host                string   `json:"host"            gorm:"type:text;not null"`
-	Port                int      `json:"port"            gorm:"type:int;not null"`
-	Username            string   `json:"username"        gorm:"type:text;not null"`
-	Password            string   `json:"password"        gorm:"type:text;not null"`
-	Database            *string  `json:"database"        gorm:"type:text"`
-	IsHttps             bool     `json:"isHttps"         gorm:"type:boolean;default:false"`
-	ExcludeTables       []string `json:"excludeTables"   gorm:"-"`
-	ExcludeTablesString string   `json:"-"               gorm:"column:exclude_tables;type:text;not null;default:''"`
-	Privileges          string   `json:"privileges"      gorm:"column:privileges;type:text;not null;default:''"`
-	IsZstdSupported     bool     `json:"isZstdSupported" gorm:"column:is_zstd_supported;type:boolean;not null;default:true"`
+	Host                string   `json:"host"                gorm:"type:text;not null"`
+	Port                int      `json:"port"                gorm:"type:int;not null"`
+	Username            string   `json:"username"            gorm:"type:text;not null"`
+	Password            string   `json:"password"            gorm:"type:text;not null"`
+	Database            *string  `json:"database"            gorm:"type:text"`
+	IsHttps             bool     `json:"isHttps"             gorm:"type:boolean;default:false"`
+	ExcludeTables       []string `json:"excludeTables"       gorm:"-"`
+	ExcludeTablesString string   `json:"-"                   gorm:"column:exclude_tables;type:text;not null;default:''"`
+	Privileges          string   `json:"privileges"          gorm:"column:privileges;type:text;not null;default:''"`
+	IsZstdSupported     bool     `json:"isZstdSupported"     gorm:"column:is_zstd_supported;type:boolean;not null;default:true"`
+	IsUseExtendedInsert bool     `json:"isUseExtendedInsert" gorm:"column:is_use_extended_insert;type:boolean;not null;default:false"`
 }
 
 func (m *MysqlDatabase) TableName() string {
@@ -195,6 +196,7 @@ func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
 	m.ExcludeTables = incoming.ExcludeTables
 	m.Privileges = incoming.Privileges
 	m.IsZstdSupported = incoming.IsZstdSupported
+	m.IsUseExtendedInsert = incoming.IsUseExtendedInsert
 
 	if incoming.Password != "" {
 		m.Password = incoming.Password

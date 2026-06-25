@@ -2,13 +2,13 @@ import { CheckCircleOutlined, ExclamationCircleOutlined, SwapOutlined } from '@a
 import { Button, Modal, Radio, Select, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { backupConfigApi } from '../../../entity/backups';
-import type { TransferDatabaseRequest } from '../../../entity/backups';
-import { type Database, databaseApi } from '../../../entity/databases';
+import { logicalBackupConfigApi } from '../../../entity/backups/logical';
+import { physicalBackupConfigApi } from '../../../entity/backups/physical';
+import type { TransferDatabaseRequest } from '../../../entity/backups/shared';
+import { type Database, DatabaseType, databaseApi } from '../../../entity/databases';
 import type { Notifier } from '../../../entity/notifiers';
 import { notifierApi } from '../../../entity/notifiers';
 import { type Storage, getStorageLogoFromType, storageApi } from '../../../entity/storages';
-import type { UserProfile } from '../../../entity/users';
 import { type WorkspaceResponse, workspaceApi } from '../../../entity/workspaces';
 import { ToastHelper } from '../../../shared/toast';
 import { EditNotifierComponent } from '../../notifiers/ui/edit/EditNotifierComponent';
@@ -16,7 +16,6 @@ import { EditStorageComponent } from '../../storages/ui/edit/EditStorageComponen
 
 interface Props {
   database: Database;
-  user: UserProfile;
   currentStorageId?: string;
   onClose: () => void;
   onTransferred: () => void;
@@ -30,7 +29,6 @@ interface NotifierUsageInfo {
 
 export const DatabaseTransferDialogComponent = ({
   database,
-  user,
   currentStorageId,
   onClose,
   onTransferred,
@@ -57,6 +55,8 @@ export const DatabaseTransferDialogComponent = ({
 
   const [isTransferring, setIsTransferring] = useState(false);
 
+  const isPhysicalDatabase = database.type === DatabaseType.POSTGRES_PHYSICAL;
+
   const hasCurrentStorage = !!currentStorageId;
   const hasCurrentNotifiers = database.notifiers && database.notifiers.length > 0;
 
@@ -80,7 +80,9 @@ export const DatabaseTransferDialogComponent = ({
     setIsLoadingStorageCount(true);
 
     try {
-      const count = await backupConfigApi.getDatabasesCountForStorage(currentStorageId);
+      // Physical storage-usage counting is not yet wired (out of scope); this queries
+      // the logical config endpoint for both database types for now.
+      const count = await logicalBackupConfigApi.getDatabasesCountForStorage(currentStorageId);
       setStorageUsageCount(count);
     } catch (e) {
       alert((e as Error).message);
@@ -141,7 +143,11 @@ export const DatabaseTransferDialogComponent = ({
     setIsTransferring(true);
 
     try {
-      await backupConfigApi.transferDatabase(database.id, request);
+      if (isPhysicalDatabase) {
+        await physicalBackupConfigApi.transferPhysicalDatabase(database.id, request);
+      } else {
+        await logicalBackupConfigApi.transferDatabase(database.id, request);
+      }
       ToastHelper.showToast({
         title: 'Database transferred successfully!',
         description: `"${database.name}" has been transferred to the new workspace`,
@@ -422,7 +428,6 @@ export const DatabaseTransferDialogComponent = ({
 
           <EditStorageComponent
             workspaceId={selectedWorkspaceId}
-            user={user}
             isShowName
             isShowClose={false}
             onClose={() => setIsShowCreateStorage(false)}

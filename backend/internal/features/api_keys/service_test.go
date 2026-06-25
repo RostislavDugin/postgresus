@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
 	"databasus-backend/internal/features/databases"
 	users_enums "databasus-backend/internal/features/users/enums"
@@ -26,10 +26,10 @@ func Test_BuildTriggerAuditMessage_AlwaysAttributesApiKeyAndReflectsOutcome(t *t
 	}
 	database := &databases.Database{Name: "prod-db"}
 
-	completedBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusCompleted}
-	failedBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusFailed}
-	canceledBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusCanceled}
-	inProgressBackup := &backups_core.Backup{ID: uuid.New(), Status: backups_core.BackupStatusInProgress}
+	completedBackup := &backups_core_logical.LogicalBackup{ID: uuid.New(), Status: backups_core_logical.BackupStatusCompleted}
+	failedBackup := &backups_core_logical.LogicalBackup{ID: uuid.New(), Status: backups_core_logical.BackupStatusFailed}
+	canceledBackup := &backups_core_logical.LogicalBackup{ID: uuid.New(), Status: backups_core_logical.BackupStatusCanceled}
+	inProgressBackup := &backups_core_logical.LogicalBackup{ID: uuid.New(), Status: backups_core_logical.BackupStatusInProgress}
 
 	t.Run("completed reports success with backup id", func(t *testing.T) {
 		message := buildTriggerAuditMessage(principal, database, completedBackup, nil)
@@ -60,7 +60,7 @@ func Test_BuildTriggerAuditMessage_AlwaysAttributesApiKeyAndReflectsOutcome(t *t
 		message := buildTriggerAuditMessage(principal, database, failedBackup, nil)
 
 		assert.Contains(t, message, principal.ApiKeyID.String())
-		assert.Contains(t, message, string(backups_core.BackupStatusFailed))
+		assert.Contains(t, message, string(backups_core_logical.BackupStatusFailed))
 		assert.NotContains(t, message, "completed")
 	})
 
@@ -68,7 +68,7 @@ func Test_BuildTriggerAuditMessage_AlwaysAttributesApiKeyAndReflectsOutcome(t *t
 		message := buildTriggerAuditMessage(principal, database, canceledBackup, nil)
 
 		assert.Contains(t, message, principal.ApiKeyID.String())
-		assert.Contains(t, message, string(backups_core.BackupStatusCanceled))
+		assert.Contains(t, message, string(backups_core_logical.BackupStatusCanceled))
 		assert.NotContains(t, message, "completed")
 	})
 }

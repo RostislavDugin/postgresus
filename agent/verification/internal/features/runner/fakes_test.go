@@ -136,6 +136,11 @@ type fakeRestorer struct {
 
 	runEntered      atomic.Bool
 	runCtxCancelled atomic.Bool
+
+	// calls records the restore-related call order ("pre", "restore", "post") for a single job.
+	calls []string
+	// runParallelJobs records the -j value RunPgRestore was invoked with.
+	runParallelJobs int
 }
 
 func (r *fakeRestorer) StageBackupViaExec(
@@ -149,8 +154,11 @@ func (r *fakeRestorer) StageBackupViaExec(
 }
 
 func (r *fakeRestorer) RunPgRestore(
-	ctx context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn, _ int,
+	ctx context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn, parallelJobs int,
 ) (restore.Result, error) {
+	r.calls = append(r.calls, "restore")
+	r.runParallelJobs = parallelJobs
+
 	if r.runBlocks {
 		r.runEntered.Store(true)
 		<-ctx.Done()
@@ -160,6 +168,18 @@ func (r *fakeRestorer) RunPgRestore(
 	}
 
 	return r.runResult, r.runErr
+}
+
+func (r *fakeRestorer) RunTimescalePreRestore(context.Context, dbconn.Conn) error {
+	r.calls = append(r.calls, "pre")
+
+	return nil
+}
+
+func (r *fakeRestorer) RunTimescalePostRestore(context.Context, dbconn.Conn) error {
+	r.calls = append(r.calls, "post")
+
+	return nil
 }
 
 type fakeStats struct {

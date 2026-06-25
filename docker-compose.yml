@@ -17,6 +17,12 @@ services:
       - ./databasus-data:/databasus-data
     container_name: databasus-local
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "databasus", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   # ================================================================
   # Backend dev services
@@ -33,7 +39,7 @@ services:
       - POSTGRES_USER=${DEV_DB_USERNAME}
       - POSTGRES_PASSWORD=${DEV_DB_PASSWORD}
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - /var/lib/postgresql/data
     container_name: backend-db
     shm_size: 10gb
 
@@ -47,7 +53,7 @@ services:
       - POSTGRES_USER=${DEV_DB_USERNAME}
       - POSTGRES_PASSWORD=${DEV_DB_PASSWORD}
     volumes:
-      - ./pgdata-test:/var/lib/postgresql/data
+      - /var/lib/postgresql/data
     container_name: backend-db-test
     shm_size: 10gb
 
@@ -57,7 +63,7 @@ services:
     ports:
       - "${VALKEY_PORT}:6379"
     volumes:
-      - ./valkey-data:/data
+      - /data
     container_name: backend-valkey
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
@@ -77,707 +83,170 @@ services:
       - -retentionPeriod=7d
       - -httpAuth.password=devpassword
     volumes:
-      - ./victoria-logs-data:/victoria-logs-data
+      - /victoria-logs-data
     restart: unless-stopped
-
-  # ================================================================
-  # Agent dev services
-  # ================================================================
-
-  agent-db:
-    image: postgres:17
-    container_name: agent-db
-    environment:
-      POSTGRES_DB: devdb
-      POSTGRES_USER: devuser
-      POSTGRES_PASSWORD: devpassword
-    ports:
-      - "${AGENT_DB_PORT:-7433}:5432"
-    command:
-      - bash
-      - -c
-      - |
-        mkdir -p /wal-queue && chown postgres:postgres /wal-queue
-        exec docker-entrypoint.sh postgres \
-          -c wal_level=replica \
-          -c max_wal_senders=3 \
-          -c archive_mode=on \
-          -c "archive_command=cp %p /wal-queue/%f"
-    volumes:
-      - ./wal-queue:/wal-queue
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devuser -d devdb"]
-      interval: 2s
-      timeout: 5s
-      retries: 30
 
   # ================================================================
   # Test containers
   # ================================================================
 
-  # Test MinIO container
-  test-minio:
-    image: minio/minio:latest
-    ports:
-      - "${TEST_MINIO_PORT}:9000"
-      - "${TEST_MINIO_CONSOLE_PORT}:9001"
-    environment:
-      - MINIO_ROOT_USER=testuser
-      - MINIO_ROOT_PASSWORD=testpassword
-    container_name: test-minio
-    command: server /data --console-address ":9001"
-
-  # Test PostgreSQL containers
-  test-postgres-12:
-    image: postgres:12
-    ports:
-      - "${TEST_POSTGRES_12_PORT}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-12
-    shm_size: 1gb
-
-  test-postgres-13:
-    image: postgres:13
-    ports:
-      - "${TEST_POSTGRES_13_PORT}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-13
-    shm_size: 1gb
-
-  test-postgres-14:
-    image: postgres:14
-    ports:
-      - "${TEST_POSTGRES_14_PORT}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-14
-    shm_size: 1gb
-
-  test-postgres-15:
-    image: postgres:15
-    ports:
-      - "${TEST_POSTGRES_15_PORT}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-15
-    shm_size: 1gb
-
-  test-postgres-16:
+  # Shared logical-PostgreSQL fixture: the always-on DB that GetTestPostgresConfig /
+  # CreateTestDatabase point ~100 cross-suite tests at (backups, restores, verification,
+  # healthcheck). The per-version PG logical tests (14-18 + SSL + mTLS) run on
+  # testcontainers, so only 16 — the shared fixture — stays on compose.
+  test-logical-postgres-16:
     image: postgres:16
     ports:
-      - "${TEST_POSTGRES_16_PORT}:5432"
+      - "${TEST_LOGICAL_POSTGRES_16_PORT:-5004}:5432"
     environment:
       - POSTGRES_DB=testdb
       - POSTGRES_USER=testuser
       - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-16
+    container_name: test-logical-postgres-16
     shm_size: 1gb
 
-  test-postgres-17:
-    image: postgres:17
+  # Init script appends a password-protected replication rule so pg_basebackup
+  # works from the host through Docker NAT (default pg_hba only allows
+  # replication from 127.0.0.1/32, but the Docker bridge presents the host
+  # connection as the bridge subnet IP). scram-sha-256 keeps the password
+  # requirement intact.
+  test-physical-postgres-17:
+    build:
+      dockerfile_inline: |
+        FROM postgres:17
+        COPY --chmod=0755 <<"EOF" /docker-entrypoint-initdb.d/02_allow_replication.sh
+        #!/bin/bash
+        set -e
+        echo "host replication all all scram-sha-256" >> "$$PGDATA/pg_hba.conf"
+        EOF
     ports:
-      - "${TEST_POSTGRES_17_PORT}:5432"
+      - "${TEST_PHYSICAL_POSTGRES_17_PORT:-5007}:5432"
     environment:
       - POSTGRES_DB=testdb
       - POSTGRES_USER=testuser
       - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-17
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - summarize_wal=on
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=512MB
+    container_name: test-physical-postgres-17
     shm_size: 1gb
 
-  test-postgres-18:
+  test-physical-postgres-18:
+    build:
+      dockerfile_inline: |
+        FROM postgres:18
+        COPY --chmod=0755 <<"EOF" /docker-entrypoint-initdb.d/02_allow_replication.sh
+        #!/bin/bash
+        set -e
+        echo "host replication all all scram-sha-256" >> "$$PGDATA/pg_hba.conf"
+        EOF
+    ports:
+      - "${TEST_PHYSICAL_POSTGRES_18_PORT:-5008}:5432"
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpassword
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - summarize_wal=on
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=512MB
+    container_name: test-physical-postgres-18
+    shm_size: 1gb
+
+  # ================================================================
+  # Live WAL-backup rig (always-on, for manual remote-WAL testing)
+  # ================================================================
+
+  # Live PG 18 that continuously generates WAL (via the wal-backup-loader sidecar),
+  # for manually exercising remote WAL backups. Mirrors test-physical-postgres-18's
+  # physical-backup config; the loader sidecar drives the traffic.
+  wal-backup-postgres-18:
+    build:
+      dockerfile_inline: |
+        FROM postgres:18
+        COPY --chmod=0755 <<"EOF" /docker-entrypoint-initdb.d/02_allow_replication.sh
+        #!/bin/bash
+        set -e
+        echo "host replication all all scram-sha-256" >> "$$PGDATA/pg_hba.conf"
+        EOF
+    ports:
+      - "${WAL_BACKUP_POSTGRES_18_PORT:-5018}:5432"
+    environment:
+      - POSTGRES_DB=${WAL_BACKUP_DB_NAME:-testdb}
+      - POSTGRES_USER=${WAL_BACKUP_DB_USER:-testuser}
+      - POSTGRES_PASSWORD=${WAL_BACKUP_DB_PASSWORD:-testpassword}
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - summarize_wal=on
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=512MB
+    container_name: wal-backup-postgres-18
+    healthcheck:
+      # references the container's own POSTGRES_* env, so it follows the vars automatically
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    shm_size: 1gb
+
+  # Generates continuous WAL on wal-backup-postgres-18: random inserts every 10s,
+  # CHECKPOINT + WAL switch every 30s.
+  wal-backup-loader:
     image: postgres:18
-    ports:
-      - "${TEST_POSTGRES_18_PORT}:5432"
+    depends_on:
+      wal-backup-postgres-18:
+        condition: service_healthy
     environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    container_name: test-postgres-18
-    shm_size: 1gb
+      - PGHOST=wal-backup-postgres-18
+      - PGPORT=5432
+      - PGUSER=${WAL_BACKUP_DB_USER:-testuser}
+      - PGPASSWORD=${WAL_BACKUP_DB_PASSWORD:-testpassword}
+      - PGDATABASE=${WAL_BACKUP_DB_NAME:-testdb}
+    container_name: wal-backup-loader
+    restart: unless-stopped
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        psql -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS wal_test_rows (
+          id bigserial PRIMARY KEY,
+          payload text NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT now()
+        );"
+        iteration=0
+        while true; do
+          psql -v ON_ERROR_STOP=1 -c "INSERT INTO wal_test_rows (payload)
+            SELECT md5(random()::text) FROM generate_series(1, 100);"
+          iteration=$$((iteration + 1))
+          if (( iteration % 3 == 0 )); then
+            echo "force flush: CHECKPOINT + pg_switch_wal()"
+            psql -v ON_ERROR_STOP=1 -c "CHECKPOINT; SELECT pg_switch_wal();"
+          fi
+          sleep 10
+        done
 
-  # Test Azurite container
-  test-azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    ports:
-      - "${TEST_AZURITE_BLOB_PORT}:10000"
-    container_name: test-azurite
-    command: azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
-
-  # Test NAS server (Samba)
-  test-nas:
-    image: dperson/samba:latest
-    ports:
-      - "${TEST_NAS_PORT}:445"
-    environment:
-      - USERID=1000
-      - GROUPID=1000
-    volumes:
-      - ./temp/nas:/shared
-    command: >
-      -u "testuser;testpassword"
-      -s "backups;/shared;yes;no;no;testuser"
-      -p
-    container_name: test-nas
-
-  # Test FTP server
-  test-ftp:
-    image: stilliard/pure-ftpd:latest
-    ports:
-      - "${TEST_FTP_PORT}:21"
-      - "30000-30009:30000-30009"
-    environment:
-      - PUBLICHOST=localhost
-      - FTP_USER_NAME=testuser
-      - FTP_USER_PASS=testpassword
-      - FTP_USER_HOME=/home/ftpusers/testuser
-      - FTP_PASSIVE_PORTS=30000:30009
-    container_name: test-ftp
-
-  # Test SFTP server
-  test-sftp:
-    image: atmoz/sftp:latest
-    ports:
-      - "${TEST_SFTP_PORT}:22"
-    command: testuser:testpassword:1001::upload
-    container_name: test-sftp
-
-  # Test MySQL containers
-  test-mysql-57:
-    image: mysql:5.7
-    ports:
-      - "${TEST_MYSQL_57_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mysqldata/mysql-57:/var/lib/mysql
-    container_name: test-mysql-57
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mysql-80:
-    image: mysql:8.0
-    ports:
-      - "${TEST_MYSQL_80_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
-    volumes:
-      - ./mysqldata/mysql-80:/var/lib/mysql
-    container_name: test-mysql-80
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mysql-84:
-    image: mysql:8.4
-    ports:
-      - "${TEST_MYSQL_84_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mysqldata/mysql-84:/var/lib/mysql
-    container_name: test-mysql-84
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mysql-90:
-    image: mysql:9.5
-    ports:
-      - "${TEST_MYSQL_90_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mysqldata/mysql-90:/var/lib/mysql
-    container_name: test-mysql-90
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Test MariaDB containers
-  test-mariadb-55:
-    image: mariadb:5.5
-    ports:
-      - "${TEST_MARIADB_55_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8 --collation-server=utf8_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-55:/var/lib/mysql
-    container_name: test-mariadb-55
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-101:
-    image: mariadb:10.1
-    ports:
-      - "${TEST_MARIADB_101_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-101:/var/lib/mysql
-    container_name: test-mariadb-101
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-102:
-    image: mariadb:10.2
-    ports:
-      - "${TEST_MARIADB_102_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-102:/var/lib/mysql
-    container_name: test-mariadb-102
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-103:
-    image: mariadb:10.3
-    ports:
-      - "${TEST_MARIADB_103_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-103:/var/lib/mysql
-    container_name: test-mariadb-103
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-104:
-    image: mariadb:10.4
-    ports:
-      - "${TEST_MARIADB_104_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-104:/var/lib/mysql
-    container_name: test-mariadb-104
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-105:
-    image: mariadb:10.5
-    ports:
-      - "${TEST_MARIADB_105_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-105:/var/lib/mysql
-    container_name: test-mariadb-105
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-106:
-    image: mariadb:10.6
-    ports:
-      - "${TEST_MARIADB_106_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-106:/var/lib/mysql
-    container_name: test-mariadb-106
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-1011:
-    image: mariadb:10.11
-    ports:
-      - "${TEST_MARIADB_1011_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-1011:/var/lib/mysql
-    container_name: test-mariadb-1011
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-114:
-    image: mariadb:11.4
-    ports:
-      - "${TEST_MARIADB_114_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-114:/var/lib/mysql
-    container_name: test-mariadb-114
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-118:
-    image: mariadb:11.8
-    ports:
-      - "${TEST_MARIADB_118_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-118:/var/lib/mysql
-    container_name: test-mariadb-118
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-120:
-    image: mariadb:12.0
-    ports:
-      - "${TEST_MARIADB_120_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./mariadbdata/mariadb-120:/var/lib/mysql
-    container_name: test-mariadb-120
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Test MongoDB containers
-  test-mongodb-40:
-    image: mongo:4.0
-    container_name: test-mongodb-40
-    ports:
-      - "${TEST_MONGODB_40_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-42:
-    image: mongo:4.2
-    container_name: test-mongodb-42
-    ports:
-      - "${TEST_MONGODB_42_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-44:
-    image: mongo:4.4
-    container_name: test-mongodb-44
-    ports:
-      - "${TEST_MONGODB_44_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-50:
-    image: mongo:5.0
-    container_name: test-mongodb-50
-    ports:
-      - "${TEST_MONGODB_50_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-60:
-    image: mongo:6.0
-    container_name: test-mongodb-60
-    ports:
-      - "${TEST_MONGODB_60_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-70:
-    image: mongo:7.0
-    container_name: test-mongodb-70
-    ports:
-      - "${TEST_MONGODB_70_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mongodb-82:
-    image: mongo:8.2.3-noble
-    container_name: test-mongodb-82
-    ports:
-      - "${TEST_MONGODB_82_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # ================================================================
-  # SSL / TLS test containers
-  # One representative version per engine — the goal is to catch SSL
-  # handshake regressions without multiplying the version matrix.
-  # ================================================================
-
-  test-postgres-ssl:
-    build:
-      context: ./backend/internal/features/tests/testdata/ssl
-      dockerfile_inline: |
-        FROM postgres:18
-        COPY server.key /etc/ssl-test/server.key
-        COPY server.crt /etc/ssl-test/server.crt
-        COPY pg_hba.conf /etc/ssl-test/pg_hba.conf
-        RUN chown postgres:postgres /etc/ssl-test/server.key /etc/ssl-test/server.crt /etc/ssl-test/pg_hba.conf \
-         && chmod 600 /etc/ssl-test/server.key \
-         && chmod 644 /etc/ssl-test/server.crt /etc/ssl-test/pg_hba.conf
-    ports:
-      - "${TEST_POSTGRES_SSL_PORT}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    command: postgres -c ssl=on -c ssl_cert_file=/etc/ssl-test/server.crt -c ssl_key_file=/etc/ssl-test/server.key -c hba_file=/etc/ssl-test/pg_hba.conf
-    container_name: test-postgres-ssl
-    shm_size: 1gb
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Enforces mutual TLS - rejects TCP clients without a CA-signed client cert.
-  test-postgres-mtls:
-    build:
-      context: ./backend/internal/features/tests/testdata/mtls
-      dockerfile_inline: |
-        FROM postgres:18
-        COPY server.key /etc/ssl-test/server.key
-        COPY server.crt /etc/ssl-test/server.crt
-        COPY ca.crt /etc/ssl-test/ca.crt
-        COPY pg_hba.conf /etc/ssl-test/pg_hba.conf
-        RUN chown postgres:postgres /etc/ssl-test/server.key /etc/ssl-test/server.crt /etc/ssl-test/ca.crt /etc/ssl-test/pg_hba.conf \
-         && chmod 600 /etc/ssl-test/server.key \
-         && chmod 644 /etc/ssl-test/server.crt /etc/ssl-test/ca.crt /etc/ssl-test/pg_hba.conf
-    ports:
-      - "${TEST_POSTGRES_MTLS_PORT:-5181}:5432"
-    environment:
-      - POSTGRES_DB=testdb
-      - POSTGRES_USER=testuser
-      - POSTGRES_PASSWORD=testpassword
-    command: postgres -c ssl=on -c ssl_cert_file=/etc/ssl-test/server.crt -c ssl_key_file=/etc/ssl-test/server.key -c ssl_ca_file=/etc/ssl-test/ca.crt -c hba_file=/etc/ssl-test/pg_hba.conf
-    container_name: test-postgres-mtls
-    shm_size: 1gb
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mariadb-ssl:
-    image: mariadb:11.8
-    ports:
-      - "${TEST_MARIADB_SSL_PORT}:3306"
-    environment:
-      - MARIADB_ROOT_PASSWORD=rootpassword
-      - MARIADB_DATABASE=testdb
-      - MARIADB_USER=testuser
-      - MARIADB_PASSWORD=testpassword
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --require-secure-transport=ON
-    volumes:
-      - ./mariadbdata/mariadb-ssl:/var/lib/mysql
-    container_name: test-mariadb-ssl
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  test-mysql-ssl:
-    image: mysql:8.4
-    ports:
-      - "${TEST_MYSQL_SSL_PORT}:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=testdb
-      - MYSQL_USER=testuser
-      - MYSQL_PASSWORD=testpassword
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --require_secure_transport=ON
-    volumes:
-      - ./mysqldata/mysql-ssl:/var/lib/mysql
-    container_name: test-mysql-ssl
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # Certs baked in via build context — see test-postgres-ssl note.
-  test-mongodb-ssl:
-    build:
-      context: ./backend/internal/features/tests/testdata/ssl
-      dockerfile_inline: |
-        FROM mongo:8.2.3-noble
-        COPY server.pem /etc/ssl-test/server.pem
-        COPY server.crt /etc/ssl-test/server.crt
-        RUN chown mongodb:mongodb /etc/ssl-test/server.pem /etc/ssl-test/server.crt \
-         && chmod 600 /etc/ssl-test/server.pem \
-         && chmod 644 /etc/ssl-test/server.crt
-    container_name: test-mongodb-ssl
-    ports:
-      - "${TEST_MONGODB_SSL_PORT}:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-      MONGO_INITDB_DATABASE: testdb
-    command: mongod --auth --tlsMode requireTLS --tlsCertificateKeyFile /etc/ssl-test/server.pem --tlsCAFile /etc/ssl-test/server.crt --tlsAllowConnectionsWithoutCertificates
-    healthcheck:
-      test: ["CMD", "mongosh", "--tls", "--tlsAllowInvalidCertificates",
-             "-u", "root", "-p", "rootpassword", "--authenticationDatabase", "admin",
-             "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10

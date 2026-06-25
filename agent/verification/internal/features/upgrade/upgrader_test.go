@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,9 +27,6 @@ func goBuildHelper(t *testing.T, mainSrc string) string {
 	require.NoError(t, os.WriteFile(src, []byte(mainSrc), 0o644))
 
 	bin := filepath.Join(dir, "helper")
-	if runtime.GOOS == "windows" {
-		bin += ".exe"
-	}
 
 	out, err := exec.Command("go", "build", "-o", bin, src).CombinedOutput()
 	require.NoError(t, err, "build helper: %s", out)

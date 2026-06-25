@@ -14,7 +14,7 @@ import (
 
 	"databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
 	"databasus-backend/internal/features/databases"
 	users_enums "databasus-backend/internal/features/users/enums"
@@ -23,7 +23,7 @@ import (
 
 type ApiKeyService struct {
 	apiKeyRepository *ApiKeyRepository
-	backupService    *backups_services.BackupService
+	backupService    *backups_services.LogicalBackupService
 	databaseService  *databases.DatabaseService
 	auditLogService  *audit_logs.AuditLogService
 	logger           *slog.Logger
@@ -202,7 +202,7 @@ func (s *ApiKeyService) TriggerBackupForPrincipal(
 	principal *Principal,
 	databaseID uuid.UUID,
 	requestedTimeoutSeconds *int,
-) (*backups_core.Backup, error) {
+) (*backups_core_logical.LogicalBackup, error) {
 	logger := s.logger.With("api_key_id", principal.ApiKeyID, "database_id", databaseID)
 
 	database, err := s.databaseService.GetDatabaseByID(databaseID)
@@ -244,7 +244,7 @@ func (s *ApiKeyService) TriggerBackupForPrincipal(
 func buildTriggerAuditMessage(
 	principal *Principal,
 	database *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	triggerErr error,
 ) string {
 	outcome := describeTriggerOutcome(backup, triggerErr)
@@ -261,13 +261,13 @@ func buildTriggerAuditMessage(
 	)
 }
 
-func describeTriggerOutcome(backup *backups_core.Backup, triggerErr error) string {
+func describeTriggerOutcome(backup *backups_core_logical.LogicalBackup, triggerErr error) string {
 	switch {
 	case errors.Is(triggerErr, backups_services.ErrBackupWaitTimeout):
 		return "still running after sync timeout"
 	case triggerErr != nil:
 		return fmt.Sprintf("trigger failed: %v", triggerErr)
-	case backup != nil && backup.Status == backups_core.BackupStatusCompleted:
+	case backup != nil && backup.Status == backups_core_logical.BackupStatusCompleted:
 		return "completed"
 	case backup != nil:
 		return fmt.Sprintf("finished with status %s", backup.Status)
@@ -276,7 +276,7 @@ func describeTriggerOutcome(backup *backups_core.Backup, triggerErr error) strin
 	}
 }
 
-func logTriggerOutcome(logger *slog.Logger, backup *backups_core.Backup, triggerErr error) {
+func logTriggerOutcome(logger *slog.Logger, backup *backups_core_logical.LogicalBackup, triggerErr error) {
 	if backup != nil {
 		logger = logger.With("backup_id", backup.ID)
 	}
@@ -286,7 +286,7 @@ func logTriggerOutcome(logger *slog.Logger, backup *backups_core.Backup, trigger
 		logger.Warn("api key backup still running after sync timeout")
 	case triggerErr != nil:
 		logger.Error("api key backup trigger failed", "error", triggerErr)
-	case backup != nil && backup.Status == backups_core.BackupStatusCompleted:
+	case backup != nil && backup.Status == backups_core_logical.BackupStatusCompleted:
 		logger.Info("api key backup completed")
 	case backup != nil:
 		logger.Warn(fmt.Sprintf("api key backup finished with status %s", backup.Status))
@@ -296,7 +296,7 @@ func logTriggerOutcome(logger *slog.Logger, backup *backups_core.Backup, trigger
 func (s *ApiKeyService) GetBackupStatusForPrincipal(
 	principal *Principal,
 	backupID uuid.UUID,
-) (*backups_core.Backup, error) {
+) (*backups_core_logical.LogicalBackup, error) {
 	backup, err := s.backupService.GetBackup(backupID)
 	if err != nil {
 		return nil, ErrBackupNotFound

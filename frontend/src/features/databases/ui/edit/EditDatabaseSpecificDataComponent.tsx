@@ -1,17 +1,13 @@
 import { Modal } from 'antd';
 import { useState } from 'react';
 
-import {
-  type Database,
-  DatabaseType,
-  PostgresBackupType,
-  databaseApi,
-} from '../../../../entity/databases';
+import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
 import { CreateReadOnlyComponent } from './CreateReadOnlyComponent';
 import { EditMariaDbSpecificDataComponent } from './EditMariaDbSpecificDataComponent';
 import { EditMongoDbSpecificDataComponent } from './EditMongoDbSpecificDataComponent';
 import { EditMySqlSpecificDataComponent } from './EditMySqlSpecificDataComponent';
-import { EditPostgreSqlSpecificDataComponent } from './EditPostgreSqlSpecificDataComponent';
+import { EditPostgreSqlLogicalSpecificDataComponent } from './EditPostgreSqlLogicalSpecificDataComponent';
+import { EditPostgreSqlPhysicalSpecificDataComponent } from './EditPostgreSqlPhysicalSpecificDataComponent';
 
 interface Props {
   database: Database;
@@ -28,6 +24,8 @@ interface Props {
 
   isShowDbName?: boolean;
   isRestoreMode?: boolean;
+
+  onConnectionErrorChange?: (hasConnectionError: boolean) => void;
 }
 
 export const EditDatabaseSpecificDataComponent = ({
@@ -44,6 +42,7 @@ export const EditDatabaseSpecificDataComponent = ({
   onSaved,
   isShowDbName = true,
   isRestoreMode = false,
+  onConnectionErrorChange,
 }: Props) => {
   const [isShowReadOnlyDialog, setIsShowReadOnlyDialog] = useState(false);
   const [editingDatabase, setEditingDatabase] = useState<Database>(database);
@@ -52,15 +51,6 @@ export const EditDatabaseSpecificDataComponent = ({
     setEditingDatabase(databaseToSave);
 
     if (!isSaveToApi) {
-      onSaved(databaseToSave);
-      return;
-    }
-
-    const isWalBackup =
-      databaseToSave.type === DatabaseType.POSTGRES &&
-      databaseToSave.postgresql?.backupType === PostgresBackupType.WAL_V1;
-
-    if (isWalBackup) {
       onSaved(databaseToSave);
       return;
     }
@@ -132,8 +122,20 @@ export const EditDatabaseSpecificDataComponent = ({
   };
 
   switch (editingDatabase.type) {
-    case DatabaseType.POSTGRES:
-      return <EditPostgreSqlSpecificDataComponent {...commonProps} isRestoreMode={isRestoreMode} />;
+    case DatabaseType.POSTGRES_LOGICAL:
+      return (
+        <EditPostgreSqlLogicalSpecificDataComponent
+          {...commonProps}
+          isRestoreMode={isRestoreMode}
+        />
+      );
+    case DatabaseType.POSTGRES_PHYSICAL:
+      return (
+        <EditPostgreSqlPhysicalSpecificDataComponent
+          {...commonProps}
+          onConnectionErrorChange={onConnectionErrorChange}
+        />
+      );
     case DatabaseType.MYSQL:
       return <EditMySqlSpecificDataComponent {...commonProps} />;
     case DatabaseType.MARIADB:

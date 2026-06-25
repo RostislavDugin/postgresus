@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_dto "databasus-backend/internal/features/backups/backups/dto"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_dto_logical "databasus-backend/internal/features/backups/backups/dto/logical"
 	test_utils "databasus-backend/internal/util/testing"
 )
 
@@ -101,10 +101,10 @@ func GetBackupViaAPI(
 	router *gin.Engine,
 	userToken string,
 	databaseID, backupID uuid.UUID,
-) *backups_core.Backup {
+) *backups_core_logical.LogicalBackup {
 	t.Helper()
 
-	var response backups_dto.GetBackupsResponse
+	var response backups_dto_logical.GetBackupsResponse
 	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,

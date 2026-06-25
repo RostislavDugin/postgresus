@@ -1,11 +1,11 @@
-import type { PostgresqlDatabase } from '../../databases';
+import type { PostgresqlLogicalDatabase } from '../../databases';
 import { RestoreStatus } from './RestoreStatus';
 
 export interface Restore {
   id: string;
   status: RestoreStatus;
 
-  postgresql?: PostgresqlDatabase;
+  postgresql?: PostgresqlLogicalDatabase;
 
   failMessage?: string;
 

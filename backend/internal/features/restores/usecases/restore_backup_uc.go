@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	restores_core "databasus-backend/internal/features/restores/core"
 	usecases_mariadb "databasus-backend/internal/features/restores/usecases/mariadb"
@@ -24,16 +24,16 @@ type RestoreBackupUsecase struct {
 
 func (uc *RestoreBackupUsecase) Execute(
 	ctx context.Context,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
 	switch originalDB.Type {
-	case databases.DatabaseTypePostgres:
+	case databases.DatabaseTypePostgresLogical:
 		return uc.restorePostgresqlBackupUsecase.Execute(
 			ctx,
 			originalDB,
@@ -42,7 +42,7 @@ func (uc *RestoreBackupUsecase) Execute(
 			restore,
 			backup,
 			storage,
-			isExcludeExtensions,
+			options,
 		)
 	case databases.DatabaseTypeMysql:
 		return uc.restoreMysqlBackupUsecase.Execute(

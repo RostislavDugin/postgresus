@@ -3,10 +3,11 @@ package container
 import "github.com/google/uuid"
 
 type SpawnRequest struct {
-	PgMajor        string
-	CPUPerJob      int
-	RAMMbPerJob    int
-	VerificationID uuid.UUID
+	PgMajor            string
+	CPUPerJob          int
+	RAMMbPerJob        int
+	VerificationID     uuid.UUID
+	TimescaledbVersion string
 }
 
 type spawnPlan struct {

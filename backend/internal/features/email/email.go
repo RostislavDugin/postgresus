@@ -20,13 +20,14 @@ const (
 )
 
 type EmailSMTPSender struct {
-	logger       *slog.Logger
-	smtpHost     string
-	smtpPort     int
-	smtpUser     string
-	smtpPassword string
-	smtpFrom     string
-	isConfigured bool
+	logger               *slog.Logger
+	smtpHost             string
+	smtpPort             int
+	smtpUser             string
+	smtpPassword         string
+	smtpFrom             string
+	isInsecureSkipVerify bool
+	isConfigured         bool
 }
 
 func (s *EmailSMTPSender) SendEmail(to, subject, body string) error {
@@ -112,7 +113,7 @@ func (s *EmailSMTPSender) sendStartTLS(
 
 func (s *EmailSMTPSender) createImplicitTLSClient() (*smtp.Client, func(), error) {
 	addr := net.JoinHostPort(s.smtpHost, fmt.Sprintf("%d", s.smtpPort))
-	tlsConfig := &tls.Config{ServerName: s.smtpHost}
+	tlsConfig := &tls.Config{ServerName: s.smtpHost, InsecureSkipVerify: s.isInsecureSkipVerify}
 	dialer := &net.Dialer{Timeout: DefaultTimeout}
 
 	conn, err := (&tls.Dialer{NetDialer: dialer, Config: tlsConfig}).DialContext(context.Background(), "tcp", addr)
@@ -151,7 +152,10 @@ func (s *EmailSMTPSender) createStartTLSClient() (*smtp.Client, func(), error) {
 	}
 
 	if ok, _ := client.Extension("STARTTLS"); ok {
-		if err := client.StartTLS(&tls.Config{ServerName: s.smtpHost}); err != nil {
+		if err := client.StartTLS(&tls.Config{
+			ServerName:         s.smtpHost,
+			InsecureSkipVerify: s.isInsecureSkipVerify,
+		}); err != nil {
 			_ = client.Quit()
 			_ = conn.Close()
 			return nil, nil, fmt.Errorf("STARTTLS failed: %w", err)

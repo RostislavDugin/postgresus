@@ -3,6 +3,7 @@ package telemetry
 type DatabaseEntry struct {
 	Type         string                     `json:"type"`
 	Version      string                     `json:"version"`
+	BackupType   string                     `json:"backupType,omitzero"`
 	RawSizeMb    int64                      `json:"rawSizeMb,omitzero"`
 	BackupSizeMb int64                      `json:"backupSizeMb,omitzero"`
 	Verification *DatabaseVerificationEntry `json:"verification,omitempty"`
@@ -27,6 +28,7 @@ type CollectRequest struct {
 	OS                 string                   `json:"os"`
 	Arch               string                   `json:"arch"`
 	InstalledAt        string                   `json:"installedAt,omitempty"`
+	UserCount          int                      `json:"userCount,omitzero"`
 	Databases          []DatabaseEntry          `json:"databases"`
 	Storages           []string                 `json:"storages"`
 	Notifiers          []string                 `json:"notifiers"`

@@ -3,15 +3,9 @@
 -include .env
 export
 
-ifeq ($(shell uname),)
-CLEAN_ARTIFACTS := if exist e2e\artifacts rmdir /s /q e2e\artifacts
-DOWN_QUIET := cd e2e && docker compose down -v --remove-orphans 2>NUL
-DOWN_CLEAN_QUIET := cd e2e && docker compose down -v --rmi local 2>NUL
-else
 CLEAN_ARTIFACTS := rm -rf e2e/artifacts
 DOWN_QUIET := cd e2e && docker compose down -v --remove-orphans 2>/dev/null
 DOWN_CLEAN_QUIET := cd e2e && docker compose down -v --rmi local 2>/dev/null
-endif
 
 run:
 	go run ./cmd run \

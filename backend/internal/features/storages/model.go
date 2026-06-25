@@ -25,7 +25,6 @@ type Storage struct {
 	Type          StorageType `json:"type"          gorm:"column:type;not null;type:text"`
 	Name          string      `json:"name"          gorm:"column:name;not null;type:text"`
 	LastSaveError *string     `json:"lastSaveError" gorm:"column:last_save_error;type:text"`
-	IsSystem      bool        `json:"isSystem"      gorm:"column:is_system;not null;default:false"`
 
 	// specific storage
 	LocalStorage       *local_storage.LocalStorage              `json:"localStorage"       gorm:"foreignKey:StorageID"`
@@ -88,17 +87,6 @@ func (s *Storage) HideSensitiveData() {
 	s.getSpecificStorage().HideSensitiveData()
 }
 
-func (s *Storage) HideAllData() {
-	s.LocalStorage = nil
-	s.S3Storage = nil
-	s.GoogleDriveStorage = nil
-	s.NASStorage = nil
-	s.AzureBlobStorage = nil
-	s.FTPStorage = nil
-	s.SFTPStorage = nil
-	s.RcloneStorage = nil
-}
-
 func (s *Storage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) error {
 	return s.getSpecificStorage().EncryptSensitiveData(encryptor)
 }
@@ -106,7 +94,6 @@ func (s *Storage) EncryptSensitiveData(encryptor encryption.FieldEncryptor) erro
 func (s *Storage) Update(incoming *Storage) {
 	s.Name = incoming.Name
 	s.Type = incoming.Type
-	s.IsSystem = incoming.IsSystem
 
 	switch s.Type {
 	case StorageTypeLocal:

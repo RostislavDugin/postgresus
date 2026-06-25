@@ -8,18 +8,20 @@ import {
 import { Button, Input, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { backupConfigApi } from '../../../entity/backups';
-import {
-  type Database,
-  DatabaseType,
-  PostgresBackupType,
-  databaseApi,
-} from '../../../entity/databases';
-import type { UserProfile } from '../../../entity/users';
+import { logicalBackupConfigApi } from '../../../entity/backups/logical';
+import { physicalBackupConfigApi } from '../../../entity/backups/physical';
+import { type Database, DatabaseType, databaseApi } from '../../../entity/databases';
 import { ClipboardHelper } from '../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
-import { EditBackupConfigComponent, ShowBackupConfigComponent } from '../../backups';
+import {
+  EditLogicalBackupConfigComponent,
+  ShowLogicalBackupConfigComponent,
+} from '../../backups/logical';
+import {
+  EditPhysicalBackupConfigComponent,
+  ShowPhysicalBackupConfigComponent,
+} from '../../backups/physical';
 import { EditHealthcheckConfigComponent, ShowHealthcheckConfigComponent } from '../../healthcheck';
 import {
   EditBackupVerificationConfigComponent,
@@ -33,7 +35,6 @@ import { ShowDatabaseSpecificDataComponent } from './show/ShowDatabaseSpecificDa
 
 interface Props {
   database: Database;
-  user: UserProfile;
   setDatabase: (database?: Database | undefined) => void;
   onDatabaseChanged: (database: Database) => void;
   onDatabaseDeleted: () => void;
@@ -45,7 +46,6 @@ interface Props {
 
 export const DatabaseConfigComponent = ({
   database,
-  user,
   setDatabase,
   onDatabaseChanged,
   onDatabaseDeleted,
@@ -72,11 +72,17 @@ export const DatabaseConfigComponent = ({
   const [isShowTransferDialog, setIsShowTransferDialog] = useState(false);
   const [currentStorageId, setCurrentStorageId] = useState<string | undefined>();
 
+  const isPhysicalDatabase = database.type === DatabaseType.POSTGRES_PHYSICAL;
+
   useEffect(() => {
-    backupConfigApi.getBackupConfigByDbID(database.id).then((config) => {
+    const loadStorageId = isPhysicalDatabase
+      ? physicalBackupConfigApi.getPhysicalBackupConfigByDbId(database.id)
+      : logicalBackupConfigApi.getBackupConfigByDbID(database.id);
+
+    loadStorageId.then((config) => {
       setCurrentStorageId(config.storage?.id);
     });
-  }, [database.id]);
+  }, [database.id, isPhysicalDatabase]);
 
   const loadSettings = () => {
     setDatabase(undefined);
@@ -203,10 +209,7 @@ export const DatabaseConfigComponent = ({
       });
   };
 
-  const isWalDatabase = database.postgresql?.backupType === PostgresBackupType.WAL_V1;
-  const isPostgresLogicalDatabase =
-    database.type === DatabaseType.POSTGRES &&
-    database.postgresql?.backupType !== PostgresBackupType.WAL_V1;
+  const isPostgresDatabase = database.type === DatabaseType.POSTGRES_LOGICAL;
 
   return (
     <div className="relative w-full rounded-tr-md rounded-br-md rounded-bl-md bg-white p-3 shadow sm:p-5 dark:bg-gray-800">
@@ -367,21 +370,37 @@ export const DatabaseConfigComponent = ({
           <div>
             <div className="mt-1 text-sm">
               {isEditBackupConfig ? (
-                <EditBackupConfigComponent
-                  database={database}
-                  user={user}
-                  isShowCancelButton
-                  onCancel={() => {
-                    setIsEditBackupConfig(false);
-                    loadSettings();
-                  }}
-                  isSaveToApi={true}
-                  onSaved={() => onDatabaseChanged(database)}
-                  isShowBackButton={false}
-                  onBack={() => {}}
-                />
+                isPhysicalDatabase ? (
+                  <EditPhysicalBackupConfigComponent
+                    database={database}
+                    isShowCancelButton
+                    onCancel={() => {
+                      setIsEditBackupConfig(false);
+                      loadSettings();
+                    }}
+                    isSaveToApi={true}
+                    onSaved={() => onDatabaseChanged(database)}
+                    isShowBackButton={false}
+                    onBack={() => {}}
+                  />
+                ) : (
+                  <EditLogicalBackupConfigComponent
+                    database={database}
+                    isShowCancelButton
+                    onCancel={() => {
+                      setIsEditBackupConfig(false);
+                      loadSettings();
+                    }}
+                    isSaveToApi={true}
+                    onSaved={() => onDatabaseChanged(database)}
+                    isShowBackButton={false}
+                    onBack={() => {}}
+                  />
+                )
+              ) : isPhysicalDatabase ? (
+                <ShowPhysicalBackupConfigComponent database={database} />
               ) : (
-                <ShowBackupConfigComponent database={database} />
+                <ShowLogicalBackupConfigComponent database={database} />
               )}
             </div>
           </div>
@@ -389,40 +408,35 @@ export const DatabaseConfigComponent = ({
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:flex-wrap lg:gap-10">
-        {!isWalDatabase && (
-          <div className="w-full lg:w-[400px]">
-            <div className="mt-5 flex items-center font-bold">
-              <div>Healthcheck settings</div>
+        <div className="w-full lg:w-[400px]">
+          <div className="mt-5 flex items-center font-bold">
+            <div>Healthcheck settings</div>
 
-              {!isEditHealthcheckSettings && isCanManageDBs ? (
-                <div
-                  className="ml-2 h-4 w-4 cursor-pointer"
-                  onClick={() => startEdit('healthcheck')}
-                >
-                  <img src="/icons/pen-gray.svg" />
-                </div>
-              ) : (
-                <div />
-              )}
-            </div>
-
-            <div className="mt-1 text-sm">
-              {isEditHealthcheckSettings ? (
-                <EditHealthcheckConfigComponent
-                  databaseId={database.id}
-                  onClose={() => {
-                    setIsEditHealthcheckSettings(false);
-                    loadSettings();
-                  }}
-                />
-              ) : (
-                <ShowHealthcheckConfigComponent databaseId={database.id} />
-              )}
-            </div>
+            {!isEditHealthcheckSettings && isCanManageDBs ? (
+              <div className="ml-2 h-4 w-4 cursor-pointer" onClick={() => startEdit('healthcheck')}>
+                <img src="/icons/pen-gray.svg" />
+              </div>
+            ) : (
+              <div />
+            )}
           </div>
-        )}
 
-        {isPostgresLogicalDatabase && (
+          <div className="mt-1 text-sm">
+            {isEditHealthcheckSettings ? (
+              <EditHealthcheckConfigComponent
+                databaseId={database.id}
+                onClose={() => {
+                  setIsEditHealthcheckSettings(false);
+                  loadSettings();
+                }}
+              />
+            ) : (
+              <ShowHealthcheckConfigComponent databaseId={database.id} />
+            )}
+          </div>
+        </div>
+
+        {isPostgresDatabase && (
           <div className="w-full lg:w-[400px]">
             <div className="mt-5 flex items-center font-bold">
               <div>Restore verification</div>
@@ -561,7 +575,6 @@ export const DatabaseConfigComponent = ({
       {isShowTransferDialog && (
         <DatabaseTransferDialogComponent
           database={database}
-          user={user}
           currentStorageId={currentStorageId}
           onClose={() => setIsShowTransferDialog(false)}
           onTransferred={() => {

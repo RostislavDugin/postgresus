@@ -277,6 +277,75 @@ helm install databasus oci://ghcr.io/databasus/charts/databasus \
   -f storage-values.yaml
 ```
 
+## Pod Security / Hardening
+
+On a cluster that enforces the restricted Pod Security Standard (or runs scanners
+like Kyverno, Kubescape or Polaris), tune the following values.
+
+| Parameter                                    | Description                                              | Default Value |
+| -------------------------------------------- | -------------------------------------------------------- | ------------- |
+| `serviceAccount.create`                      | Provision a dedicated ServiceAccount                     | `false`       |
+| `serviceAccount.name`                        | Override the ServiceAccount name (else default/fullname) | `""`          |
+| `serviceAccount.annotations`                 | Annotations for the created ServiceAccount               | `{}`          |
+| `serviceAccount.automountServiceAccountToken`| Mount the SA token into the pod                          | `false`       |
+| `podSecurityContext`                         | Pod-level security context                               | `{}`          |
+| `securityContext`                            | Container-level security context                         | `{}`          |
+| `podAnnotations`                             | Pod annotations (e.g. AppArmor profile)                  | `{}`          |
+| `extraVolumes` / `extraVolumeMounts`         | Extra volumes/mounts (e.g. emptyDir for read-only rootfs)| `[]`          |
+
+The app does **not** automount the ServiceAccount token by default
+(`automountServiceAccountToken: false`), which clears the common
+`AutomountServiceAccountTokenTrueAndDefaultSA` finding even on the namespace
+`default` ServiceAccount.
+
+A restricted-PSS values example wiring seccomp, no privilege escalation, AppArmor,
+a dedicated ServiceAccount and a read-only root filesystem:
+
+```yaml
+# hardened-values.yaml
+serviceAccount:
+  create: true
+
+podAnnotations:
+  container.apparmor.security.beta.kubernetes.io/databasus: runtime/default
+
+podSecurityContext:
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+      - ALL
+    # gosu drops privileges from the root entrypoint; these are required.
+    add:
+      - SETUID
+      - SETGID
+
+# Writable paths required while the root filesystem is read-only.
+extraVolumes:
+  - name: tmp
+    emptyDir: {}
+  - name: var-run
+    emptyDir: {}
+extraVolumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  - name: var-run
+    mountPath: /var/run
+```
+
+> **Not supported by design:** `runAsNonRoot: true` and dropping **all**
+> capabilities. The entrypoint must start as root to handle PUID/PGID remapping,
+> volume `chown` and PostgreSQL `initdb`, then drops to a non-root user with
+> `gosu` (which requires `SETUID`/`SETGID`). See the note in `values.yaml`
+> next to `podSecurityContext`.
+
 ## Upgrade
 
 ```bash

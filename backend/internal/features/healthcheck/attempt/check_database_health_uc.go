@@ -180,8 +180,8 @@ func (uc *CheckDatabaseHealthUseCase) validateDatabase(
 	database *databases.Database,
 ) error {
 	switch database.Type {
-	case databases.DatabaseTypePostgres:
-		if database.Postgresql == nil {
+	case databases.DatabaseTypePostgresLogical:
+		if database.PostgresqlLogical == nil {
 			return fmt.Errorf("database Postgresql config is not set")
 		}
 	case databases.DatabaseTypeMysql:

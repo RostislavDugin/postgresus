@@ -12,12 +12,7 @@ import (
 // current GOOS+GOARCH. Panics on unsupported combinations because the app
 // cannot operate without DB client binaries.
 func archAssetsKey() string {
-	switch runtime.GOOS {
-	case "windows":
-		if runtime.GOARCH == "amd64" {
-			return "win-x64"
-		}
-	case "linux":
+	if runtime.GOOS == "linux" {
 		if runtime.GOARCH == "arm64" {
 			return "arm"
 		}

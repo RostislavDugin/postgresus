@@ -8,7 +8,6 @@ databasus-verification.lock
 .test-tmp/
 
 # Local build artifacts (host binaries)
-*.exe
 databasus-verification-agent
 
 # E2E working directories

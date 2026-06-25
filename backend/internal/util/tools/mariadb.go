@@ -70,7 +70,7 @@ func GetMariadbExecutable(
 	executable MariadbExecutable,
 ) string {
 	clientVersion := GetMariadbClientVersionForServer(serverVersion)
-	return filepath.Join(getMariadbBinDir(clientVersion), withExeOnWindows(string(executable)))
+	return filepath.Join(getMariadbBinDir(clientVersion), string(executable))
 }
 
 func getMariadbBinDir(clientVersion MariadbClientVersion) string {

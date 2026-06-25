@@ -35,7 +35,7 @@ curl -sf -X POST "$MOCK/mock/set-backup-fixture" \
 
 curl -sf -X POST "$MOCK/mock/set-claim" \
   -H 'Content-Type: application/json' \
-  -d "{\"verificationId\":\"$VERIFICATION_ID\",\"backupId\":\"$BACKUP_ID\",\"backupSizeMb\":1,\"maxContainerDiskMb\":2048,\"database\":{\"type\":\"POSTGRES\",\"postgresql\":{\"version\":\"${PG_VERSION}\"}}}"
+  -d "{\"verificationId\":\"$VERIFICATION_ID\",\"backupId\":\"$BACKUP_ID\",\"backupSizeMb\":1,\"maxContainerDiskMb\":2048,\"database\":{\"type\":\"POSTGRES_LOGICAL\",\"postgresqlLogical\":{\"version\":\"${PG_VERSION}\"}}}"
 
 wait_for_report '"status":"COMPLETED"' 240 '"status":"FAILED"'
 

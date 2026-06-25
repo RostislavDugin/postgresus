@@ -63,6 +63,20 @@ export const ShowMariaDbSpecificDataComponent = ({ database }: Props) => {
         </div>
       )}
 
+      {database.mariadb?.isUseExtendedInsert && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Use extended inserts</div>
+          <div>Yes</div>
+        </div>
+      )}
+
+      {database.mariadb?.isSkipGaleraDisable && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Galera replication</div>
+          <div>Skip disabling on restore</div>
+        </div>
+      )}
+
       {!!database.mariadb?.excludeTables?.length && (
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Exclude tables</div>

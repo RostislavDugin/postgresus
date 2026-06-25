@@ -9,6 +9,7 @@ TESTS=(
   "test-startup-purge.sh"
   "test-restore-broken.sh"
   "test-restore-disk-budget.sh"
+  "test-restore-timescale.sh"
 )
 
 PG_VERSIONS=(12 13 14 15 16 17 18)

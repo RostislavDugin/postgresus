@@ -192,6 +192,9 @@ func (r *barrierRestorer) RunPgRestore(
 	return restore.Result{PgRestoreExitCode: 0, DurationMs: 1}, nil
 }
 
+func (r *barrierRestorer) RunTimescalePreRestore(context.Context, dbconn.Conn) error  { return nil }
+func (r *barrierRestorer) RunTimescalePostRestore(context.Context, dbconn.Conn) error { return nil }
+
 func makeConcurrentAssignment(id uuid.UUID) *api.JobAssignment {
 	return &api.JobAssignment{
 		VerificationID:     id,
@@ -199,8 +202,8 @@ func makeConcurrentAssignment(id uuid.UUID) *api.JobAssignment {
 		BackupSizeMb:       1,
 		MaxContainerDiskMb: 0,
 		Database: api.AssignedDatabase{
-			Type:       "POSTGRES",
-			Postgresql: &api.AssignedPostgresql{Version: "16"},
+			Type:              "POSTGRES_LOGICAL",
+			PostgresqlLogical: &api.AssignedPostgresql{Version: "16"},
 		},
 	}
 }

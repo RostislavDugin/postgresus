@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	physical_core_service "databasus-backend/internal/features/backups/backups/core/physical/service"
 	"databasus-backend/internal/features/notifiers"
 	users_services "databasus-backend/internal/features/users/services"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -23,6 +24,7 @@ var databaseService = &DatabaseService{
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	encryption.GetFieldEncryptor(),
+	physical_core_service.GetPhysicalBackupService(),
 }
 
 var databaseController = &DatabaseController{

@@ -18,9 +18,15 @@ const (
 	containerReadyTimeout = 60 * time.Second
 	readyPollInterval     = 1 * time.Second
 
-	// engineImageRepo is the official Postgres image; the job's major version
-	// (from the backend assignment) is appended as the tag.
-	engineImageRepo = "postgres"
+	// stockEngineImageRepo is the official Postgres image; the job's major version
+	// (from the backend assignment) is appended as the tag. It is the fallback
+	// when the configured (extension-bundling) repo can't be pulled.
+	stockEngineImageRepo = "postgres"
+
+	// timescaleImageRepo carries the timescaledb extension; the tag is
+	// "<extversion>-pg<major>" so the engine matches the dump exactly
+	// (pg_restore cannot cross extension versions).
+	timescaleImageRepo = "timescale/timescaledb"
 )
 
 // minimalCaps are the only capabilities added back after CapDrop ALL — exactly
@@ -46,20 +52,23 @@ var restoreTunedPostgresCmd = []string{
 }
 
 type Manager struct {
-	engine  *dockerEngine
-	agentID string
-	log     *slog.Logger
+	engine          *dockerEngine
+	agentID         string
+	engineImageRepo string
+	log             *slog.Logger
 }
 
 func NewManager(
 	engine *dockerEngine,
 	agentID string,
+	engineImageRepo string,
 	log *slog.Logger,
 ) *Manager {
 	return &Manager{
-		engine:  engine,
-		agentID: agentID,
-		log:     log,
+		engine:          engine,
+		agentID:         agentID,
+		engineImageRepo: engineImageRepo,
+		log:             log,
 	}
 }
 
@@ -94,10 +103,25 @@ func (m *Manager) PurgeContainers(ctx context.Context) {
 // Spawn's every failure is pre-pg_restore — the runner reports it with no exit
 // code (retryable AgentSetupFailed), never BackupRejected.
 func (m *Manager) Spawn(jobCtx context.Context, req SpawnRequest) (*PostgresContainer, error) {
-	image := imageForMajor(req.PgMajor)
+	image := imageForJob(req, m.engineImageRepo)
 
 	if err := m.engine.EnsureImage(jobCtx, image); err != nil {
-		return nil, fmt.Errorf("ensure image: %w", err)
+		fallbackImage, canFallBack := stockFallbackImage(req, image)
+		if !canFallBack {
+			return nil, fmt.Errorf("ensure image: %w", err)
+		}
+
+		// The extension-bundling image is unreachable (registry down, air-gapped,
+		// not yet published). Fall back to the stock Postgres image; missing
+		// extensions then surface as ignored pg_restore errors the runner tolerates.
+		m.log.Warn("bundled verification image unavailable; falling back to stock postgres image",
+			"bundled_image", image, "stock_image", fallbackImage, "error", err)
+
+		image = fallbackImage
+
+		if err := m.engine.EnsureImage(jobCtx, image); err != nil {
+			return nil, fmt.Errorf("ensure stock image: %w", err)
+		}
 	}
 
 	password, err := randomPassword()
@@ -239,11 +263,33 @@ func pingOnce(ctx context.Context, conn dbconn.Conn) bool {
 	return pgConn.Ping(pingCtx) == nil
 }
 
-// imageForMajor returns the Docker image tag the agent spawns for a given
-// Postgres major. Extracted so the major-to-image contract is unit-testable
-// without standing up a Docker engine.
-func imageForMajor(pgMajor string) string {
+func imageForJob(req SpawnRequest, engineImageRepo string) string {
+	if req.TimescaledbVersion != "" {
+		return fmt.Sprintf("%s:%s-pg%s", timescaleImageRepo, req.TimescaledbVersion, req.PgMajor)
+	}
+
+	return imageForMajor(req.PgMajor, engineImageRepo)
+}
+
+func imageForMajor(pgMajor, engineImageRepo string) string {
 	return engineImageRepo + ":" + pgMajor
+}
+
+// stockFallbackImage decides whether a failed pull of the configured image may
+// retry against the official Postgres image. Timescale jobs need their exact
+// version-matched image (pg_restore cannot cross extension versions), so they
+// never fall back; nor does a job already targeting the stock repo.
+func stockFallbackImage(req SpawnRequest, attemptedImage string) (string, bool) {
+	if req.TimescaledbVersion != "" {
+		return "", false
+	}
+
+	stockImage := imageForMajor(req.PgMajor, stockEngineImageRepo)
+	if stockImage == attemptedImage {
+		return "", false
+	}
+
+	return stockImage, true
 }
 
 func randomPassword() (string, error) {

@@ -19,6 +19,9 @@ var initCache = sync.OnceFunc(func() {
 		InitAddress: []string{env.ValkeyHost + ":" + env.ValkeyPort},
 		Password:    env.ValkeyPassword,
 		Username:    env.ValkeyUsername,
+		// 0 in production; per-worker logical DB under `go test` so parallel test
+		// binaries never share keys (see config.applyTestWorkerSlot).
+		SelectDB: env.ValkeySelectDB,
 	}
 
 	if env.ValkeyIsSsl {
@@ -78,6 +81,18 @@ func TestCacheConnection() {
 	if cleanupCheck != nil {
 		panic("Cache test failed: test key was not properly invalidated")
 	}
+}
+
+// FlushAll wipes every key across all Valkey logical DBs (FLUSHALL), regardless
+// of which DB the client selected. Used by cleanup_test_db to reset the cache for
+// every test worker slot at once; ClearAllCache only touches the selected DB.
+func FlushAll() error {
+	client := getCache()
+
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultQueueTimeout)
+	defer cancel()
+
+	return client.Do(ctx, client.B().Flushall().Build()).Error()
 }
 
 func ClearAllCache() error {

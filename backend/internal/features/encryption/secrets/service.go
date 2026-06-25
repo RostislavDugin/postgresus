@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -33,6 +34,10 @@ func (s *SecretKeyService) MigrateKeyFromDbToFileIfExist() error {
 	}
 
 	secretKeyPath := config.GetEnv().SecretKeyPath
+	if err := os.MkdirAll(filepath.Dir(secretKeyPath), 0o755); err != nil {
+		return fmt.Errorf("failed to create secret key directory: %w", err)
+	}
+
 	if err := os.WriteFile(secretKeyPath, []byte(secretKey.Secret), 0o600); err != nil {
 		return fmt.Errorf("failed to write secret key to file: %w", err)
 	}
@@ -54,6 +59,10 @@ func (s *SecretKeyService) GetSecretKey() (string, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			newKey := s.generateNewSecretKey()
+			if err := os.MkdirAll(filepath.Dir(secretKeyPath), 0o755); err != nil {
+				return "", fmt.Errorf("failed to create secret key directory: %w", err)
+			}
+
 			if err := os.WriteFile(secretKeyPath, []byte(newKey), 0o600); err != nil {
 				return "", fmt.Errorf("failed to write new secret key: %w", err)
 			}

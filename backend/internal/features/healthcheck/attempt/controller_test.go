@@ -222,10 +222,10 @@ func createTestDatabaseViaAPI(
 	router *gin.Engine,
 ) *databases.Database {
 	request := databases.Database{
-		WorkspaceID: &workspaceID,
-		Name:        name,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql:  databases.GetTestPostgresConfig(),
+		WorkspaceID:       &workspaceID,
+		Name:              name,
+		Type:              databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: databases.GetTestPostgresConfig(),
 	}
 
 	w := workspaces_testing.MakeAPIRequest(

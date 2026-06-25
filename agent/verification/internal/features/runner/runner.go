@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -43,10 +44,11 @@ var errAbortNoReport = errors.New("verification aborted; no report")
 var backupDownloadBackoffFn = backupDownloadBackoff
 
 type SpawnRequest struct {
-	PgMajor        string
-	CPUPerJob      int
-	RAMMbPerJob    int
-	VerificationID uuid.UUID
+	PgMajor            string
+	CPUPerJob          int
+	RAMMbPerJob        int
+	VerificationID     uuid.UUID
+	TimescaledbVersion string
 }
 
 type Runner struct {
@@ -162,10 +164,11 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 	}
 
 	jobContainer, err := r.spawner.Spawn(jobCtx, SpawnRequest{
-		PgMajor:        pgMajor,
-		CPUPerJob:      r.capacity.CPUPerJob,
-		RAMMbPerJob:    r.capacity.RAMMbPerJob,
-		VerificationID: job.VerificationID,
+		PgMajor:            pgMajor,
+		CPUPerJob:          r.capacity.CPUPerJob,
+		RAMMbPerJob:        r.capacity.RAMMbPerJob,
+		VerificationID:     job.VerificationID,
+		TimescaledbVersion: job.TimescaledbVersion,
 	})
 	if err != nil {
 		if jobCtx.Err() != nil {
@@ -233,6 +236,27 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 
 	parallelJobs := min(maxParallelRestoreJobs, r.capacity.CPUPerJob)
 
+	// TimescaleDB restores single-threaded and in restoring mode. Single-threaded because parallel
+	// pg_restore loads dependent _timescaledb_catalog rows before the rows they reference, tripping
+	// the catalog's own foreign keys. post_restore runs on the success path below, before stats; on
+	// failure the throwaway container is discarded, so nothing is left in restoring mode to repair
+	// (no defer, unlike the backend's user-facing restore). The hooks use the verifier (host) conn
+	// while pg_restore uses the in-container conn, but the database-level restoring GUC carries across.
+	if job.TimescaledbVersion != "" {
+		parallelJobs = 1
+
+		if err := r.restorer.RunTimescalePreRestore(jobCtx, jobContainer.GetVerifierConn()); err != nil {
+			if jobCtx.Err() != nil {
+				return
+			}
+
+			r.reportFailure(ctx, job.VerificationID, nil,
+				fmt.Sprintf("timescaledb_pre_restore: %v", err), runLogger)
+
+			return
+		}
+	}
+
 	restoreResult, err := r.restorer.RunPgRestore(
 		jobCtx, jobContainer, archivePath, jobContainer.GetInContainerConn(), parallelJobs)
 	if err != nil {
@@ -246,17 +270,25 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 			return
 		}
 
-		if errors.Is(err, restore.ErrRestoreFailed) {
-			if restore.IsDiskExhausted(restoreResult.StderrTail) {
-				// Hitting the estimate-derived ceiling is agent infra, not
-				// proof the backup is corrupt — omit the exit code so the
-				// backend retries (AgentSetupFailed), never BackupRejected.
-				r.reportFailure(ctx, job.VerificationID, nil,
-					fmt.Sprintf("pg_restore hit job disk ceiling: %v", err), runLogger)
+		if !errors.Is(err, restore.ErrRestoreFailed) {
+			// Exec-infrastructure failure (no usable exit code).
+			r.reportFailure(ctx, job.VerificationID, nil,
+				fmt.Sprintf("pg_restore exec: %v", err), runLogger)
 
-				return
-			}
+			return
+		}
 
+		if restore.IsDiskExhausted(restoreResult.StderrTail) {
+			// Hitting the estimate-derived ceiling is agent infra, not proof the
+			// backup is corrupt — omit the exit code so the backend retries
+			// (AgentSetupFailed), never BackupRejected.
+			r.reportFailure(ctx, job.VerificationID, nil,
+				fmt.Sprintf("pg_restore hit job disk ceiling: %v", err), runLogger)
+
+			return
+		}
+
+		if !restore.IsMissingExtensionOnly(restoreResult.StderrTail) {
 			runLogger.Error("pg_restore failed",
 				"exit_code", restoreResult.PgRestoreExitCode,
 				"stderr_tail", restoreResult.StderrTail)
@@ -267,11 +299,29 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 			return
 		}
 
-		// Exec-infrastructure failure (no usable exit code).
-		r.reportFailure(ctx, job.VerificationID, nil,
-			fmt.Sprintf("pg_restore exec: %v", err), runLogger)
+		// The only items pg_restore skipped are CREATE/COMMENT EXTENSION for
+		// extensions this verification environment lacks — the data restored.
+		// Treat the backup as restorable and fall through to stats; the backend's
+		// restored-size check is the remaining safety net.
+		runLogger.Warn(
+			"pg_restore completed with only missing-extension errors; treating backup as restorable",
+			"exit_code", restoreResult.PgRestoreExitCode,
+			"skipped_extensions",
+			strings.Join(restore.ExtractUnavailableExtensions(restoreResult.StderrTail), ","),
+			"stderr_tail", restoreResult.StderrTail)
+	}
 
-		return
+	if job.TimescaledbVersion != "" {
+		if err := r.restorer.RunTimescalePostRestore(jobCtx, jobContainer.GetVerifierConn()); err != nil {
+			if jobCtx.Err() != nil {
+				return
+			}
+
+			r.reportFailure(ctx, job.VerificationID, &restoreResult,
+				fmt.Sprintf("timescaledb_post_restore: %v", err), runLogger)
+
+			return
+		}
 	}
 
 	verifierConn := jobContainer.GetVerifierConn()
@@ -492,19 +542,19 @@ func (r *Runner) sendReport(
 }
 
 func pgMajorFromDatabase(db api.AssignedDatabase) (string, error) {
-	if db.Type != "POSTGRES" {
+	if db.Type != "POSTGRES_LOGICAL" {
 		return "", fmt.Errorf("unsupported database type %q (v1 is Postgres only)", db.Type)
 	}
 
-	if db.Postgresql == nil || db.Postgresql.Version == "" {
+	if db.PostgresqlLogical == nil || db.PostgresqlLogical.Version == "" {
 		return "", errors.New("assignment missing postgresql version")
 	}
 
-	if !slices.Contains(supportedMajors, db.Postgresql.Version) {
-		return "", fmt.Errorf("unsupported postgres major %q", db.Postgresql.Version)
+	if !slices.Contains(supportedMajors, db.PostgresqlLogical.Version) {
+		return "", fmt.Errorf("unsupported postgres major %q", db.PostgresqlLogical.Version)
 	}
 
-	return db.Postgresql.Version, nil
+	return db.PostgresqlLogical.Version, nil
 }
 
 func backupDownloadBackoff(attempt int) time.Duration {

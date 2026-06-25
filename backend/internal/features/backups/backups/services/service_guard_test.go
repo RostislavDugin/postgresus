@@ -8,16 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
 )
 
 func Test_TriggerBackupAndWait_WhenDatabaseIsAgentManaged_ReturnsAgentManagedError(t *testing.T) {
 	agentManagedDatabase := &databases.Database{
-		Type:       databases.DatabaseTypePostgres,
-		Postgresql: &postgresql.PostgresqlDatabase{BackupType: postgresql.PostgresBackupTypeWalV1},
+		Type: databases.DatabaseTypePostgresPhysical,
 	}
 
-	service := &BackupService{}
+	service := &LogicalBackupService{}
 
 	backup, err := service.TriggerBackupAndWait(context.Background(), agentManagedDatabase, time.Second)
 

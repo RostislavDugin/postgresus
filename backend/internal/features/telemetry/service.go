@@ -10,7 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
@@ -41,7 +42,15 @@ type notifierLister interface {
 
 type backupChecker interface {
 	HasSuccessfulBackupSince(databaseID uuid.UUID, since time.Time) (bool, error)
-	GetLatestCompletedBackup(databaseID uuid.UUID) (*backups_core.Backup, error)
+	GetLatestCompletedBackup(databaseID uuid.UUID) (*backups_core_logical.LogicalBackup, error)
+}
+
+type physicalFullBackupSizer interface {
+	GetLatestCompletedFullBackup(databaseID uuid.UUID) (*physical_models.PhysicalFullBackup, error)
+}
+
+type userCounter interface {
+	GetUsersCount() (int64, error)
 }
 
 type verificationAgentLister interface {
@@ -59,8 +68,10 @@ type TelemetryService struct {
 	storageService            storageLister
 	notifierService           notifierLister
 	backupService             backupChecker
+	physicalBackupService     physicalFullBackupSizer
 	verificationAgentService  verificationAgentLister
 	verificationConfigService verificationConfigLister
+	userService               userCounter
 	appVersion                string
 	logger                    *slog.Logger
 }
@@ -72,8 +83,10 @@ func NewTelemetryService(
 	storageService storageLister,
 	notifierService notifierLister,
 	backupService backupChecker,
+	physicalBackupService physicalFullBackupSizer,
 	verificationAgentService verificationAgentLister,
 	verificationConfigService verificationConfigLister,
+	userService userCounter,
 	appVersion string,
 	logger *slog.Logger,
 ) *TelemetryService {
@@ -84,8 +97,10 @@ func NewTelemetryService(
 		storageService:            storageService,
 		notifierService:           notifierService,
 		backupService:             backupService,
+		physicalBackupService:     physicalBackupService,
 		verificationAgentService:  verificationAgentService,
 		verificationConfigService: verificationConfigService,
+		userService:               userService,
 		appVersion:                appVersion,
 		logger:                    logger,
 	}
@@ -122,12 +137,18 @@ func (s *TelemetryService) BuildAndSend(ctx context.Context) error {
 		return err
 	}
 
+	userCount, err := s.userService.GetUsersCount()
+	if err != nil {
+		return err
+	}
+
 	req := &CollectRequest{
 		InstanceID:         instance.InstanceID,
 		AppVersion:         s.appVersion,
 		OS:                 runtime.GOOS,
 		Arch:               runtime.GOARCH,
 		InstalledAt:        instance.InstalledAt,
+		UserCount:          int(userCount),
 		Databases:          capDatabases(databaseEntries),
 		Storages:           capStrings(storageTypes),
 		Notifiers:          capStrings(notifierTypes),
@@ -180,7 +201,7 @@ func (s *TelemetryService) collectActiveDatabases(
 			continue
 		}
 
-		if err := s.attachBackupSizes(&entry, db.ID); err != nil {
+		if err := s.attachBackupSizes(&entry, db); err != nil {
 			return nil, err
 		}
 
@@ -228,11 +249,19 @@ func (s *TelemetryService) collectVerificationAgents() ([]VerificationAgentEntry
 	return entries, nil
 }
 
+// attachBackupSizes records raw/compressed size from the size-of-record backup.
+// Physical databases have no logical backup rows, so their size comes from the
+// latest completed physical FULL backup; every other type uses the latest
+// completed logical backup.
 func (s *TelemetryService) attachBackupSizes(
 	entry *DatabaseEntry,
-	databaseID uuid.UUID,
+	db *databases.Database,
 ) error {
-	backup, err := s.backupService.GetLatestCompletedBackup(databaseID)
+	if db.Type == databases.DatabaseTypePostgresPhysical {
+		return s.attachPhysicalBackupSizes(entry, db.ID)
+	}
+
+	backup, err := s.backupService.GetLatestCompletedBackup(db.ID)
 	if err != nil {
 		return err
 	}
@@ -247,6 +276,30 @@ func (s *TelemetryService) attachBackupSizes(
 
 	if backup.BackupRawDbSizeMb > 0 {
 		entry.RawSizeMb = int64(math.Ceil(backup.BackupRawDbSizeMb))
+	}
+
+	return nil
+}
+
+func (s *TelemetryService) attachPhysicalBackupSizes(
+	entry *DatabaseEntry,
+	databaseID uuid.UUID,
+) error {
+	fullBackup, err := s.physicalBackupService.GetLatestCompletedFullBackup(databaseID)
+	if err != nil {
+		return err
+	}
+
+	if fullBackup == nil {
+		return nil
+	}
+
+	if fullBackup.BackupSizeMb != nil && *fullBackup.BackupSizeMb > 0 {
+		entry.BackupSizeMb = int64(math.Ceil(*fullBackup.BackupSizeMb))
+	}
+
+	if fullBackup.RawSizeMb != nil && *fullBackup.RawSizeMb > 0 {
+		entry.RawSizeMb = int64(math.Ceil(*fullBackup.RawSizeMb))
 	}
 
 	return nil
@@ -271,11 +324,22 @@ func (s *TelemetryService) isDatabaseActive(
 
 func buildDatabaseEntry(db *databases.Database) (DatabaseEntry, bool) {
 	switch db.Type {
-	case databases.DatabaseTypePostgres:
-		if db.Postgresql == nil {
+	case databases.DatabaseTypePostgresLogical:
+		// The legacy POSTGRES type is the same engine now labelled POSTGRES_LOGICAL;
+		// analytics counts the two as one.
+		if db.PostgresqlLogical == nil {
 			return DatabaseEntry{}, false
 		}
-		return DatabaseEntry{Type: string(db.Type), Version: string(db.Postgresql.Version)}, true
+		return DatabaseEntry{Type: string(db.Type), Version: string(db.PostgresqlLogical.Version)}, true
+	case databases.DatabaseTypePostgresPhysical:
+		if db.PostgresqlPhysical == nil {
+			return DatabaseEntry{}, false
+		}
+		return DatabaseEntry{
+			Type:       string(db.Type),
+			Version:    string(db.PostgresqlPhysical.Version),
+			BackupType: string(db.PostgresqlPhysical.BackupType),
+		}, true
 	case databases.DatabaseTypeMysql:
 		if db.Mysql == nil {
 			return DatabaseEntry{}, false

@@ -11,7 +11,6 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { IS_CLOUD, IS_DISABLE_CLOUD_NOTICE } from '../../../../constants';
 import {
   type VerificationAgent,
   verificationAgentApi,
@@ -378,18 +377,6 @@ export const VerificationAgentsComponent = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {!IS_CLOUD && !IS_DISABLE_CLOUD_NOTICE && (
-            <Button
-              size="small"
-              href="https://databasus.com/cloud"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="!border-green-600 !bg-transparent !text-green-600 hover:!border-green-700 hover:!text-green-700 dark:!border-green-500 dark:!text-green-400 dark:hover:!border-green-400 dark:hover:!text-green-300"
-            >
-              Use in cloud
-            </Button>
-          )}
-
           <Button
             type="primary"
             size="small"

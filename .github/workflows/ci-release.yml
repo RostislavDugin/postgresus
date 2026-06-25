@@ -98,40 +98,6 @@ jobs:
           cd frontend
           pnpm build
 
-  lint-agent:
-    if: github.ref != 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version: "1.26.3"
-          cache-dependency-path: agent/backup/go.sum
-
-      - name: Download Go modules
-        run: |
-          cd agent/backup
-          go mod download
-
-      - name: Install golangci-lint
-        run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-      - name: Run golangci-lint
-        run: |
-          cd agent/backup
-          golangci-lint run
-
-      - name: Verify go mod tidy
-        run: |
-          cd agent/backup
-          go mod tidy
-          git diff --exit-code go.mod go.sum || (echo "go mod tidy made changes, please run 'go mod tidy' and commit the changes" && exit 1)
-
   dockerfile-scan:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
@@ -151,7 +117,9 @@ jobs:
           sudo apt-get install -y trivy
 
       - name: Trivy Dockerfile misconfiguration scan
-        run: trivy config --severity HIGH,CRITICAL --exit-code 1 Dockerfile
+        run: |
+          trivy config --severity HIGH,CRITICAL --exit-code 1 Dockerfile
+          trivy config --severity HIGH,CRITICAL --exit-code 1 agent/verification/images/postgres/Dockerfile
 
   test-frontend:
     if: github.ref != 'refs/heads/develop'
@@ -182,74 +150,6 @@ jobs:
         run: |
           cd frontend
           pnpm test
-
-  test-agent:
-    if: github.ref != 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    needs: [lint-agent]
-    steps:
-      - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version: "1.26.3"
-          cache-dependency-path: agent/backup/go.sum
-
-      - name: Download Go modules
-        run: |
-          cd agent/backup
-          go mod download
-
-      - name: Run Go tests
-        run: |
-          cd agent/backup
-          go test -count=1 -failfast ./internal/...
-
-  e2e-agent:
-    if: github.ref != 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    needs: [lint-agent]
-    steps:
-      - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Run e2e tests
-        run: |
-          cd agent/backup
-          make e2e
-
-      - name: Cleanup
-        if: always()
-        run: |
-          cd agent/backup/e2e
-          docker compose down -v --rmi local || true
-          rm -rf artifacts || true
-
-  e2e-agent-backup-restore:
-    if: github.ref != 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    needs: [lint-agent]
-    strategy:
-      matrix:
-        pg_version: [15, 16, 17, 18]
-      fail-fast: false
-    steps:
-      - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Run backup-restore e2e (PG ${{ matrix.pg_version }})
-        run: |
-          cd agent/backup
-          make e2e-backup-restore PG_VERSION=${{ matrix.pg_version }}
-
-      - name: Cleanup
-        if: always()
-        run: |
-          cd agent/backup/e2e
-          docker compose -f docker-compose.backup-restore.yml down -v --rmi local || true
-          rm -rf artifacts || true
 
   lint-verification-agent:
     if: github.ref != 'refs/heads/develop'
@@ -342,6 +242,10 @@ jobs:
         - /runner-cache/go-pkg:/go/pkg/mod
         - /runner-cache/go-build:/root/.cache/go-build
         - /runner-cache/apt-archives:/var/cache/apt/archives
+        # Identity-mapped scratch dir: physical restore/boot tests bind their t.TempDir() into
+        # sibling containers (recovery script's pg_combinebackup, bound-volume boot). The host
+        # daemon resolves bind sources, so the path must exist identically inside and on the host.
+        - /runner-cache/test-tmp:/runner-cache/test-tmp
     steps:
       - name: Install Docker CLI
         run: |
@@ -365,15 +269,26 @@ jobs:
           cp .env.example .env
           cat >> .env << EOF
           # CI overrides — host=172.17.0.1 reaches host from container
-          DATABASE_DSN=host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable
+          DATABASE_DSN="host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable"
           DATABASE_URL=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
           GOOSE_DBSTRING=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
-          TEST_DATABASE_DSN=host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5438 sslmode=disable
+          TEST_DATABASE_DSN="host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5438 sslmode=disable"
           GOOSE_TEST_DBSTRING=postgres://postgres:Q1234567@172.17.0.1:5438/databasus?sslmode=disable
           TEST_LOCALHOST=172.17.0.1
           TEST_DB_HOST=172.17.0.1
           VALKEY_HOST=172.17.0.1
           EOF
+
+      - name: Remove leftover testcontainers from previous runs
+        run: |
+          # Self-hosted runners are not ephemeral, so a cancelled job or crashed runner
+          # leaves Ryuk-less testcontainers behind (Ryuk is disabled below). Clear them
+          # before starting so a stale container can't collide with this run. Only
+          # org.testcontainers-labelled ones match — compose services are untouched.
+          docker rm -f $(docker ps -aq --filter label=org.testcontainers=true) 2>/dev/null || true
+          # Same non-ephemeral-runner reasoning: clear stale per-run reconstruction dirs from the
+          # identity-mapped scratch volume so a crashed run can't collide with this one.
+          rm -rf /runner-cache/test-tmp/* 2>/dev/null || true
 
       - name: Start test containers
         run: |
@@ -392,89 +307,14 @@ jobs:
           timeout 60 bash -c 'until docker exec backend-valkey valkey-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
           echo "Valkey is ready!"
 
-          # Wait for test databases (using 172.17.0.1 from container)
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5000; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5001; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5002; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5003; do sleep 2; done'
+          # Wait for test databases (using 172.17.0.1 from container).
+          # 5004 = shared logical-postgres-16 fixture; 5007-5008 = shared physical-postgres 17/18
+          # primary sources. The per-version, no-summary, tablespace, mTLS and restore-target
+          # physical containers — like the per-version logical PG tests — run on testcontainers and
+          # need no fixed port.
           timeout 60 bash -c 'until nc -z 172.17.0.1 5004; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5005; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5006; do sleep 2; done'
-
-          # Wait for MinIO
-          timeout 60 bash -c 'until nc -z 172.17.0.1 9000; do sleep 2; done'
-
-          # Wait for Azurite
-          timeout 60 bash -c 'until nc -z 172.17.0.1 10000; do sleep 2; done'
-
-          # Wait for NAS (Samba)
-          timeout 60 bash -c 'until nc -z 172.17.0.1 7006; do sleep 2; done'
-
-          # Wait for FTP
-          timeout 60 bash -c 'until nc -z 172.17.0.1 7007; do sleep 2; done'
-
-          # Wait for SFTP
-          timeout 60 bash -c 'until nc -z 172.17.0.1 7008; do sleep 2; done'
-
-          # Wait for MySQL containers
-          echo "Waiting for MySQL 5.7..."
-          timeout 120 bash -c 'until docker exec test-mysql-57 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MySQL 8.0..."
-          timeout 120 bash -c 'until docker exec test-mysql-80 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MySQL 8.4..."
-          timeout 120 bash -c 'until docker exec test-mysql-84 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MySQL 9.0..."
-          timeout 120 bash -c 'until docker exec test-mysql-90 mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
-
-          # Wait for MariaDB containers
-          echo "Waiting for MariaDB 5.5..."
-          timeout 120 bash -c 'until docker exec test-mariadb-55 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.1..."
-          timeout 120 bash -c 'until docker exec test-mariadb-101 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.2..."
-          timeout 120 bash -c 'until docker exec test-mariadb-102 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.3..."
-          timeout 120 bash -c 'until docker exec test-mariadb-103 mysqladmin ping -h localhost -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.4..."
-          timeout 120 bash -c 'until docker exec test-mariadb-104 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.5..."
-          timeout 120 bash -c 'until docker exec test-mariadb-105 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.6..."
-          timeout 120 bash -c 'until docker exec test-mariadb-106 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 10.11..."
-          timeout 120 bash -c 'until docker exec test-mariadb-1011 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 11.4..."
-          timeout 120 bash -c 'until docker exec test-mariadb-114 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 11.8..."
-          timeout 120 bash -c 'until docker exec test-mariadb-118 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB 12.0..."
-          timeout 120 bash -c 'until docker exec test-mariadb-120 healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-
-          # Wait for MongoDB containers
-          echo "Waiting for MongoDB 4.2..."
-          timeout 120 bash -c 'until docker exec test-mongodb-42 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 4.4..."
-          timeout 120 bash -c 'until docker exec test-mongodb-44 mongo --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 5.0..."
-          timeout 120 bash -c 'until docker exec test-mongodb-50 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 6.0..."
-          timeout 120 bash -c 'until docker exec test-mongodb-60 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 7.0..."
-          timeout 120 bash -c 'until docker exec test-mongodb-70 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB 8.2..."
-          timeout 120 bash -c 'until docker exec test-mongodb-82 mongosh --eval "db.adminCommand(\"ping\")" -u root -p rootpassword --authenticationDatabase admin 2>/dev/null; do sleep 2; done'
-
-          # Wait for SSL/TLS test containers
-          echo "Waiting for PostgreSQL SSL..."
-          timeout 120 bash -c 'until docker exec test-postgres-ssl pg_isready -U testuser -d testdb 2>/dev/null; do sleep 2; done'
-          echo "Waiting for PostgreSQL mTLS..."
-          timeout 120 bash -c 'until docker exec test-postgres-mtls pg_isready -U testuser -d testdb 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MariaDB SSL..."
-          timeout 120 bash -c 'until docker exec test-mariadb-ssl healthcheck.sh --connect --innodb_initialized 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MySQL SSL..."
-          timeout 120 bash -c 'until docker exec test-mysql-ssl mysqladmin ping -h localhost -u root -prootpassword --silent 2>/dev/null; do sleep 2; done'
-          echo "Waiting for MongoDB SSL..."
-          timeout 120 bash -c 'until docker exec test-mongodb-ssl mongosh --tls --tlsAllowInvalidCertificates -u root -p rootpassword --authenticationDatabase admin --eval "db.adminCommand(\"ping\")" 2>/dev/null; do sleep 2; done'
+          timeout 60 bash -c 'until nc -z 172.17.0.1 5007; do sleep 2; done'
+          timeout 60 bash -c 'until nc -z 172.17.0.1 5008; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |
@@ -482,25 +322,63 @@ jobs:
           # These paths match what's configured in config.go
           mkdir -p databasus-data/backups
           mkdir -p databasus-data/temp
+          # Scratch dir for $TMPDIR below; identity-mapped so sibling-container binds resolve.
+          mkdir -p /runner-cache/test-tmp
 
       - name: Install database client dependencies
         run: |
           apt-get update -qq
-          apt-get install -y -qq libncurses6 libpq5
+          apt-get install -y -qq libncurses6 libpq5 zstd
           ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
           ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
 
-      - name: Run database migrations
+      - name: Provision per-worker test databases and run migrations
+        env:
+          TEST_PARALLEL_WORKERS: "8"
         run: |
           cd backend
           go install github.com/pressly/goose/v3/cmd/goose@v3.27.1
           set -a && . ../.env && set +a
-          GOOSE_DBSTRING="$GOOSE_TEST_DBSTRING" goose -dir ./migrations up
+          # cleanup_test_db creates databasus_w0..w{workers-1}, flushes Valkey, and
+          # resets the test PG containers. Then migrate each slot DB so every
+          # parallel `go test` worker connects to a migrated metadata DB.
+          go run ./cmd/cleanup_test_db
+          for i in $(seq 0 $((TEST_PARALLEL_WORKERS - 1))); do
+            dbstring=$(echo "$GOOSE_TEST_DBSTRING" | sed -E "s#/([^/?]+)\?#/\1_w$i?#")
+            echo "migrating slot $i"
+            GOOSE_DBSTRING="$dbstring" goose -dir ./migrations up
+          done
+
+      - name: Pull testcontainer images
+        run: make -C backend pull-testcontainers
 
       - name: Run Go tests
+        env:
+          # MongoDB test containers are started in-process via testcontainers-go.
+          # Their published ports live on the Docker host bridge (reachable at the same
+          # address compose used), so override the host testcontainers reports. Ryuk is
+          # disabled because its callback port is unreliable from this sibling-container
+          # runner; cleanup is handled by t.Cleanup plus the label-filter step below.
+          TESTCONTAINERS_HOST_OVERRIDE: 172.17.0.1
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+          # t.TempDir() honors $TMPDIR. Point it at the identity-mapped scratch volume so the
+          # physical restore/boot tests' bind sources exist at the same path on the host daemon.
+          TMPDIR: /runner-cache/test-tmp
+          # Each package runs in its own metadata DB + Valkey logical DB, so
+          # packages run in parallel; -p must equal the provisioned worker count.
+          TEST_PARALLEL_WORKERS: "8"
         run: |
           cd backend
-          go test -p=1 -count=1 -failfast -timeout 10m ./internal/...
+          go test -p=8 -count=1 -failfast -timeout 15m ./internal/...
+
+      - name: Remove leftover testcontainers
+        if: always()
+        run: |
+          # Safety net: t.Cleanup terminates MongoDB testcontainers, but a panicking
+          # test can skip it. Remove anything testcontainers-go labelled.
+          docker rm -f $(docker ps -aq --filter label=org.testcontainers=true) 2>/dev/null || true
+          # Safety net for the scratch volume: t.TempDir() self-cleans, but a panic can skip it.
+          rm -rf /runner-cache/test-tmp/* 2>/dev/null || true
 
       - name: Stop test containers
         if: always()
@@ -513,9 +391,6 @@ jobs:
           rm -rf pgdata || true
           rm -rf pgdata-test || true
           rm -rf valkey-data || true
-          rm -rf mysqldata || true
-          rm -rf mariadbdata || true
-          rm -rf wal-queue || true
           rm -rf temp/nas || true
           rm -rf databasus-data || true
 
@@ -585,30 +460,6 @@ jobs:
             exit 1
           fi
           echo "index.html OK"
-
-          for arch in amd64 arm64; do
-            echo "Checking agent download for $arch..."
-            out=$(mktemp)
-            http=$(curl -sS -o "$out" -w '%{http_code}' "http://localhost:4005/api/v1/system/agent?arch=$arch")
-            if [ "$http" != "200" ]; then
-              echo "agent ($arch) download failed: HTTP $http"
-              head -c 200 "$out" || true
-              docker logs databasus-dev-smoke
-              rm -f "$out"
-              exit 1
-            fi
-            magic=$(head -c 4 "$out" | od -An -t x1 | tr -d ' ')
-            if [ "$magic" != "7f454c46" ]; then
-              echo "agent ($arch) is not an ELF binary (first 4 bytes: $magic)"
-              head -c 200 "$out" || true
-              docker logs databasus-dev-smoke
-              rm -f "$out"
-              exit 1
-            fi
-            size=$(stat -c%s "$out")
-            echo "agent ($arch) OK (${size} bytes)"
-            rm -f "$out"
-          done
 
           for arch in amd64 arm64; do
             echo "Checking verification agent download for $arch..."
@@ -698,7 +549,7 @@ jobs:
   build-image:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
-    needs: [lint-backend, lint-frontend, lint-agent, lint-verification-agent, dockerfile-scan]
+    needs: [lint-backend, lint-frontend, lint-verification-agent, dockerfile-scan]
     steps:
       - name: Clean workspace
         run: |
@@ -762,30 +613,6 @@ jobs:
           echo "index.html OK"
 
           for arch in amd64 arm64; do
-            echo "Checking agent download for $arch..."
-            out=$(mktemp)
-            http=$(curl -sS -o "$out" -w '%{http_code}' "http://localhost:4005/api/v1/system/agent?arch=$arch")
-            if [ "$http" != "200" ]; then
-              echo "agent ($arch) download failed: HTTP $http"
-              head -c 200 "$out" || true
-              docker logs databasus-smoke
-              rm -f "$out"
-              exit 1
-            fi
-            magic=$(head -c 4 "$out" | od -An -t x1 | tr -d ' ')
-            if [ "$magic" != "7f454c46" ]; then
-              echo "agent ($arch) is not an ELF binary (first 4 bytes: $magic)"
-              head -c 200 "$out" || true
-              docker logs databasus-smoke
-              rm -f "$out"
-              exit 1
-            fi
-            size=$(stat -c%s "$out")
-            echo "agent ($arch) OK (${size} bytes)"
-            rm -f "$out"
-          done
-
-          for arch in amd64 arm64; do
             echo "Checking verification agent download for $arch..."
             out=$(mktemp)
             http=$(curl -sS -o "$out" -w '%{http_code}' "http://localhost:4005/api/v1/system/verification-agent?arch=$arch")
@@ -832,11 +659,37 @@ jobs:
           docker rmi databasus:smoke-${{ github.sha }} || true
           rm -rf /tmp/databasus-smoke-data || true
 
+  build-verification-image:
+    if: github.ref != 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    needs: [lint-verification-agent, dockerfile-scan]
+    permissions:
+      contents: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      # Validate the extension Dockerfile builds (amd64, representative major) on
+      # every PR; the full multi-arch matrix is built at release time below.
+      - name: Build verification image (amd64, no push)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: agent/verification/images/postgres
+          push: false
+          platforms: linux/amd64
+          build-args: |
+            PG_MAJOR=16
+          cache-from: type=gha,scope=verification-postgres-16
+          cache-to: type=gha,mode=min,scope=verification-postgres-16
+
   determine-version:
     runs-on: self-hosted
     container:
       image: node:20
-    needs: [test-backend, test-frontend, test-agent, e2e-agent, e2e-agent-backup-restore, test-verification-agent, e2e-verification-agent]
+    needs: [test-backend, test-frontend, test-verification-agent, e2e-verification-agent]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
       should_release: ${{ steps.version_bump.outputs.should_release }}
@@ -967,6 +820,53 @@ jobs:
             databasus/databasus:latest
             databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
             databasus/databasus:${{ github.sha }}
+
+  push-verification-image:
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-verification-image]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ["12", "13", "14", "15", "16", "17", "18"]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up QEMU (enables multi-arch emulation)
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Pin the base to its current manifest digest so the published image is
+      # reproducible rather than tracking a floating postgres:<major> tag.
+      - name: Resolve digest-pinned base image
+        id: base
+        run: |
+          DIGEST=$(docker buildx imagetools inspect postgres:${{ matrix.major }} --format '{{.Manifest.Digest}}')
+          echo "image=postgres:${{ matrix.major }}@${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push verification image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: agent/verification/images/postgres
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            PG_MAJOR=${{ matrix.major }}
+            BASE_IMAGE=${{ steps.base.outputs.image }}
+          tags: |
+            databasus/verification-postgres:${{ matrix.major }}
+            databasus/verification-postgres:${{ matrix.major }}-v${{ needs.determine-version.outputs.new_version }}
 
   release:
     runs-on: self-hosted

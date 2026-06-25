@@ -15,12 +15,12 @@ func (r *RestoreRepository) Save(restore *Restore) error {
 	if isNew {
 		restore.ID = uuid.New()
 		return db.Create(restore).
-			Omit("Backup", "PostgresqlDatabase", "MysqlDatabase", "MariadbDatabase", "MongodbDatabase").
+			Omit("Backup", "PostgresqlLogicalDatabase", "MysqlDatabase", "MariadbDatabase", "MongodbDatabase").
 			Error
 	}
 
 	return db.Save(restore).
-		Omit("Backup", "PostgresqlDatabase", "MysqlDatabase", "MariadbDatabase", "MongodbDatabase").
+		Omit("Backup", "PostgresqlLogicalDatabase", "MysqlDatabase", "MariadbDatabase", "MongodbDatabase").
 		Error
 }
 
@@ -76,8 +76,8 @@ func (r *RestoreRepository) FindInProgressRestoresByDatabaseID(
 	if err := storage.
 		GetDb().
 		Preload("Backup").
-		Joins("JOIN backups ON backups.id = restores.backup_id").
-		Where("backups.database_id = ? AND restores.status = ?", databaseID, RestoreStatusInProgress).
+		Joins("JOIN logical_backups ON logical_backups.id = restores.backup_id").
+		Where("logical_backups.database_id = ? AND restores.status = ?", databaseID, RestoreStatusInProgress).
 		Order("restores.created_at DESC").
 		Find(&restores).Error; err != nil {
 		return nil, err

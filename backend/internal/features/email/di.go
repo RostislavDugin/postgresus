@@ -17,6 +17,7 @@ var emailSMTPSender = &EmailSMTPSender{
 	env.SMTPUser,
 	env.SMTPPassword,
 	env.SMTPFrom,
+	env.SMTPInsecureSkipVerify,
 	env.SMTPHost != "" && env.SMTPPort != 0,
 }
 

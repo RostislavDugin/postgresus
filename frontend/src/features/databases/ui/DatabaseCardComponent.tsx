@@ -2,8 +2,9 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 
-import { backupConfigApi } from '../../../entity/backups';
-import { type Database } from '../../../entity/databases';
+import { logicalBackupConfigApi } from '../../../entity/backups/logical';
+import { physicalBackupConfigApi } from '../../../entity/backups/physical';
+import { type Database, DatabaseType } from '../../../entity/databases';
 import { HealthStatus } from '../../../entity/databases/model/HealthStatus';
 import type { Storage } from '../../../entity/storages';
 import { getStorageLogoFromType } from '../../../entity/storages/models/getStorageLogoFromType';
@@ -24,8 +25,13 @@ export const DatabaseCardComponent = ({
   useEffect(() => {
     if (!database.id) return;
 
-    backupConfigApi.getBackupConfigByDbID(database.id).then((res) => setStorage(res?.storage));
-  }, [database.id]);
+    const backupConfigRequest =
+      database.type === DatabaseType.POSTGRES_PHYSICAL
+        ? physicalBackupConfigApi.getPhysicalBackupConfigByDbId(database.id)
+        : logicalBackupConfigApi.getBackupConfigByDbID(database.id);
+
+    backupConfigRequest.then((config) => setStorage(config?.storage));
+  }, [database.id, database.type]);
 
   return (
     <div

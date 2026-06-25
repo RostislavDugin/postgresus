@@ -119,10 +119,11 @@ export const databaseApi = {
     );
   },
 
-  async regenerateAgentToken(id: string): Promise<{ token: string }> {
+  async createReplicationOnlyUser(database: Database) {
     const requestOptions: RequestOptions = new RequestOptions();
-    return apiHelper.fetchPostJson<{ token: string }>(
-      `${getApplicationServer()}/api/v1/databases/${id}/regenerate-token`,
+    requestOptions.setBody(JSON.stringify(database));
+    return apiHelper.fetchPostJson<CreateReadOnlyUserResponse>(
+      `${getApplicationServer()}/api/v1/databases/create-replication-only-user`,
       requestOptions,
     );
   },

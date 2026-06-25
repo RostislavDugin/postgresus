@@ -3,7 +3,7 @@ package verification_runs
 import (
 	"math"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 )
 
 // diskCostPerJobGapMb is the per-job safe gap added on top of the downloaded
@@ -19,8 +19,8 @@ const diskCostPerJobGapMb = 5120
 // stays within the agent's declared disk capacity.
 func IsVerificationFitWithinRemainedDiskCapacity(
 	capacity AgentCapacity,
-	runningBackups []*backups_core.Backup,
-	candidateBackup *backups_core.Backup,
+	runningBackups []*backups_core_logical.LogicalBackup,
+	candidateBackup *backups_core_logical.LogicalBackup,
 ) bool {
 	if capacity.MaxDiskGb <= 0 || candidateBackup == nil {
 		return false
@@ -39,7 +39,7 @@ func IsVerificationFitWithinRemainedDiskCapacity(
 // - Space needed for backup file (if archived - decompressed on the fly while streaming)
 // - Space needed for restored database
 // - Safe gap (WAL, indexes, sort/temp spills, FS slack)
-func EstimateRequiredForRestoreDiskMb(backup *backups_core.Backup) int64 {
+func EstimateRequiredForRestoreDiskMb(backup *backups_core_logical.LogicalBackup) int64 {
 	archiveSizeMb := backup.BackupSizeMb
 	if archiveSizeMb < 0 {
 		archiveSizeMb = 0
@@ -53,7 +53,7 @@ func EstimateRequiredForRestoreDiskMb(backup *backups_core.Backup) int64 {
 	return int64(math.Ceil(archiveSizeMb+restoredSizeMb)) + diskCostPerJobGapMb
 }
 
-func sumEstimatedRequiredDiskMb(backups []*backups_core.Backup) int64 {
+func sumEstimatedRequiredDiskMb(backups []*backups_core_logical.LogicalBackup) int64 {
 	var total int64
 	for _, backup := range backups {
 		total += EstimateRequiredForRestoreDiskMb(backup)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
@@ -15,13 +15,13 @@ type MockSuccessRestoreUsecase struct{}
 
 func (uc *MockSuccessRestoreUsecase) Execute(
 	ctx context.Context,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
 	return nil
 }
@@ -30,13 +30,13 @@ type MockFailedRestoreUsecase struct{}
 
 func (uc *MockFailedRestoreUsecase) Execute(
 	ctx context.Context,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
 	return errors.New("restore failed")
 }
@@ -48,13 +48,13 @@ type MockCaptureCredentialsRestoreUsecase struct {
 
 func (uc *MockCaptureCredentialsRestoreUsecase) Execute(
 	ctx context.Context,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
 	uc.CalledChan <- restoringToDB
 
@@ -70,13 +70,13 @@ type MockBlockingRestoreUsecase struct {
 
 func (uc *MockBlockingRestoreUsecase) Execute(
 	ctx context.Context,
-	backupConfig *backups_config.BackupConfig,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
 	restore restores_core.Restore,
 	originalDB *databases.Database,
 	restoringToDB *databases.Database,
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	storage *storages.Storage,
-	isExcludeExtensions bool,
+	options restores_core.RestoreOptions,
 ) error {
 	if uc.StartedChan != nil {
 		uc.StartedChan <- true

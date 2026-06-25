@@ -2,7 +2,6 @@ import { LoadingOutlined } from '@ant-design/icons';
 import { Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { IS_CLOUD } from '../constants';
 import { userApi } from '../entity/users';
 import {
   AdminPasswordComponent,
@@ -82,32 +81,6 @@ export function AuthPageComponent() {
             </div>
           </div>
         </div>
-      )}
-
-      {IS_CLOUD && (
-        <footer className="mx-10 mt-auto pb-5 text-center text-sm text-gray-500 dark:text-gray-500">
-          <a
-            href="https://databasus.com/terms-of-use-cloud"
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-            style={{ color: 'inherit' }}
-          >
-            Terms of Use
-          </a>
-          {' | '}
-          <a
-            href="https://databasus.com/privacy-cloud"
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-            style={{ color: 'inherit' }}
-          >
-            Privacy Policy
-          </a>
-          {' | '}
-          info@databasus.com | &copy; 2026 Databasus. All rights reserved.
-        </footer>
       )}
     </div>
   );

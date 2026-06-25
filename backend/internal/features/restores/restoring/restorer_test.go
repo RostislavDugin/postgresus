@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"databasus-backend/internal/config"
-	backups_controllers "databasus-backend/internal/features/backups/backups/controllers"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_controllers_logical "databasus-backend/internal/features/backups/backups/controllers/logical"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
+	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	"databasus-backend/internal/features/notifiers"
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
@@ -30,10 +30,10 @@ func Test_MakeRestore_WhenCacheMissed_RestoreFails(t *testing.T) {
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-	backups_config.EnableBackupsForTestDatabase(database.ID, storage)
+	backups_config_logical.EnableBackupsForTestDatabase(database.ID, storage)
 
 	defer func() {
-		backupRepo := backups_core.BackupRepository{}
+		backupRepo := backups_core_logical.BackupRepository{}
 		backupsList, _ := backupRepo.FindByDatabaseID(database.ID)
 		for _, backup := range backupsList {
 			backupRepo.DeleteByID(backup.ID)
@@ -58,7 +58,7 @@ func Test_MakeRestore_WhenCacheMissed_RestoreFails(t *testing.T) {
 		cache_utils.ClearAllCache()
 	}()
 
-	backup := backups_controllers.CreateTestBackup(database.ID, storage.ID)
+	backup := backups_controllers_logical.CreateTestBackup(database.ID, storage.ID)
 
 	// Create restore but DON'T cache DB credentials
 	// Also don't set embedded DB fields to avoid schema issues
@@ -70,8 +70,8 @@ func Test_MakeRestore_WhenCacheMissed_RestoreFails(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create restorer and execute restore (should fail due to cache miss)
-	restorerNode := CreateTestRestorerNode()
-	restorerNode.MakeRestore(restore.ID)
+	restorer := CreateTestRestorer()
+	restorer.MakeRestore(restore.ID)
 
 	// Verify restore failed with appropriate error message
 	updatedRestore, err := restoreRepository.FindByID(restore.ID)
@@ -94,10 +94,10 @@ func Test_MakeRestore_WhenTaskStarts_CacheDeletedImmediately(t *testing.T) {
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-	backups_config.EnableBackupsForTestDatabase(database.ID, storage)
+	backups_config_logical.EnableBackupsForTestDatabase(database.ID, storage)
 
 	defer func() {
-		backupRepo := backups_core.BackupRepository{}
+		backupRepo := backups_core_logical.BackupRepository{}
 		backupsList, _ := backupRepo.FindByDatabaseID(database.ID)
 		for _, backup := range backupsList {
 			backupRepo.DeleteByID(backup.ID)
@@ -126,7 +126,7 @@ func Test_MakeRestore_WhenTaskStarts_CacheDeletedImmediately(t *testing.T) {
 		cache_utils.ClearAllCache()
 	}()
 
-	backup := backups_controllers.CreateTestBackup(database.ID, storage.ID)
+	backup := backups_controllers_logical.CreateTestBackup(database.ID, storage.ID)
 
 	// Create restore with cached DB credentials
 	// Don't set embedded DB fields in the restore model itself
@@ -139,7 +139,7 @@ func Test_MakeRestore_WhenTaskStarts_CacheDeletedImmediately(t *testing.T) {
 
 	// Cache DB credentials separately
 	dbCache := &RestoreDatabaseCache{
-		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Host:     config.GetEnv().TestLocalhost,
 			Port:     5432,
 			Username: "test",
@@ -155,8 +155,8 @@ func Test_MakeRestore_WhenTaskStarts_CacheDeletedImmediately(t *testing.T) {
 	assert.NotNil(t, cachedDB, "Cache should exist before restore starts")
 
 	// Start restore (this will call GetAndDelete)
-	restorerNode := CreateTestRestorerNode()
-	restorerNode.MakeRestore(restore.ID)
+	restorer := CreateTestRestorer()
+	restorer.MakeRestore(restore.ID)
 
 	// Verify cache was deleted immediately
 	cachedDBAfter := restoreDatabaseCache.Get(restore.ID.String())

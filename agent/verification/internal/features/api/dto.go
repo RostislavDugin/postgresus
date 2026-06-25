@@ -41,8 +41,8 @@ type AssignedPostgresql struct {
 }
 
 type AssignedDatabase struct {
-	Type       string              `json:"type"`
-	Postgresql *AssignedPostgresql `json:"postgresql"`
+	Type              string              `json:"type"`
+	PostgresqlLogical *AssignedPostgresql `json:"postgresqlLogical"`
 }
 
 type JobAssignment struct {
@@ -51,6 +51,7 @@ type JobAssignment struct {
 	BackupSizeMb       float64          `json:"backupSizeMb"`
 	MaxContainerDiskMb float64          `json:"maxContainerDiskMb"`
 	Database           AssignedDatabase `json:"database"`
+	TimescaledbVersion string           `json:"timescaledbVersion"`
 }
 
 type ReportTableStat struct {

@@ -1,11 +1,8 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { IS_CLOUD, IS_DISABLE_CLOUD_NOTICE } from '../../../constants';
 import { storageApi } from '../../../entity/storages';
 import type { Storage } from '../../../entity/storages';
-import type { UserProfile } from '../../../entity/users';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { useIsMobile } from '../../../shared/hooks';
 import { StorageCardComponent } from './StorageCardComponent';
@@ -13,7 +10,6 @@ import { StorageComponent } from './StorageComponent';
 import { EditStorageComponent } from './edit/EditStorageComponent';
 
 interface Props {
-  user: UserProfile;
   contentHeight: number;
   workspace: WorkspaceResponse;
   isCanManageStorages: boolean;
@@ -21,12 +17,7 @@ interface Props {
 
 const SELECTED_STORAGE_STORAGE_KEY = 'selectedStorageId';
 
-export const StoragesComponent = ({
-  user,
-  contentHeight,
-  workspace,
-  isCanManageStorages,
-}: Props) => {
+export const StoragesComponent = ({ contentHeight, workspace, isCanManageStorages }: Props) => {
   const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [storages, setStorages] = useState<Storage[]>([]);
@@ -102,31 +93,6 @@ export const StoragesComponent = ({
           >
             {storages.length >= 5 && isCanManageStorages && addStorageButton}
 
-            {!IS_CLOUD && !IS_DISABLE_CLOUD_NOTICE && (
-              <div className="mb-3 rounded bg-yellow-50 p-3 shadow dark:bg-yellow-900/30">
-                <div className="mb-1 flex items-center gap-1.5 text-sm font-bold text-yellow-700 dark:text-yellow-400">
-                  <ExclamationCircleOutlined />
-                  Self-hosted notice
-                </div>
-
-                <div className="text-sm !text-yellow-600 dark:!text-yellow-500">
-                  Do not forget to backup the storage itself as it contains all your backups.
-                  <br /> Or you can use cloud{"'"}s build-in{' '}
-                  <u>unlimited storage with double reservation</u>. We care about security,
-                  maintainance and 24x7 uptime
-                </div>
-
-                <a
-                  href="https://databasus.com/cloud"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 block w-full rounded-md !bg-green-600 px-4 py-1.5 text-center text-sm font-medium !text-white transition-colors hover:!bg-green-700 dark:!bg-green-700 dark:hover:!bg-green-800"
-                >
-                  Use cloud storage from $9
-                </a>
-              </div>
-            )}
-
             {storages.map((storage) => (
               <StorageCardComponent
                 key={storage.id}
@@ -178,7 +144,6 @@ export const StoragesComponent = ({
                 loadStorages();
               }}
               isCanManageStorages={isCanManageStorages}
-              user={user}
             />
           </div>
         )}
@@ -205,7 +170,6 @@ export const StoragesComponent = ({
               loadStorages(false, storage.id);
               setIsShowAddStorage(false);
             }}
-            user={user}
           />
         </Modal>
       )}

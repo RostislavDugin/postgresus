@@ -24,6 +24,13 @@ export function ShowTelegramNotifierComponent({ notifier }: Props) {
           {notifier.telegramNotifier.threadId}
         </div>
       )}
+
+      {notifier?.telegramNotifier?.isProxyEnabled && (
+        <div className="mb-1 flex items-center">
+          <div className="min-w-[110px]">Proxy</div>
+          Enabled
+        </div>
+      )}
     </>
   );
 }

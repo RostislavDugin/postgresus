@@ -1,5 +1,5 @@
 import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
-import { App, Button, Checkbox, Input } from 'antd';
+import { App, Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
 
 import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
@@ -8,7 +8,6 @@ import {
   CLOUDFLARE_TURNSTILE_SITE_KEY,
   GITHUB_CLIENT_ID,
   GOOGLE_CLIENT_ID,
-  IS_CLOUD,
 } from '../../../constants';
 import { userApi } from '../../../entity/users';
 import { StringUtils } from '../../../shared/lib';
@@ -38,9 +37,6 @@ export function SignUpComponent({ onSwitchToSignIn }: SignUpComponentProps): JSX
   const [confirmPasswordError, setConfirmPasswordError] = useState(false);
 
   const [signUpError, setSignUpError] = useState('');
-
-  const [isTermsAccepted, setTermsAccepted] = useState(false);
-  const [isPolicyAccepted, setPolicyAccepted] = useState(false);
 
   const { token, containerRef, resetCloudflareTurnstile } = useCloudflareTurnstile();
 
@@ -187,53 +183,10 @@ export function SignUpComponent({ onSwitchToSignIn }: SignUpComponentProps): JSX
 
       <div className="mt-3" />
 
-      {IS_CLOUD && (
-        <div className="mb-3 space-y-1 text-xs text-gray-600 dark:text-gray-400">
-          <div>
-            <Checkbox
-              checked={isTermsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
-            >
-              I agree to{' '}
-              <a
-                href="https://databasus.com/terms-of-use-cloud"
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-                style={{ color: 'inherit', textDecoration: 'underline' }}
-              >
-                Terms of Use
-              </a>
-            </Checkbox>
-          </div>
-          <div>
-            <Checkbox
-              checked={isPolicyAccepted}
-              onChange={(e) => setPolicyAccepted(e.target.checked)}
-            >
-              I agree to{' '}
-              <a
-                href="https://databasus.com/privacy-cloud"
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-                style={{ color: 'inherit', textDecoration: 'underline' }}
-              >
-                Privacy Policy
-              </a>
-            </Checkbox>
-          </div>
-        </div>
-      )}
-
       <CloudflareTurnstileWidget containerRef={containerRef} />
 
       <Button
-        disabled={
-          isLoading ||
-          (IS_CLOUD && (!isTermsAccepted || !isPolicyAccepted)) ||
-          (!!CLOUDFLARE_TURNSTILE_SITE_KEY && !token)
-        }
+        disabled={isLoading || (!!CLOUDFLARE_TURNSTILE_SITE_KEY && !token)}
         loading={isLoading}
         className="w-full"
         onClick={() => {

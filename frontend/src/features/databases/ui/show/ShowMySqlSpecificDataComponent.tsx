@@ -48,6 +48,13 @@ export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
         <div>{database.mysql?.isHttps ? 'Yes' : 'No'}</div>
       </div>
 
+      {database.mysql?.isUseExtendedInsert && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px]">Use extended inserts</div>
+          <div>Yes</div>
+        </div>
+      )}
+
       {!!database.mysql?.excludeTables?.length && (
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Exclude tables</div>

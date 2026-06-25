@@ -8,6 +8,10 @@ import (
 	"databasus-backend/internal/util/encryption"
 )
 
+func SetStorageDatabaseCountersForTest(counters ...StorageDatabaseCounter) {
+	storageService.storageDatabaseCounters = counters
+}
+
 func CreateTestStorage(workspaceID uuid.UUID) *Storage {
 	storage := &Storage{
 		WorkspaceID:  workspaceID,

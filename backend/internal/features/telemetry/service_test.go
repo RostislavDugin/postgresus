@@ -15,12 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
-	"databasus-backend/internal/features/databases/databases/postgresql"
+	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/features/intervals"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
@@ -68,7 +70,7 @@ func (f *fakeNotifierLister) GetAllNotifiers() ([]*notifiers.Notifier, error) {
 
 type fakeBackupChecker struct {
 	hasBackupSince map[uuid.UUID]bool
-	latestBackups  map[uuid.UUID]*backups_core.Backup
+	latestBackups  map[uuid.UUID]*backups_core_logical.LogicalBackup
 	err            error
 	latestErr      error
 }
@@ -86,12 +88,40 @@ func (f *fakeBackupChecker) HasSuccessfulBackupSince(
 
 func (f *fakeBackupChecker) GetLatestCompletedBackup(
 	databaseID uuid.UUID,
-) (*backups_core.Backup, error) {
+) (*backups_core_logical.LogicalBackup, error) {
 	if f.latestErr != nil {
 		return nil, f.latestErr
 	}
 
 	return f.latestBackups[databaseID], nil
+}
+
+type fakePhysicalFullBackupSizer struct {
+	fullBackups map[uuid.UUID]*physical_models.PhysicalFullBackup
+	err         error
+}
+
+func (f *fakePhysicalFullBackupSizer) GetLatestCompletedFullBackup(
+	databaseID uuid.UUID,
+) (*physical_models.PhysicalFullBackup, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	return f.fullBackups[databaseID], nil
+}
+
+type fakeUserCounter struct {
+	count int64
+	err   error
+}
+
+func (f *fakeUserCounter) GetUsersCount() (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+
+	return f.count, nil
 }
 
 type fakeVerificationAgentLister struct {
@@ -126,6 +156,34 @@ func newServiceUnderTest(
 	sender TelemetrySender,
 ) *TelemetryService {
 	t.Helper()
+
+	return newServiceUnderTestWith(
+		t,
+		databaseLister,
+		storageLister,
+		notifierLister,
+		backupChecker,
+		&fakePhysicalFullBackupSizer{},
+		verificationAgentLister,
+		verificationConfigLister,
+		&fakeUserCounter{},
+		sender,
+	)
+}
+
+func newServiceUnderTestWith(
+	t *testing.T,
+	databaseLister databaseLister,
+	storageLister storageLister,
+	notifierLister notifierLister,
+	backupChecker backupChecker,
+	physicalBackupSizer physicalFullBackupSizer,
+	verificationAgentLister verificationAgentLister,
+	verificationConfigLister verificationConfigLister,
+	userCounter userCounter,
+	sender TelemetrySender,
+) *TelemetryService {
+	t.Helper()
 	loader := NewInstanceFileLoader(
 		filepath.Join(t.TempDir(), "instance.json"),
 		slog.New(slog.DiscardHandler),
@@ -138,8 +196,10 @@ func newServiceUnderTest(
 		storageLister,
 		notifierLister,
 		backupChecker,
+		physicalBackupSizer,
 		verificationAgentLister,
 		verificationConfigLister,
+		userCounter,
 		"9.9.9",
 		slog.New(slog.DiscardHandler),
 	)
@@ -159,12 +219,33 @@ func postgresDatabase(name string, status *databases.HealthStatus) *databases.Da
 	return &databases.Database{
 		ID:           uuid.New(),
 		Name:         name,
-		Type:         databases.DatabaseTypePostgres,
+		Type:         databases.DatabaseTypePostgresLogical,
 		HealthStatus: status,
-		Postgresql: &postgresql.PostgresqlDatabase{
+		PostgresqlLogical: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version: tools.PostgresqlVersion("16"),
 		},
 	}
+}
+
+func physicalDatabase(
+	name string,
+	backupType postgresql_physical.BackupType,
+	status *databases.HealthStatus,
+) *databases.Database {
+	return &databases.Database{
+		ID:           uuid.New(),
+		Name:         name,
+		Type:         databases.DatabaseTypePostgresPhysical,
+		HealthStatus: status,
+		PostgresqlPhysical: &postgresql_physical.PostgresqlPhysicalDatabase{
+			Version:    tools.PostgresqlVersion("17"),
+			BackupType: backupType,
+		},
+	}
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
 }
 
 func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
@@ -223,7 +304,7 @@ func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
 		types = append(types, d.Type)
 	}
 	assert.ElementsMatch(t,
-		[]string{"POSTGRES", "MYSQL", "MARIADB", "MONGODB"},
+		[]string{"POSTGRES_LOGICAL", "MYSQL", "MARIADB", "MONGODB"},
 		types,
 	)
 
@@ -282,8 +363,10 @@ func Test_BuildAndSend_WhenInstanceFileFails_DoesNotCallSender(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{},
 		&fakeVerificationAgentLister{},
 		&fakeVerificationConfigLister{},
+		&fakeUserCounter{},
 		"9.9.9",
 		slog.New(slog.DiscardHandler),
 	)
@@ -370,7 +453,7 @@ func Test_BuildAndSend_WhenHealthcheckOffAndRecentBackup_DbIncluded(t *testing.T
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
-	assert.Equal(t, "POSTGRES", sender.calls[0].Databases[0].Type)
+	assert.Equal(t, "POSTGRES_LOGICAL", sender.calls[0].Databases[0].Type)
 }
 
 func Test_BuildAndSend_WhenHealthcheckOffAndNoRecentBackup_DbExcluded(t *testing.T) {
@@ -425,7 +508,7 @@ func Test_BuildAndSend_WhenLatestBackupHasBothSizes_IncludesBoth(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{
-			latestBackups: map[uuid.UUID]*backups_core.Backup{
+			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 870.4, BackupRawDbSizeMb: 4321.7},
 			},
 		},
@@ -453,7 +536,7 @@ func Test_BuildAndSend_WhenSizesAreSubMb_RoundsUpToOne(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{
-			latestBackups: map[uuid.UUID]*backups_core.Backup{
+			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 0.3, BackupRawDbSizeMb: 0.1},
 			},
 		},
@@ -486,7 +569,7 @@ func Test_BuildAndSend_WhenRawSizeZero_IncludesOnlyBackupSize(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{
-			latestBackups: map[uuid.UUID]*backups_core.Backup{
+			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 100, BackupRawDbSizeMb: 0},
 			},
 		},
@@ -519,7 +602,7 @@ func Test_BuildAndSend_WhenBackupSizeZero_IncludesOnlyRawSize(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{
-			latestBackups: map[uuid.UUID]*backups_core.Backup{
+			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 0, BackupRawDbSizeMb: 999},
 			},
 		},
@@ -791,6 +874,146 @@ func Test_BuildAndSend_WhenVerificationConfigListFails_ReturnsError(t *testing.T
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, listErr)
+	assert.Empty(t, sender.calls)
+}
+
+func Test_BuildAndSend_WhenPhysicalDatabase_EmitsTypeBackupTypeAndFullBackupSizes(t *testing.T) {
+	db := physicalDatabase(
+		"pg-physical",
+		postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+		availableStatus(),
+	)
+
+	sender := &fakeSender{}
+	service := newServiceUnderTestWith(
+		t,
+		&fakeDatabaseLister{databases: []*databases.Database{db}},
+		&fakeStorageLister{},
+		&fakeNotifierLister{},
+		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{
+			fullBackups: map[uuid.UUID]*physical_models.PhysicalFullBackup{
+				db.ID: {BackupSizeMb: floatPtr(38400.2), RawSizeMb: floatPtr(192000.7)},
+			},
+		},
+		&fakeVerificationAgentLister{},
+		&fakeVerificationConfigLister{},
+		&fakeUserCounter{},
+		sender,
+	)
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	require.Len(t, sender.calls[0].Databases, 1)
+
+	entry := sender.calls[0].Databases[0]
+	assert.Equal(t, "POSTGRES_PHYSICAL", entry.Type)
+	assert.Equal(t, "17", entry.Version)
+	assert.Equal(t, "FULL_INCREMENTAL_WAL_STREAM", entry.BackupType)
+	assert.Equal(t, int64(38401), entry.BackupSizeMb)
+	assert.Equal(t, int64(192001), entry.RawSizeMb)
+
+	encoded, err := json.Marshal(entry)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"backupType":"FULL_INCREMENTAL_WAL_STREAM"`)
+}
+
+func Test_BuildAndSend_WhenPhysicalDatabaseHasNoFullBackup_OmitsSizes(t *testing.T) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, availableStatus())
+
+	sender := &fakeSender{}
+	service := newServiceUnderTestWith(
+		t,
+		&fakeDatabaseLister{databases: []*databases.Database{db}},
+		&fakeStorageLister{},
+		&fakeNotifierLister{},
+		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{},
+		&fakeVerificationAgentLister{},
+		&fakeVerificationConfigLister{},
+		&fakeUserCounter{},
+		sender,
+	)
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	require.Len(t, sender.calls[0].Databases, 1)
+
+	entry := sender.calls[0].Databases[0]
+	assert.Equal(t, "FULL", entry.BackupType)
+	assert.Equal(t, int64(0), entry.BackupSizeMb)
+	assert.Equal(t, int64(0), entry.RawSizeMb)
+
+	encoded, err := json.Marshal(entry)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "rawSizeMb")
+	assert.NotContains(t, string(encoded), "backupSizeMb")
+}
+
+func Test_BuildAndSend_WhenPhysicalFullBackupLookupFails_ReturnsError(t *testing.T) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, availableStatus())
+	lookupErr := errors.New("physical query exploded")
+
+	sender := &fakeSender{}
+	service := newServiceUnderTestWith(
+		t,
+		&fakeDatabaseLister{databases: []*databases.Database{db}},
+		&fakeStorageLister{},
+		&fakeNotifierLister{},
+		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{err: lookupErr},
+		&fakeVerificationAgentLister{},
+		&fakeVerificationConfigLister{},
+		&fakeUserCounter{},
+		sender,
+	)
+
+	err := service.BuildAndSend(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, lookupErr)
+	assert.Empty(t, sender.calls)
+}
+
+func Test_BuildAndSend_WhenUsersCounted_PopulatesUserCount(t *testing.T) {
+	sender := &fakeSender{}
+	service := newServiceUnderTestWith(
+		t,
+		&fakeDatabaseLister{},
+		&fakeStorageLister{},
+		&fakeNotifierLister{},
+		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{},
+		&fakeVerificationAgentLister{},
+		&fakeVerificationConfigLister{},
+		&fakeUserCounter{count: 7},
+		sender,
+	)
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	assert.Equal(t, 7, sender.calls[0].UserCount)
+}
+
+func Test_BuildAndSend_WhenUserCounterFails_ReturnsError(t *testing.T) {
+	countErr := errors.New("users count exploded")
+
+	sender := &fakeSender{}
+	service := newServiceUnderTestWith(
+		t,
+		&fakeDatabaseLister{},
+		&fakeStorageLister{},
+		&fakeNotifierLister{},
+		&fakeBackupChecker{},
+		&fakePhysicalFullBackupSizer{},
+		&fakeVerificationAgentLister{},
+		&fakeVerificationConfigLister{},
+		&fakeUserCounter{err: countErr},
+		sender,
+	)
+
+	err := service.BuildAndSend(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, countErr)
 	assert.Empty(t, sender.calls)
 }
 

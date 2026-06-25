@@ -31,7 +31,7 @@ curl -sf -X POST "$MOCK/mock/set-backup-fixture" \
 
 curl -sf -X POST "$MOCK/mock/set-claim" \
   -H 'Content-Type: application/json' \
-  -d "{\"verificationId\":\"$VERIFICATION_ID\",\"backupId\":\"$BACKUP_ID\",\"backupSizeMb\":1,\"maxContainerDiskMb\":2048,\"database\":{\"type\":\"POSTGRES\",\"postgresql\":{\"version\":\"16\"}}}"
+  -d "{\"verificationId\":\"$VERIFICATION_ID\",\"backupId\":\"$BACKUP_ID\",\"backupSizeMb\":1,\"maxContainerDiskMb\":2048,\"database\":{\"type\":\"POSTGRES_LOGICAL\",\"postgresqlLogical\":{\"version\":\"16\"}}}"
 
 # Spawn + image pull (first run) + restore + report. Generous budget on cold cache.
 wait_for_report '"status":"FAILED"' 240

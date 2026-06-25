@@ -8,11 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/disk"
 	restores_core "databasus-backend/internal/features/restores/core"
@@ -27,10 +26,10 @@ import (
 )
 
 type RestoreService struct {
-	backupService        *backups_services.BackupService
+	backupService        *backups_services.LogicalBackupService
 	restoreRepository    *restores_core.RestoreRepository
 	storageService       *storages.StorageService
-	backupConfigService  *backups_config.BackupConfigService
+	backupConfigService  *backups_config_logical.BackupConfigService
 	restoreBackupUsecase *usecases.RestoreBackupUsecase
 	databaseService      *databases.DatabaseService
 	logger               *slog.Logger
@@ -41,7 +40,7 @@ type RestoreService struct {
 	taskCancelManager    *tasks_cancellation.TaskCancelManager
 }
 
-func (s *RestoreService) OnBeforeBackupRemove(backup *backups_core.Backup) error {
+func (s *RestoreService) OnBeforeBackupRemove(backup *backups_core_logical.LogicalBackup) error {
 	restores, err := s.restoreRepository.FindByBackupID(backup.ID)
 	if err != nil {
 		return err
@@ -129,16 +128,6 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
-	if config.GetEnv().IsCloud && requestDTO.PostgresqlDatabase != nil &&
-		requestDTO.PostgresqlDatabase.CpuCount > 1 {
-		s.logger.Warn("restore rejected: multi-thread mode not supported in cloud",
-			"requested_cpu_count", requestDTO.PostgresqlDatabase.CpuCount)
-
-		return errors.New(
-			"multi-thread restore is not supported in cloud mode, only single thread (CPU=1) is allowed",
-		)
-	}
-
 	if err := s.validateVersionCompatibility(backupDatabase, requestDTO); err != nil {
 		return err
 	}
@@ -155,17 +144,17 @@ func (s *RestoreService) RestoreBackupWithAuth(
 
 	// Create restore record with the request configuration
 	restore := restores_core.Restore{
-		ID:                 uuid.New(),
-		Status:             restores_core.RestoreStatusInProgress,
-		BackupID:           backup.ID,
-		Backup:             backup,
-		CreatedAt:          time.Now().UTC(),
-		RestoreDurationMs:  0,
-		FailMessage:        nil,
-		PostgresqlDatabase: requestDTO.PostgresqlDatabase,
-		MysqlDatabase:      requestDTO.MysqlDatabase,
-		MariadbDatabase:    requestDTO.MariadbDatabase,
-		MongodbDatabase:    requestDTO.MongodbDatabase,
+		ID:                        uuid.New(),
+		Status:                    restores_core.RestoreStatusInProgress,
+		BackupID:                  backup.ID,
+		Backup:                    backup,
+		CreatedAt:                 time.Now().UTC(),
+		RestoreDurationMs:         0,
+		FailMessage:               nil,
+		PostgresqlLogicalDatabase: requestDTO.PostgresqlLogicalDatabase,
+		MysqlDatabase:             requestDTO.MysqlDatabase,
+		MariadbDatabase:           requestDTO.MariadbDatabase,
+		MongodbDatabase:           requestDTO.MongodbDatabase,
 	}
 
 	if err := s.restoreRepository.Save(&restore); err != nil {
@@ -174,10 +163,10 @@ func (s *RestoreService) RestoreBackupWithAuth(
 
 	// Prepare database cache with credentials from the request
 	dbCache := &restoring.RestoreDatabaseCache{
-		PostgresqlDatabase: requestDTO.PostgresqlDatabase,
-		MysqlDatabase:      requestDTO.MysqlDatabase,
-		MariadbDatabase:    requestDTO.MariadbDatabase,
-		MongodbDatabase:    requestDTO.MongodbDatabase,
+		PostgresqlLogicalDatabase: requestDTO.PostgresqlLogicalDatabase,
+		MysqlDatabase:             requestDTO.MysqlDatabase,
+		MariadbDatabase:           requestDTO.MariadbDatabase,
+		MongodbDatabase:           requestDTO.MongodbDatabase,
 	}
 
 	// Trigger restore via scheduler
@@ -273,8 +262,8 @@ func (s *RestoreService) validateVersionCompatibility(
 			return err
 		}
 	}
-	if requestDTO.PostgresqlDatabase != nil {
-		err := requestDTO.PostgresqlDatabase.PopulateVersion(
+	if requestDTO.PostgresqlLogicalDatabase != nil {
+		err := requestDTO.PostgresqlLogicalDatabase.PopulateVersion(
 			s.logger,
 			s.fieldEncryptor,
 		)
@@ -293,13 +282,13 @@ func (s *RestoreService) validateVersionCompatibility(
 	}
 
 	switch backupDatabase.Type {
-	case databases.DatabaseTypePostgres:
-		if requestDTO.PostgresqlDatabase == nil {
+	case databases.DatabaseTypePostgresLogical:
+		if requestDTO.PostgresqlLogicalDatabase == nil {
 			return errors.New("postgresql database configuration is required for restore")
 		}
 		if tools.IsBackupDbVersionHigherThanRestoreDbVersion(
-			backupDatabase.Postgresql.Version,
-			requestDTO.PostgresqlDatabase.Version,
+			backupDatabase.PostgresqlLogical.Version,
+			requestDTO.PostgresqlLogicalDatabase.Version,
 		) {
 			return errors.New(`backup database version is higher than restore database version. ` +
 				`Should be restored to the same version as the backup database or higher. ` +
@@ -347,19 +336,19 @@ func (s *RestoreService) validateVersionCompatibility(
 }
 
 func (s *RestoreService) validateDiskSpace(
-	backup *backups_core.Backup,
+	backup *backups_core_logical.LogicalBackup,
 	requestDTO restores_core.RestoreBackupRequest,
 ) error {
 	// Only validate disk space for PostgreSQL when file-based restore is needed:
 	// - CPU > 1 (parallel jobs require file)
 	// - IsExcludeExtensions (TOC filtering requires file)
 	// Other databases and PostgreSQL with CPU=1 without extension exclusion stream directly
-	if requestDTO.PostgresqlDatabase == nil {
+	if requestDTO.PostgresqlLogicalDatabase == nil {
 		return nil
 	}
 
-	needsFileBased := requestDTO.PostgresqlDatabase.CpuCount > 1 ||
-		requestDTO.PostgresqlDatabase.IsExcludeExtensions
+	needsFileBased := requestDTO.PostgresqlLogicalDatabase.CpuCount > 1 ||
+		requestDTO.PostgresqlLogicalDatabase.IsExcludeExtensions
 	if !needsFileBased {
 		return nil
 	}

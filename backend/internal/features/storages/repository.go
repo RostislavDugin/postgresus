@@ -174,7 +174,7 @@ func (r *StorageRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Storage
 		Preload("FTPStorage").
 		Preload("SFTPStorage").
 		Preload("RcloneStorage").
-		Where("workspace_id = ? OR is_system = TRUE", workspaceID).
+		Where("workspace_id = ?", workspaceID).
 		Order("name ASC").
 		Find(&storages).Error; err != nil {
 		return nil, err

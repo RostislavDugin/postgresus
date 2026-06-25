@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -13,217 +12,208 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 
-	"databasus-backend/internal/config"
+	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
 
-func Test_TestConnection_InsufficientPermissions_ReturnsError(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
-	}
+type mariadbModelVersion struct {
+	name                 string
+	version              tools.MariadbVersion
+	image                string
+	runsRoutineGrantTest bool // Test_IsUserReadOnly_WithShowCreateRoutineGrant runs only on 11.4/11.8/12.0
+}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+var mariadbModelVersions = []mariadbModelVersion{
+	{"MariaDB 10.6", tools.MariadbVersion106, "mariadb:10.6", false},
+	{"MariaDB 10.11", tools.MariadbVersion1011, "mariadb:10.11", false},
+	{"MariaDB 11.4", tools.MariadbVersion114, "mariadb:11.4", true},
+	{"MariaDB 11.8", tools.MariadbVersion118, "mariadb:11.8", true},
+	{"MariaDB 12.0", tools.MariadbVersion120, "mariadb:12.0", true},
+}
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
+// Test_MariadbModel_AcrossSupportedVersions boots each MariaDB version once and runs every matrix
+// model test against it as a subtest. Only one container is alive per package at a time. See ADR-0013.
+func Test_MariadbModel_AcrossSupportedVersions(t *testing.T) {
+	for _, dbVersion := range mariadbModelVersions {
+		t.Run(dbVersion.name, func(t *testing.T) {
+			endpoint := containers.StartMariadb(t, dbVersion.image)
 
-			_, err := container.DB.Exec(`DROP TABLE IF EXISTS permission_test`)
-			assert.NoError(t, err)
+			t.Run("Test_TestConnection_InsufficientPermissions_ReturnsError", func(t *testing.T) {
+				testTestConnectionInsufficientPermissions(t, endpoint, dbVersion.version)
+			})
 
-			_, err = container.DB.Exec(`CREATE TABLE permission_test (
-				id INT AUTO_INCREMENT PRIMARY KEY,
-				data VARCHAR(255) NOT NULL
-			)`)
-			assert.NoError(t, err)
+			t.Run("Test_TestConnection_SufficientPermissions_Success", func(t *testing.T) {
+				testTestConnectionSufficientPermissions(t, endpoint, dbVersion.version)
+			})
 
-			_, err = container.DB.Exec(`INSERT INTO permission_test (data) VALUES ('test1')`)
-			assert.NoError(t, err)
+			t.Run("Test_IsUserReadOnly_AdminUser_ReturnsFalse", func(t *testing.T) {
+				testIsUserReadOnlyAdminUser(t, endpoint, dbVersion.version)
+			})
 
-			limitedUsername := fmt.Sprintf("limited_%s", uuid.New().String()[:8])
-			limitedPassword := "limitedpassword123"
+			t.Run("Test_CreateReadOnlyUser_UserCanReadButNotWrite", func(t *testing.T) {
+				testCreateReadOnlyUserCanReadButNotWrite(t, endpoint, dbVersion.version)
+			})
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-				limitedUsername,
-				limitedPassword,
-			))
-			assert.NoError(t, err)
+			t.Run("Test_TestConnection_DatabaseSpecificPrivilegesWithGlobalProcess_Success", func(t *testing.T) {
+				testTestConnectionDatabaseSpecificPrivilegesWithGlobalProcess(t, endpoint, dbVersion.version)
+			})
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"GRANT SELECT ON `%s`.* TO '%s'@'%%'",
-				container.Database,
-				limitedUsername,
-			))
-			assert.NoError(t, err)
+			t.Run("Test_TestConnection_DatabaseWithUnderscoresAndAllPrivileges_Success", func(t *testing.T) {
+				testTestConnectionDatabaseWithUnderscoresAndAllPrivileges(t, endpoint, dbVersion.version)
+			})
 
-			_, err = container.DB.Exec("FLUSH PRIVILEGES")
-			assert.NoError(t, err)
-
-			defer dropUserSafe(container.DB, limitedUsername)
-
-			mariadbModel := &MariadbDatabase{
-				Version:  tc.version,
-				Host:     container.Host,
-				Port:     container.Port,
-				Username: limitedUsername,
-				Password: limitedPassword,
-				Database: &container.Database,
-				IsHttps:  false,
+			if dbVersion.runsRoutineGrantTest {
+				t.Run("Test_IsUserReadOnly_WithShowCreateRoutineGrant_ReturnsTrue", func(t *testing.T) {
+					testShowCreateRoutineGrant(t, endpoint, dbVersion.version)
+				})
 			}
-
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-			err = mariadbModel.TestConnection(logger, nil)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "insufficient permissions")
 		})
 	}
 }
 
-func Test_TestConnection_SufficientPermissions_Success(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
-	}
+func testTestConnectionInsufficientPermissions(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	_, err := container.DB.Exec(`DROP TABLE IF EXISTS permission_test`)
+	assert.NoError(t, err)
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
-
-			_, err := container.DB.Exec(`DROP TABLE IF EXISTS backup_test`)
-			assert.NoError(t, err)
-
-			_, err = container.DB.Exec(`CREATE TABLE backup_test (
+	_, err = container.DB.Exec(`CREATE TABLE permission_test (
 				id INT AUTO_INCREMENT PRIMARY KEY,
 				data VARCHAR(255) NOT NULL
 			)`)
-			assert.NoError(t, err)
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(`INSERT INTO backup_test (data) VALUES ('test1')`)
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(`INSERT INTO permission_test (data) VALUES ('test1')`)
+	assert.NoError(t, err)
 
-			backupUsername := fmt.Sprintf("backup_%s", uuid.New().String()[:8])
-			backupPassword := "backuppassword123"
+	limitedUsername := fmt.Sprintf("limited_%s", uuid.New().String()[:8])
+	limitedPassword := "limitedpassword123"
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-				backupUsername,
-				backupPassword,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
+		limitedUsername,
+		limitedPassword,
+	))
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"GRANT SELECT, SHOW VIEW, LOCK TABLES, TRIGGER, EVENT ON `%s`.* TO '%s'@'%%'",
-				container.Database,
-				backupUsername,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"GRANT SELECT ON `%s`.* TO '%s'@'%%'",
+		container.Database,
+		limitedUsername,
+	))
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"GRANT PROCESS ON *.* TO '%s'@'%%'",
-				backupUsername,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec("FLUSH PRIVILEGES")
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec("FLUSH PRIVILEGES")
-			assert.NoError(t, err)
+	defer dropUserSafe(container.DB, limitedUsername)
 
-			defer dropUserSafe(container.DB, backupUsername)
-
-			mariadbModel := &MariadbDatabase{
-				Version:  tc.version,
-				Host:     container.Host,
-				Port:     container.Port,
-				Username: backupUsername,
-				Password: backupPassword,
-				Database: &container.Database,
-				IsHttps:  false,
-			}
-
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-			err = mariadbModel.TestConnection(logger, nil)
-			assert.NoError(t, err)
-		})
+	mariadbModel := &MariadbDatabase{
+		Version:  version,
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: limitedUsername,
+		Password: limitedPassword,
+		Database: &container.Database,
+		IsHttps:  false,
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	err = mariadbModel.TestConnection(logger, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "insufficient permissions")
 }
 
-func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
+func testTestConnectionSufficientPermissions(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
+
+	_, err := container.DB.Exec(`DROP TABLE IF EXISTS backup_test`)
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(`CREATE TABLE backup_test (
+				id INT AUTO_INCREMENT PRIMARY KEY,
+				data VARCHAR(255) NOT NULL
+			)`)
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(`INSERT INTO backup_test (data) VALUES ('test1')`)
+	assert.NoError(t, err)
+
+	backupUsername := fmt.Sprintf("backup_%s", uuid.New().String()[:8])
+	backupPassword := "backuppassword123"
+
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
+		backupUsername,
+		backupPassword,
+	))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"GRANT SELECT, SHOW VIEW, LOCK TABLES, TRIGGER, EVENT ON `%s`.* TO '%s'@'%%'",
+		container.Database,
+		backupUsername,
+	))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"GRANT PROCESS ON *.* TO '%s'@'%%'",
+		backupUsername,
+	))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec("FLUSH PRIVILEGES")
+	assert.NoError(t, err)
+
+	defer dropUserSafe(container.DB, backupUsername)
+
+	mariadbModel := &MariadbDatabase{
+		Version:  version,
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: backupUsername,
+		Password: backupPassword,
+		Database: &container.Database,
+		IsHttps:  false,
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
+	err = mariadbModel.TestConnection(logger, nil)
+	assert.NoError(t, err)
+}
 
-			mariadbModel := createMariadbModel(container)
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-			ctx := t.Context()
+func testIsUserReadOnlyAdminUser(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
 
-			isReadOnly, privileges, err := mariadbModel.IsUserReadOnly(ctx, logger, nil)
-			assert.NoError(t, err)
-			assert.False(t, isReadOnly, "Root user should not be read-only")
-			assert.NotEmpty(t, privileges, "Root user should have privileges")
-		})
-	}
+	mariadbModel := createMariadbModel(container)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := t.Context()
+
+	isReadOnly, privileges, err := mariadbModel.IsUserReadOnly(ctx, logger, nil)
+	assert.NoError(t, err)
+	assert.False(t, isReadOnly, "Root user should not be read-only")
+	assert.NotEmpty(t, privileges, "Root user should have privileges")
 }
 
 func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	_, err := container.DB.Exec(`DROP TABLE IF EXISTS readonly_check_test`)
@@ -263,127 +253,105 @@ func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
 	dropUserSafe(container.DB, username)
 }
 
-func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
-	}
+func testCreateReadOnlyUserCanReadButNotWrite(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	_, err := container.DB.Exec(`DROP TABLE IF EXISTS readonly_test`)
+	assert.NoError(t, err)
+	_, err = container.DB.Exec(`DROP TABLE IF EXISTS hack_table`)
+	assert.NoError(t, err)
+	_, err = container.DB.Exec(`DROP TABLE IF EXISTS future_table`)
+	assert.NoError(t, err)
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
-
-			_, err := container.DB.Exec(`DROP TABLE IF EXISTS readonly_test`)
-			assert.NoError(t, err)
-			_, err = container.DB.Exec(`DROP TABLE IF EXISTS hack_table`)
-			assert.NoError(t, err)
-			_, err = container.DB.Exec(`DROP TABLE IF EXISTS future_table`)
-			assert.NoError(t, err)
-
-			_, err = container.DB.Exec(`
+	_, err = container.DB.Exec(`
 				CREATE TABLE readonly_test (
 					id INT AUTO_INCREMENT PRIMARY KEY,
 					data VARCHAR(255) NOT NULL
 				)
 			`)
-			assert.NoError(t, err)
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(
-				`INSERT INTO readonly_test (data) VALUES ('test1'), ('test2')`,
-			)
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(
+		`INSERT INTO readonly_test (data) VALUES ('test1'), ('test2')`,
+	)
+	assert.NoError(t, err)
 
-			mariadbModel := createMariadbModel(container)
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-			ctx := t.Context()
+	mariadbModel := createMariadbModel(container)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	ctx := t.Context()
 
-			username, password, err := mariadbModel.CreateReadOnlyUser(ctx, logger, nil)
-			assert.NoError(t, err)
-			assert.NotEmpty(t, username)
-			assert.NotEmpty(t, password)
-			assert.True(t, strings.HasPrefix(username, "pgs-"))
+	username, password, err := mariadbModel.CreateReadOnlyUser(ctx, logger, nil)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, username)
+	assert.NotEmpty(t, password)
+	assert.True(t, strings.HasPrefix(username, "pgs-"))
 
-			if err != nil {
-				return
-			}
-
-			readOnlyModel := &MariadbDatabase{
-				Version:  mariadbModel.Version,
-				Host:     mariadbModel.Host,
-				Port:     mariadbModel.Port,
-				Username: username,
-				Password: password,
-				Database: mariadbModel.Database,
-				IsHttps:  false,
-			}
-
-			isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(
-				ctx,
-				logger,
-				nil,
-			)
-			assert.NoError(t, err)
-			assert.True(t, isReadOnly, "Created user should be read-only")
-			assert.Empty(t, privileges, "Read-only user should have no write privileges")
-
-			readOnlyDSN := fmt.Sprintf(
-				"%s:%s@tcp(%s:%d)/%s?parseTime=true",
-				username,
-				password,
-				container.Host,
-				container.Port,
-				container.Database,
-			)
-			readOnlyConn, err := sqlx.Connect("mysql", readOnlyDSN)
-			assert.NoError(t, err)
-			defer readOnlyConn.Close()
-
-			var count int
-			err = readOnlyConn.Get(&count, "SELECT COUNT(*) FROM readonly_test")
-			assert.NoError(t, err)
-			assert.Equal(t, 2, count)
-
-			_, err = readOnlyConn.Exec("INSERT INTO readonly_test (data) VALUES ('should-fail')")
-			assert.Error(t, err)
-			assert.Contains(t, strings.ToLower(err.Error()), "denied")
-
-			_, err = readOnlyConn.Exec("UPDATE readonly_test SET data = 'hacked' WHERE id = 1")
-			assert.Error(t, err)
-			assert.Contains(t, strings.ToLower(err.Error()), "denied")
-
-			_, err = readOnlyConn.Exec("DELETE FROM readonly_test WHERE id = 1")
-			assert.Error(t, err)
-			assert.Contains(t, strings.ToLower(err.Error()), "denied")
-
-			_, err = readOnlyConn.Exec("CREATE TABLE hack_table (id INT)")
-			assert.Error(t, err)
-			assert.Contains(t, strings.ToLower(err.Error()), "denied")
-
-			dropUserSafe(container.DB, username)
-		})
+	if err != nil {
+		return
 	}
+
+	readOnlyModel := &MariadbDatabase{
+		Version:  mariadbModel.Version,
+		Host:     mariadbModel.Host,
+		Port:     mariadbModel.Port,
+		Username: username,
+		Password: password,
+		Database: mariadbModel.Database,
+		IsHttps:  false,
+	}
+
+	isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(
+		ctx,
+		logger,
+		nil,
+	)
+	assert.NoError(t, err)
+	assert.True(t, isReadOnly, "Created user should be read-only")
+	assert.Empty(t, privileges, "Read-only user should have no write privileges")
+
+	readOnlyDSN := fmt.Sprintf(
+		"%s:%s@tcp(%s:%d)/%s?parseTime=true",
+		username,
+		password,
+		container.Host,
+		container.Port,
+		container.Database,
+	)
+	readOnlyConn, err := sqlx.Connect("mysql", readOnlyDSN)
+	assert.NoError(t, err)
+	defer readOnlyConn.Close()
+
+	var count int
+	err = readOnlyConn.Get(&count, "SELECT COUNT(*) FROM readonly_test")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	_, err = readOnlyConn.Exec("INSERT INTO readonly_test (data) VALUES ('should-fail')")
+	assert.Error(t, err)
+	assert.Contains(t, strings.ToLower(err.Error()), "denied")
+
+	_, err = readOnlyConn.Exec("UPDATE readonly_test SET data = 'hacked' WHERE id = 1")
+	assert.Error(t, err)
+	assert.Contains(t, strings.ToLower(err.Error()), "denied")
+
+	_, err = readOnlyConn.Exec("DELETE FROM readonly_test WHERE id = 1")
+	assert.Error(t, err)
+	assert.Contains(t, strings.ToLower(err.Error()), "denied")
+
+	_, err = readOnlyConn.Exec("CREATE TABLE hack_table (id INT)")
+	assert.Error(t, err)
+	assert.Contains(t, strings.ToLower(err.Error()), "denied")
+
+	dropUserSafe(container.DB, username)
 }
 
 func Test_ReadOnlyUser_FutureTables_NoSelectPermission(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	mariadbModel := createMariadbModel(container)
@@ -420,8 +388,7 @@ func Test_ReadOnlyUser_FutureTables_NoSelectPermission(t *testing.T) {
 }
 
 func Test_CreateReadOnlyUser_DatabaseNameWithDash_Success(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	dashDbName := "test-db-with-dash"
@@ -491,8 +458,7 @@ func Test_CreateReadOnlyUser_DatabaseNameWithDash_Success(t *testing.T) {
 }
 
 func Test_ReadOnlyUser_CannotDropOrAlterTables(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	_, err := container.DB.Exec(`DROP TABLE IF EXISTS drop_test`)
@@ -535,94 +501,72 @@ func Test_ReadOnlyUser_CannotDropOrAlterTables(t *testing.T) {
 	dropUserSafe(container.DB, username)
 }
 
-func Test_TestConnection_DatabaseSpecificPrivilegesWithGlobalProcess_Success(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
-	}
+func testTestConnectionDatabaseSpecificPrivilegesWithGlobalProcess(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	_, err := container.DB.Exec(`DROP TABLE IF EXISTS privilege_test`)
+	assert.NoError(t, err)
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
-
-			_, err := container.DB.Exec(`DROP TABLE IF EXISTS privilege_test`)
-			assert.NoError(t, err)
-
-			_, err = container.DB.Exec(`CREATE TABLE privilege_test (
+	_, err = container.DB.Exec(`CREATE TABLE privilege_test (
 				id INT AUTO_INCREMENT PRIMARY KEY,
 				data VARCHAR(255) NOT NULL
 			)`)
-			assert.NoError(t, err)
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(`INSERT INTO privilege_test (data) VALUES ('test1')`)
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(`INSERT INTO privilege_test (data) VALUES ('test1')`)
+	assert.NoError(t, err)
 
-			specificUsername := fmt.Sprintf("spec_%s", uuid.New().String()[:8])
-			specificPassword := "specificpass123"
+	specificUsername := fmt.Sprintf("spec_%s", uuid.New().String()[:8])
+	specificPassword := "specificpass123"
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-				specificUsername,
-				specificPassword,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
+		specificUsername,
+		specificPassword,
+	))
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"GRANT SELECT, SHOW VIEW ON %s.* TO '%s'@'%%'",
-				container.Database,
-				specificUsername,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"GRANT SELECT, SHOW VIEW ON %s.* TO '%s'@'%%'",
+		container.Database,
+		specificUsername,
+	))
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec(fmt.Sprintf(
-				"GRANT PROCESS ON *.* TO '%s'@'%%'",
-				specificUsername,
-			))
-			assert.NoError(t, err)
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"GRANT PROCESS ON *.* TO '%s'@'%%'",
+		specificUsername,
+	))
+	assert.NoError(t, err)
 
-			_, err = container.DB.Exec("FLUSH PRIVILEGES")
-			assert.NoError(t, err)
+	_, err = container.DB.Exec("FLUSH PRIVILEGES")
+	assert.NoError(t, err)
 
-			defer dropUserSafe(container.DB, specificUsername)
+	defer dropUserSafe(container.DB, specificUsername)
 
-			mariadbModel := &MariadbDatabase{
-				Version:  tc.version,
-				Host:     container.Host,
-				Port:     container.Port,
-				Username: specificUsername,
-				Password: specificPassword,
-				Database: &container.Database,
-				IsHttps:  false,
-			}
-
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-			err = mariadbModel.TestConnection(logger, nil)
-			assert.NoError(t, err)
-		})
+	mariadbModel := &MariadbDatabase{
+		Version:  version,
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: specificUsername,
+		Password: specificPassword,
+		Database: &container.Database,
+		IsHttps:  false,
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	err = mariadbModel.TestConnection(logger, nil)
+	assert.NoError(t, err)
 }
 
 func Test_TestConnection_DatabaseWithUnderscores_Success(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	underscoreDbName := "test_db_name"
@@ -692,113 +636,92 @@ func Test_TestConnection_DatabaseWithUnderscores_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_TestConnection_DatabaseWithUnderscoresAndAllPrivileges_Success(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 5.5", tools.MariadbVersion55, env.TestMariadb55Port},
-		{"MariaDB 10.1", tools.MariadbVersion101, env.TestMariadb101Port},
-		{"MariaDB 10.2", tools.MariadbVersion102, env.TestMariadb102Port},
-		{"MariaDB 10.3", tools.MariadbVersion103, env.TestMariadb103Port},
-		{"MariaDB 10.4", tools.MariadbVersion104, env.TestMariadb104Port},
-		{"MariaDB 10.5", tools.MariadbVersion105, env.TestMariadb105Port},
-		{"MariaDB 10.6", tools.MariadbVersion106, env.TestMariadb106Port},
-		{"MariaDB 10.11", tools.MariadbVersion1011, env.TestMariadb1011Port},
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
-	}
+func testTestConnectionDatabaseWithUnderscoresAndAllPrivileges(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	underscoreDbName := "test_all_db"
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
+	_, err := container.DB.Exec(
+		fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", underscoreDbName),
+	)
+	assert.NoError(t, err)
 
-			underscoreDbName := "test_all_db"
+	_, err = container.DB.Exec(fmt.Sprintf("CREATE DATABASE `%s`", underscoreDbName))
+	assert.NoError(t, err)
 
-			_, err := container.DB.Exec(
-				fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", underscoreDbName),
-			)
-			assert.NoError(t, err)
+	defer func() {
+		_, _ = container.DB.Exec(
+			fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", underscoreDbName),
+		)
+	}()
 
-			_, err = container.DB.Exec(fmt.Sprintf("CREATE DATABASE `%s`", underscoreDbName))
-			assert.NoError(t, err)
+	underscoreDSN := fmt.Sprintf(
+		"%s:%s@tcp(%s:%d)/%s?parseTime=true",
+		container.Username,
+		container.Password,
+		container.Host,
+		container.Port,
+		underscoreDbName,
+	)
+	underscoreDB, err := sqlx.Connect("mysql", underscoreDSN)
+	assert.NoError(t, err)
+	defer underscoreDB.Close()
 
-			defer func() {
-				_, _ = container.DB.Exec(
-					fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", underscoreDbName),
-				)
-			}()
-
-			underscoreDSN := fmt.Sprintf(
-				"%s:%s@tcp(%s:%d)/%s?parseTime=true",
-				container.Username,
-				container.Password,
-				container.Host,
-				container.Port,
-				underscoreDbName,
-			)
-			underscoreDB, err := sqlx.Connect("mysql", underscoreDSN)
-			assert.NoError(t, err)
-			defer underscoreDB.Close()
-
-			_, err = underscoreDB.Exec(`
+	_, err = underscoreDB.Exec(`
 				CREATE TABLE all_priv_test (
 					id INT AUTO_INCREMENT PRIMARY KEY,
 					data VARCHAR(255) NOT NULL
 				)
 			`)
-			assert.NoError(t, err)
+	assert.NoError(t, err)
 
-			_, err = underscoreDB.Exec(`INSERT INTO all_priv_test (data) VALUES ('test1')`)
-			assert.NoError(t, err)
+	_, err = underscoreDB.Exec(`INSERT INTO all_priv_test (data) VALUES ('test1')`)
+	assert.NoError(t, err)
 
-			allPrivUsername := fmt.Sprintf("allpriv%s", uuid.New().String()[:8])
-			allPrivPassword := "allprivpass123"
+	allPrivUsername := fmt.Sprintf("allpriv%s", uuid.New().String()[:8])
+	allPrivPassword := "allprivpass123"
 
-			_, err = underscoreDB.Exec(fmt.Sprintf(
-				"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-				allPrivUsername,
-				allPrivPassword,
-			))
-			assert.NoError(t, err)
+	_, err = underscoreDB.Exec(fmt.Sprintf(
+		"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
+		allPrivUsername,
+		allPrivPassword,
+	))
+	assert.NoError(t, err)
 
-			_, err = underscoreDB.Exec(fmt.Sprintf(
-				"GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%%'",
-				underscoreDbName,
-				allPrivUsername,
-			))
-			assert.NoError(t, err)
+	_, err = underscoreDB.Exec(fmt.Sprintf(
+		"GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%%'",
+		underscoreDbName,
+		allPrivUsername,
+	))
+	assert.NoError(t, err)
 
-			_, err = underscoreDB.Exec("FLUSH PRIVILEGES")
-			assert.NoError(t, err)
+	_, err = underscoreDB.Exec("FLUSH PRIVILEGES")
+	assert.NoError(t, err)
 
-			defer dropUserSafe(underscoreDB, allPrivUsername)
+	defer dropUserSafe(underscoreDB, allPrivUsername)
 
-			mariadbModel := &MariadbDatabase{
-				Version:  tc.version,
-				Host:     container.Host,
-				Port:     container.Port,
-				Username: allPrivUsername,
-				Password: allPrivPassword,
-				Database: &underscoreDbName,
-				IsHttps:  false,
-			}
-
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-			err = mariadbModel.TestConnection(logger, nil)
-			assert.NoError(t, err)
-			assert.NotEmpty(t, mariadbModel.Privileges)
-			assert.Contains(t, mariadbModel.Privileges, "SELECT")
-			assert.Contains(t, mariadbModel.Privileges, "SHOW VIEW")
-		})
+	mariadbModel := &MariadbDatabase{
+		Version:  version,
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: allPrivUsername,
+		Password: allPrivPassword,
+		Database: &underscoreDbName,
+		IsHttps:  false,
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	err = mariadbModel.TestConnection(logger, nil)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, mariadbModel.Privileges)
+	assert.Contains(t, mariadbModel.Privileges, "SELECT")
+	assert.Contains(t, mariadbModel.Privileges, "SHOW VIEW")
 }
 
 type MariadbContainer struct {
@@ -812,8 +735,7 @@ type MariadbContainer struct {
 }
 
 func Test_GetRawDbSizeMb_Mariadb_ReturnsPositiveSize(t *testing.T) {
-	env := config.GetEnv()
-	container := connectToMariadbContainer(t, env.TestMariadb1011Port, tools.MariadbVersion1011)
+	container := connectToMariadbContainer(t, "mariadb:10.11", tools.MariadbVersion1011)
 	defer container.DB.Close()
 
 	tableName := fmt.Sprintf("size_test_%s", uuid.New().String()[:8])
@@ -854,72 +776,59 @@ func Test_GetRawDbSizeMb_Mariadb_ReturnsPositiveSize(t *testing.T) {
 // SHOW CREATE ROUTINE was introduced as a distinct privilege in MariaDB
 // 11.3; the matrix below only covers versions that recognize the GRANT
 // statement.
-func Test_IsUserReadOnly_WithShowCreateRoutineGrant_ReturnsTrue(t *testing.T) {
-	env := config.GetEnv()
-	cases := []struct {
-		name    string
-		version tools.MariadbVersion
-		port    string
-	}{
-		{"MariaDB 11.4", tools.MariadbVersion114, env.TestMariadb114Port},
-		{"MariaDB 11.8", tools.MariadbVersion118, env.TestMariadb118Port},
-		{"MariaDB 12.0", tools.MariadbVersion120, env.TestMariadb120Port},
+func testShowCreateRoutineGrant(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) {
+	container := connectToMariadbEndpoint(t, endpoint, version)
+	defer container.DB.Close()
+
+	username := fmt.Sprintf("ro_%s", uuid.New().String()[:8])
+	password := "ropass123"
+
+	_, err := container.DB.Exec(fmt.Sprintf(
+		"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'", username, password))
+	assert.NoError(t, err)
+	defer dropUserSafe(container.DB, username)
+
+	for _, stmt := range []string{
+		"GRANT SELECT ON *.* TO '%s'@'%%'",
+		"GRANT SHOW VIEW ON *.* TO '%s'@'%%'",
+		"GRANT SHOW CREATE ROUTINE ON *.* TO '%s'@'%%'",
+	} {
+		_, err = container.DB.Exec(fmt.Sprintf(stmt, username))
+		assert.NoError(t, err)
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	_, err = container.DB.Exec("FLUSH PRIVILEGES")
+	assert.NoError(t, err)
 
-			container := connectToMariadbContainer(t, tc.port, tc.version)
-			defer container.DB.Close()
-
-			username := fmt.Sprintf("ro_%s", uuid.New().String()[:8])
-			password := "ropass123"
-
-			_, err := container.DB.Exec(fmt.Sprintf(
-				"CREATE USER '%s'@'%%' IDENTIFIED BY '%s'", username, password))
-			assert.NoError(t, err)
-			defer dropUserSafe(container.DB, username)
-
-			for _, stmt := range []string{
-				"GRANT SELECT ON *.* TO '%s'@'%%'",
-				"GRANT SHOW VIEW ON *.* TO '%s'@'%%'",
-				"GRANT SHOW CREATE ROUTINE ON *.* TO '%s'@'%%'",
-			} {
-				_, err = container.DB.Exec(fmt.Sprintf(stmt, username))
-				assert.NoError(t, err)
-			}
-
-			_, err = container.DB.Exec("FLUSH PRIVILEGES")
-			assert.NoError(t, err)
-
-			readOnlyModel := &MariadbDatabase{
-				Version:  tc.version,
-				Host:     container.Host,
-				Port:     container.Port,
-				Username: username,
-				Password: password,
-				Database: &container.Database,
-				IsHttps:  false,
-			}
-
-			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-			isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(
-				t.Context(),
-				logger,
-				nil,
-			)
-			assert.NoError(t, err)
-			assert.True(
-				t,
-				isReadOnly,
-				"SELECT + SHOW VIEW + SHOW CREATE ROUTINE must be read-only, got privileges=%v",
-				privileges,
-			)
-			assert.Empty(t, privileges)
-		})
+	readOnlyModel := &MariadbDatabase{
+		Version:  version,
+		Host:     container.Host,
+		Port:     container.Port,
+		Username: username,
+		Password: password,
+		Database: &container.Database,
+		IsHttps:  false,
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(
+		t.Context(),
+		logger,
+		nil,
+	)
+	assert.NoError(t, err)
+	assert.True(
+		t,
+		isReadOnly,
+		"SELECT + SHOW VIEW + SHOW CREATE ROUTINE must be read-only, got privileges=%v",
+		privileges,
+	)
+	assert.Empty(t, privileges)
 }
 
 func Test_ParseGrantPrivileges_ReturnsExpectedTokens(t *testing.T) {
@@ -1026,32 +935,34 @@ func Test_HideSensitiveData_WhenReceiverIsNil_DoesNotPanic(t *testing.T) {
 
 func connectToMariadbContainer(
 	t *testing.T,
-	port string,
+	image string,
 	version tools.MariadbVersion,
 ) *MariadbContainer {
-	if port == "" {
-		t.Skipf("MariaDB port not configured for version %s", version)
-	}
+	endpoint := containers.StartMariadb(t, image)
 
-	dbName := "testdb"
-	host := config.GetEnv().TestLocalhost
+	return connectToMariadbEndpoint(t, endpoint, version)
+}
+
+func connectToMariadbEndpoint(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MariadbVersion,
+) *MariadbContainer {
+	dbName := containers.MariadbDatabase
 	username := "root"
-	password := "rootpassword"
-
-	portInt, err := strconv.Atoi(port)
-	assert.NoError(t, err)
+	password := containers.MariadbRootPassword
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		username, password, host, portInt, dbName)
+		username, password, endpoint.Host, endpoint.Port, dbName)
 
 	db, err := sqlx.Connect("mysql", dsn)
 	if err != nil {
-		t.Skipf("Failed to connect to MariaDB %s: %v", version, err)
+		t.Fatalf("Failed to connect to MariaDB %s: %v", version, err)
 	}
 
 	return &MariadbContainer{
-		Host:     host,
-		Port:     portInt,
+		Host:     endpoint.Host,
+		Port:     endpoint.Port,
 		Username: username,
 		Password: password,
 		Database: dbName,

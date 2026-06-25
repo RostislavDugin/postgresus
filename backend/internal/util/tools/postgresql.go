@@ -3,7 +3,6 @@ package tools
 import (
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -22,24 +21,35 @@ var postgresqlRequired = []string{
 	string(PostgresqlExecutablePsql),
 }
 
+// postgresqlRequiredV17Plus extends the base set with the physical-backup
+// binaries. pg_basebackup --incremental and pg_combinebackup are PG 17+ only,
+// so pre-17 versions stay on the smaller list.
+var postgresqlRequiredV17Plus = []string{
+	string(PostgresqlExecutablePgDump),
+	string(PostgresqlExecutablePsql),
+	string(PostgresqlExecutablePgBasebackup),
+	string(PostgresqlExecutablePgReceivewal),
+	string(PostgresqlExecutablePgCombinebackup),
+}
+
+func getPostgresqlRequiredForVersion(version PostgresqlVersion) []string {
+	if version == PostgresqlVersion17 || version == PostgresqlVersion18 {
+		return postgresqlRequiredV17Plus
+	}
+
+	return postgresqlRequired
+}
+
 // GetPostgresqlExecutable returns the absolute path to a PostgreSQL client
 // binary for the given version (e.g. pg_dump, pg_restore, psql).
 func GetPostgresqlExecutable(
 	version PostgresqlVersion,
 	executable PostgresqlExecutable,
 ) string {
-	return filepath.Join(getPostgresqlBinDir(version), withExeOnWindows(string(executable)))
+	return filepath.Join(getPostgresqlBinDir(version), string(executable))
 }
 
 func getPostgresqlBinDir(version PostgresqlVersion) string {
-	// Windows pg 12/13 have a piping bug on restore — fall through to the v14
-	// client which speaks the older wire formats fine.
-	if runtime.GOOS == "windows" {
-		if version == PostgresqlVersion12 || version == PostgresqlVersion13 {
-			version = PostgresqlVersion14
-		}
-	}
-
 	return filepath.Join(
 		AssetsToolsDir(),
 		"postgresql",
@@ -61,7 +71,7 @@ func checkPostgresql() []ToolCheckResult {
 			Db:      "postgresql",
 			Version: string(v),
 			BinDir:  binDir,
-			Errors:  checkBinDir(binDir, postgresqlRequired),
+			Errors:  checkBinDir(binDir, getPostgresqlRequiredForVersion(v)),
 			IsFatal: true,
 		})
 	}

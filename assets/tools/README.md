@@ -1,14 +1,14 @@
 Pre-built DB client binaries committed to the repo so that local dev,
 CI, and the Docker image all read from one place. The Go backend
 resolves them at runtime via `runtime.GOOS`+`runtime.GOARCH` →
-`assets/tools/<arch-key>/<db>/<db>-<v>/bin/<command>[.exe]`.
+`assets/tools/<arch-key>/<db>/<db>-<v>/bin/<command>`.
 
 Layout (one subtree per arch, identical shape):
 
 ```
 assets/tools/<arch>/
   postgresql/postgresql-{12,13,14,15,16,17,18}/bin/
-    pg_dump, pg_restore, psql   (+ minimal *.dll set on Windows)
+    pg_dump, pg_restore, psql
   mysql/mysql-{5.7,8.0,8.4,9}/bin/
     mysql, mysqldump
   mariadb/mariadb-{10.6,12.1}/bin/
@@ -19,11 +19,10 @@ assets/tools/<arch>/
 
 `<arch>` keys (mapping in `backend/internal/util/tools/paths.go`):
 
-| GOOS / GOARCH       | key       | size  |
-|---------------------|-----------|-------|
-| `linux` / `amd64`   | `x64`     | ~160 MB |
-| `linux` / `arm64`   | `arm`     | ~125 MB |
-| `windows` / `amd64` | `win-x64` | ~120 MB |
+| GOOS / GOARCH     | key   | size    |
+|-------------------|-------|---------|
+| `linux` / `amd64` | `x64` | ~160 MB |
+| `linux` / `arm64` | `arm` | ~125 MB |
 
 Notes:
 - MySQL `5.7` is amd64-only — `arm/mysql/mysql-5.7/` is intentionally absent.

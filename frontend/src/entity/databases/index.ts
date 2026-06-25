@@ -2,10 +2,20 @@ export { databaseApi } from './api/databaseApi';
 export { type Database } from './model/Database';
 export { DatabaseType } from './model/DatabaseType';
 export { getDatabaseLogoFromType } from './model/getDatabaseLogoFromType';
+export { isPostgresType } from './model/isPostgresType';
+export { initializeDatabaseTypeData } from './model/initializeDatabaseTypeData';
 export { Period } from './model/Period';
-export { PostgresBackupType } from './model/postgresql/PostgresBackupType';
 export { PostgresSslMode } from './model/postgresql/PostgresSslMode';
-export { type PostgresqlDatabase } from './model/postgresql/PostgresqlDatabase';
+export { type PostgresqlLogicalDatabase } from './model/postgresql/PostgresqlLogicalDatabase';
+export { type PostgresqlPhysicalDatabase } from './model/postgresql/physical/PostgresqlPhysicalDatabase';
+export { PhysicalDatabaseBackupType } from './model/postgresql/physical/PhysicalDatabaseBackupType';
+export { ConnectionErrorCode } from './model/postgresql/physical/ConnectionErrorCode';
+export {
+  type PhysicalConnectionErrorContent,
+  type PhysicalConnectionErrorStep,
+  type PhysicalConnectionErrorTextRun,
+  physicalConnectionErrorContent,
+} from './model/postgresql/physical/physicalConnectionErrorContent';
 export { PostgresqlVersion } from './model/postgresql/PostgresqlVersion';
 export { type MysqlDatabase } from './model/mysql/MysqlDatabase';
 export { MysqlVersion } from './model/mysql/MysqlVersion';

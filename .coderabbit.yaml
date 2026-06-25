@@ -36,7 +36,6 @@ reviews:
     - "!**/*.pb.go"
     - "!**/*_gen.go"
     - "!backend/docs/**"
-    - "!agent/backup/e2e/artifacts/**"
 
   path_instructions:
     - path: ".github/workflows/**"

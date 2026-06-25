@@ -6,4 +6,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   envDir: '../',
   plugins: [react(), tailwindcss()],
+  server: {
+    host: true,
+  },
 });

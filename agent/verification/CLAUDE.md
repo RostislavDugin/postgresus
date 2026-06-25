@@ -2,7 +2,7 @@
 
 Coding standards for the Databasus verification agent — a Go CLI worker that runs on a cloud-managed Linux VM, reports its capacity to the backend over HTTP, and (once the restore phase lands) claims and verifies backups. It has no Gin HTTP server and owns no database schema. The long-running goroutine in this phase is the **capacity heartbeat loop**; the claim/report runner arrives with the restore phase. There is no Windows daemon — the agent runs in the foreground under systemd or as a container.
 
-This file is intentionally a near-copy of [`agent/backup/CLAUDE.md`](../backup/CLAUDE.md) — the Go conventions are shared and **both must stay in sync as conventions evolve**. For project-wide engineering philosophy, naming, and lint/format commands, see the root `CLAUDE.md`. For the backend (Gin/GORM/Swagger) ruleset, see `backend/CLAUDE.md`.
+For project-wide engineering philosophy, naming, and lint/format commands, see the root `CLAUDE.md`. For the backend (Gin/GORM/Swagger) ruleset, see `backend/CLAUDE.md`.
 
 ---
 

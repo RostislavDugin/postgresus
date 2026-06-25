@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"databasus-backend/internal/features/backups/backups/backuping"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/intervals"
 	"databasus-backend/internal/features/notifiers"
@@ -70,11 +70,11 @@ func Test_CreateScheduledRuns_WhenMultipleBackupsExist_PicksLatestForVerificatio
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	older := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 50)
+	older := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 50)
 	older.CreatedAt = time.Now().UTC().Add(-2 * time.Hour)
 	require.NoError(t, storage.GetDb().Save(older).Error)
 
-	latestBackup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	latestBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -103,7 +103,7 @@ func Test_CreateScheduledRuns_WhenScheduledPendingAlreadyExists_DoesNotInsertNew
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -130,7 +130,7 @@ func Test_CreateScheduledRuns_WhenManualPendingExists_StillCreatesScheduledRun(t
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)
 
@@ -174,7 +174,7 @@ func Test_ReapStaleRuns_WhenPendingExceedsMaxDuration_MarksFailedWithoutRetry(t 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	stalePending := EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)
 	require.NoError(t, storage.GetDb().
@@ -208,7 +208,7 @@ func Test_ReapStaleRuns_WhenOwningAgentRemoved_RequeuesThenRetiresIfUnclaimed(t 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "soft-del-"+uuid.New().String())
 	defer verification_agents.RemoveTestVerificationAgent(t, router, owner.Token, agent.Agent.ID)
 
@@ -272,7 +272,7 @@ func Test_ReapStaleRuns_WhenAgentLostContactWithRetriesRemaining_RequeuesVerific
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(
 		t,
 		router,
@@ -320,7 +320,7 @@ func Test_ReapStaleRuns_WhenPendingExceedsMaxDuration_MarksTerminalRegardlessOfP
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
-	backup := backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	stalePending := EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)
 	require.NoError(t, storage.GetDb().
 		Model(&RestoreVerification{}).
@@ -352,7 +352,7 @@ func Test_SweepCanceledByDisabledConfig_WhenScheduledVerificationDisabled_Cancel
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -374,6 +374,8 @@ func Test_SweepCanceledByDisabledConfig_WhenScheduledVerificationDisabled_Cancel
 
 	final := GetVerificationByIDViaAPI(t, router, owner.Token, scheduledRowID)
 	assert.Equal(t, VerificationStatusCanceled, final.Status)
+	require.NotNil(t, final.FailMessage)
+	assert.Contains(t, *final.FailMessage, "schedule was disabled")
 }
 
 func Test_CreateScheduledRuns_AfterUserCancel_DoesNotImmediatelyRecreate(t *testing.T) {
@@ -391,7 +393,7 @@ func Test_CreateScheduledRuns_AfterUserCancel_DoesNotImmediatelyRecreate(t *test
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 
@@ -431,7 +433,7 @@ func Test_CreateScheduledRuns_AfterUserCancel_DoesNotRequeueOrRestart(t *testing
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
 	defer databases.RemoveTestDatabase(database)
 
-	backuping.SeedTestBackup(t, database.ID, testStorage.ID, 100)
+	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableHourlyVerificationViaAPI(t, router, owner.Token, database.ID)
 

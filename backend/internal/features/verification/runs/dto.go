@@ -39,6 +39,7 @@ type JobAssignment struct {
 	BackupSizeMb       float64             `json:"backupSizeMb"`
 	MaxContainerDiskMb float64             `json:"maxContainerDiskMb"`
 	Database           *databases.Database `json:"database"`
+	TimescaledbVersion string              `json:"timescaledbVersion"`
 }
 
 type ReportTableStat struct {

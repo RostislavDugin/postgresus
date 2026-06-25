@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/logo.svg" alt="Databasus Logo" width="250"/>
 
-  <h3>PostgreSQL backup tool (with MySQL\MariaDB and MongoDB support)</h3>
-  <p>Databasus is a free, open source and self-hosted tool to backup databases (primarily PostgreSQL). Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). With focus on Point-In-Time Recovery and restore verification</p>
+  <h3>PostgreSQL backup tool</h3>
+  <p>Databasus is a free, open source and self-hosted tool to backup PostgreSQL. Make backups with different storages (S3, Google Drive, FTP, etc.) and notifications about progress (Slack, Discord, Telegram, etc.). With a focus on Point-in-Time Recovery at low RPO/RTO</p>
   
   <!-- Badges -->
    [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -37,12 +37,13 @@
 
 ## ✨ Features
 
-### 💾 **Supported databases**
+### 📦 **Backup types**
 
-- **PostgreSQL**: 12, 13, 14, 15, 16, 17 and 18
-- **MySQL**: 5.7, 8 and 9
-- **MariaDB**: 10, 11 and 12
-- **MongoDB**: 4.2+, 5, 6, 7 and 8
+- **Physical**: file-level copy of the entire database cluster over PostgreSQL native incremental backups mechanism (read more)
+  - **Full**: a complete, self-contained copy of the cluster
+  - **Incremental**: stores only what changed since the previous full backup, so backups stay small and fast
+  - **WAL streaming**: continuously captures the database write stream, enabling Point-in-time recovery (PITR). Designed for disaster recovery and near-zero data loss
+- **Logical**: native dump of the database in its engine-specific binary format (compressed, suitable for parallel restore)
 
 ### 🔄 **Scheduled backups**
 
@@ -85,8 +86,6 @@ Databasus performs a real restore to confirm backups are usable, not just intact
 - **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
 - **Read-only user**: Databasus uses a read-only user by default for backups and never stores anything that can modify your data
 
-It is also important for Databasus that you are able to decrypt and restore backups from storages (local, S3, etc.) without Databasus itself. To do so, read our guide on [how to recover directly from storage](https://databasus.com/how-to-recover-without-databasus). We avoid "vendor lock-in" even to open source tool!
-
 ### 👥 **Suitable for teams** <a href="https://databasus.com/access-management">(docs)</a>
 
 - **Workspaces**: Group databases, notifiers and storages for different projects or teams
@@ -100,17 +99,13 @@ It is also important for Databasus that you are able to decrypt and restore back
 - **Dark & light themes**: Choose the look that suits your workflow
 - **Mobile adaptive**: Check your backups from anywhere on any device
 
-### 🔌 **Connection types**
+### 💾 **Supported databases**
 
-- **Remote** — Databasus connects directly to the database over the network (recommended in read-only mode). No agent or additional software required. Works with cloud-managed and self-hosted databases
-- **Agent** — A lightweight Databasus agent (written in Go) runs alongside the database. The agent streams backups directly to Databasus, so the database never needs to be exposed publicly. Supports host-installed databases and Docker containers
-
-### 📦 **Backup types**
-
-- **Logical** — Native dump of the database in its engine-specific binary format. Compressed and streamed directly to storage with no intermediate files
-- **Physical** — File-level copy of the entire database cluster. Faster backup and restore for large datasets compared to logical dumps
-- **Incremental** — Physical base backup combined with continuous WAL segment archiving. Enables Point-in-time recovery (PITR) — restore to any second between backups. Designed for disaster recovery and near-zero data loss requirements
-
+- **PostgreSQL**: 14, 15, 16, 17 and 18 (physical and logical)
+- **MySQL**: 5.7 and 8 (logical only)
+- **MariaDB**: 10, 11 and 12  (logical only)
+- **MongoDB**: 4.2+, 5, 6, 7 and 8  (logical only)
+- 
 ### 🐳 **Self-hosted & secure**
 
 - **Docker-based**: Easy deployment and management
@@ -181,6 +176,12 @@ services:
     volumes:
       - ./databasus-data:/databasus-data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "databasus", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 ```
 
 Then run:
@@ -284,9 +285,7 @@ Contributions are welcome! Read the <a href="https://databasus.com/contribute">c
 
 Also you can join our large community of developers, DBAs and DevOps engineers on Telegram [@databasus_community](https://t.me/databasus_community).
 
-## FAQ
-
-### AI disclaimer
+## AI disclaimer
 
 There have been questions about AI usage in project development in issues and discussions. As the project focuses on security, reliability and production usage, it's important to explain how AI is used in the development process.
 
@@ -316,17 +315,3 @@ Moreover, it's important to note that we do not differentiate between bad human 
 Even if code is written manually by a human, it's not guaranteed to be merged. Vibe code is not allowed at all and all such PRs are rejected by default (see [contributing guide](https://databasus.com/contribute)).
 
 The engineering safeguards behind these rules (CI, static analysis, dependency scanning, test coverage and vulnerability response) are documented in [Security & reliability engineering](#️-security--reliability-engineering) above.
-
-### You have a cloud version — are you truly open source?
-
-Yes. Every feature available in Databasus Cloud is equally available in the self-hosted version with no restrictions, no feature gates and no usage limits. The entire codebase is Apache 2.0 licensed and always will be.
-
-Databasus is not "open core". We do not withhold features behind a paid tier and then call the limited remainder "open source," as projects like GitLab or Sentry do. We believe open source means the complete product is open, not just a marketing label on a stripped-down edition.
-
-Databasus Cloud runs the exact same code as the self-hosted version. The only difference is that we take care of infrastructure, availability, backups, reservations, monitoring and updates for you — so you don't have to. If you are using cloud, you can always move your databases from cloud to self-hosted if you wish.
-
-Moreover, we have a DBA-as-a-service offering, [Databasus Labs](https://databasus.com/labs), to fund Databasus development and help companies with their database backup needs.
-
-Any long-running OSS project needs to be funded. Revenue from Cloud and Databasus Labs funds full-time development of the project. Most large open-source projects rely on corporate backing or sponsorship to survive (as well as TailwindCSS and pgBackRest, for example). 
-
-To address this, Databasus sustains itself so it can grow and improve independently, without being tied to any enterprise or sponsor. Our vision is to keep Databasus fully open-source forever, with a promise to never close it off through licensing or withheld code. So any DevOps or DBA company can provide services on top of Databasus as well.

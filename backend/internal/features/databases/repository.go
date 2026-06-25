@@ -9,7 +9,7 @@ import (
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
-	"databasus-backend/internal/features/databases/databases/postgresql"
+	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	"databasus-backend/internal/storage"
 )
 
@@ -25,11 +25,11 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		switch database.Type {
-		case DatabaseTypePostgres:
-			if database.Postgresql == nil {
+		case DatabaseTypePostgresLogical:
+			if database.PostgresqlLogical == nil {
 				return errors.New("postgresql configuration is required for PostgreSQL database")
 			}
-			database.Postgresql.DatabaseID = &database.ID
+			database.PostgresqlLogical.DatabaseID = &database.ID
 		case DatabaseTypeMysql:
 			if database.Mysql == nil {
 				return errors.New("mysql configuration is required for MySQL database")
@@ -62,15 +62,15 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 		}
 
 		switch database.Type {
-		case DatabaseTypePostgres:
-			database.Postgresql.DatabaseID = &database.ID
-			if database.Postgresql.ID == uuid.Nil {
-				database.Postgresql.ID = uuid.New()
-				if err := tx.Create(database.Postgresql).Error; err != nil {
+		case DatabaseTypePostgresLogical:
+			database.PostgresqlLogical.DatabaseID = &database.ID
+			if database.PostgresqlLogical.ID == uuid.Nil {
+				database.PostgresqlLogical.ID = uuid.New()
+				if err := tx.Create(database.PostgresqlLogical).Error; err != nil {
 					return err
 				}
 			} else {
-				if err := tx.Save(database.Postgresql).Error; err != nil {
+				if err := tx.Save(database.PostgresqlLogical).Error; err != nil {
 					return err
 				}
 			}
@@ -133,7 +133,8 @@ func (r *DatabaseRepository) FindByID(id uuid.UUID) (*Database, error) {
 
 	if err := storage.
 		GetDb().
-		Preload("Postgresql").
+		Preload("PostgresqlLogical").
+		Preload("PostgresqlPhysical").
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
@@ -151,7 +152,8 @@ func (r *DatabaseRepository) FindByWorkspaceID(workspaceID uuid.UUID) ([]*Databa
 
 	if err := storage.
 		GetDb().
-		Preload("Postgresql").
+		Preload("PostgresqlLogical").
+		Preload("PostgresqlPhysical").
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
@@ -179,10 +181,10 @@ func (r *DatabaseRepository) Delete(id uuid.UUID) error {
 		}
 
 		switch database.Type {
-		case DatabaseTypePostgres:
+		case DatabaseTypePostgresLogical:
 			if err := tx.
 				Where("database_id = ?", id).
-				Delete(&postgresql.PostgresqlDatabase{}).Error; err != nil {
+				Delete(&postgresql_logical.PostgresqlLogicalDatabase{}).Error; err != nil {
 				return err
 			}
 		case DatabaseTypeMysql:
@@ -232,7 +234,8 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 
 	if err := storage.
 		GetDb().
-		Preload("Postgresql").
+		Preload("PostgresqlLogical").
+		Preload("PostgresqlPhysical").
 		Preload("Mysql").
 		Preload("Mariadb").
 		Preload("Mongodb").
@@ -242,18 +245,6 @@ func (r *DatabaseRepository) GetAllDatabases() ([]*Database, error) {
 	}
 
 	return databases, nil
-}
-
-func (r *DatabaseRepository) FindByAgentTokenHash(hash string) (*Database, error) {
-	var database Database
-
-	if err := storage.GetDb().
-		Where("agent_token = ?", hash).
-		First(&database).Error; err != nil {
-		return nil, err
-	}
-
-	return &database, nil
 }
 
 func (r *DatabaseRepository) GetDatabasesIDsByNotifierID(

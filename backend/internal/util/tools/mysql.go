@@ -37,7 +37,7 @@ const (
 // GetMysqlExecutable returns the absolute path to a MySQL client binary for
 // the given version (mysqldump or mysql).
 func GetMysqlExecutable(version MysqlVersion, executable MysqlExecutable) string {
-	return filepath.Join(getMysqlBinDir(version), withExeOnWindows(string(executable)))
+	return filepath.Join(getMysqlBinDir(version), string(executable))
 }
 
 func getMysqlBinDir(version MysqlVersion) string {

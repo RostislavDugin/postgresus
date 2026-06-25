@@ -217,7 +217,8 @@ export const VerificationsComponent = ({
 
     if (
       record.status === VerificationStatus.COMPLETED ||
-      record.status === VerificationStatus.FAILED
+      record.status === VerificationStatus.FAILED ||
+      record.status === VerificationStatus.CANCELED
     ) {
       return (
         <div className="flex gap-2 text-lg">
@@ -458,7 +459,15 @@ export const VerificationsComponent = ({
                 </div>
 
                 {verification.failMessage && (
-                  <div className="mt-2 text-xs text-red-600">{verification.failMessage}</div>
+                  <div
+                    className={`mt-2 text-xs ${
+                      verification.status === VerificationStatus.CANCELED
+                        ? 'text-gray-500'
+                        : 'text-red-600'
+                    }`}
+                  >
+                    {verification.failMessage}
+                  </div>
                 )}
 
                 <div className="mt-3 flex items-center justify-end border-t border-gray-200 pt-3 dark:border-gray-700">

@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/config"
-	backuping "databasus-backend/internal/features/backups/backups/backuping"
-	backups_core "databasus-backend/internal/features/backups/backups/core"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/databases/databases/postgresql"
+	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	"databasus-backend/internal/features/storages"
 	local_storage "databasus-backend/internal/features/storages/models/local"
 	users_dto "databasus-backend/internal/features/users/dto"
@@ -36,7 +36,7 @@ func createTestDatabaseNoStorage(
 
 	testDbName := "testdb"
 	env := config.GetEnv()
-	port, parseErr := strconv.Atoi(env.TestPostgres16Port)
+	port, parseErr := strconv.Atoi(env.TestLogicalPostgres16Port)
 	if parseErr != nil {
 		t.Fatalf("failed to parse test postgres port: %v", parseErr)
 	}
@@ -44,8 +44,8 @@ func createTestDatabaseNoStorage(
 	createRequest := databases.Database{
 		Name:        "API Key Test DB",
 		WorkspaceID: &workspace.ID,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql: &postgresql.PostgresqlDatabase{
+		Type:        databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
 			Host:     env.TestLocalhost,
 			Port:     port,
@@ -65,45 +65,6 @@ func createTestDatabaseNoStorage(
 	)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("failed to create database: %d %s", w.Code, w.Body.String())
-	}
-
-	var database databases.Database
-	if err := json.Unmarshal(w.Body.Bytes(), &database); err != nil {
-		t.Fatalf("failed to decode database: %v", err)
-	}
-	t.Cleanup(func() { databases.RemoveTestDatabase(&database) })
-
-	return &database
-}
-
-func createWalV1Database(
-	t *testing.T,
-	workspace *workspaces_models.Workspace,
-	owner *users_dto.SignInResponseDTO,
-	router *gin.Engine,
-) *databases.Database {
-	t.Helper()
-
-	createRequest := databases.Database{
-		Name:        "API Key WAL DB",
-		WorkspaceID: &workspace.ID,
-		Type:        databases.DatabaseTypePostgres,
-		Postgresql: &postgresql.PostgresqlDatabase{
-			BackupType: postgresql.PostgresBackupTypeWalV1,
-			Version:    tools.PostgresqlVersion16,
-			CpuCount:   1,
-		},
-	}
-
-	w := workspaces_testing.MakeAPIRequest(
-		router,
-		"POST",
-		"/api/v1/databases/create",
-		"Bearer "+owner.Token,
-		createRequest,
-	)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("failed to create WAL_V1 database: %d %s", w.Code, w.Body.String())
 	}
 
 	var database databases.Database
@@ -137,7 +98,7 @@ func createDatabaseWithEnabledBackups(
 
 	database := createTestDatabaseNoStorage(t, workspace, owner, router)
 
-	configService := backups_config.GetBackupConfigService()
+	configService := backups_config_logical.GetBackupConfigService()
 	backupConfig, err := configService.GetBackupConfigByDbId(database.ID)
 	if err != nil {
 		t.Fatalf("failed to get backup config: %v", err)
@@ -152,21 +113,21 @@ func createDatabaseWithEnabledBackups(
 	return database, savedStorage
 }
 
-func insertInProgressBackupForDatabase(t *testing.T, databaseID, storageID uuid.UUID) *backups_core.Backup {
+func insertInProgressBackupForDatabase(t *testing.T, databaseID, storageID uuid.UUID) *backups_core_logical.LogicalBackup {
 	t.Helper()
 
-	backup := &backups_core.Backup{
+	backup := &backups_core_logical.LogicalBackup{
 		ID:         uuid.New(),
 		DatabaseID: databaseID,
 		StorageID:  storageID,
-		Status:     backups_core.BackupStatusInProgress,
+		Status:     backups_core_logical.BackupStatusInProgress,
 		CreatedAt:  time.Now().UTC(),
 	}
 	backup.GenerateFilename("apikey-timeout")
-	if err := backups_core.GetBackupRepository().Save(backup); err != nil {
+	if err := backups_core_logical.GetBackupRepository().Save(backup); err != nil {
 		t.Fatalf("insert in-progress backup: %v", err)
 	}
-	t.Cleanup(func() { _ = backups_core.GetBackupRepository().DeleteByID(backup.ID) })
+	t.Cleanup(func() { _ = backups_core_logical.GetBackupRepository().DeleteByID(backup.ID) })
 
 	return backup
 }
@@ -174,16 +135,10 @@ func insertInProgressBackupForDatabase(t *testing.T, databaseID, storageID uuid.
 func startBackupMachineryForTest(t *testing.T) func() {
 	t.Helper()
 
-	backuperNode := backuping.CreateTestBackuperNode()
-	backuperCancel := backuping.StartBackuperNodeForTest(t, backuperNode)
+	scheduler := backuping_logical.CreateTestScheduler()
+	schedulerCancel := backuping_logical.StartSchedulerForTest(t, scheduler)
 
-	scheduler := backuping.CreateTestScheduler(nil)
-	schedulerCancel := backuping.StartSchedulerForTest(t, scheduler)
-
-	return func() {
-		schedulerCancel()
-		backuping.StopBackuperNodeForTest(t, backuperCancel, backuperNode)
-	}
+	return schedulerCancel
 }
 
 func createAdminApiKeyToken(t *testing.T) string {

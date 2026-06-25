@@ -180,12 +180,18 @@ export const VerificationDetailDrawer = ({ verificationId, onClose }: Props) => 
         </div>
       ) : (
         <div>
-          {verification.failMessage && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-              <div className="mb-1 font-semibold">Failure</div>
-              <div className="break-words whitespace-pre-wrap">{verification.failMessage}</div>
-            </div>
-          )}
+          {verification.failMessage &&
+            (verification.status === VerificationStatus.CANCELED ? (
+              <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <div className="mb-1 font-semibold">Cancellation reason</div>
+                <div className="break-words whitespace-pre-wrap">{verification.failMessage}</div>
+              </div>
+            ) : (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                <div className="mb-1 font-semibold">Failure</div>
+                <div className="break-words whitespace-pre-wrap">{verification.failMessage}</div>
+              </div>
+            ))}
 
           {renderSection(
             'Status',

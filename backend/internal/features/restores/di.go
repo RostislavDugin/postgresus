@@ -4,9 +4,9 @@ import (
 	"sync"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	"databasus-backend/internal/features/backups/backups/backuping"
+	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
-	backups_config "databasus-backend/internal/features/backups/config"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/disk"
 	restores_core "databasus-backend/internal/features/restores/core"
@@ -24,7 +24,7 @@ var (
 		backups_services.GetBackupService(),
 		restoreRepository,
 		storages.GetStorageService(),
-		backups_config.GetBackupConfigService(),
+		backups_config_logical.GetBackupConfigService(),
 		usecases.GetRestoreBackupUsecase(),
 		databases.GetDatabaseService(),
 		logger.GetLogger(),
@@ -46,5 +46,5 @@ func GetRestoreController() *RestoreController {
 
 var SetupDependencies = sync.OnceFunc(func() {
 	backups_services.GetBackupService().AddBackupRemoveListener(restoreService)
-	backuping.GetBackupCleaner().AddBackupRemoveListener(restoreService)
+	backuping_logical.GetBackupCleaner().AddBackupRemoveListener(restoreService)
 })
