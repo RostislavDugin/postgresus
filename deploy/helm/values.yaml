@@ -58,6 +58,8 @@ serviceAccount:
   name: ""
   annotations: {}
   automountServiceAccountToken: false
+  # The names of the imagePullSecrets to attach to the serviceAccount.
+  #imagePullSecrets: []
 
 # Service configuration
 service:
