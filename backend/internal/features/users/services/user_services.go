@@ -808,15 +808,7 @@ func (s *UserService) handleGoogleOAuthWithEndpoint(
 func (s *UserService) getOrCreateUserFromOAuth(
 	oauthID, email, name, provider string,
 ) (*users_dto.OAuthCallbackResponseDTO, error) {
-	var existingUser *users_models.User
-	var err error
-
-	if provider == "github" {
-		existingUser, err = s.userRepository.GetUserByGitHubOAuthID(oauthID)
-	} else {
-		existingUser, err = s.userRepository.GetUserByGoogleOAuthID(oauthID)
-	}
-
+	existingUser, err := s.userRepository.GetUserByOAuthID(provider, oauthID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check OAuth ID: %w", err)
 	}
@@ -862,12 +854,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 			}
 		}
 
-		oauthColumn := "github_oauth_id"
-		if provider == "google" {
-			oauthColumn = "google_oauth_id"
-		}
-
-		if err := s.userRepository.LinkOAuthID(userByEmail.ID, oauthColumn, oauthID); err != nil {
+		if err := s.userRepository.CreateOAuthMapping(userByEmail.ID, provider, oauthID); err != nil {
 			return nil, fmt.Errorf("failed to link OAuth ID: %w", err)
 		}
 
@@ -906,14 +893,6 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		return nil, errors.New("external registration is disabled")
 	}
 
-	var githubOAuthID *string
-	var googleOAuthID *string
-	if provider == "github" {
-		githubOAuthID = &oauthID
-	} else {
-		googleOAuthID = &oauthID
-	}
-
 	newUser := &users_models.User{
 		ID:                   uuid.New(),
 		Email:                email,
@@ -922,13 +901,15 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		PasswordCreationTime: time.Now().UTC(),
 		Role:                 users_enums.UserRoleMember,
 		Status:               users_enums.UserStatusActive,
-		GitHubOAuthID:        githubOAuthID,
-		GoogleOAuthID:        googleOAuthID,
 		CreatedAt:            time.Now().UTC(),
 	}
 
 	if err := s.userRepository.CreateUser(newUser); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	if err := s.userRepository.CreateOAuthMapping(newUser.ID, provider, oauthID); err != nil {
+		return nil, fmt.Errorf("failed to create OAuth mapping: %w", err)
 	}
 
 	tokenResponse, err := s.GenerateAccessToken(newUser)

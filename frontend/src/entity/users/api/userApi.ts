@@ -116,26 +116,12 @@ export const userApi = {
     return apiHelper.fetchPutJson(`${getApplicationServer()}/api/v1/users/me`, requestOptions);
   },
 
-  async handleGitHubOAuth(request: OAuthCallbackRequest): Promise<OAuthCallbackResponse> {
+  async handleOAuthCallback(request: OAuthCallbackRequest): Promise<OAuthCallbackResponse> {
     const requestOptions: RequestOptions = new RequestOptions();
     requestOptions.setBody(JSON.stringify(request));
 
     return apiHelper
-      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/github/callback`, requestOptions)
-      .then((response: unknown): OAuthCallbackResponse => {
-        const typedResponse = response as OAuthCallbackResponse;
-        saveAuthorizedData(typedResponse.token, typedResponse.userId);
-        notifyAuthListeners();
-        return typedResponse;
-      });
-  },
-
-  async handleGoogleOAuth(request: OAuthCallbackRequest): Promise<OAuthCallbackResponse> {
-    const requestOptions: RequestOptions = new RequestOptions();
-    requestOptions.setBody(JSON.stringify(request));
-
-    return apiHelper
-      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/google/callback`, requestOptions)
+      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/oauth/callback`, requestOptions)
       .then((response: unknown): OAuthCallbackResponse => {
         const typedResponse = response as OAuthCallbackResponse;
         saveAuthorizedData(typedResponse.token, typedResponse.userId);

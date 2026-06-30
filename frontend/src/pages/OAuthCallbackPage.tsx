@@ -29,15 +29,7 @@ export function OAuthCallbackPage() {
       const redirectUri = getOAuthRedirectUri();
 
       try {
-        if (state === 'github') {
-          await userApi.handleGitHubOAuth({ code, redirectUri });
-        } else if (state === 'google') {
-          await userApi.handleGoogleOAuth({ code, redirectUri });
-        } else {
-          setError('Invalid OAuth provider');
-          return;
-        }
-
+        await userApi.handleOAuthCallback({ provider: state, code, redirectUri });
         navigate('/');
       } catch (e) {
         setError((e as Error).message || 'OAuth authentication failed');

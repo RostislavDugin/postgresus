@@ -177,33 +177,29 @@ func (r *UserRepository) UpdateUserInfo(userID uuid.UUID, name, email *string) e
 		Updates(updates).Error
 }
 
-func (r *UserRepository) GetUserByGitHubOAuthID(githubID string) (*users_models.User, error) {
+func (r *UserRepository) GetUserByOAuthID(provider, oauthID string) (*users_models.User, error) {
 	var user users_models.User
-	err := storage.GetDb().Where("github_oauth_id = ?", githubID).First(&user).Error
+
+	err := storage.GetDb().
+		Joins("JOIN user_oauth_mappings ON user_oauth_mappings.user_id = users.id").
+		Where("user_oauth_mappings.provider = ? AND user_oauth_mappings.oauth_id = ?", provider, oauthID).
+		First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByGoogleOAuthID(googleID string) (*users_models.User, error) {
-	var user users_models.User
-	err := storage.GetDb().Where("google_oauth_id = ?", googleID).First(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
+func (r *UserRepository) CreateOAuthMapping(userID uuid.UUID, provider, oauthID string) error {
+	mapping := &users_models.UserOAuthMapping{
+		UserID:   userID,
+		Provider: provider,
+		OAuthID:  oauthID,
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
 
-func (r *UserRepository) LinkOAuthID(userID uuid.UUID, oauthColumn, oauthID string) error {
-	updates := map[string]any{oauthColumn: oauthID}
-	return storage.GetDb().Model(&users_models.User{}).
-		Where("id = ?", userID).
-		Updates(updates).Error
+	return storage.GetDb().Create(mapping).Error
 }

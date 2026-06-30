@@ -16,8 +16,6 @@ type User struct {
 	PasswordCreationTime time.Time              `json:"-"         gorm:"column:password_creation_time"`
 	Role                 users_enums.UserRole   `json:"role"`
 	Status               users_enums.UserStatus `json:"status"`
-	GitHubOAuthID        *string                `json:"-"         gorm:"column:github_oauth_id"`
-	GoogleOAuthID        *string                `json:"-"         gorm:"column:google_oauth_id"`
 	CreatedAt            time.Time              `json:"createdAt"`
 }
 
