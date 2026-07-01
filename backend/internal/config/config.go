@@ -3,7 +3,9 @@ package config
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +95,9 @@ type EnvVariables struct {
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
+
+	// Generic OAuth providers — populated by parseGenericOAuthProviders() after cleanenv.ReadEnv.
+	GenericOAuthProviders []GenericOAuthProviderConfig
 
 	// Cloudflare Turnstile
 	CloudflareTurnstileSecretKey string `env:"CLOUDFLARE_TURNSTILE_SECRET_KEY"`
@@ -251,6 +256,8 @@ func loadEnvVariables() {
 		}
 	}
 
+	env.GenericOAuthProviders = parseGenericOAuthProviders()
+
 	log.Info("Environment variables loaded successfully!")
 }
 
@@ -390,4 +397,132 @@ func RewriteDbName(dsn, newDbName string) (origDbName, rewritten string, err err
 	}
 
 	return origDbName, strings.Join(out, " "), nil
+}
+
+// GenericOAuthProviderConfig holds the runtime config for one generic OAuth provider.
+type GenericOAuthProviderConfig struct {
+	Name         string
+	DisplayName  string
+	ClientID     string
+	ClientSecret string
+	AuthURL      string
+	TokenURL     string
+	UserInfoURL  string
+	WellKnown    string
+	Scopes       []string
+}
+
+type oidcDiscovery struct {
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
+	UserinfoEndpoint      string `json:"userinfo_endpoint"`
+}
+
+func parseGenericOAuthProviders() []GenericOAuthProviderConfig {
+	var providers []GenericOAuthProviderConfig
+
+	for _, envPair := range os.Environ() {
+		key, _, ok := strings.Cut(envPair, "=")
+		if !ok || !strings.HasPrefix(key, "GENERIC_OAUTH_") || !strings.HasSuffix(key, "_CLIENT_ID") {
+			continue
+		}
+
+		providerKey := strings.TrimPrefix(strings.TrimSuffix(key, "_CLIENT_ID"), "GENERIC_OAUTH_")
+		name := strings.ToLower(providerKey)
+
+		clientID := os.Getenv(key)
+		if clientID == "" {
+			continue
+		}
+
+		clientSecret := os.Getenv("GENERIC_OAUTH_" + providerKey + "_CLIENT_SECRET")
+		authURL := os.Getenv("GENERIC_OAUTH_" + providerKey + "_AUTH_URL")
+		tokenURL := os.Getenv("GENERIC_OAUTH_" + providerKey + "_TOKEN_URL")
+		userInfoURL := os.Getenv("GENERIC_OAUTH_" + providerKey + "_USER_INFO_URL")
+		wellKnown := os.Getenv("GENERIC_OAUTH_" + providerKey + "_WELL_KNOWN")
+		scopesRaw := os.Getenv("GENERIC_OAUTH_" + providerKey + "_SCOPES")
+		displayName := os.Getenv("GENERIC_OAUTH_" + providerKey + "_DISPLAY_NAME")
+
+		if displayName == "" {
+			displayName = name
+		}
+
+		scopes := []string{"openid", "email", "profile"}
+		if scopesRaw != "" {
+			scopes = scopes[:0]
+			for _, s := range strings.Split(scopesRaw, ",") {
+				if s = strings.TrimSpace(s); s != "" {
+					scopes = append(scopes, s)
+				}
+			}
+		}
+
+		if wellKnown != "" && (authURL == "" || tokenURL == "" || userInfoURL == "") {
+			discovery, err := fetchOIDCDiscovery(wellKnown)
+			if err != nil {
+				log.Warn("failed to fetch OIDC discovery document, skipping provider", "provider", name, "error", err)
+				continue
+			}
+
+			if authURL == "" {
+				authURL = discovery.AuthorizationEndpoint
+			}
+
+			if tokenURL == "" {
+				tokenURL = discovery.TokenEndpoint
+			}
+
+			if userInfoURL == "" {
+				userInfoURL = discovery.UserinfoEndpoint
+			}
+		}
+
+		if authURL == "" || tokenURL == "" || userInfoURL == "" {
+			log.Warn("generic OAuth provider missing required URLs, skipping", "provider", name)
+			continue
+		}
+
+		log.Info("registered generic OAuth provider", "provider", name, "display_name", displayName)
+
+		providers = append(providers, GenericOAuthProviderConfig{
+			Name:         name,
+			DisplayName:  displayName,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			AuthURL:      authURL,
+			TokenURL:     tokenURL,
+			UserInfoURL:  userInfoURL,
+			WellKnown:    wellKnown,
+			Scopes:       scopes,
+		})
+	}
+
+	return providers
+}
+
+func fetchOIDCDiscovery(wellKnownURL string) (*oidcDiscovery, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+
+	var discovery oidcDiscovery
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+
+	return &discovery, nil
 }

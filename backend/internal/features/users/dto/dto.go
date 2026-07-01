@@ -84,6 +84,7 @@ type ListUsersRequestDTO struct {
 }
 
 type OAuthCallbackRequestDTO struct {
+	Provider    string `json:"provider"    binding:"required"`
 	Code        string `json:"code"        binding:"required"`
 	RedirectUri string `json:"redirectUri" binding:"required"`
 }

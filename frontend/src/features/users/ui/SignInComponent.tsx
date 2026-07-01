@@ -6,6 +6,7 @@ import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurns
 
 import {
   CLOUDFLARE_TURNSTILE_SITE_KEY,
+  GENERIC_OAUTH_PROVIDERS,
   GITHUB_CLIENT_ID,
   GOOGLE_CLIENT_ID,
   IS_EMAIL_CONFIGURED,
@@ -14,6 +15,7 @@ import { userApi } from '../../../entity/users';
 import { StringUtils } from '../../../shared/lib';
 import { FormValidator } from '../../../shared/lib/FormValidator';
 import { CloudflareTurnstileWidget } from '../../../shared/ui/CloudflareTurnstileWidget';
+import { GenericOAuthComponent } from './oauth/GenericOAuthComponent';
 import { GithubOAuthComponent } from './oauth/GithubOAuthComponent';
 import { GoogleOAuthComponent } from './oauth/GoogleOAuthComponent';
 
@@ -88,10 +90,11 @@ export function SignInComponent({
         <div className="space-y-2">
           <GithubOAuthComponent />
           <GoogleOAuthComponent />
+          <GenericOAuthComponent />
         </div>
       </div>
 
-      {(GOOGLE_CLIENT_ID || GITHUB_CLIENT_ID) && (
+      {(GOOGLE_CLIENT_ID || GITHUB_CLIENT_ID || GENERIC_OAUTH_PROVIDERS.length > 0) && (
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>

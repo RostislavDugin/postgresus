@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 
+	"databasus-backend/internal/config"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_services "databasus-backend/internal/features/users/services"
@@ -1158,6 +1159,210 @@ func Test_GoogleOAuth_WithInvitedUser_ActivatesUser(t *testing.T) {
 	assert.NotEmpty(t, response.Token)
 	assert.Equal(t, email, response.Email)
 	assert.False(t, response.IsNewUser)
+}
+
+func genericOAuthMockProviderConfig(mockServerURL string) config.GenericOAuthProviderConfig {
+	return config.GenericOAuthProviderConfig{
+		Name:         "testprovider",
+		DisplayName:  "Test Provider",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		AuthURL:      mockServerURL + "/auth",
+		TokenURL:     mockServerURL + "/token",
+		UserInfoURL:  mockServerURL + "/userinfo",
+		Scopes:       []string{"openid", "email", "profile"},
+	}
+}
+
+func Test_GenericOAuth_WithValidCode_ReturnsToken(t *testing.T) {
+	testID := uuid.New().String()[:8]
+	testEmail := "generic-user-" + testID + "@example.com"
+	testSub := "sub-" + testID
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"access_token": "mock-access-token",
+				"token_type":   "Bearer",
+			})
+			return
+		}
+		if r.URL.Path == "/userinfo" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sub":   testSub,
+				"email": testEmail,
+				"name":  "Generic Test User",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	userService := users_services.GetUserService()
+	response, err := userService.HandleGenericOAuthWithMockEndpoint(
+		"test-code",
+		"http://localhost:3000/auth/callback",
+		genericOAuthMockProviderConfig(mockServer.URL),
+	)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, response.Token)
+	assert.Equal(t, testEmail, response.Email)
+	assert.True(t, response.IsNewUser)
+}
+
+func Test_GenericOAuth_WithExistingEmail_LinksAccount(t *testing.T) {
+	testID := uuid.New().String()[:8]
+	email := "existing-generic-" + testID + "@example.com"
+	testSub := "sub-existing-" + testID
+
+	router := createUserTestRouter()
+	test_utils.MakePostRequest(t, router, "/api/v1/users/signup", "", users_dto.SignUpRequestDTO{
+		Email:    email,
+		Password: "testpassword123",
+		Name:     "Existing User",
+	}, http.StatusOK)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"access_token": "mock-access-token",
+				"token_type":   "Bearer",
+			})
+			return
+		}
+		if r.URL.Path == "/userinfo" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sub":   testSub,
+				"email": email,
+				"name":  "Generic Test User",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	userService := users_services.GetUserService()
+	response, err := userService.HandleGenericOAuthWithMockEndpoint(
+		"test-code",
+		"http://localhost:3000/auth/callback",
+		genericOAuthMockProviderConfig(mockServer.URL),
+	)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, response.Token)
+	assert.Equal(t, email, response.Email)
+	assert.False(t, response.IsNewUser)
+}
+
+func Test_GenericOAuth_WithInvitedUser_ActivatesUser(t *testing.T) {
+	router := createUserTestRouter()
+	adminUser := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	testID := uuid.New().String()[:8]
+	email := "invited-generic-" + testID + "@example.com"
+	testSub := "sub-invited-" + testID
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/users/invite",
+		"Bearer "+adminUser.Token,
+		users_dto.InviteUserRequestDTO{Email: email},
+		http.StatusOK,
+	)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"access_token": "mock-access-token",
+				"token_type":   "Bearer",
+			})
+			return
+		}
+		if r.URL.Path == "/userinfo" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sub":   testSub,
+				"email": email,
+				"name":  "Generic Test User",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	userService := users_services.GetUserService()
+	response, err := userService.HandleGenericOAuthWithMockEndpoint(
+		"test-code",
+		"http://localhost:3000/auth/callback",
+		genericOAuthMockProviderConfig(mockServer.URL),
+	)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, response.Token)
+	assert.Equal(t, email, response.Email)
+	assert.False(t, response.IsNewUser)
+}
+
+func Test_GenericOAuth_WhenProviderNotConfigured_ReturnsError(t *testing.T) {
+	userService := users_services.GetUserService()
+	response, err := userService.HandleGenericOAuth(
+		"nonexistent-provider",
+		"test-code",
+		"http://localhost:3000/auth/callback",
+	)
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "no longer configured")
+}
+
+func Test_GenericOAuth_WhenRegistrationDisabled_ReturnsBadRequest(t *testing.T) {
+	defer users_testing.ResetSettingsToDefaults()
+	users_testing.DisableExternalRegistrations()
+
+	testID := uuid.New().String()[:8]
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"access_token": "mock-access-token",
+				"token_type":   "Bearer",
+			})
+			return
+		}
+		if r.URL.Path == "/userinfo" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sub":   "sub-new-" + testID,
+				"email": "new-generic-" + testID + "@example.com",
+				"name":  "Generic Test User",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	userService := users_services.GetUserService()
+	response, err := userService.HandleGenericOAuthWithMockEndpoint(
+		"test-code",
+		"http://localhost:3000/auth/callback",
+		genericOAuthMockProviderConfig(mockServer.URL),
+	)
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "registration is disabled")
 }
 
 func Test_SignIn_WithExcessiveAttempts_RateLimitEnforced(t *testing.T) {

@@ -20,5 +20,6 @@ export type { ChangeUserRoleRequest } from './model/ChangeUserRoleRequest';
 export type { UsersSettings } from './model/UsersSettings';
 export type { SendResetPasswordCodeRequest } from './model/SendResetPasswordCodeRequest';
 export type { ResetPasswordRequest } from './model/ResetPasswordRequest';
+export type { GenericOAuthProvider } from './model/GenericOAuthProvider';
 export { UserRole } from './model/UserRole';
 export { WorkspaceRole } from './model/WorkspaceRole';

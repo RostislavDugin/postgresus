@@ -507,6 +507,123 @@ func (s *UserService) HandleGoogleOAuth(
 	)
 }
 
+func (s *UserService) HandleGenericOAuth(
+	providerName, code, redirectUri string,
+) (*users_dto.OAuthCallbackResponseDTO, error) {
+	env := config.GetEnv()
+
+	var providerConfig *config.GenericOAuthProviderConfig
+	for i := range env.GenericOAuthProviders {
+		if env.GenericOAuthProviders[i].Name == providerName {
+			providerConfig = &env.GenericOAuthProviders[i]
+			break
+		}
+	}
+
+	if providerConfig == nil {
+		return nil, fmt.Errorf(
+			"OAuth provider %q is no longer configured, contact your administrator: %w",
+			providerName,
+			users_errors.ErrOAuthProviderNotConfigured,
+		)
+	}
+
+	return s.handleGenericOAuthWithConfig(providerConfig, code, redirectUri)
+}
+
+func (s *UserService) handleGenericOAuthWithConfig(
+	providerConfig *config.GenericOAuthProviderConfig,
+	code, redirectUri string,
+) (*users_dto.OAuthCallbackResponseDTO, error) {
+	oauthConfig := &oauth2.Config{
+		ClientID:     providerConfig.ClientID,
+		ClientSecret: providerConfig.ClientSecret,
+		RedirectURL:  redirectUri,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  providerConfig.AuthURL,
+			TokenURL: providerConfig.TokenURL,
+		},
+		Scopes: providerConfig.Scopes,
+	}
+
+	if providerConfig.ClientSecret == "" {
+		oauthConfig.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
+
+	token, err := oauthConfig.Exchange(context.Background(), code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code: %w", err)
+	}
+
+	client := oauthConfig.Client(context.Background(), token)
+	userInfoReq, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		providerConfig.UserInfoURL,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user info request: %w", err)
+	}
+
+	resp, err := client.Do(userInfoReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("user info endpoint returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user info: %w", err)
+	}
+
+	var userInfo map[string]any
+	if err := json.Unmarshal(body, &userInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse user info: %w", err)
+	}
+
+	oauthID := extractGenericOAuthField(userInfo, "id", "sub")
+	if oauthID == "" {
+		return nil, errors.New("user info missing id/sub field")
+	}
+
+	email := extractGenericOAuthField(userInfo, "email")
+	if email == "" {
+		return nil, errors.New("user info missing email field")
+	}
+
+	name := extractGenericOAuthField(userInfo, "name", "preferred_username")
+	if name == "" {
+		name = providerConfig.Name
+	}
+
+	return s.getOrCreateUserFromOAuth(oauthID, email, name, "generic-"+providerConfig.Name)
+}
+
+func extractGenericOAuthField(m map[string]any, keys ...string) string {
+	for _, key := range keys {
+		val, ok := m[key]
+		if !ok {
+			continue
+		}
+
+		switch v := val.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case float64:
+			return fmt.Sprintf("%.0f", v)
+		}
+	}
+
+	return ""
+}
+
 func (s *UserService) SendResetPasswordCode(email string) error {
 	user, err := s.userRepository.GetUserByEmail(email)
 	if err != nil {
