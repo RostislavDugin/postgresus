@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -256,7 +257,7 @@ func loadEnvVariables() {
 		}
 	}
 
-	env.GenericOAuthProviders = parseGenericOAuthProviders()
+	env.GenericOAuthProviders = parseGenericOAuthProviders(env.EnvMode)
 
 	log.Info("Environment variables loaded successfully!")
 }
@@ -418,8 +419,10 @@ type oidcDiscovery struct {
 	UserinfoEndpoint      string `json:"userinfo_endpoint"`
 }
 
-func parseGenericOAuthProviders() []GenericOAuthProviderConfig {
+func parseGenericOAuthProviders(envMode env_utils.EnvMode) []GenericOAuthProviderConfig {
 	var providers []GenericOAuthProviderConfig
+
+	allowHTTP := envMode == env_utils.EnvModeDevelopment
 
 	for _, envPair := range os.Environ() {
 		key, _, ok := strings.Cut(envPair, "=")
@@ -457,6 +460,11 @@ func parseGenericOAuthProviders() []GenericOAuthProviderConfig {
 			}
 		}
 
+		if wellKnown != "" && !allowHTTP && hasHTTPScheme(wellKnown) {
+			log.Warn("generic OAuth provider well-known URL uses insecure http, skipping", "provider", name)
+			continue
+		}
+
 		if wellKnown != "" && (authURL == "" || tokenURL == "" || userInfoURL == "") {
 			discovery, err := fetchOIDCDiscovery(wellKnown)
 			if err != nil {
@@ -482,6 +490,11 @@ func parseGenericOAuthProviders() []GenericOAuthProviderConfig {
 			continue
 		}
 
+		if !allowHTTP && (hasHTTPScheme(authURL) || hasHTTPScheme(tokenURL) || hasHTTPScheme(userInfoURL)) {
+			log.Warn("generic OAuth provider uses insecure http URL, skipping", "provider", name)
+			continue
+		}
+
 		log.Info("registered generic OAuth provider", "provider", name, "display_name", displayName)
 
 		providers = append(providers, GenericOAuthProviderConfig{
@@ -498,6 +511,15 @@ func parseGenericOAuthProviders() []GenericOAuthProviderConfig {
 	}
 
 	return providers
+}
+
+func hasHTTPScheme(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	return parsed.Scheme == "http"
 }
 
 func fetchOIDCDiscovery(wellKnownURL string) (*oidcDiscovery, error) {
