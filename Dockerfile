@@ -119,7 +119,7 @@ ENV ENV_MODE=production
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      ca-certificates gosu rclone curl \
+      ca-certificates gosu rclone curl jq \
       libncurses5 libncurses6 libmariadb3 libgnutls30 \
       wget; \
     wget -qO /usr/share/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc; \

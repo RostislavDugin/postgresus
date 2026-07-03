@@ -969,20 +969,17 @@ func (s *UserService) getOrCreateUserFromOAuth(
 	}
 
 	if userByEmail != nil {
+		var activateWithName *string
 		if userByEmail.Status == users_enums.UserStatusInvited {
-			if err := s.userRepository.UpdateUserStatus(
-				userByEmail.ID,
-				users_enums.UserStatusActive,
-			); err != nil {
-				return nil, fmt.Errorf("failed to activate user: %w", err)
-			}
-
-			if err := s.userRepository.UpdateUserInfo(userByEmail.ID, &name, nil); err != nil {
-				return nil, fmt.Errorf("failed to update name: %w", err)
-			}
+			activateWithName = &name
 		}
 
-		if err := s.userRepository.CreateOAuthMapping(userByEmail.ID, provider, oauthID); err != nil {
+		if err := s.userRepository.LinkOAuthToUser(
+			userByEmail.ID,
+			provider,
+			oauthID,
+			activateWithName,
+		); err != nil {
 			return nil, fmt.Errorf("failed to link OAuth ID: %w", err)
 		}
 
@@ -1032,12 +1029,8 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		CreatedAt:            time.Now().UTC(),
 	}
 
-	if err := s.userRepository.CreateUser(newUser); err != nil {
+	if err := s.userRepository.CreateUserWithOAuth(newUser, provider, oauthID); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	if err := s.userRepository.CreateOAuthMapping(newUser.ID, provider, oauthID); err != nil {
-		return nil, fmt.Errorf("failed to create OAuth mapping: %w", err)
 	}
 
 	tokenResponse, err := s.GenerateAccessToken(newUser)

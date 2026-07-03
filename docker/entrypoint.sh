@@ -66,7 +66,11 @@ for var in $(env | grep -E '^GENERIC_OAUTH_.*_CLIENT_ID=' | sed 's/=.*//'); do
   [ -z "$display_name" ] && display_name="$name"
 
   if [ -z "$auth_url" ] && [ -n "$well_known" ]; then
-    auth_url=$(curl -sf "$well_known" | grep -o '"authorization_endpoint":"[^"]*"' | cut -d'"' -f4)
+    if ! well_known_json=$(curl -sf --max-time 10 "$well_known"); then
+      echo "ERROR: OIDC discovery fetch from $well_known timed out or failed. Aborting startup." >&2
+      exit 1
+    fi
+    auth_url=$(echo "$well_known_json" | jq -r '.authorization_endpoint // empty')
   fi
 
   [ -z "$auth_url" ] && continue

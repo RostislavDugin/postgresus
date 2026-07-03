@@ -194,12 +194,48 @@ func (r *UserRepository) GetUserByOAuthID(provider, oauthID string) (*users_mode
 	return &user, nil
 }
 
-func (r *UserRepository) CreateOAuthMapping(userID uuid.UUID, provider, oauthID string) error {
-	mapping := &users_models.UserOAuthMapping{
-		UserID:   userID,
-		Provider: provider,
-		OAuthID:  oauthID,
-	}
+func (r *UserRepository) LinkOAuthToUser(
+	userID uuid.UUID,
+	provider, oauthID string,
+	activateWithName *string,
+) error {
+	return storage.GetDb().Transaction(func(tx *gorm.DB) error {
+		if activateWithName != nil {
+			if err := tx.Model(&users_models.User{}).
+				Where("id = ?", userID).
+				Updates(map[string]any{
+					"status": users_enums.UserStatusActive,
+					"name":   *activateWithName,
+				}).Error; err != nil {
+				return err
+			}
+		}
 
-	return storage.GetDb().Create(mapping).Error
+		mapping := &users_models.UserOAuthMapping{
+			UserID:   userID,
+			Provider: provider,
+			OAuthID:  oauthID,
+		}
+
+		return tx.Create(mapping).Error
+	})
+}
+
+func (r *UserRepository) CreateUserWithOAuth(
+	user *users_models.User,
+	provider, oauthID string,
+) error {
+	return storage.GetDb().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+
+		mapping := &users_models.UserOAuthMapping{
+			UserID:   user.ID,
+			Provider: provider,
+			OAuthID:  oauthID,
+		}
+
+		return tx.Create(mapping).Error
+	})
 }
