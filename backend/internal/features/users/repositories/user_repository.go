@@ -212,6 +212,7 @@ func (r *UserRepository) LinkOAuthToUser(
 		}
 
 		mapping := &users_models.UserOAuthMapping{
+			ID:       uuid.New(),
 			UserID:   userID,
 			Provider: provider,
 			OAuthID:  oauthID,
@@ -231,6 +232,7 @@ func (r *UserRepository) CreateUserWithOAuth(
 		}
 
 		mapping := &users_models.UserOAuthMapping{
+			ID:       uuid.New(),
 			UserID:   user.ID,
 			Provider: provider,
 			OAuthID:  oauthID,

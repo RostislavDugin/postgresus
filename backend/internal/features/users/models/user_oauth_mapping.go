@@ -7,7 +7,7 @@ import (
 )
 
 type UserOAuthMapping struct {
-	ID        int       `gorm:"column:id;primaryKey;autoIncrement"`
+	ID        uuid.UUID `gorm:"column:id;primaryKey"`
 	UserID    uuid.UUID `gorm:"column:user_id"`
 	Provider  string    `gorm:"column:provider"`
 	OAuthID   string    `gorm:"column:oauth_id"`

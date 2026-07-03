@@ -2,12 +2,16 @@
 -- +goose StatementBegin
 
 CREATE TABLE user_oauth_mappings (
-    id         BIGSERIAL   PRIMARY KEY,
+    id         UUID        NOT NULL DEFAULT gen_random_uuid(),
     user_id    UUID        NOT NULL,
     provider   TEXT        NOT NULL,
     oauth_id   TEXT        NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE user_oauth_mappings
+    ADD CONSTRAINT pk_user_oauth_mappings
+    PRIMARY KEY (id);
 
 ALTER TABLE user_oauth_mappings
     ADD CONSTRAINT fk_user_oauth_mappings_user_id

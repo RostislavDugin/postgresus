@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -523,7 +524,11 @@ func hasHTTPScheme(rawURL string) bool {
 }
 
 func fetchOIDCDiscovery(wellKnownURL string) (*oidcDiscovery, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeoutCause(
+		context.Background(),
+		10*time.Second,
+		errors.New("oidc discovery request timed out"),
+	)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
