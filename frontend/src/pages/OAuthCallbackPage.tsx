@@ -16,20 +16,25 @@ export function OAuthCallbackPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
+      const expectedState = sessionStorage.getItem('oauth_state');
+      const provider = sessionStorage.getItem('oauth_provider');
+      sessionStorage.removeItem('oauth_state');
+      sessionStorage.removeItem('oauth_provider');
+
       if (!code) {
         setError('Authorization code not found');
         return;
       }
 
-      if (!state) {
-        setError('OAuth state parameter missing');
+      if (!state || !expectedState || state !== expectedState || !provider) {
+        setError('Invalid OAuth state parameter');
         return;
       }
 
       const redirectUri = getOAuthRedirectUri();
 
       try {
-        await userApi.handleOAuthCallback({ provider: state, code, redirectUri });
+        await userApi.handleOAuthCallback({ provider, code, redirectUri });
         navigate('/');
       } catch (e) {
         setError((e as Error).message || 'OAuth authentication failed');

@@ -12,12 +12,16 @@ export function GenericOAuthComponent() {
 
   const handleLogin = (name: string, clientId: string, authUrl: string, scopes: string) => {
     try {
+      const state = crypto.randomUUID();
+      sessionStorage.setItem('oauth_state', state);
+      sessionStorage.setItem('oauth_provider', name);
+
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: scopes,
-        state: name,
+        state,
       });
 
       const url = `${authUrl}?${params.toString()}`;
