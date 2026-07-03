@@ -20,7 +20,7 @@ ALTER TABLE user_oauth_mappings
     ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX idx_user_oauth_mappings_unique
-    ON user_oauth_mappings (user_id, provider, oauth_id);
+    ON user_oauth_mappings (provider, oauth_id);
 
 INSERT INTO user_oauth_mappings (user_id, provider, oauth_id, created_at)
 SELECT id, 'github', github_oauth_id, NOW()
