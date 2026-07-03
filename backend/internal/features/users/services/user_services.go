@@ -1,6 +1,7 @@
 package users_services
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -581,8 +582,11 @@ func (s *UserService) handleGenericOAuthWithConfig(
 		return nil, fmt.Errorf("failed to read user info: %w", err)
 	}
 
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+
 	var userInfo map[string]any
-	if err := json.Unmarshal(body, &userInfo); err != nil {
+	if err := decoder.Decode(&userInfo); err != nil {
 		return nil, fmt.Errorf("failed to parse user info: %w", err)
 	}
 
@@ -616,8 +620,8 @@ func extractGenericOAuthField(m map[string]any, keys ...string) string {
 			if v != "" {
 				return v
 			}
-		case float64:
-			return fmt.Sprintf("%.0f", v)
+		case json.Number:
+			return v.String()
 		}
 	}
 
