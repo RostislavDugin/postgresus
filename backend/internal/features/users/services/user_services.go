@@ -551,14 +551,21 @@ func (s *UserService) handleGenericOAuthWithConfig(
 		oauthConfig.Endpoint.AuthStyle = oauth2.AuthStyleInParams
 	}
 
-	token, err := oauthConfig.Exchange(context.Background(), code)
+	ctx, cancel := context.WithTimeoutCause(
+		context.Background(),
+		30*time.Second,
+		errors.New("oauth provider request timed out"),
+	)
+	defer cancel()
+
+	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	client := oauthConfig.Client(context.Background(), token)
+	client := oauthConfig.Client(ctx, token)
 	userInfoReq, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodGet,
 		providerConfig.UserInfoURL,
 		nil,
