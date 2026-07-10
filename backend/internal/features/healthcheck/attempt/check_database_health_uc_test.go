@@ -423,4 +423,53 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			assert.Equal(t, databases.HealthStatusAvailable, attempts[1].Status)
 		},
 	)
+
+	// Guards against the physical type being rejected by validateDatabase before any
+	// attempt runs: with the case missing, Execute returns an error and inserts no attempt.
+	t.Run("Test_PhysicalPostgresDbAttemptSucceeded_DbMarkedAsAvailable", func(t *testing.T) {
+		database := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
+		defer databases.RemoveTestDatabase(database)
+
+		mockSender := &MockHealthcheckAttemptSender{}
+		mockSender.On("SendNotification", mock.Anything, mock.Anything, mock.Anything).Return()
+
+		mockDatabaseService := &MockDatabaseService{}
+		mockDatabaseService.On("TestDatabaseConnectionDirect", database).Return(nil)
+		availableStatus := databases.HealthStatusAvailable
+		mockDatabaseService.On("SetHealthStatus", database.ID, &availableStatus).Return(nil)
+		mockDatabaseService.On("GetDatabaseByID", database.ID).Return(database, nil)
+
+		healthcheckConfig := &healthcheck_config.HealthcheckConfig{
+			DatabaseID:                        database.ID,
+			IsHealthcheckEnabled:              true,
+			IsSentNotificationWhenUnavailable: true,
+			IntervalMinutes:                   1,
+			AttemptsBeforeConcideredAsDown:    1,
+			StoreAttemptsDays:                 7,
+		}
+
+		useCase := &CheckDatabaseHealthUseCase{
+			healthcheckAttemptRepository: &HealthcheckAttemptRepository{},
+			healthcheckAttemptSender:     mockSender,
+			databaseService:              mockDatabaseService,
+		}
+
+		err := useCase.Execute(time.Now().UTC(), healthcheckConfig)
+		assert.NoError(t, err)
+
+		attempts, err := useCase.healthcheckAttemptRepository.FindByDatabaseIDWithLimit(
+			database.ID,
+			1,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, attempts, 1)
+		assert.Equal(t, databases.HealthStatusAvailable, attempts[0].Status)
+
+		mockDatabaseService.AssertCalled(
+			t,
+			"SetHealthStatus",
+			database.ID,
+			&availableStatus,
+		)
+	})
 }

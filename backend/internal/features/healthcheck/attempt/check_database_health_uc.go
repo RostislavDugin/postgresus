@@ -184,6 +184,10 @@ func (uc *CheckDatabaseHealthUseCase) validateDatabase(
 		if database.PostgresqlLogical == nil {
 			return fmt.Errorf("database Postgresql config is not set")
 		}
+	case databases.DatabaseTypePostgresPhysical:
+		if database.PostgresqlPhysical == nil {
+			return fmt.Errorf("database Postgresql physical config is not set")
+		}
 	case databases.DatabaseTypeMysql:
 		if database.Mysql == nil {
 			return fmt.Errorf("database MySQL config is not set")
