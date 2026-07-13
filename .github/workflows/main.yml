@@ -39,6 +39,8 @@ jobs:
         run: |
           docker build -f Dockerfile . -t jeniel/testindata:${{ steps.vars.outputs.sha_short }}-prod
       - name: docker push
+
+      #fghfg
         run: |
           docker push jeniel/testindata:${{ steps.vars.outputs.sha_short }}-prod
 
