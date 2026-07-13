@@ -1,0 +1,46 @@
+name: databasus-bata
+on:
+  push:
+    branches: ["main"]
+jobs:
+  build:
+    #if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'master-deployment/')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [24.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: get-npm-version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@master
+        with:
+          path: .
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+      - name: Set Version Outputs
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Check Version Outputs
+        run: echo ${{ steps.vars.outputs.sha_short }}
+
+      - name: docker build nodejs
+        run: |
+          docker build -f Dockerfile . -t jeniel/testindata:${{ steps.vars.outputs.sha_short }}-prod
+      - name: docker push
+        run: |
+          docker push jeniel/testindata:${{ steps.vars.outputs.sha_short }}-prod
+
+    outputs:
+      version: ${{ steps.vars.outputs.sha_short}}-prod
