@@ -91,31 +91,11 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            {{- if .Values.livenessProbe.exec }}
-            exec:
-              {{- toYaml .Values.livenessProbe.exec | nindent 14 }}
-            {{- else if .Values.livenessProbe.httpGet }}
-            httpGet:
-              {{- toYaml .Values.livenessProbe.httpGet | nindent 14 }}
-            {{- end }}
-            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
-          {{- end }}
-          {{- if .Values.readinessProbe.enabled }}
+            {{- toYaml .Values.livenessProbe.probe | nindent 12 }}
+          {{- end }} 
+          {{- if .Values.readinessProbe.enabled }} 
           readinessProbe:
-            {{- if .Values.readinessProbe.exec }}
-            exec:
-              {{- toYaml .Values.readinessProbe.exec | nindent 14 }}
-            {{- else if .Values.readinessProbe.httpGet }}
-            httpGet:
-              {{- toYaml .Values.readinessProbe.httpGet | nindent 14 }}
-            {{- end }}
-            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            {{- toYaml .Values.readinessProbe.probe | nindent 12 }}
           {{- end }}
       {{- if or .Values.customRootCA .Values.extraVolumes }}
       volumes:

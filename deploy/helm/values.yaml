@@ -130,25 +130,27 @@ route:
 # Health checks configuration
 livenessProbe:
   enabled: true
-  exec:
-    command:
-      - databasus
-      - healthcheck
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
+  probe:
+    exec:
+      command:
+        - databasus
+        - healthcheck
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
 
 readinessProbe:
   enabled: true
-  exec:
-    command:
-      - databasus
-      - healthcheck
-  initialDelaySeconds: 10
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
+  probe:
+    exec:
+      command:
+        - databasus
+        - healthcheck
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
 
 # StatefulSet update strategy
 updateStrategy:
