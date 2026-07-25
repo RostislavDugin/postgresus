@@ -99,7 +99,7 @@ func Test_DropWalSlot_WhenStreamerSlotActive_RefusesAndKeepsSlot(t *testing.T) {
 	adminConn := postgresql_executor.OpenAdminConn(t, fixture)
 	streamerSlot := fixture.DB.PostgresqlPhysical.ReplicationSlotName
 
-	stop := postgresql_executor.StartWalStreamerForTest(t, fixture, fixture.Storage)
+	stop := postgresql_executor.StartWalStreamerForTest(t, fixture, fixture.Storage, t.TempDir()).Stop
 	defer stop()
 
 	waitUntilSlotActive(t, adminConn, streamerSlot, 30*time.Second)

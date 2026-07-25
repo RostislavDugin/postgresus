@@ -57,6 +57,8 @@ func (s *WalStreamSupervisor) recoverLocalSegmentsOnStartup(ctx context.Context,
 			s.archiveTimelineHistoryFile(ctx, logger, name)
 		}
 	}
+
+	s.sweepPendingUploads(ctx, logger, s.uploader.RecoverSegment)
 }
 
 func (s *WalStreamSupervisor) scanAndUpload(ctx context.Context, logger *slog.Logger) {
@@ -82,6 +84,34 @@ func (s *WalStreamSupervisor) scanAndUpload(ctx context.Context, logger *slog.Lo
 
 		case strings.HasSuffix(name, ".history"):
 			s.archiveTimelineHistoryFile(ctx, logger, name)
+		}
+	}
+
+	s.sweepPendingUploads(ctx, logger, s.uploader.ProcessSegment)
+}
+
+// Segments moved out of pg_receivewal's resume path (wal_resume.go) are valid
+// WAL of the older chain, so they keep flowing to storage from here.
+func (s *WalStreamSupervisor) sweepPendingUploads(
+	ctx context.Context,
+	logger *slog.Logger,
+	upload func(ctx context.Context, localPath, walFilename string) error,
+) {
+	pendingUploadDir := filepath.Join(s.watchDir, pendingUploadDirName)
+
+	entries, err := os.ReadDir(pendingUploadDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !walmath.IsWalFilename(entry.Name()) {
+			continue
+		}
+
+		if err := upload(ctx, filepath.Join(pendingUploadDir, entry.Name()), entry.Name()); err != nil {
+			logger.Warn("pending wal segment upload failed; will retry next tick",
+				"wal_filename", entry.Name(), "error", err)
 		}
 	}
 }

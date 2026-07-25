@@ -39,6 +39,8 @@ type mockWalStorage struct {
 
 	failSaveTimes int
 
+	isFailingAllSaves atomic.Bool
+
 	// blockOn, when set, makes SaveFile for that exact object name signal started
 	// and wait on release before returning.
 	blockOn string
@@ -62,6 +64,10 @@ func (m *mockWalStorage) SaveFile(
 		<-m.release
 	}
 
+	if m.isFailingAllSaves.Load() {
+		return fmt.Errorf("mock storage is failing every save for %s", fileName)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -74,6 +80,14 @@ func (m *mockWalStorage) SaveFile(
 	m.saved[fileName] = body
 
 	return nil
+}
+
+func (m *mockWalStorage) startFailingSaves() {
+	m.isFailingAllSaves.Store(true)
+}
+
+func (m *mockWalStorage) stopFailingSaves() {
+	m.isFailingAllSaves.Store(false)
 }
 
 func (m *mockWalStorage) DeleteFile(_ encryption.FieldEncryptor, fileName string) error {

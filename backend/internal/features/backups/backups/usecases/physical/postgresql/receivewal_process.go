@@ -25,7 +25,14 @@ const (
 	receiverInternalRestart                     // our own SIGTERM (back pressure / slot stall) — respawn promptly
 	receiverRetryable                           // non-zero exit that a local respawn may fix (network)
 	receiverFatal                               // non-retryable exit — escalate so the supervisor reclaims it on a later tick
+	receiverResumeMismatch                      // asked for WAL the server no longer has — realign the resume point and retry
 )
+
+type receiverRunResult struct {
+	Exit     receiverExit
+	RanFor   time.Duration
+	FatalErr error
+}
 
 type receivewalCommandSpec struct {
 	PgBin    string
@@ -39,12 +46,12 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	ctx context.Context,
 	logger *slog.Logger,
 	pgBin string,
-) (receiverExit, time.Duration, error) {
+) receiverRunResult {
 	password, err := postgresql_shared.DecryptFieldIfNeeded(s.spec.SourceDB.Password, s.spec.FieldEncryptor)
 	if err != nil {
 		logger.Error("decrypt source password for pg_receivewal", "error", err)
 
-		return receiverRetryable, 0, nil
+		return receiverRunResult{Exit: receiverRetryable}
 	}
 
 	creds, err := postgresql_shared.WriteCredentialFilesToTempDir(
@@ -53,7 +60,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	if err != nil {
 		logger.Error("write pg_receivewal credentials", "error", err)
 
-		return receiverRetryable, 0, nil
+		return receiverRunResult{Exit: receiverRetryable}
 	}
 	defer creds.Remove()
 
@@ -70,21 +77,24 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	if err != nil {
 		logger.Error("build pg_receivewal command", "error", err)
 
-		return receiverRetryable, 0, nil
+		return receiverRunResult{Exit: receiverRetryable}
 	}
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		logger.Error("pg_receivewal stderr pipe", "error", err)
 
-		return receiverRetryable, 0, nil
+		return receiverRunResult{Exit: receiverRetryable}
 	}
 
 	if err := cmd.Start(); err != nil {
 		logger.Error("start pg_receivewal", "error", err)
 
-		return receiverRetryable, 0, nil
+		return receiverRunResult{Exit: receiverRetryable}
 	}
+
+	s.isReceiverRunning.Store(true)
+	defer s.isReceiverRunning.Store(false)
 
 	stderr := newStderrCapture(stderrPipe)
 	startedAt := time.Now().UTC()
@@ -101,7 +111,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		<-exited
 		stderr.stop()
 
-		return receiverCtxCancelled, 0, nil
+		return receiverRunResult{Exit: receiverCtxCancelled}
 
 	case <-s.restartSignal:
 		logger.Info("restarting pg_receivewal on internal signal (back pressure or slot stall)")
@@ -109,31 +119,42 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		<-exited
 		stderr.stop()
 
-		return receiverInternalRestart, time.Since(startedAt), nil
+		return receiverRunResult{Exit: receiverInternalRestart, RanFor: time.Since(startedAt)}
 
 	case waitErr := <-exited:
 		stderr.stop()
 		ranFor := time.Since(startedAt)
 
 		if waitErr == nil || procCtx.Err() != nil {
-			return receiverRetryable, ranFor, nil
+			return receiverRunResult{Exit: receiverRetryable, RanFor: ranFor}
 		}
 
 		stderrText := stderr.contents()
+
+		if isResumeMismatchError(stderrText) {
+			logger.Warn("pg_receivewal asked for WAL the server has recycled; realigning the resume point",
+				"error", waitErr, "stderr", truncateStderr(stderrText))
+
+			return receiverRunResult{Exit: receiverResumeMismatch, RanFor: ranFor}
+		}
 
 		if isFatalReceivewalError(stderrText) {
 			logger.Error("pg_receivewal exited with a non-retryable error; marking streamer for reassignment",
 				"error", waitErr, "stderr", truncateStderr(stderrText))
 
-			return receiverFatal, ranFor, fmt.Errorf(
-				"pg_receivewal fatal error: %w; stderr: %s", waitErr, truncateStderr(stderrText),
-			)
+			return receiverRunResult{
+				Exit:   receiverFatal,
+				RanFor: ranFor,
+				FatalErr: fmt.Errorf(
+					"pg_receivewal fatal error: %w; stderr: %s", waitErr, truncateStderr(stderrText),
+				),
+			}
 		}
 
 		logger.Warn("pg_receivewal exited; will respawn",
 			"error", waitErr, "stderr", truncateStderr(stderrText))
 
-		return receiverRetryable, ranFor, nil
+		return receiverRunResult{Exit: receiverRetryable, RanFor: ranFor}
 	}
 }
 
@@ -159,6 +180,13 @@ func isFatalReceivewalError(stderr []byte) bool {
 	}
 
 	return false
+}
+
+// The resume point pg_receivewal derived from the local queue sits below what
+// the server still has. A local respawn alone repeats it forever, so this is its
+// own disposition: the supervision loop realigns the queue and tries again.
+func isResumeMismatchError(stderr []byte) bool {
+	return strings.Contains(strings.ToLower(string(stderr)), "has already been removed")
 }
 
 // WAL is left uncompressed locally (no --compress) because the uploader

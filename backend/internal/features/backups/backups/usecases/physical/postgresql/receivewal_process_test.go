@@ -49,12 +49,33 @@ func Test_IsFatalReceivewalError_ClassifiesNonRetryableStderr(t *testing.T) {
 		require.True(t, isFatalReceivewalError([]byte(stderr)), stderr)
 	}
 
-	transient := []string{
+	transientStderrs := []string{
 		"pg_receivewal: error: could not receive data from WAL stream: server closed the connection unexpectedly",
 		"pg_receivewal: error: connection to server failed: Connection refused",
 		"",
 	}
-	for _, stderr := range transient {
+	for _, stderr := range transientStderrs {
 		require.False(t, isFatalReceivewalError([]byte(stderr)), stderr)
+	}
+}
+
+func Test_IsResumeMismatchError_WhenSegmentAlreadyRemoved_ReturnsTrue(t *testing.T) {
+	stderr := "pg_receivewal: error: could not send replication command \"START_REPLICATION\": " +
+		"ERROR:  requested WAL segment 0000000100000000E000002F has already been removed"
+
+	require.True(t, isResumeMismatchError([]byte(stderr)))
+	require.False(t, isFatalReceivewalError([]byte(stderr)),
+		"a realign fixes this, so it must not escalate the streamer to FAILED")
+}
+
+func Test_IsResumeMismatchError_WhenTransientStderr_ReturnsFalse(t *testing.T) {
+	transientStderrs := []string{
+		"pg_receivewal: error: could not receive data from WAL stream: server closed the connection unexpectedly",
+		"pg_receivewal: error: connection to server failed: Connection refused",
+		"",
+	}
+
+	for _, stderr := range transientStderrs {
+		require.False(t, isResumeMismatchError([]byte(stderr)), stderr)
 	}
 }

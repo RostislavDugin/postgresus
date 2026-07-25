@@ -15,7 +15,7 @@ const (
 	// uploads drain below LOW. The 5x hysteresis prevents flapping on the
 	// boundary. HIGH scales up for clusters with non-default wal_segment_size so
 	// one segment does not stop the receiver.
-	walLocalMinHighWatermarkBytes int64 = 100 * 1024 * 1024
+	walLocalMinHighWatermarkBytes int64 = 512 * 1024 * 1024
 
 	backpressurePollInterval = 1 * time.Second
 )

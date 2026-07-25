@@ -40,6 +40,11 @@ const (
 	// a local respawn can never fix (ENOSPC, bad creds, a slot held by a thief).
 	receivewalMaxRapidFailures = 5
 
+	// A realign empties the resume path, so the very next spawn starts from the
+	// slot. A second mismatch means the slot itself no longer covers what the
+	// server retains — only a rebuild clears that.
+	receivewalMaxResumeMismatches = 2
+
 	pausePollInterval = 1 * time.Second
 )
 
@@ -70,6 +75,10 @@ type WalStreamSpec struct {
 	// request a fresh base backup that anchors the new WAL chain.
 	OnSlotRebuilt func(ctx context.Context, reason string) error
 
+	// Fires while the chain is still intact but degrading (slot retention
+	// warnings, a wedged receiver); nil disables notification.
+	OnChainAtRisk func(report ChainRiskReport)
+
 	Logger *slog.Logger
 }
 
@@ -95,6 +104,10 @@ type WalStreamSupervisor struct {
 	// drop+recreate the slot without the receiver re-attaching.
 	isPaused atomic.Bool
 
+	// Lets the slot-LSN watcher and the lag monitor tell a real problem from lag
+	// we are causing ourselves by holding the receiver down.
+	isReceiverRunning atomic.Bool
+
 	// rebuildMu serializes slot rebuilds in this process; rebuildTimestamps powers
 	// the per-hour loop-protection cap. One supervisor owns a DB at a time (the
 	// physical_wal_streamers heartbeat claim), so this is the only guard needed.
@@ -118,7 +131,7 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 		OnGapDetected:       spec.OnGapDetected,
 	})
 
-	highWatermarkBytes := max(walLocalMinHighWatermarkBytes, 4*walSegmentSizeBytes(spec.SourceDB))
+	highWatermarkBytes := max(walLocalMinHighWatermarkBytes, 8*walSegmentSizeBytes(spec.SourceDB))
 
 	return &WalStreamSupervisor{
 		spec:               spec,
@@ -139,6 +152,10 @@ func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 	// does not create it itself. Create both up front.
 	if err := os.MkdirAll(filepath.Join(s.watchDir, "archive_status"), 0o700); err != nil {
 		return fmt.Errorf("create wal watch dir: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.watchDir, pendingUploadDirName), 0o700); err != nil {
+		return fmt.Errorf("create pending upload dir: %w", err)
 	}
 
 	if err := s.spec.SourceDB.VerifyWalSlot(ctx, logger, s.spec.FieldEncryptor); err != nil {
@@ -193,6 +210,7 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 	pgBin := tools.GetPostgresqlExecutable(s.spec.SourceDB.Version, tools.PostgresqlExecutablePgReceivewal)
 	respawnBackoff := receivewalRespawnBackoff
 	rapidFailures := 0
+	resumeMismatches := 0
 
 	for {
 		if ctx.Err() != nil {
@@ -211,29 +229,50 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 		// signal raised while no process was running.
 		s.drainRestartSignal()
 		s.removePartials(logger)
+		s.realignResumePath(ctx, logger)
 
-		outcome, ranFor, fatalErr := s.spawnAndSupervise(ctx, logger, pgBin)
+		receiverRun := s.spawnAndSupervise(ctx, logger, pgBin)
 
-		switch outcome {
+		switch receiverRun.Exit {
 		case receiverCtxCancelled:
 			return nil
 
 		case receiverFatal:
-			return fatalErr
+			return receiverRun.FatalErr
 
 		case receiverInternalRestart:
 			// Our own SIGTERM (back pressure or slot stall): respawn promptly; the
 			// top-of-loop backlog/pause gates already throttle the cause.
 			respawnBackoff = receivewalRespawnBackoff
 			rapidFailures = 0
+			resumeMismatches = 0
+
+			continue
+
+		case receiverResumeMismatch:
+			resumeMismatches++
+
+			if resumeMismatches >= receivewalMaxResumeMismatches {
+				resumeMismatches = 0
+
+				if err := s.rebuildSlot(ctx, logger, breakReasonSlotLost); err != nil {
+					return fmt.Errorf("rebuild slot after repeated wal resume mismatch: %w", err)
+				}
+			}
+
+			if !sleepCtx(ctx, receivewalRespawnBackoff) {
+				return nil
+			}
 
 			continue
 		}
 
+		resumeMismatches = 0
+
 		// receiverRetryable: a run that streamed for a healthy span is a transient
 		// blip (network) — reset the crash-loop counter; a string of sub-uptime
 		// exits is a crash loop a local respawn cannot fix, so escalate.
-		if ranFor >= receivewalMinHealthyUptime {
+		if receiverRun.RanFor >= receivewalMinHealthyUptime {
 			rapidFailures = 0
 			respawnBackoff = receivewalRespawnBackoff
 		} else {

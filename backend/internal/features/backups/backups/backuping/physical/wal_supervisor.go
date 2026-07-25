@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -48,6 +49,11 @@ type PhysicalWalStreamSupervisor struct {
 	running map[uuid.UUID]*runningStreamer
 
 	lastTickTime atomicTime
+
+	// A FAILED streamer is reclaimable on the next tick, so an unfixable break
+	// re-enters startStreamer every ~45 s. Without this the operator would get one
+	// notification per cycle instead of one per incident.
+	lastChainAlertAt map[chainAlertKey]time.Time
 
 	hasRun  atomic.Bool
 	isReady atomic.Bool
@@ -257,7 +263,8 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		WatchDirRoot:         config.GetEnv().DataFolder,
 		WalLagThresholdBytes: backupConfig.WalLagThresholdBytes,
 		OnGapDetected:        s.gapNotifier(db, backupConfig),
-		OnSlotRebuilt:        s.slotRebuildFullRequester(logger, backupConfig),
+		OnSlotRebuilt:        s.slotRebuildFullRequester(logger, db, backupConfig),
+		OnChainAtRisk:        s.chainRiskNotifier(db, backupConfig),
 		Logger:               s.logger,
 	})
 
@@ -274,6 +281,12 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 
 		if err := supervisor.Run(streamerCtx); err != nil {
 			logger.Error("wal stream supervisor exited with error", "error", err)
+
+			s.notifyChainBroken(db, backupConfig, chainAlert{
+				Kind:    chainAlertStreamerFailed,
+				Heading: fmt.Sprintf("WAL streaming stopped for %q", db.Name),
+				Message: fmt.Sprintf("database_id=%s error=%s", db.ID, err),
+			})
 
 			// Mark FAILED so a later tick can reclaim it. A clean
 			// ctx-cancel (shutdown / lifecycle stop) does not reach here with an
@@ -330,6 +343,7 @@ func (s *PhysicalWalStreamSupervisor) gapNotifier(
 
 func (s *PhysicalWalStreamSupervisor) slotRebuildFullRequester(
 	logger *slog.Logger,
+	db *databases.Database,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 ) func(context.Context, string) error {
 	return func(_ context.Context, reason string) error {
@@ -339,8 +353,71 @@ func (s *PhysicalWalStreamSupervisor) slotRebuildFullRequester(
 
 		logger.Warn("requested out-of-cadence full backup after wal slot rebuild", "reason", reason)
 
+		// Dropping and recreating the slot always leaves a WAL gap, so the chain
+		// this notifies about is already broken by the time we get here.
+		s.notifyChainBroken(db, backupConfig, chainAlert{
+			Kind:    chainAlertSlotRebuilt,
+			Heading: fmt.Sprintf("Physical WAL chain rebuilt for %q", db.Name),
+			Message: fmt.Sprintf("database_id=%s reason=%s; a fresh full backup was requested to anchor the new chain",
+				db.ID, reason),
+		})
+
 		return nil
 	}
+}
+
+func (s *PhysicalWalStreamSupervisor) chainRiskNotifier(
+	db *databases.Database,
+	backupConfig *backups_config_physical.PhysicalBackupConfig,
+) func(postgresql_executor.ChainRiskReport) {
+	return func(report postgresql_executor.ChainRiskReport) {
+		s.notifyChainBroken(db, backupConfig, chainAlert{
+			Kind:    chainAlertChainAtRisk,
+			Heading: fmt.Sprintf("Physical WAL chain at risk for %q", db.Name),
+			Message: fmt.Sprintf("database_id=%s reason=%s slot_wal_status=%s lag_bytes=%d",
+				db.ID, report.Reason, report.SlotWalStatus, report.LagBytes),
+		})
+	}
+}
+
+func (s *PhysicalWalStreamSupervisor) notifyChainBroken(
+	db *databases.Database,
+	backupConfig *backups_config_physical.PhysicalBackupConfig,
+	alert chainAlert,
+) {
+	if !slices.Contains(backupConfig.SendNotificationsOn, backups_config_physical.NotificationChainBroken) {
+		return
+	}
+
+	if !s.recordChainAlertIfDue(chainAlertKey{DatabaseID: db.ID, Kind: alert.Kind}) {
+		return
+	}
+
+	notification := notifier_models.Notification{
+		Type:    notifier_models.NotificationTypeBackupFailed,
+		Heading: alert.Heading,
+		Message: alert.Message,
+	}
+
+	for _, notifier := range db.Notifiers {
+		s.notificationSender.SendNotification(&notifier, notification)
+	}
+}
+
+func (s *PhysicalWalStreamSupervisor) recordChainAlertIfDue(key chainAlertKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UTC()
+
+	if sentAt, wasNotified := s.lastChainAlertAt[key]; wasNotified &&
+		now.Sub(sentAt) < chainAlertMinInterval {
+		return false
+	}
+
+	s.lastChainAlertAt[key] = now
+
+	return true
 }
 
 func (s *PhysicalWalStreamSupervisor) stopNonCandidates(candidates map[uuid.UUID]bool) {
@@ -382,6 +459,11 @@ func (s *PhysicalWalStreamSupervisor) stopStreamer(databaseID uuid.UUID, shouldR
 
 	s.mu.Lock()
 	delete(s.running, databaseID)
+
+	maps.DeleteFunc(s.lastChainAlertAt, func(key chainAlertKey, _ time.Time) bool {
+		return key.DatabaseID == databaseID
+	})
+
 	s.mu.Unlock()
 
 	if err := s.walStreamerRepo.MarkFailed(databaseID); err != nil {
