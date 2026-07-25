@@ -56,3 +56,12 @@ func Test_IsOwnedReceiverBackend_WhenActiveButEmptyApplicationName_ReturnsFalse(
 
 	require.False(t, isOwnedReceiverBackend(state))
 }
+
+func Test_WalStream_RebuildAttemptCap_StopsFourthAttemptInHour(t *testing.T) {
+	supervisor := &WalStreamSupervisor{}
+
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.False(t, supervisor.recordRebuildAttemptWithinCap())
+}

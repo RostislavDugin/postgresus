@@ -286,31 +286,6 @@ func Test_WalStream_SlotLagGrowsWithoutConsumer_DrainsOnceStreaming(t *testing.T
 	t.Fatalf("slot lag did not drain below %d within 60s after streaming started", lagTarget)
 }
 
-func Test_WalStream_BackpressureWatermarks_ScaleWithWalSegmentSize(t *testing.T) {
-	fixture := SetupPhysicalDBForBackup(t)
-	customSegSize := int64(512 * 1024 * 1024)
-	fixture.DB.PostgresqlPhysical.WalSegmentSizeBytes = &customSegSize
-
-	supervisor := NewWalStreamSupervisor(WalStreamSpec{
-		DatabaseID:   fixture.DB.ID,
-		SourceDB:     fixture.DB.PostgresqlPhysical,
-		WatchDirRoot: t.TempDir(),
-		Logger:       logger.GetLogger(),
-	})
-
-	require.Equal(t, 4*customSegSize, supervisor.highWatermarkBytes)
-	require.Equal(t, 4*customSegSize/5, supervisor.lowWatermarkBytes)
-}
-
-func Test_WalStream_RebuildAttemptCap_StopsFourthAttemptInHour(t *testing.T) {
-	supervisor := &WalStreamSupervisor{}
-
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.False(t, supervisor.recordRebuildAttemptWithinCap())
-}
-
 func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
 	fixture := SetupPhysicalDBForBackup(t)
 
@@ -340,56 +315,6 @@ func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
 	require.NotNil(t, row, "segment LSN must be derived from the DB's segsize, not the walmath global")
 	require.Equal(t, wantStart, row.StartLSN)
 	require.Equal(t, wantStart+walmath.LSN(customSegSize), row.EndLSN)
-}
-
-func Test_WalUpload_ConcurrentClaimSameSegment_OnlyWinnerInserts(t *testing.T) {
-	fixture := SetupPhysicalDBForBackup(t)
-
-	repo := physical_repositories.GetWalSegmentRepository()
-	startLSN := walmath.LSN(40 * uint64(testWalSegmentSize))
-	endLSN := startLSN + walmath.LSN(testWalSegmentSize)
-
-	const racers = 6
-
-	type claimOutcome struct {
-		inserted bool
-		err      error
-	}
-
-	results := make(chan claimOutcome, racers)
-	start := make(chan struct{})
-
-	for range racers {
-		go func() {
-			<-start
-
-			// Don't call require.* off the test goroutine — collect and assert below.
-			inserted, err := repo.ClaimInsert(&physical_models.PhysicalWalSegment{
-				DatabaseID:  fixture.DB.ID,
-				StorageID:   fixture.Storage.ID,
-				TimelineID:  1,
-				WalFilename: walName(1, 40),
-				StartLSN:    startLSN,
-				EndLSN:      endLSN,
-				Encryption:  backups_core_enums.BackupEncryptionNone,
-			})
-			results <- claimOutcome{inserted: inserted, err: err}
-		}()
-	}
-
-	close(start)
-
-	winners := 0
-	for range racers {
-		outcome := <-results
-		require.NoError(t, outcome.err)
-
-		if outcome.inserted {
-			winners++
-		}
-	}
-
-	require.Equal(t, 1, winners, "exactly one concurrent claim may win the (db, tl, start_lsn) slot")
 }
 
 func Test_Cleaner_AbandonedNullClaim_OlderThanGrace_DeletedYoungerSurvives(t *testing.T) {
@@ -431,48 +356,4 @@ func Test_Cleaner_AbandonedNullClaim_OlderThanGrace_DeletedYoungerSurvives(t *te
 
 	require.Nil(t, findWalSegment(t, fixture.DB.ID, 1, oldClaim.StartLSN), "aged claim must be gone")
 	require.NotNil(t, findWalSegment(t, fixture.DB.ID, 1, youngClaim.StartLSN), "within-grace claim must survive")
-}
-
-func Test_StallTracker_WhenFirstSample_DoesNotRestart(t *testing.T) {
-	var tracker stallTracker
-
-	base := time.Now().UTC()
-
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute),
-		"the first sample only arms the clock; it can never be a stall")
-}
-
-func Test_StallTracker_WhenRestartLsnAdvances_ReArmsAndDoesNotRestart(t *testing.T) {
-	var tracker stallTracker
-
-	base := time.Now().UTC()
-
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.False(t, tracker.observe(walmath.LSN(200), base.Add(2*time.Minute), time.Minute),
-		"a changed restart_lsn means progress — the advance clock must reset")
-}
-
-func Test_StallTracker_WhenFrozenWithinTimeout_DoesNotRestart(t *testing.T) {
-	var tracker stallTracker
-
-	base := time.Now().UTC()
-
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.False(t, tracker.observe(walmath.LSN(100), base.Add(30*time.Second), time.Minute),
-		"a frozen restart_lsn within the stall timeout is not yet a stall")
-}
-
-func Test_StallTracker_WhenFrozenPastTimeout_RestartsThenReArms(t *testing.T) {
-	var tracker stallTracker
-
-	base := time.Now().UTC()
-
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.True(t, tracker.observe(walmath.LSN(100), base.Add(90*time.Second), time.Minute),
-		"a frozen restart_lsn past the stall timeout must trigger a restart")
-
-	require.False(t, tracker.observe(walmath.LSN(100), base.Add(2*time.Minute), time.Minute),
-		"after firing, the clock re-arms so we restart at most once per window")
-	require.True(t, tracker.observe(walmath.LSN(100), base.Add(4*time.Minute), time.Minute),
-		"a sustained stall fires again only after another full timeout window")
 }

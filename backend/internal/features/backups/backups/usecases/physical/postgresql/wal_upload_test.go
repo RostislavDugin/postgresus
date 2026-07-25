@@ -460,3 +460,53 @@ func Test_BuildWalSegmentArtifactReader_WhenLargeSegment_StreamsAndCountsArtifac
 	require.Equal(t, int64(len(body)), compressedSizeBytes)
 	require.NotEmpty(t, body)
 }
+
+func Test_WalUpload_ConcurrentClaimSameSegment_OnlyWinnerInserts(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+
+	repo := physical_repositories.GetWalSegmentRepository()
+	startLSN := walmath.LSN(40 * uint64(testWalSegmentSize))
+	endLSN := startLSN + walmath.LSN(testWalSegmentSize)
+
+	const racers = 6
+
+	type claimOutcome struct {
+		inserted bool
+		err      error
+	}
+
+	results := make(chan claimOutcome, racers)
+	start := make(chan struct{})
+
+	for range racers {
+		go func() {
+			<-start
+
+			// Don't call require.* off the test goroutine — collect and assert below.
+			inserted, err := repo.ClaimInsert(&physical_models.PhysicalWalSegment{
+				DatabaseID:  fixture.DB.ID,
+				StorageID:   fixture.Storage.ID,
+				TimelineID:  1,
+				WalFilename: walName(1, 40),
+				StartLSN:    startLSN,
+				EndLSN:      endLSN,
+				Encryption:  backups_core_enums.BackupEncryptionNone,
+			})
+			results <- claimOutcome{inserted: inserted, err: err}
+		}()
+	}
+
+	close(start)
+
+	winners := 0
+	for range racers {
+		outcome := <-results
+		require.NoError(t, outcome.err)
+
+		if outcome.inserted {
+			winners++
+		}
+	}
+
+	require.Equal(t, 1, winners, "exactly one concurrent claim may win the (db, tl, start_lsn) slot")
+}
