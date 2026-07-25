@@ -1,7 +1,12 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
+import {
+  type Database,
+  DatabaseType,
+  databaseApi,
+  getDatabaseTypeLabel,
+} from '../../../../entity/databases';
 
 interface Props {
   database: Database;
@@ -27,21 +32,12 @@ export const CreateReadOnlyComponent = ({
   const [privileges, setPrivileges] = useState<string[]>([]);
   const [isPrivilegesExpanded, setIsPrivilegesExpanded] = useState(false);
 
-  const isPostgres = database.type === DatabaseType.POSTGRES_LOGICAL;
+  const isLogicalPostgres = database.type === DatabaseType.POSTGRES_LOGICAL;
   const isPhysicalPostgres = database.type === DatabaseType.POSTGRES_PHYSICAL;
   const isMysql = database.type === DatabaseType.MYSQL;
   const isMariadb = database.type === DatabaseType.MARIADB;
   const isMongodb = database.type === DatabaseType.MONGODB;
-  const databaseTypeName =
-    isPostgres || isPhysicalPostgres
-      ? 'PostgreSQL'
-      : isMysql
-        ? 'MySQL'
-        : isMariadb
-          ? 'MariaDB'
-          : isMongodb
-            ? 'MongoDB'
-            : 'database';
+  const databaseTypeName = getDatabaseTypeLabel(database.type);
 
   const privilegesLabel = isMongodb ? 'roles' : 'privileges';
   const userKindNoun = isPhysicalPostgres ? 'replication-only user' : 'read-only user';
@@ -82,7 +78,7 @@ export const CreateReadOnlyComponent = ({
       if (isPhysicalPostgres && database.postgresqlPhysical) {
         database.postgresqlPhysical.username = response.username;
         database.postgresqlPhysical.password = response.password;
-      } else if (isPostgres && database.postgresqlLogical) {
+      } else if (isLogicalPostgres && database.postgresqlLogical) {
         database.postgresqlLogical.username = response.username;
         database.postgresqlLogical.password = response.password;
       } else if (isMysql && database.mysql) {

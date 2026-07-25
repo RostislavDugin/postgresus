@@ -36,7 +36,7 @@ export const DatabaseComponent = ({
     setIsHealthcheckVisible(isVisible);
   };
 
-  const isPostgresDatabase = database?.type === DatabaseType.POSTGRES_LOGICAL;
+  const isLogicalDatabase = database?.type === DatabaseType.POSTGRES_LOGICAL;
   const isPhysicalDatabase = database?.type === DatabaseType.POSTGRES_PHYSICAL;
 
   const loadSettings = () => {
@@ -74,7 +74,7 @@ export const DatabaseComponent = ({
           Backups
         </div>
 
-        {isPostgresDatabase && (
+        {isLogicalDatabase && (
           <div
             className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'verifications' ? 'bg-white dark:bg-gray-800' : 'bg-gray-200 dark:bg-gray-700'}`}
             onClick={() => setCurrentTab('verifications')}
@@ -122,7 +122,7 @@ export const DatabaseComponent = ({
         </>
       )}
 
-      {currentTab === 'verifications' && isPostgresDatabase && (
+      {currentTab === 'verifications' && isLogicalDatabase && (
         <VerificationsComponent
           database={database}
           isCanManageDBs={isCanManageDBs}

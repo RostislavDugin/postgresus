@@ -1,8 +1,6 @@
 package databases
 
 import (
-	"errors"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -24,39 +22,20 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 	}
 
 	err := db.Transaction(func(tx *gorm.DB) error {
-		switch database.Type {
-		case DatabaseTypePostgresLogical:
-			if database.PostgresqlLogical == nil {
-				return errors.New("postgresql configuration is required for PostgreSQL database")
-			}
-			database.PostgresqlLogical.DatabaseID = &database.ID
-		case DatabaseTypeMysql:
-			if database.Mysql == nil {
-				return errors.New("mysql configuration is required for MySQL database")
-			}
-			database.Mysql.DatabaseID = &database.ID
-		case DatabaseTypeMariadb:
-			if database.Mariadb == nil {
-				return errors.New("mariadb configuration is required for MariaDB database")
-			}
-			database.Mariadb.DatabaseID = &database.ID
-		case DatabaseTypeMongodb:
-			if database.Mongodb == nil {
-				return errors.New("mongodb configuration is required for MongoDB database")
-			}
-			database.Mongodb.DatabaseID = &database.ID
+		if err := database.Validate(); err != nil {
+			return err
 		}
 
+		withoutAssociations := tx.Omit(
+			"PostgresqlLogical", "PostgresqlPhysical", "Mysql", "Mariadb", "Mongodb", "Notifiers",
+		)
+
 		if isNew {
-			if err := tx.Create(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
-				Error; err != nil {
+			if err := withoutAssociations.Create(database).Error; err != nil {
 				return err
 			}
 		} else {
-			if err := tx.Save(database).
-				Omit("Postgresql", "Mysql", "Mariadb", "Mongodb", "Notifiers").
-				Error; err != nil {
+			if err := withoutAssociations.Save(database).Error; err != nil {
 				return err
 			}
 		}
@@ -71,6 +50,18 @@ func (r *DatabaseRepository) Save(database *Database) (*Database, error) {
 				}
 			} else {
 				if err := tx.Save(database.PostgresqlLogical).Error; err != nil {
+					return err
+				}
+			}
+		case DatabaseTypePostgresPhysical:
+			database.PostgresqlPhysical.DatabaseID = &database.ID
+			if database.PostgresqlPhysical.ID == uuid.Nil {
+				database.PostgresqlPhysical.ID = uuid.New()
+				if err := tx.Create(database.PostgresqlPhysical).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(database.PostgresqlPhysical).Error; err != nil {
 					return err
 				}
 			}

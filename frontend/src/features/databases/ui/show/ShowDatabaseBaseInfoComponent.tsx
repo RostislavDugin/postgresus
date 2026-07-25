@@ -1,4 +1,8 @@
-import { type Database, getDatabaseLogoFromType } from '../../../../entity/databases';
+import {
+  type Database,
+  getDatabaseLogoFromType,
+  getDatabaseTypeLabel,
+} from '../../../../entity/databases';
 
 interface Props {
   database: Database;
@@ -20,7 +24,7 @@ export const ShowDatabaseBaseInfoComponent = ({ database, isShowName, isShowType
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">Database type</div>
           <div className="flex items-center">
-            <span>{database.type === 'POSTGRES_LOGICAL' ? 'PostgreSQL' : 'MySQL'}</span>
+            <span>{getDatabaseTypeLabel(database.type)}</span>
             <img
               src={getDatabaseLogoFromType(database.type)}
               alt="databaseIcon"
