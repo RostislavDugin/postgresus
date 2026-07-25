@@ -75,7 +75,7 @@ func CreateTestPhysicalScheduler() *PhysicalBackupsScheduler {
 // the production repos and services. A fresh instance (not a copy of the DI
 // singleton) keeps each test's hasRun/running state isolated and avoids copying
 // the embedded mutex.
-func CreateTestWalStreamSupervisor() *PhysicalWalStreamSupervisor {
+func CreateTestWalStreamSupervisor(notificationSender NotificationSender) *PhysicalWalStreamSupervisor {
 	return &PhysicalWalStreamSupervisor{
 		databases.GetDatabaseService(),
 		backups_config_physical.GetBackupConfigService(),
@@ -83,7 +83,7 @@ func CreateTestWalStreamSupervisor() *PhysicalWalStreamSupervisor {
 		physical_repositories.GetWalSegmentRepository(),
 		physical_repositories.GetWalHistoryRepository(),
 		physical_repositories.GetWalStreamerRepository(),
-		notifiers.GetNotifierService(),
+		notificationSender,
 		tasks_cancellation.GetTaskCancelManager(),
 		encryption_secrets.GetSecretKeyService(),
 		encryption.GetFieldEncryptor(),
@@ -91,6 +91,7 @@ func CreateTestWalStreamSupervisor() *PhysicalWalStreamSupervisor {
 		sync.Mutex{},
 		make(map[uuid.UUID]*runningStreamer),
 		atomicTime{},
+		make(map[chainAlertKey]time.Time),
 		atomic.Bool{},
 		atomic.Bool{},
 	}
@@ -162,7 +163,7 @@ func StartPhysicalSchedulerForTest(t *testing.T) context.CancelFunc {
 func StartPhysicalWalStreamSupervisorForTest(t *testing.T) context.CancelFunc {
 	t.Helper()
 
-	supervisor := CreateTestWalStreamSupervisor()
+	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
 
 	ctx, cancel := context.WithCancel(context.Background())
 

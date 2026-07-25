@@ -6,9 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_IsOwnedReceiverBackend_WhenOurReceiverHoldsSlot_ReturnsTrue confirms the
-// rebuild attribution accepts a slot held by our own pg_receivewal (active PID +
-// our application-name prefix) — the only case where force-termination is safe.
 func Test_IsOwnedReceiverBackend_WhenOurReceiverHoldsSlot_ReturnsTrue(t *testing.T) {
 	state := &SlotState{
 		Active:          true,
@@ -19,9 +16,6 @@ func Test_IsOwnedReceiverBackend_WhenOurReceiverHoldsSlot_ReturnsTrue(t *testing
 	require.True(t, isOwnedReceiverBackend(state))
 }
 
-// Test_IsOwnedReceiverBackend_WhenForeignConsumerHoldsSlot_ReturnsFalse is the
-// slot-stolen guard: a slot held by a consumer whose application name is not ours
-// must not be attributed to us, so rebuildSlot refuses to terminate or drop it.
 func Test_IsOwnedReceiverBackend_WhenForeignConsumerHoldsSlot_ReturnsFalse(t *testing.T) {
 	state := &SlotState{
 		Active:          true,
@@ -32,8 +26,6 @@ func Test_IsOwnedReceiverBackend_WhenForeignConsumerHoldsSlot_ReturnsFalse(t *te
 	require.False(t, isOwnedReceiverBackend(state))
 }
 
-// Test_IsOwnedReceiverBackend_WhenNoActiveBackend_ReturnsFalse: a slot with no
-// active PID has no walsender to terminate — there is nothing to attribute.
 func Test_IsOwnedReceiverBackend_WhenNoActiveBackend_ReturnsFalse(t *testing.T) {
 	state := &SlotState{
 		Active:          false,
@@ -44,9 +36,6 @@ func Test_IsOwnedReceiverBackend_WhenNoActiveBackend_ReturnsFalse(t *testing.T) 
 	require.False(t, isOwnedReceiverBackend(state))
 }
 
-// Test_IsOwnedReceiverBackend_WhenActiveButEmptyApplicationName_ReturnsFalse:
-// an active backend we cannot name (no pg_stat_replication join, empty app name)
-// is treated as foreign — we never drop a slot we cannot prove is ours.
 func Test_IsOwnedReceiverBackend_WhenActiveButEmptyApplicationName_ReturnsFalse(t *testing.T) {
 	state := &SlotState{
 		Active:          true,
@@ -55,4 +44,13 @@ func Test_IsOwnedReceiverBackend_WhenActiveButEmptyApplicationName_ReturnsFalse(
 	}
 
 	require.False(t, isOwnedReceiverBackend(state))
+}
+
+func Test_WalStream_RebuildAttemptCap_StopsFourthAttemptInHour(t *testing.T) {
+	supervisor := &WalStreamSupervisor{}
+
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.True(t, supervisor.recordRebuildAttemptWithinCap())
+	require.False(t, supervisor.recordRebuildAttemptWithinCap())
 }

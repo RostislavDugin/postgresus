@@ -11,6 +11,8 @@ import (
 
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
+	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/storage"
 )
 
@@ -131,7 +133,7 @@ func Test_ClaimIfClaimable_WhenConcurrentClaims_ExactlyOneWins(t *testing.T) {
 }
 
 func Test_PhysicalWalStreamSupervisorRun_WhenCalledTwice_Panics(t *testing.T) {
-	supervisor := CreateTestWalStreamSupervisor()
+	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
 
 	ctx := t.Context()
 
@@ -154,7 +156,7 @@ func Test_PhysicalWalStreamSupervisorRun_WhenCalledTwice_Panics(t *testing.T) {
 
 func Test_StopStreamer_WhenOwnedStreamerStops_MarksRowFailed(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
-	supervisor := CreateTestWalStreamSupervisor()
+	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
 	require.NoError(t, physical_repositories.GetWalStreamerRepository().Claim(prereqs.DB.ID))
 
 	done := make(chan struct{})
@@ -182,7 +184,7 @@ func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T
 		physical_enums.PhysicalWalStreamerStatusRunning,
 	)
 
-	supervisor := CreateTestWalStreamSupervisor()
+	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
 
 	require.NoError(t, supervisor.recoverStreamersOnStartup())
 
@@ -193,7 +195,7 @@ func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T
 }
 
 func Test_RemoveWatchDirIfRequested_WhenCleanupRequested_RemovesQueue(t *testing.T) {
-	supervisor := CreateTestWalStreamSupervisor()
+	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
 	watchDir := filepath.Join(t.TempDir(), "wal-queue")
 	require.NoError(t, os.MkdirAll(watchDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(watchDir, "segment"), []byte("wal"), 0o600))
@@ -204,4 +206,74 @@ func Test_RemoveWatchDirIfRequested_WhenCleanupRequested_RemovesQueue(t *testing
 	supervisor.removeWatchDirIfRequested(supervisor.logger, streamer)
 
 	require.NoDirExists(t, watchDir)
+}
+
+func Test_NotifyChainBroken_WhenSameIncidentRepeats_SendsOneNotificationPerWindow(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(sender)
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationChainBroken,
+	}
+
+	// A FAILED streamer is reclaimable on the next tick, so the same incident
+	// re-enters this path every cycle until the cause is fixed.
+	for range 3 {
+		supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+			Kind:    chainAlertStreamerFailed,
+			Heading: "WAL streaming stopped",
+			Message: "database_id=x",
+		})
+	}
+
+	require.Len(t, sender.sentNotifications, 1, "a reclaim loop must not turn into a notification loop")
+	require.Equal(t, "WAL streaming stopped", sender.sentNotifications[0].Notification.Heading)
+}
+
+func Test_NotifyChainBroken_WhenConfigDoesNotOptIn_SendsNoNotification(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(sender)
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationBackupSuccess,
+	}
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+		Kind:    chainAlertStreamerFailed,
+		Heading: "WAL streaming stopped",
+		Message: "database_id=x",
+	})
+
+	require.Empty(t, sender.sentNotifications)
+}
+
+func Test_NotifyChainBroken_WhenDifferentIncidentKinds_SendsEachOnce(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(sender)
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationChainBroken,
+	}
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+		Kind:    chainAlertChainAtRisk,
+		Heading: "chain at risk",
+		Message: "database_id=x",
+	})
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+		Kind:    chainAlertSlotRebuilt,
+		Heading: "chain rebuilt",
+		Message: "database_id=x",
+	})
+
+	require.Len(t, sender.sentNotifications, 2,
+		"a retention warning must not swallow the rebuild alert that reports the new chain anchor")
+	require.Equal(t, "chain at risk", sender.sentNotifications[0].Notification.Heading)
+	require.Equal(t, "chain rebuilt", sender.sentNotifications[1].Notification.Heading)
 }

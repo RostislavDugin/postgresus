@@ -131,7 +131,7 @@ func Test_WalStreamOverMtls_StreamerArchivesSegments(t *testing.T) {
 
 	store := newMockWalStorage()
 
-	stop := startStreamerForTest(t, fixture, store)
+	stop := StartWalStreamerForTest(t, fixture, store, t.TempDir()).Stop
 	t.Cleanup(stop)
 
 	adminConn := OpenAdminConn(t, fixture)

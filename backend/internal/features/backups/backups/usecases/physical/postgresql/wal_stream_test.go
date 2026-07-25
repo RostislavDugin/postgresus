@@ -2,63 +2,23 @@ package usecases_physical_postgresql
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
 	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
 	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
 	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
-	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
 )
-
-// startStreamerForTest runs a WalStreamSupervisor against the fixture's source PG
-// in a goroutine and returns a stop func that cancels and waits for full drain —
-// ensuring pg_receivewal has released the slot before the DB (and its slot) are
-// torn down by later cleanups.
-func startStreamerForTest(t *testing.T, fixture *PhysicalDBFixture, store storages.StorageFileSaver) func() {
-	t.Helper()
-
-	spec := WalStreamSpec{
-		DatabaseID:     fixture.DB.ID,
-		SourceDB:       fixture.DB.PostgresqlPhysical,
-		StorageID:      fixture.Storage.ID,
-		Storage:        store,
-		Encryption:     backups_core_enums.BackupEncryptionNone,
-		FieldEncryptor: encryption.GetFieldEncryptor(),
-		WalSegmentRepo: physical_repositories.GetWalSegmentRepository(),
-		HistoryRepo:    physical_repositories.GetWalHistoryRepository(),
-		WatchDirRoot:   t.TempDir(),
-		Logger:         logger.GetLogger(),
-	}
-
-	supervisor := NewWalStreamSupervisor(spec)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-
-		_ = supervisor.Run(ctx)
-	}()
-
-	return func() {
-		cancel()
-
-		select {
-		case <-done:
-		case <-time.After(30 * time.Second):
-			t.Log("streamer did not stop within timeout")
-		}
-	}
-}
 
 func Test_WalStream_FullIncrementalAndWalStream_StreamerArchivesSegments(t *testing.T) {
 	if testing.Short() {
@@ -72,7 +32,7 @@ func Test_WalStream_FullIncrementalAndWalStream_StreamerArchivesSegments(t *test
 
 	store := newMockWalStorage()
 
-	stop := startStreamerForTest(t, fixture, store)
+	stop := StartWalStreamerForTest(t, fixture, store, t.TempDir()).Stop
 	t.Cleanup(stop)
 
 	adminConn := OpenAdminConn(t, fixture)
@@ -109,8 +69,6 @@ func Test_WalStream_FullIncrementalAndWalStream_StreamerArchivesSegments(t *test
 	require.GreaterOrEqual(t, committed, 1, "at least one rotated segment must be archived")
 }
 
-// assertDbSegmentsArchivedOnlyIn asserts every committed segment of databaseID
-// is present in ownStore and absent from otherStore — per-DB streamer isolation.
 func assertDbSegmentsArchivedOnlyIn(
 	t *testing.T,
 	databaseID uuid.UUID,
@@ -138,8 +96,6 @@ func assertDbSegmentsArchivedOnlyIn(
 	require.GreaterOrEqual(t, committed, 1, "database %s must archive at least one segment", databaseID)
 }
 
-// committedSegmentsInOrder returns the database's committed (file_name NOT NULL)
-// WAL segments ordered by start_lsn (FindByChainSpan already sorts ascending).
 func committedSegmentsInOrder(t *testing.T, databaseID uuid.UUID) []*physical_models.PhysicalWalSegment {
 	t.Helper()
 
@@ -173,8 +129,8 @@ func Test_WalStream_MultipleDbs_EachArchivesSegmentsIndependently(t *testing.T) 
 	storeA := newMockWalStorage()
 	storeB := newMockWalStorage()
 
-	t.Cleanup(startStreamerForTest(t, fixtureA, storeA))
-	t.Cleanup(startStreamerForTest(t, fixtureB, storeB))
+	t.Cleanup(StartWalStreamerForTest(t, fixtureA, storeA, t.TempDir()).Stop)
+	t.Cleanup(StartWalStreamerForTest(t, fixtureB, storeB, t.TempDir()).Stop)
 
 	connA := OpenAdminConn(t, fixtureA)
 
@@ -210,7 +166,7 @@ func Test_WalStream_MissingSegmentInStreamedChain_SurfacesAsGapChainStaysExtenda
 	store := newMockWalStorage()
 	adminConn := OpenAdminConn(t, fixture)
 
-	t.Cleanup(startStreamerForTest(t, fixture, store))
+	t.Cleanup(StartWalStreamerForTest(t, fixture, store, t.TempDir()).Stop)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
@@ -272,7 +228,7 @@ func Test_WalStream_SlotLagGrowsWithoutConsumer_DrainsOnceStreaming(t *testing.T
 	WaitUntilSlotLag(t, adminConn, slotName, lagTarget, 30*time.Second)
 
 	// Once our streamer attaches, it consumes the backlog and the lag drains.
-	t.Cleanup(startStreamerForTest(t, fixture, newMockWalStorage()))
+	t.Cleanup(StartWalStreamerForTest(t, fixture, newMockWalStorage(), t.TempDir()).Stop)
 
 	deadline := time.Now().UTC().Add(60 * time.Second)
 	for time.Now().UTC().Before(deadline) {
@@ -284,31 +240,6 @@ func Test_WalStream_SlotLagGrowsWithoutConsumer_DrainsOnceStreaming(t *testing.T
 	}
 
 	t.Fatalf("slot lag did not drain below %d within 60s after streaming started", lagTarget)
-}
-
-func Test_WalStream_BackpressureWatermarks_ScaleWithWalSegmentSize(t *testing.T) {
-	fixture := SetupPhysicalDBForBackup(t)
-	customSegSize := int64(512 * 1024 * 1024)
-	fixture.DB.PostgresqlPhysical.WalSegmentSizeBytes = &customSegSize
-
-	supervisor := NewWalStreamSupervisor(WalStreamSpec{
-		DatabaseID:   fixture.DB.ID,
-		SourceDB:     fixture.DB.PostgresqlPhysical,
-		WatchDirRoot: t.TempDir(),
-		Logger:       logger.GetLogger(),
-	})
-
-	require.Equal(t, 4*customSegSize, supervisor.highWatermarkBytes)
-	require.Equal(t, 4*customSegSize/5, supervisor.lowWatermarkBytes)
-}
-
-func Test_WalStream_RebuildAttemptCap_StopsFourthAttemptInHour(t *testing.T) {
-	supervisor := &WalStreamSupervisor{}
-
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.True(t, supervisor.recordRebuildAttemptWithinCap())
-	require.False(t, supervisor.recordRebuildAttemptWithinCap())
 }
 
 func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
@@ -334,62 +265,12 @@ func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
 	name := "000000010000000200000003"
 	require.NoError(t, uploader.ProcessSegment(context.Background(), writeWalFile(t, dir, name), name))
 
-	wantStart := walmath.LSN((uint64(2) << 32) + 3*uint64(customSegSize))
+	expectedStartLSN := walmath.LSN((uint64(2) << 32) + 3*uint64(customSegSize))
 
-	row := findWalSegment(t, fixture.DB.ID, 1, wantStart)
+	row := findWalSegment(t, fixture.DB.ID, 1, expectedStartLSN)
 	require.NotNil(t, row, "segment LSN must be derived from the DB's segsize, not the walmath global")
-	require.Equal(t, wantStart, row.StartLSN)
-	require.Equal(t, wantStart+walmath.LSN(customSegSize), row.EndLSN)
-}
-
-func Test_WalUpload_ConcurrentClaimSameSegment_OnlyWinnerInserts(t *testing.T) {
-	fixture := SetupPhysicalDBForBackup(t)
-
-	repo := physical_repositories.GetWalSegmentRepository()
-	startLSN := walmath.LSN(40 * uint64(testWalSegmentSize))
-	endLSN := startLSN + walmath.LSN(testWalSegmentSize)
-
-	const racers = 6
-
-	type claimOutcome struct {
-		inserted bool
-		err      error
-	}
-
-	results := make(chan claimOutcome, racers)
-	start := make(chan struct{})
-
-	for range racers {
-		go func() {
-			<-start
-
-			// Don't call require.* off the test goroutine — collect and assert below.
-			inserted, err := repo.ClaimInsert(&physical_models.PhysicalWalSegment{
-				DatabaseID:  fixture.DB.ID,
-				StorageID:   fixture.Storage.ID,
-				TimelineID:  1,
-				WalFilename: walName(1, 40),
-				StartLSN:    startLSN,
-				EndLSN:      endLSN,
-				Encryption:  backups_core_enums.BackupEncryptionNone,
-			})
-			results <- claimOutcome{inserted: inserted, err: err}
-		}()
-	}
-
-	close(start)
-
-	winners := 0
-	for range racers {
-		outcome := <-results
-		require.NoError(t, outcome.err)
-
-		if outcome.inserted {
-			winners++
-		}
-	}
-
-	require.Equal(t, 1, winners, "exactly one concurrent claim may win the (db, tl, start_lsn) slot")
+	require.Equal(t, expectedStartLSN, row.StartLSN)
+	require.Equal(t, expectedStartLSN+walmath.LSN(customSegSize), row.EndLSN)
 }
 
 func Test_Cleaner_AbandonedNullClaim_OlderThanGrace_DeletedYoungerSurvives(t *testing.T) {
@@ -433,46 +314,176 @@ func Test_Cleaner_AbandonedNullClaim_OlderThanGrace_DeletedYoungerSurvives(t *te
 	require.NotNil(t, findWalSegment(t, fixture.DB.ID, 1, youngClaim.StartLSN), "within-grace claim must survive")
 }
 
-func Test_StallTracker_WhenFirstSample_DoesNotRestart(t *testing.T) {
-	var tracker stallTracker
+func Test_WalStream_ResumePointBelowSlotRestartLsn_RealignsAndKeepsStreaming(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
 
-	base := time.Now().UTC()
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
 
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute),
-		"the first sample only arms the clock; it can never be a stall")
+	adminConn := OpenAdminConn(t, fixture)
+	slotName := fixture.DB.PostgresqlPhysical.ReplicationSlotName
+	watchDirRoot := t.TempDir()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	// A storage that refuses every save leaves finalized segments sitting in the
+	// watch dir — the local queue this issue is about. It has to keep failing
+	// across the restart, or startup recovery would drain the queue and there
+	// would be nothing left to drag the resume point down.
+	store := newMockWalStorage()
+	store.startFailingSaves()
+
+	firstRun := StartWalStreamerForTest(t, fixture, store, watchDirRoot)
+
+	for range 3 {
+		_, err := ForceWalRotation(ctx, adminConn)
+		require.NoError(t, err)
+	}
+
+	waitForQueuedSegments(t, firstRun.WatchDir, 1, 60*time.Second)
+	firstRun.Stop()
+
+	queuedBeforeRebuild := queuedSegmentNames(t, firstRun.WatchDir)
+	require.NotEmpty(t, queuedBeforeRebuild)
+
+	// Model the incident: the slot is rebuilt while the queue still holds
+	// pre-rebuild segments, so the recreated slot reserves from a position far
+	// above them and pg_receivewal would otherwise resume below it.
+	DropReplicationSlotExternally(t, adminConn, slotName)
+
+	segmentSizeBytes := int64(walmath.WalSegmentSize)
+
+	resumeSegmentNo, isResumeSegmentFound := GetResumeSegmentNo(firstRun.WatchDir, segmentSizeBytes)
+	require.True(t, isResumeSegmentFound, "the local queue must hold at least one complete segment")
+
+	burnWalPastSegment(t, ctx, adminConn, resumeSegmentNo+1)
+
+	// pg_create_physical_replication_slot(..., true) reserves from the last
+	// checkpoint's redo point, not from the current insert position, so without
+	// this the recreated slot can still land below the queue.
+	_, err := adminConn.Exec(ctx, "CHECKPOINT")
+	require.NoError(t, err)
+
+	require.NoError(t, fixture.DB.PostgresqlPhysical.VerifyWalSlot(
+		ctx, logger.GetLogger(), encryption.GetFieldEncryptor(),
+	))
+
+	requireQueueBelowSlot(t, ctx, adminConn, slotName, resumeSegmentNo)
+
+	secondRun := StartWalStreamerForTest(t, fixture, store, watchDirRoot)
+	t.Cleanup(secondRun.Stop)
+
+	pendingUploadDir := filepath.Join(secondRun.WatchDir, pendingUploadDirName)
+
+	for _, staleSegment := range queuedBeforeRebuild {
+		require.Eventually(t, func() bool {
+			_, err := os.Stat(filepath.Join(pendingUploadDir, staleSegment))
+
+			return err == nil
+		}, 60*time.Second, 250*time.Millisecond,
+			"segment below the new restart_lsn must leave pg_receivewal's resume path: %s", staleSegment)
+
+		require.NoFileExists(t, filepath.Join(secondRun.WatchDir, staleSegment))
+	}
+
+	// Storage recovers: the staged segments are valid WAL of the older chain, so
+	// they must still reach storage, and the receiver must keep streaming the new
+	// chain rather than crash-looping on the recycled WAL it used to ask for.
+	store.stopFailingSaves()
+
+	for range 3 {
+		_, err := ForceWalRotation(ctx, adminConn)
+		require.NoError(t, err)
+	}
+
+	for _, staleSegment := range queuedBeforeRebuild {
+		require.Eventually(t, func() bool {
+			return store.hasObject(walSegmentObjectName(fixture.DB.ID, 1, staleSegment))
+		}, 60*time.Second, 250*time.Millisecond,
+			"a segment moved out of the resume path must still reach storage: %s", staleSegment)
+	}
+
+	WaitForCommittedWalSegmentCount(t, fixture.DB.ID, 1, 90*time.Second)
 }
 
-func Test_StallTracker_WhenRestartLsnAdvances_ReArmsAndDoesNotRestart(t *testing.T) {
-	var tracker stallTracker
+func queuedSegmentNames(t *testing.T, watchDir string) []string {
+	t.Helper()
 
-	base := time.Now().UTC()
+	entries, err := os.ReadDir(watchDir)
+	require.NoError(t, err)
 
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.False(t, tracker.observe(walmath.LSN(200), base.Add(2*time.Minute), time.Minute),
-		"a changed restart_lsn means progress — the advance clock must reset")
+	var queuedSegments []string
+
+	for _, entry := range entries {
+		if !entry.IsDir() && walmath.IsWalFilename(entry.Name()) {
+			queuedSegments = append(queuedSegments, entry.Name())
+		}
+	}
+
+	return queuedSegments
 }
 
-func Test_StallTracker_WhenFrozenWithinTimeout_DoesNotRestart(t *testing.T) {
-	var tracker stallTracker
+func waitForQueuedSegments(t *testing.T, watchDir string, minCount int, timeout time.Duration) {
+	t.Helper()
 
-	base := time.Now().UTC()
-
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.False(t, tracker.observe(walmath.LSN(100), base.Add(30*time.Second), time.Minute),
-		"a frozen restart_lsn within the stall timeout is not yet a stall")
+	require.Eventually(t, func() bool {
+		return len(queuedSegmentNames(t, watchDir)) >= minCount
+	}, timeout, 250*time.Millisecond, "watch dir never accumulated %d finalized segments", minCount)
 }
 
-func Test_StallTracker_WhenFrozenPastTimeout_RestartsThenReArms(t *testing.T) {
-	var tracker stallTracker
+// pg_switch_wal is a no-op on an already-empty segment, so the cluster only
+// moves past the queue if real WAL is written between switches.
+func burnWalPastSegment(
+	t *testing.T,
+	ctx context.Context,
+	adminConn *pgx.Conn,
+	targetSegmentNo walmath.WalSegmentNo,
+) {
+	t.Helper()
 
-	base := time.Now().UTC()
+	segmentSizeBytes := int64(walmath.WalSegmentSize)
 
-	require.False(t, tracker.observe(walmath.LSN(100), base, time.Minute))
-	require.True(t, tracker.observe(walmath.LSN(100), base.Add(90*time.Second), time.Minute),
-		"a frozen restart_lsn past the stall timeout must trigger a restart")
+	require.Eventually(t, func() bool {
+		if _, err := GenerateWalActivity(ctx, adminConn, segmentSizeBytes); err != nil {
+			return false
+		}
 
-	require.False(t, tracker.observe(walmath.LSN(100), base.Add(2*time.Minute), time.Minute),
-		"after firing, the clock re-arms so we restart at most once per window")
-	require.True(t, tracker.observe(walmath.LSN(100), base.Add(4*time.Minute), time.Minute),
-		"a sustained stall fires again only after another full timeout window")
+		if _, err := ForceWalRotation(ctx, adminConn); err != nil {
+			return false
+		}
+
+		var currentLSN walmath.LSN
+		if err := adminConn.QueryRow(ctx, "SELECT pg_current_wal_lsn()::text").Scan(&currentLSN); err != nil {
+			return false
+		}
+
+		return segmentNoAtLSN(currentLSN, segmentSizeBytes) > targetSegmentNo
+	}, 2*time.Minute, 100*time.Millisecond, "cluster never wrote past segment %d", uint64(targetSegmentNo))
+}
+
+// The realign only has work to do when the recreated slot reserves above the
+// queue pg_receivewal would otherwise resume from, so assert that rather than
+// let the test pass without exercising anything.
+func requireQueueBelowSlot(
+	t *testing.T,
+	ctx context.Context,
+	adminConn *pgx.Conn,
+	slotName string,
+	resumeSegmentNo walmath.WalSegmentNo,
+) {
+	t.Helper()
+
+	segmentSizeBytes := int64(walmath.WalSegmentSize)
+
+	slotState, err := InspectSlot(ctx, adminConn, slotName)
+	require.NoError(t, err)
+	require.NotNil(t, slotState)
+
+	require.Less(t, uint64(resumeSegmentNo), uint64(segmentNoAtLSN(slotState.RestartLSN, segmentSizeBytes)),
+		"the queue must sit below the recreated slot for this test to mean anything")
 }

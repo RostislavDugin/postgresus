@@ -90,3 +90,11 @@ type ParentManifestRef struct {
 	IV         string
 	StopLSN    walmath.LSN
 }
+
+// Payload of WalStreamSpec.OnChainAtRisk. Reason is a walBreakReason string:
+// the type is unexported, and the wiring package cannot name it.
+type ChainRiskReport struct {
+	Reason        string
+	SlotWalStatus string
+	LagBytes      int64
+}
