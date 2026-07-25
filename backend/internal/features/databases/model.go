@@ -150,12 +150,28 @@ func (d *Database) GetRawDbSizeMb(
 ) (float64, error) {
 	switch d.Type {
 	case DatabaseTypePostgresLogical:
+		if d.PostgresqlLogical == nil {
+			return 0, errors.New("postgresql logical config is not set")
+		}
+
 		return d.PostgresqlLogical.GetRawDbSizeMb(ctx, logger, encryptor)
 	case DatabaseTypeMysql:
+		if d.Mysql == nil {
+			return 0, errors.New("mysql config is not set")
+		}
+
 		return d.Mysql.GetRawDbSizeMb(ctx, logger, encryptor)
 	case DatabaseTypeMariadb:
+		if d.Mariadb == nil {
+			return 0, errors.New("mariadb config is not set")
+		}
+
 		return d.Mariadb.GetRawDbSizeMb(ctx, logger, encryptor)
 	case DatabaseTypeMongodb:
+		if d.Mongodb == nil {
+			return 0, errors.New("mongodb config is not set")
+		}
+
 		return d.Mongodb.GetRawDbSizeMb(ctx, logger, encryptor)
 	default:
 		return 0, errors.New("logical backup not supported for database type: " + string(d.Type))
