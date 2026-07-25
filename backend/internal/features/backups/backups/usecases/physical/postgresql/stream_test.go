@@ -34,14 +34,21 @@ type fakeStorageFileSaver struct {
 	mu      sync.Mutex
 	saved   map[string][]byte
 	saveErr error
+
+	// The deadline is recorded rather than the context itself so no context is ever
+	// parked in a struct field.
+	savedDeadlines map[string]time.Time
 }
 
 func newFakeStorage() *fakeStorageFileSaver {
-	return &fakeStorageFileSaver{saved: map[string][]byte{}}
+	return &fakeStorageFileSaver{
+		saved:          map[string][]byte{},
+		savedDeadlines: map[string]time.Time{},
+	}
 }
 
 func (f *fakeStorageFileSaver) SaveFile(
-	_ context.Context,
+	ctx context.Context,
 	_ encryption.FieldEncryptor,
 	_ *slog.Logger,
 	fileName string,
@@ -58,9 +65,23 @@ func (f *fakeStorageFileSaver) SaveFile(
 
 	f.mu.Lock()
 	f.saved[fileName] = data
+
+	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+		f.savedDeadlines[fileName] = deadline
+	}
+
 	f.mu.Unlock()
 
 	return nil
+}
+
+func (f *fakeStorageFileSaver) deadlineFor(fileName string) (time.Time, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	deadline, hasDeadline := f.savedDeadlines[fileName]
+
+	return deadline, hasDeadline
 }
 
 func (f *fakeStorageFileSaver) GetFile(_ encryption.FieldEncryptor, fileName string) (io.ReadCloser, error) {
@@ -316,6 +337,58 @@ func Test_SaveManifestSidecar_WhenEncrypted_RoundTripsWithOwnSaltIV(t *testing.T
 	plaintext, err := io.ReadAll(decryptor)
 	require.NoError(t, err)
 	assert.Equal(t, manifest, plaintext, "manifest must decrypt with its own salt/IV")
+}
+
+func Test_ManifestSaveTimeout_ScalesWithSizeBetweenFloorAndCeiling(t *testing.T) {
+	cases := []struct {
+		name             string
+		payloadSizeBytes int
+		timeout          time.Duration
+	}{
+		{"empty manifest", 0, manifestSaveMinTimeout},
+		{"1 MiB manifest", 1024 * 1024, manifestSaveMinTimeout},
+		{"100 MB manifest", 100 * 1024 * 1024, 400 * time.Second},
+		{"1 GiB manifest", 1024 * 1024 * 1024, manifestSaveMaxTimeout},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.timeout, manifestSaveTimeout(testCase.payloadSizeBytes))
+		})
+	}
+}
+
+func Test_SaveManifestSidecar_WhenManifestIsSmall_UsesFloorDeadline(t *testing.T) {
+	storage := newFakeStorage()
+	params := testRunStreamParams(storage, physical_enums.PhysicalBackupCompressionNone)
+
+	_, _, err := saveManifestSidecar(t.Context(), params, "obj.manifest", []byte(`{ "Files": [] }`))
+	require.NoError(t, err)
+
+	deadline, hasDeadline := storage.deadlineFor("obj.manifest")
+	require.True(t, hasDeadline, "the sidecar upload must stay bounded")
+
+	assert.InDelta(t, manifestSaveMinTimeout.Seconds(), time.Until(deadline).Seconds(), 5,
+		"a few-KB manifest gets the floor, not a size-derived budget")
+}
+
+// A 40 MiB sidecar sits past the knee where the size-derived budget overtakes the
+// floor (manifestSaveMinTimeout worth of throughput is 30 MiB), so it proves the
+// deadline actually tracks the payload instead of being a renamed constant.
+func Test_SaveManifestSidecar_WhenManifestIsLarge_ExtendsDeadlineBeyondFloor(t *testing.T) {
+	storage := newFakeStorage()
+	params := testRunStreamParams(storage, physical_enums.PhysicalBackupCompressionNone)
+	largeManifest := bytes.Repeat([]byte("m"), 40*1024*1024)
+
+	_, _, err := saveManifestSidecar(t.Context(), params, "obj.manifest", largeManifest)
+	require.NoError(t, err)
+
+	deadline, hasDeadline := storage.deadlineFor("obj.manifest")
+	require.True(t, hasDeadline, "the sidecar upload must stay bounded")
+
+	assert.Greater(t, time.Until(deadline), manifestSaveMinTimeout,
+		"a manifest past the floor's throughput budget must get more time")
+	assert.Len(t, storage.saved["obj.manifest"], len(largeManifest))
 }
 
 func Test_IsCompressionUnsupportedError_MatchesBuildRejection(t *testing.T) {

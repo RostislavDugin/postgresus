@@ -20,7 +20,11 @@ import (
 	"databasus-backend/internal/util/tools"
 )
 
-const metadataUploadTimeout = 30 * time.Second
+// The `.metadata` sidecar is a few KB of JSON, so its deadline covers endpoint
+// latency rather than transfer time: a slow S3-compatible provider is the only
+// realistic way this upload runs long, and losing it fails the whole backup.
+// Aligned with walSegmentUploadTimeout and the manifest sidecar's floor.
+const metadataUploadTimeout = 2 * time.Minute
 
 // uploadFullMetadata writes the `<artifact>.metadata` sidecar describing a
 // completed FULL, next to the artifact / manifest / history the stream already
