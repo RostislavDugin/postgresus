@@ -72,8 +72,6 @@ func (s *WalStreamSupervisor) rebuildSlot(ctx context.Context, logger *slog.Logg
 	return nil
 }
 
-// isOwnedReceiverBackend reports whether an active slot is held by one of our own
-// pg_receivewal processes — its PGAPPNAME carries receivewalApplicationNamePrefix.
 // A slot held by anything else (a third-party consumer, or a backend we cannot
 // attribute) must never be force-terminated or dropped during a rebuild.
 func isOwnedReceiverBackend(state *SlotState) bool {

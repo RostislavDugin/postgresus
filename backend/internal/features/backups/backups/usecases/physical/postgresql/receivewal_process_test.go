@@ -22,14 +22,13 @@ func Test_NewReceivewalCommand_SetsParentDeathSignalAndApplicationName(t *testin
 		ReplicationSlotName: "slot",
 	}
 
-	cmd, err := newReceivewalCommand(
-		t.Context(),
-		"sh",
-		sourceDB,
-		&postgresql_shared.CredentialTempFiles{PgpassPath: "/tmp/pgpass"},
-		t.TempDir(),
-		"slot",
-	)
+	cmd, err := newReceivewalCommand(t.Context(), receivewalCommandSpec{
+		PgBin:    "sh",
+		SourceDB: sourceDB,
+		Creds:    &postgresql_shared.CredentialTempFiles{PgpassPath: "/tmp/pgpass"},
+		WatchDir: t.TempDir(),
+		SlotName: "slot",
+	})
 	require.NoError(t, err)
 	require.NotNil(t, cmd.SysProcAttr)
 	require.Equal(t, syscall.SIGTERM, cmd.SysProcAttr.Pdeathsig)

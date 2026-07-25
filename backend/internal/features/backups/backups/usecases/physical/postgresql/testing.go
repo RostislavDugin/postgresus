@@ -763,10 +763,8 @@ func StartWalStreamerForTest(t *testing.T, fixture *PhysicalDBFixture, store sto
 	}
 }
 
-// MarkFullCompleted promotes the fixture's IN_PROGRESS FULL to COMPLETED with the
-// given LSN bounds, so chain_view treats it as a real chain anchor whose span
-// (GetChainSpan / FindWalGapsInChain) covers the streamed WAL segments. Streamer
-// tests that assert on chain shape need a COMPLETED FULL to anchor against.
+// chain_view only treats a COMPLETED FULL as a chain anchor, so streamer tests
+// that assert on chain shape need one to anchor against.
 func MarkFullCompleted(t *testing.T, fullID uuid.UUID, timelineID int, startLSN, stopLSN walmath.LSN) {
 	t.Helper()
 

@@ -30,10 +30,7 @@ const testWalSegmentSize = int64(16 * 1024 * 1024)
 // chain-span query should return every segment regardless of position.
 const lsnSpanUpperBoundForTests = walmath.LSN(1) << 62
 
-// mockWalStorage is a controllable StorageFileSaver for WAL uploader tests: it
-// records saved/deleted object names, can fail the first N SaveFile calls, and
-// can block one SaveFile until released (to interleave the DeleteFull cascade
-// race).
+// blockOn exists to interleave the DeleteFull cascade race.
 type mockWalStorage struct {
 	mu        sync.Mutex
 	saved     map[string][]byte

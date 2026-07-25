@@ -7,27 +7,26 @@ import (
 )
 
 const (
-	// lagMonitorPollInterval — cadence for reading pg_replication_slots. Balances
-	// detection latency against query load on the source (one cheap indexed row).
+	// Balances detection latency against query load on the source (one cheap
+	// indexed row).
 	lagMonitorPollInterval = 30 * time.Second
 
-	// extendedSlotStatusHoldPeriod — an 'extended' slot status must persist this
-	// long before we treat it as a real lag (vs a transient write burst).
+	// An 'extended' slot status must persist this long before we treat it as a
+	// real lag (vs a transient write burst).
 	extendedSlotStatusHoldPeriod = 5 * time.Minute
 
-	// slotRebuildMaxAttemptsPerHour — beyond this many rebuild ATTEMPTS in a
-	// sliding hour (counted regardless of outcome), mechanical retry won't help
-	// (creds rotated, pg_hba changed, source dead); stop and surface the
-	// condition instead of dropping+recreating in a loop.
+	// Beyond this many rebuild ATTEMPTS in a sliding hour (counted regardless of
+	// outcome), mechanical retry won't help (creds rotated, pg_hba changed,
+	// source dead); stop and surface the condition instead of dropping+recreating
+	// in a loop.
 	slotRebuildMaxAttemptsPerHour = 3
 
-	// rebuildReceiverStopTimeout — how long to wait for our own pg_receivewal to
-	// release the slot during a rebuild before concluding another consumer holds it.
+	// How long to wait for our own pg_receivewal to release the slot during a
+	// rebuild before concluding another consumer holds it.
 	rebuildReceiverStopTimeout = 30 * time.Second
 	rebuildReceiverStopPoll    = 1 * time.Second
 )
 
-// walBreakReason is a structured-log value for an observed stream break. It is
 // NOT a catalog enum: WAL chain breaks are derived from LSN gaps between segment
 // rows, never stored — the log carries the human-readable "why".
 type walBreakReason string
@@ -38,9 +37,8 @@ const (
 	breakReasonSlotStolen walBreakReason = "SLOT_STOLEN"
 )
 
-// runLagMonitor polls the source slot and triggers a rebuild on slot loss /
-// unreserved / sustained-extended / lag over threshold. Source-side slot state
-// only; consumer-side liveness is the slot-LSN watcher's job (wal_stream.go).
+// Source-side slot state only; consumer-side liveness is the slot-LSN watcher's
+// job (slot_lsn_watcher.go).
 func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Logger) {
 	ticker := time.NewTicker(lagMonitorPollInterval)
 	defer ticker.Stop()
@@ -67,7 +65,6 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 	}
 }
 
-// evaluateSlotForBreak inspects the slot and decides whether a rebuild is due.
 // extendedSince tracks how long wal_status has been 'extended' across ticks.
 func (s *WalStreamSupervisor) evaluateSlotForBreak(
 	ctx context.Context,

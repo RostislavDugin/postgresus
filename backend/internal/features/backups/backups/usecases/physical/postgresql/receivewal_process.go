@@ -17,8 +17,7 @@ import (
 
 const receivewalApplicationNamePrefix = "databasus_wal_receiver_"
 
-// receiverExit is the disposition of one pg_receivewal run, decided by
-// spawnAndSupervise and acted on by runReceivewalSupervision.
+// receiverExit is decided by spawnAndSupervise and acted on by runReceivewalSupervision.
 type receiverExit int
 
 const (
@@ -28,9 +27,14 @@ const (
 	receiverFatal                               // non-retryable exit — escalate so the supervisor reclaims it on a later tick
 )
 
-// spawnAndSupervise starts one pg_receivewal process and blocks until it exits,
-// the restart signal fires, or ctx is cancelled. It reports the run's
-// disposition, how long the process streamed, and (for receiverFatal) the error.
+type receivewalCommandSpec struct {
+	PgBin    string
+	SourceDB *postgresql_physical.PostgresqlPhysicalDatabase
+	Creds    *postgresql_shared.CredentialTempFiles
+	WatchDir string
+	SlotName string
+}
+
 func (s *WalStreamSupervisor) spawnAndSupervise(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -56,7 +60,13 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	procCtx, procCancel := context.WithCancel(ctx)
 	defer procCancel()
 
-	cmd, err := newReceivewalCommand(procCtx, pgBin, s.spec.SourceDB, creds, s.watchDir, s.slotName)
+	cmd, err := newReceivewalCommand(procCtx, receivewalCommandSpec{
+		PgBin:    pgBin,
+		SourceDB: s.spec.SourceDB,
+		Creds:    creds,
+		WatchDir: s.watchDir,
+		SlotName: s.slotName,
+	})
 	if err != nil {
 		logger.Error("build pg_receivewal command", "error", err)
 
@@ -127,11 +137,9 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	}
 }
 
-// isFatalReceivewalError reports whether a pg_receivewal stderr indicates a
-// condition a local respawn can never clear — a full / unwritable local disk,
-// rejected credentials, or the replication slot being held by another consumer.
-// These escalate to streamer-FAILED so the supervisor can reclaim it on a later
-// tick instead of this process crash-looping on an unfixable cause.
+// A full / unwritable local disk, rejected credentials or a slot held by another
+// consumer escalate to streamer-FAILED so the supervisor can reclaim it on a
+// later tick, instead of this process crash-looping on an unfixable cause.
 func isFatalReceivewalError(stderr []byte) bool {
 	// Lower-case both sides: OS errno strings vary in case ("Permission denied")
 	// while PG messages are lower-case, and we want to match either.
@@ -153,57 +161,49 @@ func isFatalReceivewalError(stderr []byte) bool {
 	return false
 }
 
-// newReceivewalCommand builds the pg_receivewal invocation. WAL is left
-// uncompressed locally (no --compress) because the uploader re-compresses with
-// zstd on upload; --no-loop makes the process exit on connection loss so the
-// supervision loop owns retry; --synchronous flushes each segment promptly. SSL
-// is supplied through the same PGSSL* env path pg_basebackup uses, so mTLS needs
-// no extra handling here.
-func newReceivewalCommand(
-	ctx context.Context,
-	pgBin string,
-	sourceDB *postgresql_physical.PostgresqlPhysicalDatabase,
-	creds *postgresql_shared.CredentialTempFiles,
-	watchDir string,
-	slotName string,
-) (*exec.Cmd, error) {
-	if _, err := exec.LookPath(pgBin); err != nil {
-		return nil, fmt.Errorf("pg_receivewal binary not found at %s: %w", pgBin, err)
+// WAL is left uncompressed locally (no --compress) because the uploader
+// re-compresses with zstd on upload; --no-loop makes the process exit on
+// connection loss so the supervision loop owns retry; --synchronous flushes each
+// segment promptly. SSL is supplied through the same PGSSL* env path
+// pg_basebackup uses, so mTLS needs no extra handling here.
+func newReceivewalCommand(ctx context.Context, spec receivewalCommandSpec) (*exec.Cmd, error) {
+	if _, err := exec.LookPath(spec.PgBin); err != nil {
+		return nil, fmt.Errorf("pg_receivewal binary not found at %s: %w", spec.PgBin, err)
 	}
 
 	args := []string{
-		"--directory=" + watchDir,
-		"--slot=" + slotName,
+		"--directory=" + spec.WatchDir,
+		"--slot=" + spec.SlotName,
 		"--no-loop",
 		"--synchronous",
 		"--verbose",
 		"--no-password",
-		"-h", sourceDB.Host,
-		"-p", strconv.Itoa(sourceDB.Port),
-		"-U", sourceDB.Username,
+		"-h", spec.SourceDB.Host,
+		"-p", strconv.Itoa(spec.SourceDB.Port),
+		"-U", spec.SourceDB.Username,
 	}
 
-	cmd := exec.CommandContext(ctx, pgBin, args...)
+	cmd := exec.CommandContext(ctx, spec.PgBin, args...)
 
 	cmd.Env = append(os.Environ(),
-		"PGPASSFILE="+creds.PgpassPath,
-		"PGAPPNAME="+receivewalApplicationName(sourceDB),
+		"PGPASSFILE="+spec.Creds.PgpassPath,
+		"PGAPPNAME="+receivewalApplicationName(spec.SourceDB),
 		"PGCLIENTENCODING=UTF8",
 		"PGCONNECT_TIMEOUT=30",
 		"LC_ALL=C.UTF-8",
 		"LANG=C.UTF-8",
 	)
 
-	sslMode := sourceDB.SslMode
+	sslMode := spec.SourceDB.SslMode
 	if sslMode == "" {
 		sslMode = postgresql_shared.PostgresSslModeDisable
 	}
 
 	cmd.Env = append(cmd.Env,
 		"PGSSLMODE="+string(sslMode),
-		"PGSSLCERT="+creds.ClientCertPath,
-		"PGSSLKEY="+creds.ClientKeyPath,
-		"PGSSLROOTCERT="+creds.RootCertPath,
+		"PGSSLCERT="+spec.Creds.ClientCertPath,
+		"PGSSLKEY="+spec.Creds.ClientKeyPath,
+		"PGSSLROOTCERT="+spec.Creds.RootCertPath,
 		"PGSSLCRL=",
 	)
 
@@ -225,10 +225,10 @@ func receivewalApplicationName(sourceDB *postgresql_physical.PostgresqlPhysicalD
 	return receivewalApplicationNamePrefix + sourceDB.DatabaseID.String()
 }
 
-// setReceivewalProcessAttributes makes the kernel send pg_receivewal a SIGTERM
-// if the Databasus process dies, so a crashed supervisor never leaks an orphaned
-// receiver that keeps holding the replication slot. Pdeathsig is Linux-only;
-// Databasus ships Linux containers exclusively.
+// Pdeathsig makes the kernel SIGTERM pg_receivewal if the Databasus process
+// dies, so a crashed supervisor never leaks an orphaned receiver that keeps
+// holding the replication slot. Linux-only; Databasus ships Linux containers
+// exclusively.
 func setReceivewalProcessAttributes(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
 }

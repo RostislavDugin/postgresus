@@ -22,29 +22,27 @@ import (
 )
 
 const (
-	// receivewalRespawnBackoff — initial pause between a pg_receivewal exit and respawn so
-	// a hard-failing source (auth, pg_hba) is not hammered. --no-loop makes
-	// pg_receivewal exit on connection loss; this loop is its supervision.
+	// Initial pause between a pg_receivewal exit and respawn so a hard-failing
+	// source (auth, pg_hba) is not hammered. --no-loop makes pg_receivewal exit
+	// on connection loss; this loop is its supervision.
 	receivewalRespawnBackoff = 2 * time.Second
 
 	receivewalRespawnMaxBackoff = 30 * time.Minute
 
-	// receivewalMinHealthyUptime — a receiver that streamed at least this long
-	// before exiting counts as a transient blip (network drop, slot resend) and
-	// resets the crash-loop counter; a shorter run counts toward escalation.
+	// A receiver that streamed at least this long before exiting counts as a
+	// transient blip (network drop, slot resend) and resets the crash-loop
+	// counter; a shorter run counts toward escalation.
 	receivewalMinHealthyUptime = 15 * time.Second
 
-	// receivewalMaxRapidFailures — this many back-to-back sub-uptime exits escalate
-	// to a fatal supervisor error so the streamer row is marked FAILED and the
-	// supervisor can reclaim it on a later tick, instead of crash-looping locally
-	// forever on a condition a local respawn can never fix (ENOSPC, bad creds, a
-	// slot held by a thief).
+	// This many back-to-back sub-uptime exits escalate to a fatal supervisor
+	// error so the streamer row is marked FAILED and the supervisor can reclaim
+	// it on a later tick, instead of crash-looping locally forever on a condition
+	// a local respawn can never fix (ENOSPC, bad creds, a slot held by a thief).
 	receivewalMaxRapidFailures = 5
 
 	pausePollInterval = 1 * time.Second
 )
 
-// WalStreamSpec is the immutable configuration of one database's WAL streamer.
 type WalStreamSpec struct {
 	DatabaseID     uuid.UUID
 	SourceDB       *postgresql_physical.PostgresqlPhysicalDatabase
@@ -56,49 +54,45 @@ type WalStreamSpec struct {
 	WalSegmentRepo *physical_repositories.PhysicalWalSegmentRepository
 	HistoryRepo    *physical_repositories.PhysicalWalHistoryRepository
 
-	// WatchDirRoot is config.DataFolder; the per-DB queue lives under
+	// config.DataFolder; the per-DB queue lives under
 	// <root>/wal-queue/<database_id>/. It must survive a process restart so crash
 	// recovery can re-process finalized-but-not-uploaded segments.
 	WatchDirRoot string
 
-	// WalLagThresholdBytes drives the lag monitor (lag_monitor.go): a slot lag over
-	// this many bytes triggers a slot rebuild.
+	// A slot lag over this many bytes triggers a rebuild (lag_monitor.go).
 	WalLagThresholdBytes int64
 
-	// OnGapDetected fires once per newly-observed WAL gap (see WalUploader); nil
-	// disables notification.
+	// Fires once per newly-observed WAL gap (see WalUploader); nil disables
+	// notification.
 	OnGapDetected func(gapStart, gapEnd walmath.LSN)
 
-	// OnSlotRebuilt fires after the persistent slot has been recreated. Callers use
-	// it to request a fresh base backup that anchors the new WAL chain.
+	// Fires after the persistent slot has been recreated. Callers use it to
+	// request a fresh base backup that anchors the new WAL chain.
 	OnSlotRebuilt func(ctx context.Context, reason string) error
 
 	Logger *slog.Logger
 }
 
-// WalStreamSupervisor runs and supervises one pg_receivewal process per database:
-// it spawns the receiver, archives every fully-rotated segment via the
-// insert-first WalUploader, applies disk back pressure, restarts a stalled
-// receiver, forwards .history files, and (lag_monitor.go) rebuilds the slot on
-// lag/loss. Run blocks until ctx is cancelled.
+// One supervisor owns one database's pg_receivewal process. Run blocks until ctx
+// is cancelled.
 type WalStreamSupervisor struct {
 	spec     WalStreamSpec
 	uploader *WalUploader
 	watchDir string
 	slotName string
 
-	// Back-pressure watermarks derived once from the source's (immutable)
-	// wal_segment_size; recomputing them on every poll tick would be wasted work.
+	// Derived once from the source's (immutable) wal_segment_size; recomputing
+	// them on every poll tick would be wasted work.
 	highWatermarkBytes int64
 	lowWatermarkBytes  int64
 
-	// restartSignal asks the supervision loop to SIGTERM the current
-	// pg_receivewal and respawn (sent by the back-pressure monitor and the
-	// slot-LSN watcher). Buffered size 1; sends are non-blocking and coalesced.
+	// Asks the supervision loop to SIGTERM the current pg_receivewal and respawn
+	// (sent by the back-pressure monitor and the slot-LSN watcher). Buffered size
+	// 1; sends are non-blocking and coalesced.
 	restartSignal chan struct{}
 
-	// isPaused holds the supervision loop between pg_receivewal runs so a slot
-	// rebuild can drop+recreate the slot without the receiver re-attaching.
+	// Holds the supervision loop between pg_receivewal runs so a slot rebuild can
+	// drop+recreate the slot without the receiver re-attaching.
 	isPaused atomic.Bool
 
 	// rebuildMu serializes slot rebuilds in this process; rebuildTimestamps powers
@@ -124,9 +118,6 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 		OnGapDetected:       spec.OnGapDetected,
 	})
 
-	// HIGH scales up for clusters with a non-default wal_segment_size so one
-	// segment can never single-handedly stop the receiver; LOW is HIGH/5 for the
-	// 5x hysteresis that prevents flapping on the boundary.
 	highWatermarkBytes := max(walLocalMinHighWatermarkBytes, 4*walSegmentSizeBytes(spec.SourceDB))
 
 	return &WalStreamSupervisor{
@@ -140,10 +131,6 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 	}
 }
 
-// Run starts the uploader, the back-pressure monitor, the slot-LSN watcher, the
-// lag monitor, and the pg_receivewal supervision loop, blocking until ctx is
-// cancelled. The persistent slot is created if missing; torn *.partial files are
-// cleared before the first spawn.
 func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 	logger := s.spec.Logger.With("database_id", s.spec.DatabaseID, "slot_name", s.slotName)
 
@@ -199,10 +186,9 @@ func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 	return nil
 }
 
-// runReceivewalSupervision is the pg_receivewal lifecycle loop: drain back
-// pressure, clear partials, spawn, and react to the run's disposition. It returns
-// a non-nil error only when the receiver is unrecoverable here (fatal exit or a
-// crash loop), so Run can mark the streamer FAILED for reclaim on a later tick.
+// Returns a non-nil error only when the receiver is unrecoverable here (fatal
+// exit or a crash loop), so Run can mark the streamer FAILED for reclaim on a
+// later tick.
 func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logger *slog.Logger) error {
 	pgBin := tools.GetPostgresqlExecutable(s.spec.SourceDB.Version, tools.PostgresqlExecutablePgReceivewal)
 	respawnBackoff := receivewalRespawnBackoff
@@ -268,8 +254,6 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 	}
 }
 
-// waitWhilePaused blocks the supervision loop while a slot rebuild holds the
-// receiver down. Returns false if ctx is cancelled while paused.
 func (s *WalStreamSupervisor) waitWhilePaused(ctx context.Context) bool {
 	if !s.isPaused.Load() {
 		return true
@@ -305,8 +289,6 @@ func (s *WalStreamSupervisor) drainRestartSignal() {
 	}
 }
 
-// walSegmentSizeBytes returns the source cluster's captured wal_segment_size, or
-// the 16 MB default when it has not been captured yet.
 func walSegmentSizeBytes(sourceDB *postgresql_physical.PostgresqlPhysicalDatabase) int64 {
 	if sourceDB.WalSegmentSizeBytes != nil && *sourceDB.WalSegmentSizeBytes > 0 {
 		return *sourceDB.WalSegmentSizeBytes

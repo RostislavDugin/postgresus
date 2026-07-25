@@ -18,10 +18,8 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// startStreamerForTest runs a WalStreamSupervisor against the fixture's source PG
-// in a goroutine and returns a stop func that cancels and waits for full drain —
-// ensuring pg_receivewal has released the slot before the DB (and its slot) are
-// torn down by later cleanups.
+// The stop func waits for full drain, so pg_receivewal has released the slot
+// before the DB (and its slot) are torn down by later cleanups.
 func startStreamerForTest(t *testing.T, fixture *PhysicalDBFixture, store storages.StorageFileSaver) func() {
 	t.Helper()
 
@@ -109,8 +107,6 @@ func Test_WalStream_FullIncrementalAndWalStream_StreamerArchivesSegments(t *test
 	require.GreaterOrEqual(t, committed, 1, "at least one rotated segment must be archived")
 }
 
-// assertDbSegmentsArchivedOnlyIn asserts every committed segment of databaseID
-// is present in ownStore and absent from otherStore — per-DB streamer isolation.
 func assertDbSegmentsArchivedOnlyIn(
 	t *testing.T,
 	databaseID uuid.UUID,
@@ -138,8 +134,6 @@ func assertDbSegmentsArchivedOnlyIn(
 	require.GreaterOrEqual(t, committed, 1, "database %s must archive at least one segment", databaseID)
 }
 
-// committedSegmentsInOrder returns the database's committed (file_name NOT NULL)
-// WAL segments ordered by start_lsn (FindByChainSpan already sorts ascending).
 func committedSegmentsInOrder(t *testing.T, databaseID uuid.UUID) []*physical_models.PhysicalWalSegment {
 	t.Helper()
 
@@ -309,12 +303,12 @@ func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
 	name := "000000010000000200000003"
 	require.NoError(t, uploader.ProcessSegment(context.Background(), writeWalFile(t, dir, name), name))
 
-	wantStart := walmath.LSN((uint64(2) << 32) + 3*uint64(customSegSize))
+	expectedStartLSN := walmath.LSN((uint64(2) << 32) + 3*uint64(customSegSize))
 
-	row := findWalSegment(t, fixture.DB.ID, 1, wantStart)
+	row := findWalSegment(t, fixture.DB.ID, 1, expectedStartLSN)
 	require.NotNil(t, row, "segment LSN must be derived from the DB's segsize, not the walmath global")
-	require.Equal(t, wantStart, row.StartLSN)
-	require.Equal(t, wantStart+walmath.LSN(customSegSize), row.EndLSN)
+	require.Equal(t, expectedStartLSN, row.StartLSN)
+	require.Equal(t, expectedStartLSN+walmath.LSN(customSegSize), row.EndLSN)
 }
 
 func Test_Cleaner_AbandonedNullClaim_OlderThanGrace_DeletedYoungerSurvives(t *testing.T) {

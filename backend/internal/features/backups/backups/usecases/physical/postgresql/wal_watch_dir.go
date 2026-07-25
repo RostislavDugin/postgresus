@@ -13,13 +13,10 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// uploaderPollInterval — the uploader scans watch_dir this often for newly
-// rotated segments. Segments rotate at the source write rate; a tight loop
-// keeps local dwell time low without measurable CPU.
+// Segments rotate at the source write rate; a tight loop keeps local dwell time
+// low without measurable CPU.
 const uploaderPollInterval = 1 * time.Second
 
-// runUploaderLoop scans the watch dir on a tight interval and hands each
-// finalized segment / .history file to the appropriate handler.
 func (s *WalStreamSupervisor) runUploaderLoop(ctx context.Context, logger *slog.Logger) {
 	ticker := time.NewTicker(uploaderPollInterval)
 	defer ticker.Stop()
@@ -35,10 +32,8 @@ func (s *WalStreamSupervisor) runUploaderLoop(ctx context.Context, logger *slog.
 	}
 }
 
-// recoverLocalSegmentsOnStartup sweeps watch_dir once at startup, taking over any
-// finalized segment / .history left by a crash. Uses the uploader's takeover path
-// so a segment whose pre-crash claim row is still file_name NULL gets finished
-// rather than left for the cleaner.
+// Uses the uploader's takeover path so a segment whose pre-crash claim row is
+// still file_name NULL gets finished rather than left for the cleaner.
 func (s *WalStreamSupervisor) recoverLocalSegmentsOnStartup(ctx context.Context, logger *slog.Logger) {
 	entries, err := os.ReadDir(s.watchDir)
 	if err != nil {
@@ -59,7 +54,7 @@ func (s *WalStreamSupervisor) recoverLocalSegmentsOnStartup(ctx context.Context,
 			}
 
 		case strings.HasSuffix(name, ".history"):
-			s.handleHistoryFile(ctx, logger, name)
+			s.archiveTimelineHistoryFile(ctx, logger, name)
 		}
 	}
 }
@@ -86,15 +81,14 @@ func (s *WalStreamSupervisor) scanAndUpload(ctx context.Context, logger *slog.Lo
 			}
 
 		case strings.HasSuffix(name, ".history"):
-			s.handleHistoryFile(ctx, logger, name)
+			s.archiveTimelineHistoryFile(ctx, logger, name)
 		}
 	}
 }
 
-// handleHistoryFile uploads a .history file the receiver dropped into watch_dir
-// (reusing UploadHistoryFile, which reads the body from the source cluster and is
-// idempotent on (database_id, timeline_id)), then removes the local copy.
-func (s *WalStreamSupervisor) handleHistoryFile(ctx context.Context, logger *slog.Logger, name string) {
+// UploadHistoryFile reads the body from the source cluster and is idempotent on
+// (database_id, timeline_id), so re-processing the same file is free.
+func (s *WalStreamSupervisor) archiveTimelineHistoryFile(ctx context.Context, logger *slog.Logger, name string) {
 	timelineID, err := parseHistoryTimeline(name)
 	if err != nil {
 		logger.Warn("skip unparseable history file", "name", name, "error", err)
@@ -143,7 +137,6 @@ func (s *WalStreamSupervisor) removePartials(logger *slog.Logger) {
 	}
 }
 
-// parseHistoryTimeline extracts the timeline id from a "%08X.history" filename.
 func parseHistoryTimeline(name string) (int, error) {
 	trimmed := strings.TrimSuffix(name, ".history")
 	if trimmed == name {

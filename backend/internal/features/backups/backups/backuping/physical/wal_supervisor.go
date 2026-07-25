@@ -28,11 +28,9 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// PhysicalWalStreamSupervisor is the background service that owns long-running
-// pg_receivewal streamers. Ownership and restart recovery run through the
-// physical_wal_streamers heartbeat table: every tick it discovers WAL_STREAM
-// databases, CAS-claims any that are unclaimed / FAILED / stale, runs one
-// WalStreamSupervisor goroutine per owned DB, and heartbeats the rows it owns.
+// Ownership and restart recovery run through the physical_wal_streamers
+// heartbeat table: every tick CAS-claims the databases that are unclaimed /
+// FAILED / stale, so exactly one process streams a given database at a time.
 type PhysicalWalStreamSupervisor struct {
 	databaseService     *databases.DatabaseService
 	backupConfigService *backups_config_physical.BackupConfigService
@@ -55,7 +53,6 @@ type PhysicalWalStreamSupervisor struct {
 	isReady atomic.Bool
 }
 
-// runningStreamer is the handle to one locally-owned streamer goroutine.
 type runningStreamer struct {
 	cancel               context.CancelFunc
 	done                 chan struct{}
@@ -133,9 +130,6 @@ func (s *PhysicalWalStreamSupervisor) recoverStreamersOnStartup() error {
 	return nil
 }
 
-// reconcile starts streamers for newly-claimable WAL_STREAM databases, stops
-// local streamers whose database is no longer a candidate (disabled or demoted),
-// and heartbeats the rows we own.
 func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	configs, err := s.backupConfigService.GetBackupConfigsWithEnabledBackups()
 	if err != nil {
@@ -168,8 +162,6 @@ func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	s.heartbeatOwnedStreamers()
 }
 
-// isWalStreamCandidate reports whether a config should have a running streamer:
-// WAL_STREAM backup type with storage configured.
 func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupConfig) bool {
 	if backupConfig.PostgresqlPhysical == nil ||
 		backupConfig.PostgresqlPhysical.BackupType != postgresql_physical.BackupTypeFullIncrementalAndWalStream {
@@ -179,8 +171,6 @@ func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupCo
 	return backupConfig.StorageID != nil
 }
 
-// ensureStreamerRunning starts a streamer for backupConfig when we don't already
-// run one locally and we can win the heartbeat-table claim.
 func (s *PhysicalWalStreamSupervisor) ensureStreamerRunning(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -317,8 +307,6 @@ func (s *PhysicalWalStreamSupervisor) resolveMasterKey(
 	return key, true
 }
 
-// gapNotifier builds the post-upload gap-probe callback: it sends a BackupFailed
-// notification (when the config opts in) to each of the database's notifiers.
 func (s *PhysicalWalStreamSupervisor) gapNotifier(
 	db *databases.Database,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
@@ -445,8 +433,7 @@ func (s *PhysicalWalStreamSupervisor) removeWatchDirIfRequested(logger *slog.Log
 	}
 }
 
-// releaseClaim marks a just-won streamer row FAILED when we could not actually
-// start the streamer, so the slot is immediately reclaimable rather than looking
+// Marking FAILED makes the slot immediately reclaimable rather than looking
 // alive until the heartbeat goes stale.
 func (s *PhysicalWalStreamSupervisor) releaseClaim(logger *slog.Logger, databaseID uuid.UUID) {
 	if err := s.walStreamerRepo.MarkFailed(databaseID); err != nil {
