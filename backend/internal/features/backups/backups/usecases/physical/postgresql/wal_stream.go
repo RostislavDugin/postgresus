@@ -48,6 +48,33 @@ const (
 	pausePollInterval = 1 * time.Second
 )
 
+type resumeMismatchAction int
+
+const (
+	resumeMismatchActionRetry resumeMismatchAction = iota
+	resumeMismatchActionRebuildSlot
+)
+
+type resumeMismatchEscalator struct {
+	mismatchCount int
+}
+
+func (e *resumeMismatchEscalator) recordMismatchAndDecideEscalation() resumeMismatchAction {
+	e.mismatchCount++
+
+	if e.mismatchCount >= receivewalMaxResumeMismatches {
+		e.mismatchCount = 0
+
+		return resumeMismatchActionRebuildSlot
+	}
+
+	return resumeMismatchActionRetry
+}
+
+func (e *resumeMismatchEscalator) reset() {
+	e.mismatchCount = 0
+}
+
 type WalStreamSpec struct {
 	DatabaseID     uuid.UUID
 	SourceDB       *postgresql_physical.PostgresqlPhysicalDatabase
@@ -66,6 +93,15 @@ type WalStreamSpec struct {
 
 	// A slot lag over this many bytes triggers a rebuild (lag_monitor.go).
 	WalLagThresholdBytes int64
+
+	// How often a source that is being written to is asked to close its current WAL
+	// segment, so the newest WAL reaches storage without waiting for the segment to
+	// fill (wal_rotation.go). Zero disables it.
+	ForcedRotationInterval time.Duration
+
+	// How far the archived recovery point may fall behind a source that keeps
+	// writing before the operator is alerted (wal_staleness.go). Zero disables it.
+	ArchiveStalenessThreshold time.Duration
 
 	// Fires once per newly-observed WAL gap (see WalUploader); nil disables
 	// notification.
@@ -183,6 +219,7 @@ func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 		s.runBackpressureMonitor,
 		s.runSlotLsnWatcher,
 		s.runLagMonitor,
+		s.runForcedWalRotation,
 	} {
 		wg.Go(func() { loop(runCtx, logger) })
 	}
@@ -210,7 +247,8 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 	pgBin := tools.GetPostgresqlExecutable(s.spec.SourceDB.Version, tools.PostgresqlExecutablePgReceivewal)
 	respawnBackoff := receivewalRespawnBackoff
 	rapidFailures := 0
-	resumeMismatches := 0
+
+	var mismatchEscalator resumeMismatchEscalator
 
 	for {
 		if ctx.Err() != nil {
@@ -245,16 +283,13 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 			// top-of-loop backlog/pause gates already throttle the cause.
 			respawnBackoff = receivewalRespawnBackoff
 			rapidFailures = 0
-			resumeMismatches = 0
+
+			mismatchEscalator.reset()
 
 			continue
 
 		case receiverResumeMismatch:
-			resumeMismatches++
-
-			if resumeMismatches >= receivewalMaxResumeMismatches {
-				resumeMismatches = 0
-
+			if mismatchEscalator.recordMismatchAndDecideEscalation() == resumeMismatchActionRebuildSlot {
 				if err := s.rebuildSlot(ctx, logger, breakReasonSlotLost); err != nil {
 					return fmt.Errorf("rebuild slot after repeated wal resume mismatch: %w", err)
 				}
@@ -267,7 +302,7 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 			continue
 		}
 
-		resumeMismatches = 0
+		mismatchEscalator.reset()
 
 		// receiverRetryable: a run that streamed for a healthy span is a transient
 		// blip (network) — reset the crash-loop counter; a string of sub-uptime

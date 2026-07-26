@@ -17,6 +17,16 @@ import (
 // low without measurable CPU.
 const uploaderPollInterval = 1 * time.Second
 
+// A segment's LSN bounds come from its filename, so a file that is not exactly
+// one wal_segment_size long would be catalogued as covering WAL it does not hold.
+// pg_receivewal only renames a segment into place once it is full, so anything
+// short is a torn leftover the receiver will re-stream.
+func isCompleteSegmentFile(localPath string, segmentSizeBytes int64) bool {
+	info, err := os.Stat(localPath)
+
+	return err == nil && info.Size() == segmentSizeBytes
+}
+
 func (s *WalStreamSupervisor) runUploaderLoop(ctx context.Context, logger *slog.Logger) {
 	ticker := time.NewTicker(uploaderPollInterval)
 	defer ticker.Stop()

@@ -1,21 +1,18 @@
 package usecases_physical_postgresql
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
 )
-
-func writeSegmentOfSize(t *testing.T, dir, name string, sizeBytes int64) {
-	t.Helper()
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, name), bytes.Repeat([]byte{0}, int(sizeBytes)), 0o600))
-}
 
 func Test_GetResumeSegmentNo_WithCompletePartialAndTornFiles_ReturnsHighestCompletePlusOne(t *testing.T) {
 	watchDir := t.TempDir()
@@ -79,6 +76,58 @@ func Test_MovePendingUploadsOutOfResumePath_LeavesHistoryFilesAndSubdirectories(
 
 	require.FileExists(t, filepath.Join(watchDir, "00000002.history"))
 	require.DirExists(t, filepath.Join(watchDir, "archive_status"))
+}
+
+func Test_MovePendingUploadsOutOfResumePath_WhenSegmentIsShort_LeavesItForRestreaming(t *testing.T) {
+	watchDir := t.TempDir()
+
+	writeSegmentOfSize(t, watchDir, walName(1, 40), testWalSegmentSize)
+	writeSegmentOfSize(t, watchDir, walName(1, 41), testWalSegmentSize/2)
+
+	movedCount, err := movePendingUploadsOutOfResumePath(watchDir, walmath.WalSegmentNo(42), testWalSegmentSize)
+	require.NoError(t, err)
+	require.Equal(t, 1, movedCount)
+
+	require.FileExists(t, filepath.Join(watchDir, pendingUploadDirName, walName(1, 40)))
+	require.FileExists(
+		t,
+		filepath.Join(watchDir, walName(1, 41)),
+		"a torn segment is re-streamed, and it cannot anchor the resume point, so staging it would only risk uploading it",
+	)
+	require.NoFileExists(t, filepath.Join(watchDir, pendingUploadDirName, walName(1, 41)))
+}
+
+func Test_RealignResumePath_WhenSourceUnreachable_LeavesQueueUntouched(t *testing.T) {
+	unreachableSourceDB := &postgresql_physical.PostgresqlPhysicalDatabase{
+		Host:                "127.0.0.1",
+		Port:                1,
+		Username:            "streamer",
+		Password:            "streamer",
+		ReplicationSlotName: "databasus_unreachable_source",
+	}
+
+	supervisor := NewWalStreamSupervisor(WalStreamSpec{
+		DatabaseID:     uuid.New(),
+		SourceDB:       unreachableSourceDB,
+		FieldEncryptor: encryption.GetFieldEncryptor(),
+		WatchDirRoot:   t.TempDir(),
+		Logger:         logger.GetLogger(),
+	})
+
+	require.NoError(t, os.MkdirAll(supervisor.watchDir, 0o700))
+
+	for _, segmentNo := range []uint64{60, 61} {
+		writeSegmentOfSize(t, supervisor.watchDir, walName(1, segmentNo), testWalSegmentSize)
+	}
+
+	supervisor.realignResumePath(t.Context(), logger.GetLogger())
+
+	for _, segmentNo := range []uint64{60, 61} {
+		require.FileExists(t, filepath.Join(supervisor.watchDir, walName(1, segmentNo)),
+			"without the slot's restart_lsn there is no floor to realign against, so the queue must stay put")
+	}
+
+	require.NoDirExists(t, filepath.Join(supervisor.watchDir, pendingUploadDirName))
 }
 
 func Test_SegmentNoAtLsn_WithNonDefaultSegmentSize_UsesTheClusterSize(t *testing.T) {

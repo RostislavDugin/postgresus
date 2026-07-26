@@ -263,3 +263,27 @@ func (r *PhysicalWalSegmentRepository) FindLatestCommittedBefore(
 
 	return &endLSN, nil
 }
+
+// The newest segment that is durable in storage — the database's actual recovery
+// point. In-flight claims are excluded: a claim row means an upload was started,
+// not that the WAL can be restored from.
+func (r *PhysicalWalSegmentRepository) FindLatestCommittedSegment(
+	databaseID uuid.UUID,
+) (*physical_models.PhysicalWalSegment, error) {
+	var segment physical_models.PhysicalWalSegment
+
+	err := storage.
+		GetDb().
+		Where("database_id = ? AND file_name IS NOT NULL", databaseID).
+		Order("timeline_id DESC, start_lsn DESC").
+		First(&segment).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &segment, nil
+}

@@ -36,9 +36,7 @@ func GetResumeSegmentNo(
 			continue
 		}
 
-		// pg_receivewal ignores a short file: a torn segment is re-streamed, not resumed past.
-		info, err := entry.Info()
-		if err != nil || info.Size() != segmentSizeBytes {
+		if !isCompleteSegmentFile(filepath.Join(watchDir, entry.Name()), segmentSizeBytes) {
 			continue
 		}
 
@@ -84,10 +82,13 @@ func movePendingUploadsOutOfResumePath(
 			continue
 		}
 
-		moveErr := os.Rename(
-			filepath.Join(watchDir, entry.Name()),
-			filepath.Join(pendingUploadDir, entry.Name()),
-		)
+		segmentPath := filepath.Join(watchDir, entry.Name())
+
+		if !isCompleteSegmentFile(segmentPath, segmentSizeBytes) {
+			continue
+		}
+
+		moveErr := os.Rename(segmentPath, filepath.Join(pendingUploadDir, entry.Name()))
 		if moveErr != nil && !os.IsNotExist(moveErr) {
 			return movedCount, fmt.Errorf("move %s out of the resume path: %w", entry.Name(), moveErr)
 		}

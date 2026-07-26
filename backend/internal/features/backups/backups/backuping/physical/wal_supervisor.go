@@ -45,6 +45,8 @@ type PhysicalWalStreamSupervisor struct {
 	fieldEncryptor      util_encryption.FieldEncryptor
 	logger              *slog.Logger
 
+	chainAlertMinInterval time.Duration
+
 	mu      sync.Mutex
 	running map[uuid.UUID]*runningStreamer
 
@@ -251,21 +253,23 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 	})
 
 	supervisor := postgresql_executor.NewWalStreamSupervisor(postgresql_executor.WalStreamSpec{
-		DatabaseID:           db.ID,
-		SourceDB:             db.PostgresqlPhysical,
-		StorageID:            storage.ID,
-		Storage:              storage,
-		Encryption:           backupConfig.Encryption,
-		MasterKey:            masterKey,
-		FieldEncryptor:       s.fieldEncryptor,
-		WalSegmentRepo:       s.walSegmentRepo,
-		HistoryRepo:          s.historyRepo,
-		WatchDirRoot:         config.GetEnv().DataFolder,
-		WalLagThresholdBytes: backupConfig.WalLagThresholdBytes,
-		OnGapDetected:        s.gapNotifier(db, backupConfig),
-		OnSlotRebuilt:        s.slotRebuildFullRequester(logger, db, backupConfig),
-		OnChainAtRisk:        s.chainRiskNotifier(db, backupConfig),
-		Logger:               s.logger,
+		DatabaseID:                db.ID,
+		SourceDB:                  db.PostgresqlPhysical,
+		StorageID:                 storage.ID,
+		Storage:                   storage,
+		Encryption:                backupConfig.Encryption,
+		MasterKey:                 masterKey,
+		FieldEncryptor:            s.fieldEncryptor,
+		WalSegmentRepo:            s.walSegmentRepo,
+		HistoryRepo:               s.historyRepo,
+		WatchDirRoot:              config.GetEnv().DataFolder,
+		WalLagThresholdBytes:      backupConfig.WalLagThresholdBytes,
+		ForcedRotationInterval:    postgresql_executor.DefaultForcedRotationInterval,
+		ArchiveStalenessThreshold: postgresql_executor.DefaultArchiveStalenessThreshold,
+		OnGapDetected:             s.gapNotifier(db, backupConfig),
+		OnSlotRebuilt:             s.slotRebuildFullRequester(logger, db, backupConfig),
+		OnChainAtRisk:             s.chainRiskNotifier(db, backupConfig),
+		Logger:                    s.logger,
 	})
 
 	s.mu.Lock()
@@ -371,12 +375,50 @@ func (s *PhysicalWalStreamSupervisor) chainRiskNotifier(
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 ) func(postgresql_executor.ChainRiskReport) {
 	return func(report postgresql_executor.ChainRiskReport) {
-		s.notifyChainBroken(db, backupConfig, chainAlert{
+		s.notifyChainBroken(db, backupConfig, buildChainRiskAlert(db, report))
+	}
+}
+
+// Each risk gets its own kind: the throttle key is (database, kind), so folding
+// them together would let a slot-retention warning mute the alert that says the
+// recovery point has stopped advancing.
+func buildChainRiskAlert(db *databases.Database, report postgresql_executor.ChainRiskReport) chainAlert {
+	switch report.Reason {
+	case postgresql_executor.ChainRiskReasonArchiveStale:
+		lastArchivedAt := "never"
+		if report.LastArchivedWalAt != nil {
+			lastArchivedAt = report.LastArchivedWalAt.Format(time.RFC3339)
+		}
+
+		return chainAlert{
+			Kind:    chainAlertArchiveStale,
+			Heading: fmt.Sprintf("Physical WAL archiving fell behind for %q", db.Name),
+			Message: fmt.Sprintf(
+				"database_id=%s reason=%s last_archived_wal_at=%s lag_bytes=%d; "+
+					"the recovery point stopped advancing while the source kept writing",
+				db.ID, report.Reason, lastArchivedAt, report.LagBytes,
+			),
+		}
+
+	case postgresql_executor.ChainRiskReasonRotationDenied:
+		return chainAlert{
+			Kind:    chainAlertRotationDenied,
+			Heading: fmt.Sprintf("Cannot force WAL rotation for %q", db.Name),
+			Message: fmt.Sprintf(
+				"database_id=%s reason=%s; a rarely-written database keeps its newest WAL local until the segment "+
+					"fills. Either GRANT EXECUTE ON FUNCTION pg_switch_wal() TO the backup role, "+
+					"or set archive_timeout on the source",
+				db.ID, report.Reason,
+			),
+		}
+
+	default:
+		return chainAlert{
 			Kind:    chainAlertChainAtRisk,
 			Heading: fmt.Sprintf("Physical WAL chain at risk for %q", db.Name),
 			Message: fmt.Sprintf("database_id=%s reason=%s slot_wal_status=%s lag_bytes=%d",
 				db.ID, report.Reason, report.SlotWalStatus, report.LagBytes),
-		})
+		}
 	}
 }
 
@@ -411,7 +453,7 @@ func (s *PhysicalWalStreamSupervisor) recordChainAlertIfDue(key chainAlertKey) b
 	now := time.Now().UTC()
 
 	if sentAt, wasNotified := s.lastChainAlertAt[key]; wasNotified &&
-		now.Sub(sentAt) < chainAlertMinInterval {
+		now.Sub(sentAt) < s.chainAlertMinInterval {
 		return false
 	}
 

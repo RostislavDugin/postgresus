@@ -54,7 +54,7 @@ const (
 	walStreamSupervisorJobName = "physical_wal_stream_supervisor"
 
 	// One notification per incident, not one per reclaim cycle.
-	chainAlertMinInterval = 15 * time.Minute
+	defaultChainAlertMinInterval = 15 * time.Minute
 )
 
 // Per-tick WAL deletion budget anchors to the latest FULL's size (a cluster

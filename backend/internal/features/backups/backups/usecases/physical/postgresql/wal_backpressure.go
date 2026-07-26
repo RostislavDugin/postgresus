@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"databasus-backend/internal/util/walmath"
@@ -63,9 +64,16 @@ func (s *WalStreamSupervisor) waitForBacklogBelowLow(ctx context.Context, logger
 }
 
 // Uploaded segments are removed by the uploader, so summing what is left is the
-// local queue depth; .partial and .history files are excluded.
+// local queue depth; .partial and .history files are excluded. Segments staged out
+// of pg_receivewal's resume path (wal_resume.go) are still waiting for the same
+// uploader on the same disk, so they count too — otherwise a storage outage plus a
+// realign grows the queue past the watermark with nothing throttling the receiver.
 func (s *WalStreamSupervisor) backlogBytes() int64 {
-	entries, err := os.ReadDir(s.watchDir)
+	return sumWalSegmentBytes(s.watchDir) + sumWalSegmentBytes(filepath.Join(s.watchDir, pendingUploadDirName))
+}
+
+func sumWalSegmentBytes(dir string) int64 {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0
 	}
