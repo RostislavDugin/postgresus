@@ -61,8 +61,8 @@ func newTestModel(t *testing.T, port string) *PostgresqlPhysicalDatabase {
 	return newTestModelAt(t, config.GetEnv().TestLocalhost, portInt)
 }
 
-// newTestModelAt builds a test model pointed at an explicit host:port — used for the throwaway
-// testcontainers sources, whose host may differ from TestLocalhost under TESTCONTAINERS_HOST_OVERRIDE.
+// Throwaway testcontainers sources get an ephemeral mapped port, unlike the fixed compose fixtures
+// reachable at TestLocalhost.
 func newTestModelAt(t *testing.T, host string, port int) *PostgresqlPhysicalDatabase {
 	t.Helper()
 
