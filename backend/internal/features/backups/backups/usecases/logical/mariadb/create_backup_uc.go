@@ -150,8 +150,6 @@ func (uc *CreateMariadbBackupUsecase) buildMariadbDumpArgs(
 		}
 	}
 
-	args = append(args, "--compress")
-
 	args = append(args, "--max-allowed-packet=1G")
 
 	if mdb.IsHttps {
@@ -190,7 +188,16 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 	}
 	defer func() { _ = os.RemoveAll(filepath.Dir(myCnfFile)) }()
 
-	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
+	compressionArgs := uc.probeNetworkCompressionArgs(ctx, CompressionProbeSpec{
+		MariadbDumpBin: mariadbBin,
+		MyCnfFile:      myCnfFile,
+		DatabaseName:   *mdbConfig.Database,
+		DatabaseID:     backup.DatabaseID,
+		IsHttps:        mdbConfig.IsHttps,
+	})
+
+	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, compressionArgs...)
+	fullArgs = append(fullArgs, args...)
 
 	cmd := exec.CommandContext(ctx, mariadbBin, fullArgs...)
 	uc.logger.Info("Executing MariaDB backup command", "command", cmd.String())
@@ -619,6 +626,15 @@ func (uc *CreateMariadbBackupUsecase) handleConnectionErrors(stderrStr string) e
 		containsIgnoreCase(stderrStr, "connection refused") {
 		return fmt.Errorf(
 			"MariaDB connection refused. Check if the server is running and accessible. stderr: %s",
+			stderrStr,
+		)
+	}
+
+	if isCompressionRejection(stderrStr) {
+		return fmt.Errorf(
+			"MariaDB rejected the network compression algorithm that had just passed the "+
+				"pre-flight handshake probe. Compression is re-probed on every run, so retry "+
+				"the backup. stderr: %s",
 			stderrStr,
 		)
 	}
