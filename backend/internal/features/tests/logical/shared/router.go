@@ -11,11 +11,8 @@ import (
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 )
 
-// CreateTestRouter builds the Gin router wiring the workspace, database, backup
-// config, backup and restore controllers used by every logical backup/restore
-// test.
 func CreateTestRouter() *gin.Engine {
-	return workspaces_testing.CreateTestRouter(
+	router := workspaces_testing.CreateTestRouter(
 		workspaces_controllers.GetWorkspaceController(),
 		workspaces_controllers.GetMembershipController(),
 		databases.GetDatabaseController(),
@@ -23,4 +20,8 @@ func CreateTestRouter() *gin.Engine {
 		backups_controllers_logical.GetBackupController(),
 		restores.GetRestoreController(),
 	)
+
+	backups_controllers_logical.GetBackupController().RegisterPublicRoutes(router.Group("/api/v1"))
+
+	return router
 }

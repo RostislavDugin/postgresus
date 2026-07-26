@@ -136,6 +136,7 @@ func testMysqlBackupRestoreForVersion(t *testing.T, endpoint containers.Endpoint
 
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+	logicaltesting.AssertBackupSizeMatchesDownloadedBytes(t, router, backup, user.Token)
 
 	newDBName := "restoreddb_mysql"
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
@@ -233,6 +234,7 @@ func testMysqlBackupRestoreWithEncryptionForVersion(
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
 	assert.Equal(t, backups_core_enums.BackupEncryptionEncrypted, backup.Encryption)
+	logicaltesting.AssertBackupSizeMatchesDownloadedBytes(t, router, backup, user.Token)
 
 	newDBName := "restoreddb_mysql_encrypted"
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))

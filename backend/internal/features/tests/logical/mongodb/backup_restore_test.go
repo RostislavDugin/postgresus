@@ -125,6 +125,7 @@ func testMongodbBackupRestoreForVersion(
 
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+	logicaltesting.AssertBackupSizeMatchesDownloadedBytes(t, router, backup, user.Token)
 
 	newDBName := "restoreddb_mongodb_" + uuid.New().String()[:8]
 
