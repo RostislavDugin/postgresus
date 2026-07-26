@@ -101,6 +101,7 @@ describe('buildDockerScriptCommand', () => {
 });
 
 describe('buildManualSteps', () => {
+  const configCheckTitle = "Check the cluster's configuration files";
   const base = {
     bundleUrl,
     outputDir: './databasus-restore',
@@ -180,6 +181,56 @@ describe('buildManualSteps', () => {
     );
 
     expect(latestRecovery?.code).not.toContain('recovery_target_time');
+  });
+
+  it('reports missing configuration files rather than writing them, for both environments', () => {
+    const hostSteps = buildManualSteps({ ...base, environment: 'host', hasWal: false });
+    const dockerSteps = buildManualSteps({ ...base, environment: 'docker', hasWal: false });
+    const hostCheckStep = hostSteps.find((step) => step.title === configCheckTitle);
+    const dockerCheckStep = dockerSteps.find((step) => step.title === configCheckTitle);
+
+    for (const checkStep of [hostCheckStep, dockerCheckStep]) {
+      expect(checkStep?.code).toContain('echo "MISSING: $f"');
+      expect(checkStep?.code).toContain('SHOW config_file');
+      // Reporting only - the restore never invents an access-control policy for the user.
+      expect(checkStep?.code).not.toContain('scram-sha-256');
+      expect(checkStep?.code).not.toContain('trust');
+    }
+  });
+
+  it('names the version-specific cluster and Debian configuration directories', () => {
+    const pg17Steps = buildManualSteps({
+      ...base,
+      pgVersion: '17',
+      environment: 'host',
+      hasWal: false,
+    });
+    const pg18Steps = buildManualSteps({
+      ...base,
+      pgVersion: '18',
+      environment: 'host',
+      hasWal: false,
+    });
+    const pg17CheckStep = pg17Steps.find((step) => step.title === configCheckTitle);
+    const pg18CheckStep = pg18Steps.find((step) => step.title === configCheckTitle);
+
+    expect(pg17CheckStep?.code).toContain('"./databasus-restore/data/$f"');
+    expect(pg17CheckStep?.code).toContain('/etc/postgresql/17/main');
+    expect(pg18CheckStep?.code).toContain('"./databasus-restore/18/docker/$f"');
+    expect(pg18CheckStep?.code).toContain('/etc/postgresql/18/main');
+  });
+
+  it('checks the configuration after reconstruction and before recovery is wired up', () => {
+    const titles = buildManualSteps({ ...base, environment: 'host', hasWal: true }).map(
+      (step) => step.title,
+    );
+
+    expect(titles.indexOf(configCheckTitle)).toBeGreaterThan(
+      titles.indexOf('Reconstruct the data directory'),
+    );
+    expect(titles.indexOf(configCheckTitle)).toBeLessThan(
+      titles.indexOf('Decompress WAL and wire up recovery'),
+    );
   });
 
   it('decompresses on the host then runs pg_combinebackup through docker in the docker environment', () => {

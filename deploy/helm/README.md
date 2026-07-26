@@ -255,10 +255,39 @@ helm install databasus oci://ghcr.io/databasus/charts/databasus \
 
 ## Health Checks
 
-| Parameter                | Description            | Default Value |
-| ------------------------ | ---------------------- | ------------- |
-| `livenessProbe.enabled`  | Enable liveness probe  | `true`        |
-| `readinessProbe.enabled` | Enable readiness probe | `true`        |
+Both probes target `/api/v1/system/version` — a dependency-free endpoint — rather than the deep
+`/api/v1/system/health` monitoring endpoint, so an instance that is degraded but still serving
+traffic is never restarted or pulled out of the Service.
+
+| Parameter                           | Description                              | Default Value              |
+| ----------------------------------- | ---------------------------------------- | -------------------------- |
+| `livenessProbe.enabled`             | Enable liveness probe                    | `true`                     |
+| `livenessProbe.httpGet.path`        | Liveness request path                    | `/api/v1/system/version`   |
+| `livenessProbe.httpGet.port`        | Liveness target port (named or numeric)  | `http`                     |
+| `livenessProbe.initialDelaySeconds` | Delay before the first liveness probe    | `30`                       |
+| `livenessProbe.periodSeconds`       | Liveness probe interval                  | `10`                       |
+| `livenessProbe.timeoutSeconds`      | Liveness probe timeout                   | `5`                        |
+| `livenessProbe.failureThreshold`    | Failures before the container restarts   | `3`                        |
+| `readinessProbe.enabled`            | Enable readiness probe                   | `true`                     |
+| `readinessProbe.httpGet.path`       | Readiness request path                   | `/api/v1/system/version`   |
+| `readinessProbe.httpGet.port`       | Readiness target port (named or numeric) | `http`                     |
+| `readinessProbe.initialDelaySeconds`| Delay before the first readiness probe   | `10`                       |
+| `readinessProbe.periodSeconds`      | Readiness probe interval                 | `5`                        |
+| `readinessProbe.timeoutSeconds`     | Readiness probe timeout                  | `3`                        |
+| `readinessProbe.failureThreshold`   | Failures before the pod leaves endpoints | `3`                        |
+
+Apart from `enabled`, every key is rendered into the Kubernetes probe verbatim, so fields not
+listed above (`successThreshold`, `terminationGracePeriodSeconds`, `tcpSocket`, …) work too.
+
+To swap the handler, null out the default one — Helm merges maps, and a probe carrying two
+handlers is rejected by the API server:
+
+```yaml
+livenessProbe:
+  httpGet: null
+  exec:
+    command: ["databasus", "healthcheck"]
+```
 
 ## Custom Storage Size
 

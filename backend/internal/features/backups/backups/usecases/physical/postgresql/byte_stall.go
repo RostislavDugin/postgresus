@@ -33,11 +33,6 @@ const byteStallPollInterval = 10 * time.Second
 // suite.
 const PgBasebackupWaitTimeout = 30 * time.Second
 
-// ByteCounter wraps an io.Writer and tracks bytes written atomically so a
-// watcher goroutine can read the count without racing the writer goroutine.
-// CountingWriter in util/io is the single-threaded equivalent — physical
-// backups need atomic semantics because the byte-stall watcher reads from a
-// goroutine separate from the pg_basebackup-to-storage copy.
 type ByteCounter struct {
 	writer io.Writer
 	bytes  atomic.Int64

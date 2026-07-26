@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,11 +29,9 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// PhysicalWalStreamSupervisor is the background service that owns long-running
-// pg_receivewal streamers. Ownership and restart recovery run through the
-// physical_wal_streamers heartbeat table: every tick it discovers WAL_STREAM
-// databases, CAS-claims any that are unclaimed / FAILED / stale, runs one
-// WalStreamSupervisor goroutine per owned DB, and heartbeats the rows it owns.
+// Ownership and restart recovery run through the physical_wal_streamers
+// heartbeat table: every tick CAS-claims the databases that are unclaimed /
+// FAILED / stale, so exactly one process streams a given database at a time.
 type PhysicalWalStreamSupervisor struct {
 	databaseService     *databases.DatabaseService
 	backupConfigService *backups_config_physical.BackupConfigService
@@ -51,11 +50,15 @@ type PhysicalWalStreamSupervisor struct {
 
 	lastTickTime atomicTime
 
+	// A FAILED streamer is reclaimable on the next tick, so an unfixable break
+	// re-enters startStreamer every ~45 s. Without this the operator would get one
+	// notification per cycle instead of one per incident.
+	lastChainAlertAt map[chainAlertKey]time.Time
+
 	hasRun  atomic.Bool
 	isReady atomic.Bool
 }
 
-// runningStreamer is the handle to one locally-owned streamer goroutine.
 type runningStreamer struct {
 	cancel               context.CancelFunc
 	done                 chan struct{}
@@ -133,9 +136,6 @@ func (s *PhysicalWalStreamSupervisor) recoverStreamersOnStartup() error {
 	return nil
 }
 
-// reconcile starts streamers for newly-claimable WAL_STREAM databases, stops
-// local streamers whose database is no longer a candidate (disabled or demoted),
-// and heartbeats the rows we own.
 func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	configs, err := s.backupConfigService.GetBackupConfigsWithEnabledBackups()
 	if err != nil {
@@ -168,8 +168,6 @@ func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	s.heartbeatOwnedStreamers()
 }
 
-// isWalStreamCandidate reports whether a config should have a running streamer:
-// WAL_STREAM backup type with storage configured.
 func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupConfig) bool {
 	if backupConfig.PostgresqlPhysical == nil ||
 		backupConfig.PostgresqlPhysical.BackupType != postgresql_physical.BackupTypeFullIncrementalAndWalStream {
@@ -179,8 +177,6 @@ func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupCo
 	return backupConfig.StorageID != nil
 }
 
-// ensureStreamerRunning starts a streamer for backupConfig when we don't already
-// run one locally and we can win the heartbeat-table claim.
 func (s *PhysicalWalStreamSupervisor) ensureStreamerRunning(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -267,7 +263,8 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		WatchDirRoot:         config.GetEnv().DataFolder,
 		WalLagThresholdBytes: backupConfig.WalLagThresholdBytes,
 		OnGapDetected:        s.gapNotifier(db, backupConfig),
-		OnSlotRebuilt:        s.slotRebuildFullRequester(logger, backupConfig),
+		OnSlotRebuilt:        s.slotRebuildFullRequester(logger, db, backupConfig),
+		OnChainAtRisk:        s.chainRiskNotifier(db, backupConfig),
 		Logger:               s.logger,
 	})
 
@@ -284,6 +281,12 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 
 		if err := supervisor.Run(streamerCtx); err != nil {
 			logger.Error("wal stream supervisor exited with error", "error", err)
+
+			s.notifyChainBroken(db, backupConfig, chainAlert{
+				Kind:    chainAlertStreamerFailed,
+				Heading: fmt.Sprintf("WAL streaming stopped for %q", db.Name),
+				Message: fmt.Sprintf("database_id=%s error=%s", db.ID, err),
+			})
 
 			// Mark FAILED so a later tick can reclaim it. A clean
 			// ctx-cancel (shutdown / lifecycle stop) does not reach here with an
@@ -317,8 +320,6 @@ func (s *PhysicalWalStreamSupervisor) resolveMasterKey(
 	return key, true
 }
 
-// gapNotifier builds the post-upload gap-probe callback: it sends a BackupFailed
-// notification (when the config opts in) to each of the database's notifiers.
 func (s *PhysicalWalStreamSupervisor) gapNotifier(
 	db *databases.Database,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
@@ -342,6 +343,7 @@ func (s *PhysicalWalStreamSupervisor) gapNotifier(
 
 func (s *PhysicalWalStreamSupervisor) slotRebuildFullRequester(
 	logger *slog.Logger,
+	db *databases.Database,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 ) func(context.Context, string) error {
 	return func(_ context.Context, reason string) error {
@@ -351,8 +353,71 @@ func (s *PhysicalWalStreamSupervisor) slotRebuildFullRequester(
 
 		logger.Warn("requested out-of-cadence full backup after wal slot rebuild", "reason", reason)
 
+		// Dropping and recreating the slot always leaves a WAL gap, so the chain
+		// this notifies about is already broken by the time we get here.
+		s.notifyChainBroken(db, backupConfig, chainAlert{
+			Kind:    chainAlertSlotRebuilt,
+			Heading: fmt.Sprintf("Physical WAL chain rebuilt for %q", db.Name),
+			Message: fmt.Sprintf("database_id=%s reason=%s; a fresh full backup was requested to anchor the new chain",
+				db.ID, reason),
+		})
+
 		return nil
 	}
+}
+
+func (s *PhysicalWalStreamSupervisor) chainRiskNotifier(
+	db *databases.Database,
+	backupConfig *backups_config_physical.PhysicalBackupConfig,
+) func(postgresql_executor.ChainRiskReport) {
+	return func(report postgresql_executor.ChainRiskReport) {
+		s.notifyChainBroken(db, backupConfig, chainAlert{
+			Kind:    chainAlertChainAtRisk,
+			Heading: fmt.Sprintf("Physical WAL chain at risk for %q", db.Name),
+			Message: fmt.Sprintf("database_id=%s reason=%s slot_wal_status=%s lag_bytes=%d",
+				db.ID, report.Reason, report.SlotWalStatus, report.LagBytes),
+		})
+	}
+}
+
+func (s *PhysicalWalStreamSupervisor) notifyChainBroken(
+	db *databases.Database,
+	backupConfig *backups_config_physical.PhysicalBackupConfig,
+	alert chainAlert,
+) {
+	if !slices.Contains(backupConfig.SendNotificationsOn, backups_config_physical.NotificationChainBroken) {
+		return
+	}
+
+	if !s.recordChainAlertIfDue(chainAlertKey{DatabaseID: db.ID, Kind: alert.Kind}) {
+		return
+	}
+
+	notification := notifier_models.Notification{
+		Type:    notifier_models.NotificationTypeBackupFailed,
+		Heading: alert.Heading,
+		Message: alert.Message,
+	}
+
+	for _, notifier := range db.Notifiers {
+		s.notificationSender.SendNotification(&notifier, notification)
+	}
+}
+
+func (s *PhysicalWalStreamSupervisor) recordChainAlertIfDue(key chainAlertKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UTC()
+
+	if sentAt, wasNotified := s.lastChainAlertAt[key]; wasNotified &&
+		now.Sub(sentAt) < chainAlertMinInterval {
+		return false
+	}
+
+	s.lastChainAlertAt[key] = now
+
+	return true
 }
 
 func (s *PhysicalWalStreamSupervisor) stopNonCandidates(candidates map[uuid.UUID]bool) {
@@ -394,6 +459,11 @@ func (s *PhysicalWalStreamSupervisor) stopStreamer(databaseID uuid.UUID, shouldR
 
 	s.mu.Lock()
 	delete(s.running, databaseID)
+
+	maps.DeleteFunc(s.lastChainAlertAt, func(key chainAlertKey, _ time.Time) bool {
+		return key.DatabaseID == databaseID
+	})
+
 	s.mu.Unlock()
 
 	if err := s.walStreamerRepo.MarkFailed(databaseID); err != nil {
@@ -445,8 +515,7 @@ func (s *PhysicalWalStreamSupervisor) removeWatchDirIfRequested(logger *slog.Log
 	}
 }
 
-// releaseClaim marks a just-won streamer row FAILED when we could not actually
-// start the streamer, so the slot is immediately reclaimable rather than looking
+// Marking FAILED makes the slot immediately reclaimable rather than looking
 // alive until the heartbeat goes stale.
 func (s *PhysicalWalStreamSupervisor) releaseClaim(logger *slog.Logger, databaseID uuid.UUID) {
 	if err := s.walStreamerRepo.MarkFailed(databaseID); err != nil {

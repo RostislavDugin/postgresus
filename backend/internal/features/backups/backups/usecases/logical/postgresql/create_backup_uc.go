@@ -26,7 +26,6 @@ import (
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
-	io_utils "databasus-backend/internal/util/io"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -190,11 +189,6 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := io_utils.NewCountingWriter(finalWriter)
-
-	// The backup ID becomes the object key / filename in storage
-
-	// Start streaming into storage in its own goroutine
 	saveErrCh := make(chan error, 1)
 	go func() {
 		saveErr := storage.SaveFile(
@@ -211,18 +205,16 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		saveErrCh <- saveErr
 	}()
 
-	// Start pg_dump
 	if err = cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
-	// Copy pg output directly to storage with shutdown checks
 	copyResultCh := make(chan error, 1)
 	bytesWrittenCh := make(chan int64, 1)
 	go func() {
 		bytesWritten, err := uc.copyWithShutdownCheck(
 			ctx,
-			countingWriter,
+			finalWriter,
 			pgStdout,
 			backupProgressListener,
 		)

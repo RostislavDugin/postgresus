@@ -166,8 +166,8 @@ func (p *PostgresqlLogicalDatabase) TestConnection(
 	return testSingleDatabaseConnection(logger, ctx, p, encryptor)
 }
 
-// GetRawDbSizeMb returns whole-database size via pg_database_size; when
-// IncludeSchemas filters the dump, the value remains the full DB size.
+// The value feeds verification disk planning and the restored-size sanity check,
+// so it must cover exactly the relations pg_dump emits for this database.
 func (p *PostgresqlLogicalDatabase) GetRawDbSizeMb(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -187,9 +187,12 @@ func (p *PostgresqlLogicalDatabase) GetRawDbSizeMb(
 		}
 	}()
 
-	var sizeBytes int64
-	if err := conn.QueryRow(ctx, "SELECT pg_database_size(current_database())").Scan(&sizeBytes); err != nil {
-		return 0, fmt.Errorf("failed to query pg_database_size: %w", err)
+	sizeBytes, err := getDumpedRelationsSizeBytes(ctx, conn, DumpFilter{
+		IncludeSchemas:       p.IncludeSchemas,
+		ExcludeTablePatterns: p.ExcludeTables,
+	})
+	if err != nil {
+		return 0, err
 	}
 
 	return float64(sizeBytes) / (1024 * 1024), nil

@@ -71,6 +71,35 @@ type postgresVersion struct {
 	image string
 }
 
+const skippedFromDumpTableMinSizeMb = 15.0
+
+func measureWholeDatabaseSizeMb(t *testing.T, db *sqlx.DB) float64 {
+	t.Helper()
+
+	var sizeMb float64
+	err := db.Get(&sizeMb, "SELECT pg_database_size(current_database()) / (1024.0 * 1024.0)")
+	assert.NoError(t, err)
+
+	return sizeMb
+}
+
+type relationRef struct {
+	SchemaName string
+	TableName  string
+}
+
+func measureTableSizeMb(t *testing.T, db *sqlx.DB, relation relationRef) float64 {
+	t.Helper()
+
+	var sizeMb float64
+	err := db.Get(&sizeMb, `
+		SELECT pg_total_relation_size(format('%I.%I', $1::text, $2::text)::regclass) / (1024.0 * 1024.0)
+	`, relation.SchemaName, relation.TableName)
+	assert.NoError(t, err)
+
+	return sizeMb
+}
+
 var postgresVersions = []postgresVersion{
 	{"PostgreSQL 12", "12", "postgres:12"},
 	{"PostgreSQL 13", "13", "postgres:13"},
@@ -193,6 +222,7 @@ func testBackupRestoreForVersion(t *testing.T, endpoint containers.Endpoint, pgV
 
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+	logicaltesting.AssertBackupSizeMatchesDownloadedBytes(t, router, backup, user.Token)
 
 	newDBName := fmt.Sprintf("restoreddb_%s_cpu%d_%s", pgVersion, cpuCount, uuid.New().String()[:8])
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
@@ -1158,6 +1188,8 @@ func testSchemaSelectionOnlySpecifiedSchemasForVersion(
 		INSERT INTO public.public_table (data) VALUES ('public_data');
 		INSERT INTO schema_a.table_a (data) VALUES ('schema_a_data');
 		INSERT INTO schema_b.table_b (data) VALUES ('schema_b_data');
+		INSERT INTO schema_b.table_b (data)
+			SELECT repeat('x', 1024) FROM generate_series(1, 20000);
 	`)
 	assert.NoError(t, err)
 
@@ -1192,6 +1224,19 @@ func testSchemaSelectionOnlySpecifiedSchemasForVersion(
 
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+
+	skippedSchemaTableSizeMb := measureTableSizeMb(
+		t, container.DB,
+		relationRef{SchemaName: "schema_b", TableName: "table_b"},
+	)
+	assert.Greater(t, skippedSchemaTableSizeMb, skippedFromDumpTableMinSizeMb)
+	assert.Greater(t, backup.BackupRawDbSizeMb, 0.0)
+	assert.LessOrEqual(
+		t,
+		backup.BackupRawDbSizeMb+skippedSchemaTableSizeMb,
+		measureWholeDatabaseSizeMb(t, container.DB),
+		"recorded raw db size must not count schemas left out of the dump",
+	)
 
 	newDBName := fmt.Sprintf("restored_specific_schemas_%s_%s", pgVersion, uuid.New().String()[:8])
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
@@ -1286,7 +1331,8 @@ func testBackupRestoreWithExcludeTablesForVersion(t *testing.T, endpoint contain
 		CREATE TABLE public.%s (id SERIAL PRIMARY KEY, data TEXT);
 		INSERT INTO public.%s (data) VALUES ('keep_value');
 		INSERT INTO public.%s (data) VALUES ('drop_value');
-	`, keepTable, dropTable, keepTable, dropTable, keepTable, dropTable))
+		INSERT INTO public.%s (data) SELECT repeat('x', 1024) FROM generate_series(1, 20000);
+	`, keepTable, dropTable, keepTable, dropTable, keepTable, dropTable, dropTable))
 	assert.NoError(t, err)
 
 	defer func() {
@@ -1325,6 +1371,19 @@ func testBackupRestoreWithExcludeTablesForVersion(t *testing.T, endpoint contain
 
 	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
 	assert.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+
+	excludedTableSizeMb := measureTableSizeMb(
+		t, container.DB,
+		relationRef{SchemaName: "public", TableName: dropTable},
+	)
+	assert.Greater(t, excludedTableSizeMb, skippedFromDumpTableMinSizeMb)
+	assert.Greater(t, backup.BackupRawDbSizeMb, 0.0)
+	assert.LessOrEqual(
+		t,
+		backup.BackupRawDbSizeMb+excludedTableSizeMb,
+		measureWholeDatabaseSizeMb(t, container.DB),
+		"recorded raw db size must not count the excluded table",
+	)
 
 	newDBName := fmt.Sprintf("restored_excl_tables_%s_%s", pgVersion, suffix)
 	_, err = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))

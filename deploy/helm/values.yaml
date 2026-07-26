@@ -127,13 +127,17 @@ route:
   matches: []
   timeouts: {}
 
-# Health checks configuration
-# Note: The application only has /api/v1/system/health endpoint
+# Health checks configuration.
+# Probes target the dependency-free /system/version rather than the deep
+# /system/health, so a degraded-but-serving instance is never restarted.
+# Every field below is passed to Kubernetes as-is — to swap the handler, null out
+# the default one (`httpGet: null`), since Helm merges maps and a probe carrying
+# two handlers is rejected by the API server.
 livenessProbe:
   enabled: true
   httpGet:
-    path: /api/v1/system/health
-    port: 4005
+    path: /api/v1/system/version
+    port: http
   initialDelaySeconds: 30
   periodSeconds: 10
   timeoutSeconds: 5
@@ -142,8 +146,8 @@ livenessProbe:
 readinessProbe:
   enabled: true
   httpGet:
-    path: /api/v1/system/health
-    port: 4005
+    path: /api/v1/system/version
+    port: http
   initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 3

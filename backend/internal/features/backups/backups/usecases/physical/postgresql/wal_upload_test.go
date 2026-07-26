@@ -30,10 +30,7 @@ const testWalSegmentSize = int64(16 * 1024 * 1024)
 // chain-span query should return every segment regardless of position.
 const lsnSpanUpperBoundForTests = walmath.LSN(1) << 62
 
-// mockWalStorage is a controllable StorageFileSaver for WAL uploader tests: it
-// records saved/deleted object names, can fail the first N SaveFile calls, and
-// can block one SaveFile until released (to interleave the DeleteFull cascade
-// race).
+// blockOn exists to interleave the DeleteFull cascade race.
 type mockWalStorage struct {
 	mu        sync.Mutex
 	saved     map[string][]byte
@@ -41,6 +38,8 @@ type mockWalStorage struct {
 	saveCount atomic.Int64
 
 	failSaveTimes int
+
+	isFailingAllSaves atomic.Bool
 
 	// blockOn, when set, makes SaveFile for that exact object name signal started
 	// and wait on release before returning.
@@ -65,6 +64,10 @@ func (m *mockWalStorage) SaveFile(
 		<-m.release
 	}
 
+	if m.isFailingAllSaves.Load() {
+		return fmt.Errorf("mock storage is failing every save for %s", fileName)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -77,6 +80,14 @@ func (m *mockWalStorage) SaveFile(
 	m.saved[fileName] = body
 
 	return nil
+}
+
+func (m *mockWalStorage) startFailingSaves() {
+	m.isFailingAllSaves.Store(true)
+}
+
+func (m *mockWalStorage) stopFailingSaves() {
+	m.isFailingAllSaves.Store(false)
 }
 
 func (m *mockWalStorage) DeleteFile(_ encryption.FieldEncryptor, fileName string) error {
@@ -459,4 +470,54 @@ func Test_BuildWalSegmentArtifactReader_WhenLargeSegment_StreamsAndCountsArtifac
 	require.NoError(t, err)
 	require.Equal(t, int64(len(body)), compressedSizeBytes)
 	require.NotEmpty(t, body)
+}
+
+func Test_WalUpload_ConcurrentClaimSameSegment_OnlyWinnerInserts(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+
+	repo := physical_repositories.GetWalSegmentRepository()
+	startLSN := walmath.LSN(40 * uint64(testWalSegmentSize))
+	endLSN := startLSN + walmath.LSN(testWalSegmentSize)
+
+	const racers = 6
+
+	type claimOutcome struct {
+		inserted bool
+		err      error
+	}
+
+	results := make(chan claimOutcome, racers)
+	start := make(chan struct{})
+
+	for range racers {
+		go func() {
+			<-start
+
+			// Don't call require.* off the test goroutine — collect and assert below.
+			inserted, err := repo.ClaimInsert(&physical_models.PhysicalWalSegment{
+				DatabaseID:  fixture.DB.ID,
+				StorageID:   fixture.Storage.ID,
+				TimelineID:  1,
+				WalFilename: walName(1, 40),
+				StartLSN:    startLSN,
+				EndLSN:      endLSN,
+				Encryption:  backups_core_enums.BackupEncryptionNone,
+			})
+			results <- claimOutcome{inserted: inserted, err: err}
+		}()
+	}
+
+	close(start)
+
+	winners := 0
+	for range racers {
+		outcome := <-results
+		require.NoError(t, outcome.err)
+
+		if outcome.inserted {
+			winners++
+		}
+	}
+
+	require.Equal(t, 1, winners, "exactly one concurrent claim may win the (db, tl, start_lsn) slot")
 }
