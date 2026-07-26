@@ -1,9 +1,12 @@
 package containers
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -33,15 +36,35 @@ func mysqlEnv() map[string]string {
 	}
 }
 
-// mysqlFamilyReady waits for the network-listening server on port. The entrypoint starts a
-// temporary socket-only server for initdb and then restarts the real one, so "ready for
-// connections" is logged twice; the second occurrence is the real server. MariaDB shares this
-// behaviour, so it passes its own port.
-func mysqlFamilyReady(port string) wait.Strategy {
-	return wait.ForAll(
-		wait.ForLog("ready for connections").WithOccurrence(2).WithStartupTimeout(mysqlStartupTimeout),
-		wait.ForListeningPort(port),
-	)
+// MariaDB speaks the MySQL protocol but provisions itself from its own credential constants, so
+// each engine supplies the ones its entrypoint actually applied.
+type mysqlFamilyReadinessSpec struct {
+	Port          string
+	RootPassword  string
+	Database      string
+	IsSslRequired bool
+}
+
+// mysqlFamilyReady completes a real handshake rather than counting "ready for connections" log
+// lines: the entrypoint's temporary socket-only initdb server logs that phrase too, and MySQL 8.x
+// adds two more lines from X Plugin, so no fixed occurrence identifies the real server across the
+// family. Waiting on the published port alone is not enough either — docker-proxy accepts TCP
+// before mysqld binds, which surfaces as an EOF mid-handshake. Selecting the entrypoint-created
+// database also proves initdb finished, not merely that the port answers.
+func mysqlFamilyReady(spec mysqlFamilyReadinessSpec) wait.Strategy {
+	// Servers under require_secure_transport reject the plaintext handshake, and the certificates
+	// their images auto-generate are self-signed.
+	dsnParams := ""
+	if spec.IsSslRequired {
+		dsnParams = "?tls=skip-verify"
+	}
+
+	return wait.ForSQL(spec.Port, "mysql", func(host, mappedPort string) string {
+		portNumber, _, _ := strings.Cut(mappedPort, "/")
+
+		return fmt.Sprintf("root:%s@tcp(%s:%s)/%s%s",
+			spec.RootPassword, host, portNumber, spec.Database, dsnParams)
+	}).WithStartupTimeout(mysqlStartupTimeout)
 }
 
 // mysqlFamilyCmd returns the server flags shared by MySQL and MariaDB: the utf8mb4 charset
@@ -70,6 +93,15 @@ func mysqlCmd(image string) []string {
 	return cmd
 }
 
+func mysqlReadinessSpec(isSslRequired bool) mysqlFamilyReadinessSpec {
+	return mysqlFamilyReadinessSpec{
+		Port:          mysqlPort,
+		RootPassword:  MysqlRootPassword,
+		Database:      MysqlDatabase,
+		IsSslRequired: isSslRequired,
+	}
+}
+
 // mysqlRequest builds the container request for image (e.g. "mysql:8.0").
 func mysqlRequest(image string) testcontainers.ContainerRequest {
 	return testcontainers.ContainerRequest{
@@ -78,7 +110,7 @@ func mysqlRequest(image string) testcontainers.ContainerRequest {
 		Env:          mysqlEnv(),
 		Cmd:          mysqlCmd(image),
 		Tmpfs:        map[string]string{"/var/lib/mysql": dataDirTmpfsOptions},
-		WaitingFor:   mysqlFamilyReady(mysqlPort),
+		WaitingFor:   mysqlFamilyReady(mysqlReadinessSpec(false)),
 	}
 }
 
@@ -107,6 +139,7 @@ func StartMysqlSSL(t *testing.T, image string) Endpoint {
 
 	req := mysqlRequest(image)
 	req.Cmd = append(req.Cmd, "--require_secure_transport=ON")
+	req.WaitingFor = mysqlFamilyReady(mysqlReadinessSpec(true))
 
 	return start(t, req, mysqlPort)
 }
