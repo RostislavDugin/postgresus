@@ -17,16 +17,15 @@ import (
 )
 
 type mysqlModelVersion struct {
-	name         string
-	version      tools.MysqlVersion
-	image        string
-	supportsZstd bool
+	name    string
+	version tools.MysqlVersion
+	image   string
 }
 
 var mysqlModelVersions = []mysqlModelVersion{
-	{"MySQL 5.7", tools.MysqlVersion57, "mysql:5.7", false},
-	{"MySQL 8.0", tools.MysqlVersion80, "mysql:8.0", true},
-	{"MySQL 8.4", tools.MysqlVersion84, "mysql:8.4", true},
+	{"MySQL 5.7", tools.MysqlVersion57, "mysql:5.7"},
+	{"MySQL 8.0", tools.MysqlVersion80, "mysql:8.0"},
+	{"MySQL 8.4", tools.MysqlVersion84, "mysql:8.4"},
 }
 
 // Test_MysqlModel_AcrossSupportedVersions boots each MySQL version once and runs every matrix model
@@ -42,10 +41,6 @@ func Test_MysqlModel_AcrossSupportedVersions(t *testing.T) {
 
 			t.Run("Test_TestConnection_SufficientPermissions_Success", func(t *testing.T) {
 				testTestConnectionSufficientPermissions(t, endpoint, dbVersion.version)
-			})
-
-			t.Run("Test_TestConnection_DetectsZstdSupport", func(t *testing.T) {
-				testTestConnectionDetectsZstdSupport(t, endpoint, dbVersion.version, dbVersion.supportsZstd)
 			})
 
 			t.Run("Test_IsUserReadOnly_AdminUser_ReturnsFalse", func(t *testing.T) {
@@ -196,24 +191,6 @@ func testTestConnectionSufficientPermissions(
 
 	err = mysqlModel.TestConnection(logger, nil)
 	assert.NoError(t, err)
-}
-
-func testTestConnectionDetectsZstdSupport(
-	t *testing.T,
-	endpoint containers.Endpoint,
-	version tools.MysqlVersion,
-	expectedZstd bool,
-) {
-	container := connectToMysqlEndpoint(t, endpoint, version)
-	defer container.DB.Close()
-
-	mysqlModel := createMysqlModel(container)
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	err := mysqlModel.TestConnection(logger, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedZstd, mysqlModel.IsZstdSupported,
-		"IsZstdSupported mismatch")
 }
 
 func testIsUserReadOnlyAdminUser(
@@ -870,16 +847,15 @@ func Test_ParseGrantPrivileges_ReturnsExpectedTokens(t *testing.T) {
 func Test_HideSensitiveData_WhenCalled_ClearsPasswordAndPreservesOtherFields(t *testing.T) {
 	databaseName := "appdb"
 	mysqlModel := &MysqlDatabase{
-		Version:         tools.MysqlVersion80,
-		Host:            "db.example.com",
-		Port:            3306,
-		Username:        "appuser",
-		Password:        "supersecret",
-		Database:        &databaseName,
-		IsHttps:         true,
-		ExcludeTables:   []string{"audit_logs"},
-		Privileges:      "SELECT, INSERT",
-		IsZstdSupported: true,
+		Version:       tools.MysqlVersion80,
+		Host:          "db.example.com",
+		Port:          3306,
+		Username:      "appuser",
+		Password:      "supersecret",
+		Database:      &databaseName,
+		IsHttps:       true,
+		ExcludeTables: []string{"audit_logs"},
+		Privileges:    "SELECT, INSERT",
 	}
 
 	mysqlModel.HideSensitiveData()
@@ -892,7 +868,6 @@ func Test_HideSensitiveData_WhenCalled_ClearsPasswordAndPreservesOtherFields(t *
 	assert.True(t, mysqlModel.IsHttps)
 	assert.Equal(t, []string{"audit_logs"}, mysqlModel.ExcludeTables)
 	assert.Equal(t, "SELECT, INSERT", mysqlModel.Privileges)
-	assert.True(t, mysqlModel.IsZstdSupported)
 }
 
 func Test_HideSensitiveData_WhenReceiverIsNil_DoesNotPanic(t *testing.T) {

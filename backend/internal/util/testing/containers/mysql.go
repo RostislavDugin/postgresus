@@ -89,6 +89,17 @@ func StartMysql(t *testing.T, image string) Endpoint {
 	return start(t, mysqlRequest(image), mysqlPort)
 }
 
+// StartMysqlWithoutCompression stands in for managed endpoints whose proxy cannot negotiate
+// compression even though the server advertises it (issue #687).
+func StartMysqlWithoutCompression(t *testing.T, image string) Endpoint {
+	t.Helper()
+
+	req := mysqlRequest(image)
+	req.Cmd = append(req.Cmd, "--protocol_compression_algorithms=uncompressed")
+
+	return start(t, req, mysqlPort)
+}
+
 // StartMysqlSSL boots a MySQL server that rejects unencrypted connections. The image auto-generates
 // its server certificates, so the test connects with tlsInsecure and no client cert.
 func StartMysqlSSL(t *testing.T, image string) Endpoint {
