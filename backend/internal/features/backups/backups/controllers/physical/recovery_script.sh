@@ -180,6 +180,166 @@ control_setting() {
     echo "$2" | sed -n "s/^$1 setting: *//p" | tr -d '[:space:]'
 }
 
+# Major of the server inside --combine-image, so a PG 18 backup handed a postgres:17 image is caught
+# before the user boots it. The host path gets this from pg_ctl --version; the container needs a run.
+image_server_major() {
+    pg_major_from_banner "$(docker run --rm "$COMBINE_IMAGE" postgres --version 2>/dev/null || true)"
+}
+
+# A base backup copies only the data directory. Debian/Ubuntu keep postgresql.conf, pg_hba.conf and
+# pg_ident.conf in /etc/postgresql/<major>/<cluster> - outside it - so a cluster restored from such
+# a source has no configuration and no server will start it. The general rule is any cluster whose
+# config_file points outside data_directory; RPM, Arch, Alpine and the official image are unaffected.
+list_missing_cluster_config() {
+    for config in postgresql.conf pg_hba.conf pg_ident.conf; do
+        if [ ! -f "$DATA_DIR/$config" ]; then
+            echo "$config"
+        fi
+    done
+}
+
+is_cluster_dir_complete() {
+    for marker in PG_VERSION base global pg_wal; do
+        if [ ! -e "$DATA_DIR/$marker" ]; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+# Only the restored major is searched: an /etc/postgresql/16 hit next to a PG 17 backup is a
+# different cluster and must not be offered. The cluster name is conventionally "main" but
+# pg_createcluster allows any, so it is globbed rather than assumed.
+list_debian_config_dirs() {
+    for candidate in "/etc/postgresql/$RESTORED_MAJOR"/*/; do
+        if [ -f "$candidate/postgresql.conf" ]; then
+            echo "${candidate%/}"
+        fi
+    done
+}
+
+print_config_file_readability() {
+    for config in postgresql.conf pg_hba.conf pg_ident.conf; do
+        if [ ! -e "$1/$config" ]; then
+            echo "         $config - not there"
+        elif [ -r "$1/$config" ]; then
+            echo "         $config - readable"
+        else
+            echo "         $config - NOT readable as '$(id -un)', copy it with sudo"
+        fi
+    done
+}
+
+# sudo is needed per directory, not globally: Debian ships pg_hba.conf tighter than postgresql.conf,
+# and two clusters on one host can differ in ownership.
+config_copy_prefix() {
+    for config in postgresql.conf pg_hba.conf pg_ident.conf; do
+        if [ -e "$1/$config" ] && [ ! -r "$1/$config" ]; then
+            echo "sudo cp"
+            return 0
+        fi
+    done
+
+    echo "cp"
+}
+
+print_missing_config_instructions() {
+    missing_cluster_config="$1"
+    config_dirs="$(list_debian_config_dirs)"
+
+    echo
+    echo "================================================================================"
+    echo "ACTION REQUIRED: the restored cluster has no configuration files"
+    echo "================================================================================"
+    echo "  Missing in $DATA_DIR:"
+    for config in $missing_cluster_config; do
+        echo "    $config"
+    done
+    echo
+    echo "  Do all of this BEFORE the chown in step 1 above: while the directory is still yours the"
+    echo "  recursive chown then picks these files up too, and no extra ownership fixing is needed."
+    echo
+    if is_cluster_dir_complete; then
+        echo "  The data itself is complete - PG_VERSION, base, global and pg_wal are all there."
+        echo "  This is NOT a wrong-directory problem: PostgreSQL on Debian/Ubuntu keeps its"
+        echo "  configuration in /etc/postgresql/<major>/<cluster>, outside the data directory, and a"
+        echo "  base backup copies only the data directory. Those files are not in the backup."
+    else
+        echo "  warning: '$DATA_DIR' is also missing parts of a cluster (PG_VERSION, base, global or"
+        echo "           pg_wal). Treat the reconstruction itself as suspect before going further."
+    fi
+    echo
+    echo "  1. Ask the SOURCE cluster where its configuration lives (works on any distribution;"
+    echo "     needs superuser or pg_read_all_settings):"
+    echo "       psql -h <source-host> -U postgres -Atc \"SHOW config_file\""
+    echo "       psql -h <source-host> -U postgres -Atc \"SHOW hba_file\""
+    echo "       psql -h <source-host> -U postgres -Atc \"SHOW ident_file\""
+    echo
+
+    if [ -z "$config_dirs" ]; then
+        echo "  2. No PostgreSQL $RESTORED_MAJOR configuration was found under /etc/postgresql on this"
+        echo "     host, so this is not the source machine. Copy the three files from the source to"
+        echo "     '$DATA_DIR' - on Debian/Ubuntu they are in /etc/postgresql/$RESTORED_MAJOR/main."
+    else
+        echo "  2. Found a PostgreSQL $RESTORED_MAJOR configuration on this host:"
+        for config_dir in $config_dirs; do
+            echo "       $config_dir"
+            print_config_file_readability "$config_dir"
+            data_directory="$(sed -n "s/^[[:space:]]*data_directory[[:space:]]*=[[:space:]]*//p" \
+                "$config_dir/postgresql.conf" 2>/dev/null | head -n1)"
+            if [ -n "$data_directory" ]; then
+                echo "         serves data_directory $data_directory"
+            fi
+        done
+        echo "     (pg_lsclusters lists every cluster on a Debian/Ubuntu host.)"
+        echo "     Copy them in - pick the cluster this backup came from:"
+        for config_dir in $config_dirs; do
+            echo "       $(config_copy_prefix "$config_dir") '$config_dir'/postgresql.conf '$config_dir'/pg_hba.conf \\"
+            echo "          '$config_dir'/pg_ident.conf '$DATA_DIR'/"
+        done
+    fi
+
+    echo
+    echo "  3. Then edit '$DATA_DIR/postgresql.conf'. These point at paths that do not exist here and"
+    echo "     will stop the server:"
+    echo "       data_directory, hba_file, ident_file, external_pid_file  -> comment out"
+    echo "       ssl, ssl_cert_file, ssl_key_file, ssl_ca_file            -> comment out, or copy the certs"
+    echo "                                                                  ('ssl = on' alone fails:"
+    echo "                                                                  it looks for server.crt here)"
+    echo "       include_dir = 'conf.d'                                   -> mkdir '$DATA_DIR/conf.d'"
+    echo "     In a container also set listen_addresses = '*' - Debian defaults it to localhost,"
+    echo "     which leaves the published port dead."
+    echo
+    echo "  If the source host is gone and the originals are unobtainable, this is the minimum that"
+    echo "  starts a cluster. Databasus does not write it for you - the access rules are yours to"
+    echo "  decide, so review them first:"
+    # No backslash escapes in anything printed here: dash - /bin/sh on the very distributions this
+    # block is for - expands them in echo, so a printf '\n' would arrive split across lines.
+
+    # A container needs listen_addresses or its published port stays dead; a host start is left on
+    # PostgreSQL's own localhost default rather than widening exposure on the user's behalf.
+    if [ -n "$COMBINE_IMAGE" ]; then
+        echo "       echo \"listen_addresses = '*'\" > '$DATA_DIR/postgresql.conf'"
+    else
+        echo "       : > '$DATA_DIR/postgresql.conf'"
+    fi
+    echo "       { echo 'local all all peer'; echo 'host all all all scram-sha-256'; } > '$DATA_DIR/pg_hba.conf'"
+    echo "       : > '$DATA_DIR/pg_ident.conf'"
+    echo "       chmod 600 '$DATA_DIR'/*.conf"
+    echo
+    echo "  Not the same thing as a wrong directory. If you later hit this error while the three"
+    echo "  files ARE in '$DATA_DIR', then what you mounted is not what the server uses as PGDATA."
+    echo "  PostgreSQL $RESTORED_MAJOR in the official image expects:"
+    if [ "${RESTORED_MAJOR:-0}" -ge 18 ] 2>/dev/null; then
+        echo "       -v '$OUT_ABS:/var/lib/postgresql'   (PGDATA is nested at $CONTAINER_PGDATA)"
+        echo "       or bind '$DATA_DIR' straight at '$CONTAINER_PGDATA'"
+    else
+        echo "       -v '$DATA_DIR:$CONTAINER_PGDATA'"
+    fi
+    echo "================================================================================"
+}
+
 # Resolve the PostgreSQL tools off --pg-bin when they are not on PATH; every later
 # pg_combinebackup / pg_ctl lookup then finds them.
 if [ -n "$PG_BIN" ]; then
@@ -290,6 +450,26 @@ done
 RESTORED_MAJOR="$(tr -d '[:space:]' <"$RECON_DIR/full/PG_VERSION" 2>/dev/null || true)"
 DATA_DIR="$(host_cluster_dir "$OUT_ABS" "$RESTORED_MAJOR")"
 
+# A data directory can only be started by a server of its own major version - the classic
+# "restored 17, started 18" failure. On the host that server is pg_ctl; with --combine-image it is
+# the image that both folds the chain and, per the instructions below, boots it. Asked before
+# pg_combinebackup runs so a mismatch surfaces here instead of as its unrelated-looking failure.
+if [ -z "$COMBINE_IMAGE" ]; then
+    SERVER_MAJOR="$(pg_major_from_banner "$(pg_ctl --version 2>/dev/null || true)")"
+    SERVER_SOURCE="the PostgreSQL installation"
+    SERVER_REMEDY="install PostgreSQL $RESTORED_MAJOR (or pass --pg-bin <dir> pointing at it)"
+else
+    SERVER_MAJOR="$(image_server_major)"
+    SERVER_SOURCE="image '$COMBINE_IMAGE'"
+    SERVER_REMEDY="pass --combine-image postgres:$RESTORED_MAJOR"
+fi
+
+if [ -n "$RESTORED_MAJOR" ] && [ -n "$SERVER_MAJOR" ] && [ "$RESTORED_MAJOR" != "$SERVER_MAJOR" ]; then
+    echo "error: restored cluster is PostgreSQL $RESTORED_MAJOR but $SERVER_SOURCE provides PostgreSQL $SERVER_MAJOR" >&2
+    echo "       A cluster can only be started by its own major version - $SERVER_REMEDY and re-run." >&2
+    exit 1
+fi
+
 # Refuse to restore onto an already-initialized cluster at the target path - e.g. a volume the
 # postgres image already booted once (PG 18 leaves it at <out>/<major>/docker). That is the exact
 # empty-DB trap: we would write a second cluster the server never serves.
@@ -313,18 +493,6 @@ else
     pg_combinebackup $INPUTS -o "$DATA_DIR"
 fi
 chmod 700 "$DATA_DIR"
-
-# A data directory can only be started by a server of its own major version - the classic
-# "restored 17, started 18" failure.
-if [ -z "$COMBINE_IMAGE" ]; then
-    # On the host, pg_ctl is the server that will run it, so we can check it now.
-    TOOL_MAJOR="$(pg_major_from_banner "$(pg_ctl --version 2>/dev/null || true)")"
-    if [ -n "$RESTORED_MAJOR" ] && [ -n "$TOOL_MAJOR" ] && [ "$RESTORED_MAJOR" != "$TOOL_MAJOR" ]; then
-        echo "error: restored cluster is PostgreSQL $RESTORED_MAJOR but the PostgreSQL binaries are $TOOL_MAJOR" >&2
-        echo "       A cluster can only be started by its own major version - install PostgreSQL $RESTORED_MAJOR (or pass --pg-bin <dir> pointing at it) and re-run." >&2
-        exit 1
-    fi
-fi
 
 # 5. Wire up WAL replay / PITR when the bundle ships WAL. A per-backup restore
 #    ships none - its combined directory is already consistent, so we stop here.
@@ -404,9 +572,11 @@ CONTAINER_PGDATA="$(container_pgdata "$RESTORED_MAJOR")"
 echo
 echo "Restore prepared at: $DATA_DIR"
 echo "Next steps:"
-echo "  1. Ensure the directory is owned by the postgres OS user:"
-echo "       chown -R postgres:postgres '$DATA_DIR'"
 if [ -n "$COMBINE_IMAGE" ]; then
+    # The image's postgres runs as uid 999; the host's own postgres user is a different account, so
+    # naming it here would hand the cluster to the wrong owner.
+    echo "  1. Give the cluster to the uid the postgres image runs as:"
+    echo "       sudo chown -R 999:999 '$DATA_DIR'"
     echo "  2. Start PostgreSQL ${RESTORED_MAJOR:-<major>} with a matching postgres:${RESTORED_MAJOR:-<major>} image"
     echo "     (the image needs no extra tools - the host already decompressed the backup and WAL):"
     if [ "${RESTORED_MAJOR:-0}" -ge 18 ] 2>/dev/null; then
@@ -421,7 +591,18 @@ else
     PG_CTL="pg_ctl"
     [ -n "$PG_BIN" ] && PG_CTL="$PG_BIN/pg_ctl"
 
+    echo "  1. Ensure the directory is owned by the postgres OS user:"
+    echo "       chown -R postgres:postgres '$DATA_DIR'"
     echo "  2. Start PostgreSQL against it (as the postgres user), e.g.:"
     echo "       $PG_CTL -D '$DATA_DIR' start"
     echo "     or point your server's data_directory at it."
+fi
+
+MISSING_CLUSTER_CONFIG="$(list_missing_cluster_config)"
+
+if [ -n "$MISSING_CLUSTER_CONFIG" ]; then
+    echo
+    echo "     It will not start yet - see ACTION REQUIRED below."
+
+    print_missing_config_instructions "$MISSING_CLUSTER_CONFIG"
 fi
