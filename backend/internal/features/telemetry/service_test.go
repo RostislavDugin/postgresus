@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -96,19 +98,39 @@ func (f *fakeBackupChecker) GetLatestCompletedBackup(
 	return f.latestBackups[databaseID], nil
 }
 
-type fakePhysicalFullBackupSizer struct {
-	fullBackups map[uuid.UUID]*physical_models.PhysicalFullBackup
-	err         error
+type fakeLatestPhysicalBackupReader struct {
+	fullBackups         map[uuid.UUID]*physical_models.PhysicalFullBackup
+	lastBackupTimes     map[uuid.UUID]time.Time
+	latestFullBackupErr error
+	lastBackupTimesErr  error
 }
 
-func (f *fakePhysicalFullBackupSizer) GetLatestCompletedFullBackup(
+func (f *fakeLatestPhysicalBackupReader) GetLatestCompletedFullBackup(
 	databaseID uuid.UUID,
 ) (*physical_models.PhysicalFullBackup, error) {
-	if f.err != nil {
-		return nil, f.err
+	if f.latestFullBackupErr != nil {
+		return nil, f.latestFullBackupErr
 	}
 
 	return f.fullBackups[databaseID], nil
+}
+
+func (f *fakeLatestPhysicalBackupReader) GetLastBackupTimesByDatabaseIDs(
+	databaseIDs []uuid.UUID,
+) (map[uuid.UUID]time.Time, error) {
+	if f.lastBackupTimesErr != nil {
+		return nil, f.lastBackupTimesErr
+	}
+
+	foundLastBackupTimes := make(map[uuid.UUID]time.Time, len(databaseIDs))
+
+	for _, databaseID := range databaseIDs {
+		if lastBackupTime, hasBackup := f.lastBackupTimes[databaseID]; hasBackup {
+			foundLastBackupTimes[databaseID] = lastBackupTime
+		}
+	}
+
+	return foundLastBackupTimes, nil
 }
 
 type fakeUserCounter struct {
@@ -145,45 +167,54 @@ func (f *fakeVerificationConfigLister) ListEnabled() (
 	return f.enabled, f.err
 }
 
-func newServiceUnderTest(
-	t *testing.T,
-	databaseLister databaseLister,
-	storageLister storageLister,
-	notifierLister notifierLister,
-	backupChecker backupChecker,
-	verificationAgentLister verificationAgentLister,
-	verificationConfigLister verificationConfigLister,
-	sender TelemetrySender,
-) *TelemetryService {
-	t.Helper()
-
-	return newServiceUnderTestWith(
-		t,
-		databaseLister,
-		storageLister,
-		notifierLister,
-		backupChecker,
-		&fakePhysicalFullBackupSizer{},
-		verificationAgentLister,
-		verificationConfigLister,
-		&fakeUserCounter{},
-		sender,
-	)
+type serviceDependencies struct {
+	databaseLister           databaseLister
+	storageLister            storageLister
+	notifierLister           notifierLister
+	backupChecker            backupChecker
+	physicalBackupReader     latestPhysicalBackupReader
+	verificationAgentLister  verificationAgentLister
+	verificationConfigLister verificationConfigLister
+	userCounter              userCounter
+	sender                   TelemetrySender
 }
 
-func newServiceUnderTestWith(
-	t *testing.T,
-	databaseLister databaseLister,
-	storageLister storageLister,
-	notifierLister notifierLister,
-	backupChecker backupChecker,
-	physicalBackupSizer physicalFullBackupSizer,
-	verificationAgentLister verificationAgentLister,
-	verificationConfigLister verificationConfigLister,
-	userCounter userCounter,
-	sender TelemetrySender,
-) *TelemetryService {
+// Every unset dependency falls back to an empty fake so a test names only what it varies.
+func newServiceUnderTest(t *testing.T, dependencies serviceDependencies) *TelemetryService {
 	t.Helper()
+
+	if dependencies.databaseLister == nil {
+		dependencies.databaseLister = &fakeDatabaseLister{}
+	}
+
+	if dependencies.storageLister == nil {
+		dependencies.storageLister = &fakeStorageLister{}
+	}
+
+	if dependencies.notifierLister == nil {
+		dependencies.notifierLister = &fakeNotifierLister{}
+	}
+
+	if dependencies.backupChecker == nil {
+		dependencies.backupChecker = &fakeBackupChecker{}
+	}
+
+	if dependencies.physicalBackupReader == nil {
+		dependencies.physicalBackupReader = &fakeLatestPhysicalBackupReader{}
+	}
+
+	if dependencies.verificationAgentLister == nil {
+		dependencies.verificationAgentLister = &fakeVerificationAgentLister{}
+	}
+
+	if dependencies.verificationConfigLister == nil {
+		dependencies.verificationConfigLister = &fakeVerificationConfigLister{}
+	}
+
+	if dependencies.userCounter == nil {
+		dependencies.userCounter = &fakeUserCounter{}
+	}
+
 	loader := NewInstanceFileLoader(
 		filepath.Join(t.TempDir(), "instance.json"),
 		slog.New(slog.DiscardHandler),
@@ -191,15 +222,15 @@ func newServiceUnderTestWith(
 
 	return NewTelemetryService(
 		loader,
-		sender,
-		databaseLister,
-		storageLister,
-		notifierLister,
-		backupChecker,
-		physicalBackupSizer,
-		verificationAgentLister,
-		verificationConfigLister,
-		userCounter,
+		dependencies.sender,
+		dependencies.databaseLister,
+		dependencies.storageLister,
+		dependencies.notifierLister,
+		dependencies.backupChecker,
+		dependencies.physicalBackupReader,
+		dependencies.verificationAgentLister,
+		dependencies.verificationConfigLister,
+		dependencies.userCounter,
 		"9.9.9",
 		slog.New(slog.DiscardHandler),
 	)
@@ -244,10 +275,6 @@ func physicalDatabase(
 	}
 }
 
-func floatPtr(value float64) *float64 {
-	return &value
-}
-
 func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
 	pgDB := postgresDatabase("pg", availableStatus())
 	mysqlDB := &databases.Database{
@@ -273,22 +300,18 @@ func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
 	}
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{pgDB, mysqlDB, mariaDB, mongoDB}},
-		&fakeStorageLister{storages: []*storages.Storage{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{pgDB, mysqlDB, mariaDB, mongoDB}},
+		storageLister: &fakeStorageLister{storages: []*storages.Storage{
 			{Type: storages.StorageTypeS3},
 			{Type: storages.StorageTypeLocal},
 		}},
-		&fakeNotifierLister{notifiers: []*notifiers.Notifier{
+		notifierLister: &fakeNotifierLister{notifiers: []*notifiers.Notifier{
 			{NotifierType: notifiers.NotifierTypeEmail},
 			{NotifierType: notifiers.NotifierTypeTelegram},
 		}},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -299,13 +322,15 @@ func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
 	assert.Equal(t, runtime.GOARCH, req.Arch)
 	require.Len(t, req.Databases, 4)
 
-	types := make([]string, 0, len(req.Databases))
-	for _, d := range req.Databases {
-		types = append(types, d.Type)
+	databaseTypes := make([]string, 0, len(req.Databases))
+
+	for _, databaseEntry := range req.Databases {
+		databaseTypes = append(databaseTypes, databaseEntry.Type)
 	}
+
 	assert.ElementsMatch(t,
 		[]string{"POSTGRES_LOGICAL", "MYSQL", "MARIADB", "MONGODB"},
-		types,
+		databaseTypes,
 	)
 
 	assert.Equal(t, []string{"LOCAL", "S3"}, req.Storages)
@@ -317,25 +342,20 @@ func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
 
 func Test_BuildAndSend_PreservesStorageAndNotifierDuplicates(t *testing.T) {
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{storages: []*storages.Storage{
+	service := newServiceUnderTest(t, serviceDependencies{
+		storageLister: &fakeStorageLister{storages: []*storages.Storage{
 			{Type: storages.StorageTypeS3},
 			{Type: storages.StorageTypeS3},
 			{Type: storages.StorageTypeS3},
 			{Type: storages.StorageTypeLocal},
 		}},
-		&fakeNotifierLister{notifiers: []*notifiers.Notifier{
+		notifierLister: &fakeNotifierLister{notifiers: []*notifiers.Notifier{
 			{NotifierType: notifiers.NotifierTypeEmail},
 			{NotifierType: notifiers.NotifierTypeEmail},
 			{NotifierType: notifiers.NotifierTypeTelegram},
 		}},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -363,7 +383,7 @@ func Test_BuildAndSend_WhenInstanceFileFails_DoesNotCallSender(t *testing.T) {
 		&fakeStorageLister{},
 		&fakeNotifierLister{},
 		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{},
+		&fakeLatestPhysicalBackupReader{},
 		&fakeVerificationAgentLister{},
 		&fakeVerificationConfigLister{},
 		&fakeUserCounter{},
@@ -379,16 +399,9 @@ func Test_BuildAndSend_WhenSenderFails_PropagatesError(t *testing.T) {
 	sendErr := errors.New("network down")
 	sender := &fakeSender{err: sendErr}
 
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		sender: sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -399,16 +412,10 @@ func Test_BuildAndSend_WhenDbHealthStatusAvailable_DbIncluded(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -419,16 +426,10 @@ func Test_BuildAndSend_WhenDbHealthStatusUnavailable_DbExcluded(t *testing.T) {
 	db := postgresDatabase("pg", unavailableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -439,16 +440,11 @@ func Test_BuildAndSend_WhenHealthcheckOffAndRecentBackup_DbIncluded(t *testing.T
 	db := postgresDatabase("pg", nil)
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{hasBackupSince: map[uuid.UUID]bool{db.ID: true}},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker:  &fakeBackupChecker{hasBackupSince: map[uuid.UUID]bool{db.ID: true}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -460,16 +456,11 @@ func Test_BuildAndSend_WhenHealthcheckOffAndNoRecentBackup_DbExcluded(t *testing
 	db := postgresDatabase("pg", nil)
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{hasBackupSince: map[uuid.UUID]bool{}},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker:  &fakeBackupChecker{hasBackupSince: map[uuid.UUID]bool{}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -481,16 +472,11 @@ func Test_BuildAndSend_WhenBackupCheckerFails_ReturnsError(t *testing.T) {
 	checkerErr := errors.New("db down")
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{err: checkerErr},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker:  &fakeBackupChecker{err: checkerErr},
+		sender:         sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -502,151 +488,125 @@ func Test_BuildAndSend_WhenLatestBackupHasBothSizes_IncludesBoth(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker: &fakeBackupChecker{
 			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 870.4, BackupRawDbSizeMb: 4321.7},
 			},
 		},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, int64(871), entry.BackupSizeMb)
-	assert.Equal(t, int64(4322), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, int64(871), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(4322), databaseEntry.RawSizeMb)
 }
 
 func Test_BuildAndSend_WhenSizesAreSubMb_RoundsUpToOne(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker: &fakeBackupChecker{
 			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 0.3, BackupRawDbSizeMb: 0.1},
 			},
 		},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, int64(1), entry.BackupSizeMb)
-	assert.Equal(t, int64(1), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, int64(1), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(1), databaseEntry.RawSizeMb)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), "backupSizeMb")
-	assert.Contains(t, string(encoded), "rawSizeMb")
+	assert.Contains(t, string(encodedEntry), "backupSizeMb")
+	assert.Contains(t, string(encodedEntry), "rawSizeMb")
 }
 
 func Test_BuildAndSend_WhenRawSizeZero_IncludesOnlyBackupSize(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker: &fakeBackupChecker{
 			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 100, BackupRawDbSizeMb: 0},
 			},
 		},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, int64(100), entry.BackupSizeMb)
-	assert.Equal(t, int64(0), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, int64(100), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(0), databaseEntry.RawSizeMb)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "rawSizeMb")
-	assert.Contains(t, string(encoded), "backupSizeMb")
+	assert.NotContains(t, string(encodedEntry), "rawSizeMb")
+	assert.Contains(t, string(encodedEntry), "backupSizeMb")
 }
 
 func Test_BuildAndSend_WhenBackupSizeZero_IncludesOnlyRawSize(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker: &fakeBackupChecker{
 			latestBackups: map[uuid.UUID]*backups_core_logical.LogicalBackup{
 				db.ID: {BackupSizeMb: 0, BackupRawDbSizeMb: 999},
 			},
 		},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, int64(0), entry.BackupSizeMb)
-	assert.Equal(t, int64(999), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, int64(0), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(999), databaseEntry.RawSizeMb)
 }
 
 func Test_BuildAndSend_WhenNoCompletedBackup_OmitsBothSizes(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, int64(0), entry.BackupSizeMb)
-	assert.Equal(t, int64(0), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, int64(0), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(0), databaseEntry.RawSizeMb)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "rawSizeMb")
-	assert.NotContains(t, string(encoded), "backupSizeMb")
+	assert.NotContains(t, string(encodedEntry), "rawSizeMb")
+	assert.NotContains(t, string(encodedEntry), "backupSizeMb")
 }
 
 func Test_BuildAndSend_WhenLatestBackupLookupFails_ReturnsError(t *testing.T) {
@@ -654,16 +614,11 @@ func Test_BuildAndSend_WhenLatestBackupLookupFails_ReturnsError(t *testing.T) {
 	lookupErr := errors.New("query exploded")
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{latestErr: lookupErr},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		backupChecker:  &fakeBackupChecker{latestErr: lookupErr},
+		sender:         sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -692,16 +647,10 @@ func Test_BuildAndSend_WhenAgentsRegistered_IncludesCapacityRows(t *testing.T) {
 	}
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{agents: registeredAgents},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		verificationAgentLister: &fakeVerificationAgentLister{agents: registeredAgents},
+		sender:                  sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -714,16 +663,9 @@ func Test_BuildAndSend_WhenAgentsRegistered_IncludesCapacityRows(t *testing.T) {
 
 func Test_BuildAndSend_WhenNoAgents_VerificationAgentsIsEmpty(t *testing.T) {
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -731,125 +673,107 @@ func Test_BuildAndSend_WhenNoAgents_VerificationAgentsIsEmpty(t *testing.T) {
 	require.NotNil(t, sender.calls[0].VerificationAgents)
 	assert.Empty(t, sender.calls[0].VerificationAgents)
 
-	encoded, err := json.Marshal(sender.calls[0])
+	encodedPayload, err := json.Marshal(sender.calls[0])
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), `"verificationAgents":[]`)
+	assert.Contains(t, string(encodedPayload), `"verificationAgents":[]`)
 }
 
 func Test_BuildAndSend_WhenDbHasAfterBackupConfig_VerificationBlockOmitsIntervalType(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{enabled: []*verification_config.BackupVerificationConfig{
-			{
-				DatabaseID:                     db.ID,
-				IsScheduledVerificationEnabled: true,
-				ScheduleType:                   verification_config.VerificationScheduleAfterBackup,
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		verificationConfigLister: &fakeVerificationConfigLister{
+			enabled: []*verification_config.BackupVerificationConfig{
+				{
+					DatabaseID:                     db.ID,
+					IsScheduledVerificationEnabled: true,
+					ScheduleType:                   verification_config.VerificationScheduleAfterBackup,
+				},
 			},
-		}},
-		sender,
-	)
+		},
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	require.NotNil(t, entry.Verification)
-	assert.True(t, entry.Verification.IsEnabled)
-	assert.Equal(t, "AFTER_BACKUP", entry.Verification.ScheduleType)
-	assert.Empty(t, entry.Verification.IntervalType)
+	databaseEntry := sender.calls[0].Databases[0]
+	require.NotNil(t, databaseEntry.Verification)
+	assert.True(t, databaseEntry.Verification.IsEnabled)
+	assert.Equal(t, "AFTER_BACKUP", databaseEntry.Verification.ScheduleType)
+	assert.Empty(t, databaseEntry.Verification.IntervalType)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), `"verification"`)
-	assert.NotContains(t, string(encoded), "intervalType")
+	assert.Contains(t, string(encodedEntry), `"verification"`)
+	assert.NotContains(t, string(encodedEntry), "intervalType")
 }
 
 func Test_BuildAndSend_WhenDbHasIntervalDailyConfig_IncludesIntervalType(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{enabled: []*verification_config.BackupVerificationConfig{
-			{
-				DatabaseID:                     db.ID,
-				IsScheduledVerificationEnabled: true,
-				ScheduleType:                   verification_config.VerificationScheduleInterval,
-				VerificationInterval:           intervals.Interval{Type: intervals.IntervalDaily},
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		verificationConfigLister: &fakeVerificationConfigLister{
+			enabled: []*verification_config.BackupVerificationConfig{
+				{
+					DatabaseID:                     db.ID,
+					IsScheduledVerificationEnabled: true,
+					ScheduleType:                   verification_config.VerificationScheduleInterval,
+					VerificationInterval:           intervals.Interval{Type: intervals.IntervalDaily},
+				},
 			},
-		}},
-		sender,
-	)
+		},
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	require.NotNil(t, entry.Verification)
-	assert.True(t, entry.Verification.IsEnabled)
-	assert.Equal(t, "INTERVAL", entry.Verification.ScheduleType)
-	assert.Equal(t, "DAILY", entry.Verification.IntervalType)
+	databaseEntry := sender.calls[0].Databases[0]
+	require.NotNil(t, databaseEntry.Verification)
+	assert.True(t, databaseEntry.Verification.IsEnabled)
+	assert.Equal(t, "INTERVAL", databaseEntry.Verification.ScheduleType)
+	assert.Equal(t, "DAILY", databaseEntry.Verification.IntervalType)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), `"intervalType":"DAILY"`)
+	assert.Contains(t, string(encodedEntry), `"intervalType":"DAILY"`)
 }
 
 func Test_BuildAndSend_WhenDbHasNoEnabledConfig_VerificationBlockAbsent(t *testing.T) {
 	db := postgresDatabase("pg", availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Nil(t, entry.Verification)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Nil(t, databaseEntry.Verification)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "verification")
+	assert.NotContains(t, string(encodedEntry), "verification")
 }
 
 func Test_BuildAndSend_WhenVerificationAgentListFails_ReturnsError(t *testing.T) {
 	listErr := errors.New("agents query exploded")
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{err: listErr},
-		&fakeVerificationConfigLister{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		verificationAgentLister: &fakeVerificationAgentLister{err: listErr},
+		sender:                  sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -860,16 +784,10 @@ func Test_BuildAndSend_WhenVerificationAgentListFails_ReturnsError(t *testing.T)
 func Test_BuildAndSend_WhenVerificationConfigListFails_ReturnsError(t *testing.T) {
 	listErr := errors.New("configs query exploded")
 	sender := &fakeSender{}
-	service := newServiceUnderTest(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{err: listErr},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		verificationConfigLister: &fakeVerificationConfigLister{err: listErr},
+		sender:                   sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -885,69 +803,54 @@ func Test_BuildAndSend_WhenPhysicalDatabase_EmitsTypeBackupTypeAndFullBackupSize
 	)
 
 	sender := &fakeSender{}
-	service := newServiceUnderTestWith(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{
 			fullBackups: map[uuid.UUID]*physical_models.PhysicalFullBackup{
-				db.ID: {BackupSizeMb: floatPtr(38400.2), RawSizeMb: floatPtr(192000.7)},
+				db.ID: {BackupSizeMb: new(38400.2), RawSizeMb: new(192000.7)},
 			},
 		},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		&fakeUserCounter{},
-		sender,
-	)
+		sender: sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, "POSTGRES_PHYSICAL", entry.Type)
-	assert.Equal(t, "17", entry.Version)
-	assert.Equal(t, "FULL_INCREMENTAL_WAL_STREAM", entry.BackupType)
-	assert.Equal(t, int64(38401), entry.BackupSizeMb)
-	assert.Equal(t, int64(192001), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, "POSTGRES_PHYSICAL", databaseEntry.Type)
+	assert.Equal(t, "17", databaseEntry.Version)
+	assert.Equal(t, "FULL_INCREMENTAL_WAL_STREAM", databaseEntry.BackupType)
+	assert.Equal(t, int64(38401), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(192001), databaseEntry.RawSizeMb)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.Contains(t, string(encoded), `"backupType":"FULL_INCREMENTAL_WAL_STREAM"`)
+	assert.Contains(t, string(encodedEntry), `"backupType":"FULL_INCREMENTAL_WAL_STREAM"`)
 }
 
 func Test_BuildAndSend_WhenPhysicalDatabaseHasNoFullBackup_OmitsSizes(t *testing.T) {
 	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, availableStatus())
 
 	sender := &fakeSender{}
-	service := newServiceUnderTestWith(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		&fakeUserCounter{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
 	require.Len(t, sender.calls[0].Databases, 1)
 
-	entry := sender.calls[0].Databases[0]
-	assert.Equal(t, "FULL", entry.BackupType)
-	assert.Equal(t, int64(0), entry.BackupSizeMb)
-	assert.Equal(t, int64(0), entry.RawSizeMb)
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, "FULL", databaseEntry.BackupType)
+	assert.Equal(t, int64(0), databaseEntry.BackupSizeMb)
+	assert.Equal(t, int64(0), databaseEntry.RawSizeMb)
 
-	encoded, err := json.Marshal(entry)
+	encodedEntry, err := json.Marshal(databaseEntry)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "rawSizeMb")
-	assert.NotContains(t, string(encoded), "backupSizeMb")
+	assert.NotContains(t, string(encodedEntry), "rawSizeMb")
+	assert.NotContains(t, string(encodedEntry), "backupSizeMb")
 }
 
 func Test_BuildAndSend_WhenPhysicalFullBackupLookupFails_ReturnsError(t *testing.T) {
@@ -955,18 +858,11 @@ func Test_BuildAndSend_WhenPhysicalFullBackupLookupFails_ReturnsError(t *testing
 	lookupErr := errors.New("physical query exploded")
 
 	sender := &fakeSender{}
-	service := newServiceUnderTestWith(
-		t,
-		&fakeDatabaseLister{databases: []*databases.Database{db}},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{err: lookupErr},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		&fakeUserCounter{},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister:       &fakeDatabaseLister{databases: []*databases.Database{db}},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{latestFullBackupErr: lookupErr},
+		sender:               sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)
@@ -974,20 +870,153 @@ func Test_BuildAndSend_WhenPhysicalFullBackupLookupFails_ReturnsError(t *testing
 	assert.Empty(t, sender.calls)
 }
 
+func Test_BuildAndSend_WhenPhysicalDatabaseHasNoHealthStatusButRecentBackup_DatabaseIsReported(
+	t *testing.T,
+) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullIncrementalAndWalStream, nil)
+
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{
+			lastBackupTimes: map[uuid.UUID]time.Time{
+				db.ID: time.Now().UTC().Add(-2 * time.Hour),
+			},
+		},
+		sender: sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	require.Len(t, sender.calls[0].Databases, 1)
+
+	databaseEntry := sender.calls[0].Databases[0]
+	assert.Equal(t, "POSTGRES_PHYSICAL", databaseEntry.Type)
+	assert.Equal(t, "FULL_INCREMENTAL_WAL_STREAM", databaseEntry.BackupType)
+}
+
+func Test_BuildAndSend_WhenPhysicalDatabaseHasNoHealthStatusAndStaleBackup_DatabaseIsSkipped(
+	t *testing.T,
+) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, nil)
+
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{
+			lastBackupTimes: map[uuid.UUID]time.Time{
+				db.ID: time.Now().UTC().Add(-activeBackupWindow - time.Hour),
+			},
+		},
+		sender: sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	assert.Empty(t, sender.calls[0].Databases)
+}
+
+func Test_BuildAndSend_WhenPhysicalDatabaseHasNoHealthStatusAndNoBackups_DatabaseIsSkipped(
+	t *testing.T,
+) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, nil)
+
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{db}},
+		sender:         sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+	assert.Empty(t, sender.calls[0].Databases)
+}
+
+func Test_BuildAndSend_WhenPhysicalLastBackupTimeLookupFails_ReturnsError(t *testing.T) {
+	db := physicalDatabase("pg-physical", postgresql_physical.BackupTypeFullOnly, nil)
+	lookupErr := errors.New("last backup time query exploded")
+
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister:       &fakeDatabaseLister{databases: []*databases.Database{db}},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{lastBackupTimesErr: lookupErr},
+		sender:               sender,
+	})
+
+	err := service.BuildAndSend(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, lookupErr)
+	assert.Empty(t, sender.calls)
+}
+
+func Test_BuildAndSend_WhenPayloadSerialized_ContainsDocumentedContractKeys(t *testing.T) {
+	physicalDB := physicalDatabase(
+		"pg-physical",
+		postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+		availableStatus(),
+	)
+
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: []*databases.Database{physicalDB}},
+		storageLister:  &fakeStorageLister{storages: []*storages.Storage{{Type: storages.StorageTypeLocal}}},
+		notifierLister: &fakeNotifierLister{
+			notifiers: []*notifiers.Notifier{{NotifierType: notifiers.NotifierTypeEmail}},
+		},
+		physicalBackupReader: &fakeLatestPhysicalBackupReader{
+			fullBackups: map[uuid.UUID]*physical_models.PhysicalFullBackup{
+				physicalDB.ID: {BackupSizeMb: new(870.0), RawSizeMb: new(4321.0)},
+			},
+		},
+		verificationAgentLister: &fakeVerificationAgentLister{
+			agents: []*verification_agents.Agent{
+				{MaxCPU: 4, MaxRAMGb: 8, MaxDiskGb: 100, MaxConcurrentJobs: 2},
+			},
+		},
+		userCounter: &fakeUserCounter{count: 3},
+		sender:      sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(context.Background()))
+	require.Len(t, sender.calls, 1)
+
+	encodedPayload, err := json.Marshal(sender.calls[0])
+	require.NoError(t, err)
+
+	var decodedPayload map[string]any
+	require.NoError(t, json.Unmarshal(encodedPayload, &decodedPayload))
+
+	assert.ElementsMatch(t, []string{
+		"instanceID",
+		"appVersion",
+		"os",
+		"arch",
+		"installedAt",
+		"userCount",
+		"databases",
+		"storages",
+		"notifiers",
+		"verificationAgents",
+	}, slices.Collect(maps.Keys(decodedPayload)))
+
+	databaseEntry, isObject := decodedPayload["databases"].([]any)[0].(map[string]any)
+	require.True(t, isObject)
+
+	assert.ElementsMatch(t, []string{
+		"type",
+		"version",
+		"backupType",
+		"rawSizeMb",
+		"backupSizeMb",
+	}, slices.Collect(maps.Keys(databaseEntry)))
+}
+
 func Test_BuildAndSend_WhenUsersCounted_PopulatesUserCount(t *testing.T) {
 	sender := &fakeSender{}
-	service := newServiceUnderTestWith(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		&fakeUserCounter{count: 7},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		userCounter: &fakeUserCounter{count: 7},
+		sender:      sender,
+	})
 
 	require.NoError(t, service.BuildAndSend(context.Background()))
 	require.Len(t, sender.calls, 1)
@@ -998,18 +1027,10 @@ func Test_BuildAndSend_WhenUserCounterFails_ReturnsError(t *testing.T) {
 	countErr := errors.New("users count exploded")
 
 	sender := &fakeSender{}
-	service := newServiceUnderTestWith(
-		t,
-		&fakeDatabaseLister{},
-		&fakeStorageLister{},
-		&fakeNotifierLister{},
-		&fakeBackupChecker{},
-		&fakePhysicalFullBackupSizer{},
-		&fakeVerificationAgentLister{},
-		&fakeVerificationConfigLister{},
-		&fakeUserCounter{err: countErr},
-		sender,
-	)
+	service := newServiceUnderTest(t, serviceDependencies{
+		userCounter: &fakeUserCounter{err: countErr},
+		sender:      sender,
+	})
 
 	err := service.BuildAndSend(context.Background())
 	require.Error(t, err)

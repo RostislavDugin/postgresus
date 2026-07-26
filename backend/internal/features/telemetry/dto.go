@@ -1,5 +1,19 @@
 package telemetry
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
+	"databasus-backend/internal/features/databases"
+	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/storages"
+	verification_agents "databasus-backend/internal/features/verification/agents"
+	verification_config "databasus-backend/internal/features/verification/config"
+)
+
 type DatabaseEntry struct {
 	Type         string                     `json:"type"`
 	Version      string                     `json:"version"`
@@ -33,4 +47,38 @@ type CollectRequest struct {
 	Storages           []string                 `json:"storages"`
 	Notifiers          []string                 `json:"notifiers"`
 	VerificationAgents []VerificationAgentEntry `json:"verificationAgents"`
+}
+
+type databaseLister interface {
+	GetAllDatabases() ([]*databases.Database, error)
+}
+
+type storageLister interface {
+	GetAllStorages() ([]*storages.Storage, error)
+}
+
+type notifierLister interface {
+	GetAllNotifiers() ([]*notifiers.Notifier, error)
+}
+
+type backupChecker interface {
+	HasSuccessfulBackupSince(databaseID uuid.UUID, since time.Time) (bool, error)
+	GetLatestCompletedBackup(databaseID uuid.UUID) (*backups_core_logical.LogicalBackup, error)
+}
+
+type latestPhysicalBackupReader interface {
+	GetLatestCompletedFullBackup(databaseID uuid.UUID) (*physical_models.PhysicalFullBackup, error)
+	GetLastBackupTimesByDatabaseIDs(databaseIDs []uuid.UUID) (map[uuid.UUID]time.Time, error)
+}
+
+type userCounter interface {
+	GetUsersCount() (int64, error)
+}
+
+type verificationAgentLister interface {
+	ListAgents() ([]*verification_agents.Agent, error)
+}
+
+type verificationConfigLister interface {
+	ListEnabled() ([]*verification_config.BackupVerificationConfig, error)
 }
