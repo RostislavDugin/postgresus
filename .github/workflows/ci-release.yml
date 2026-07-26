@@ -786,6 +786,7 @@ jobs:
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: write
+      packages: write
     steps:
       - name: Clean workspace
         run: |
@@ -807,6 +808,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Both registries get the same digests from this one build, so the
+      # ghcr.io mirror cannot drift from the released image.
       - name: Build and push with version tags
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
@@ -820,6 +830,9 @@ jobs:
             databasus/databasus:latest
             databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
             databasus/databasus:${{ github.sha }}
+            ghcr.io/databasus/databasus:latest
+            ghcr.io/databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
+            ghcr.io/databasus/databasus:${{ github.sha }}
 
   push-verification-image:
     runs-on: ubuntu-latest
@@ -972,6 +985,7 @@ jobs:
           # Add Docker image info
           CHANGELOG="${CHANGELOG}### 🐳 Docker${NL}"
           CHANGELOG="${CHANGELOG}- **Image**: \`databasus/databasus:v${NEW_VERSION}\`${NL}"
+          CHANGELOG="${CHANGELOG}- **Mirror**: \`ghcr.io/databasus/databasus:v${NEW_VERSION}\`${NL}"
           CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64, linux/arm64${NL}"
 
           # Use a random delimiter so any literal "EOF" line inside the
