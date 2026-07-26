@@ -24,6 +24,11 @@ export const containerVolumeDir = (pgVersion: string): string =>
 export const clusterDataDir = (outputDir: string, pgVersion: string): string =>
   Number(pgVersion) >= 18 ? `${outputDir}/${pgVersion}/docker` : `${outputDir}/data`;
 
+// Outside the data directory, which is why a base backup never contains these files. The cluster is
+// conventionally named "main" but pg_createcluster allows any name, so this is the convention rather
+// than a fact about the user's source.
+export const debianConfigDir = (pgVersion: string): string => `/etc/postgresql/${pgVersion}/main`;
+
 export interface ScriptCommandParams {
   scriptUrl: string;
   bundleUrl: string;
@@ -86,6 +91,34 @@ const decompressBackupsBlock = (): string =>
     `  esac`,
     `  cp "$b/backup_manifest" "$d/backup_manifest"`,
     `done`,
+  ].join('\n');
+
+interface ClusterConfigCheckParams {
+  dataDir: string;
+  pgVersion: string;
+}
+
+// Mirrors the check the served recovery_script.sh runs - the two must stay in sync. Reports rather
+// than repairs: pg_hba.conf is an access-control policy for the restored data, so which rules apply
+// is the user's call, not ours.
+const checkClusterConfigBlock = ({ dataDir, pgVersion }: ClusterConfigCheckParams): string =>
+  [
+    `for f in postgresql.conf pg_hba.conf pg_ident.conf; do`,
+    `  [ -f "${dataDir}/$f" ] || echo "MISSING: $f"`,
+    `done`,
+    `# Nothing printed? Skip the rest of this step.`,
+    `# A base backup copies only the data directory. Debian/Ubuntu keep the configuration in`,
+    `# ${debianConfigDir(pgVersion)}, outside it, so it is not in the backup and never can be.`,
+    `# Ask the source cluster where its own files are (needs superuser or pg_read_all_settings):`,
+    `#   psql -h <source-host> -U postgres -Atc "SHOW config_file"`,
+    `#   psql -h <source-host> -U postgres -Atc "SHOW hba_file"`,
+    `#   psql -h <source-host> -U postgres -Atc "SHOW ident_file"`,
+    `# Copy all three into "${dataDir}/" (sudo if they are root-only), then in postgresql.conf:`,
+    `#   comment out data_directory, hba_file, ident_file, external_pid_file`,
+    `#   comment out ssl, ssl_cert_file, ssl_key_file, ssl_ca_file, or copy the certs too`,
+    `#     ("ssl = on" on its own fails as well - it then looks for server.crt in the data directory)`,
+    `#   mkdir "${dataDir}/conf.d" for the include_dir Debian ships`,
+    `#   set listen_addresses = '*' when the cluster runs in a container`,
   ].join('\n');
 
 // `bundle/recon/full` plus every `bundle/recon/incr-N` in numeric order - the inputs
@@ -181,6 +214,10 @@ export const buildManualSteps = ({
     {
       title: 'Reconstruct the data directory',
       code: combine,
+    },
+    {
+      title: "Check the cluster's configuration files",
+      code: checkClusterConfigBlock({ dataDir, pgVersion }),
     },
   ];
 

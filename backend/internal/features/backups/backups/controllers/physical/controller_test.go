@@ -946,6 +946,31 @@ func Test_GetRecoveryScript_ReturnsRunnableShellScript(t *testing.T) {
 		"WAL is decompressed on the host up front; the script must not wire zstd into restore_command")
 }
 
+// A cluster whose source keeps its configuration outside the data directory (the Debian/Ubuntu
+// layout) restores without postgresql.conf and refuses to start. The served script must diagnose
+// that and instruct - never invent an access-control policy for the restored data (issue #685).
+func Test_GetRecoveryScript_IncludesConfigFileCheck(t *testing.T) {
+	router := newPhysicalControllerRouter()
+
+	response := test_utils.MakeGetRequest(t, router,
+		"/api/v1/backups/physical/recovery-script", "", http.StatusOK)
+
+	servedScript := string(response.Body)
+
+	assert.Contains(t, servedScript, "ACTION REQUIRED: the restored cluster has no configuration files",
+		"the script must name the failure instead of leaving it to the server's startup error")
+	assert.Contains(t, servedScript, "/etc/postgresql/",
+		"the instructions must name where Debian/Ubuntu keeps the originals")
+	assert.Contains(t, servedScript, "SHOW config_file",
+		"the instructions must show how to ask the source cluster for the real paths")
+	assert.Contains(t, servedScript, "pg_lsclusters",
+		"the instructions must show how to tell two clusters on one host apart")
+	// Blanket, not rule-shaped: any future mention deserves a second look, because the whole point
+	// is that the restore never hands the user an unauthenticated rule to paste.
+	assert.NotContains(t, servedScript, "trust",
+		"the script must never emit a trust rule for the restored cluster")
+}
+
 func Test_GetRestoreStream_TokenIsSingleUse(t *testing.T) {
 	prereqs := createPhysicalControllerPrereqs(t)
 

@@ -18,6 +18,7 @@ import {
   clusterDataDir,
   containerDataDir,
   containerVolumeDir,
+  debianConfigDir,
 } from '../lib/restoreCommands';
 
 interface Props {
@@ -41,6 +42,24 @@ const describeRestoreError = (message: string): string => {
 
   return message;
 };
+
+// Rendered for host and Docker alike: whether the source keeps its configuration outside the data
+// directory cannot be known from here, and the resulting startup failure looks identical to a
+// wrong-directory mount, so the difference has to be spelled out.
+const missingConfigFilesNote = (pgVersion: string): JSX.Element => (
+  <li>
+    A base backup copies only the data directory. If your source PostgreSQL keeps its configuration
+    outside it - the Debian/Ubuntu layout, <code>{debianConfigDir(pgVersion)}</code> - then{' '}
+    <code>postgresql.conf</code>, <code>pg_hba.conf</code> and <code>pg_ident.conf</code> are not in
+    the backup and the server will not start. Ask the source for their real paths with{' '}
+    <code>psql -Atc &quot;SHOW config_file&quot;</code>, copy all three in, then comment out{' '}
+    <code>data_directory</code>, <code>hba_file</code>, <code>ident_file</code>,{' '}
+    <code>external_pid_file</code> and the <code>ssl</code> / <code>ssl_*</code> lines, create{' '}
+    <code>conf.d</code>, and set <code>listen_addresses = &apos;*&apos;</code> for a container. If
+    those files are present and you still get the same error, it is the mounted directory that is
+    wrong, not the configuration.
+  </li>
+);
 
 interface CopyableCommandProps {
   id: string;
@@ -280,6 +299,7 @@ export const PhysicalRestoreComponent = ({ database, backup, onClose }: Props): 
                   PostgreSQL replays WAL and promotes - watch the log for recovery completion.
                 </li>
               )}
+              {missingConfigFilesNote(pgVersion)}
             </ul>
           ) : (
             <ul className="ml-4 list-disc">
@@ -308,7 +328,10 @@ export const PhysicalRestoreComponent = ({ database, backup, onClose }: Props): 
                   </code>
                 </li>
               )}
-              <li>Ownership must match the postgres uid inside the image.</li>
+              <li>
+                Ownership must match the postgres uid inside the image (999 in the official one).
+              </li>
+              {missingConfigFilesNote(pgVersion)}
             </ul>
           )
         }
