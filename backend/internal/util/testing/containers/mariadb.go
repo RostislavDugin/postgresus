@@ -25,6 +25,15 @@ func mariadbEnv() map[string]string {
 	}
 }
 
+func mariadbReadinessSpec(isSslRequired bool) mysqlFamilyReadinessSpec {
+	return mysqlFamilyReadinessSpec{
+		Port:          mariadbPort,
+		RootPassword:  MariadbRootPassword,
+		Database:      MariadbDatabase,
+		IsSslRequired: isSslRequired,
+	}
+}
+
 // mariadbRequest builds the container request for image (e.g. "mariadb:10.11"). MariaDB runs the
 // shared MySQL-family server flags (mysqlFamilyCmd) unchanged.
 func mariadbRequest(image string) testcontainers.ContainerRequest {
@@ -34,7 +43,7 @@ func mariadbRequest(image string) testcontainers.ContainerRequest {
 		Env:          mariadbEnv(),
 		Cmd:          mysqlFamilyCmd(),
 		Tmpfs:        map[string]string{"/var/lib/mysql": dataDirTmpfsOptions},
-		WaitingFor:   mysqlFamilyReady(mariadbPort),
+		WaitingFor:   mysqlFamilyReady(mariadbReadinessSpec(false)),
 	}
 }
 
@@ -45,13 +54,16 @@ func StartMariadb(t *testing.T, image string) Endpoint {
 	return start(t, mariadbRequest(image), mariadbPort)
 }
 
-// StartMariadbSSL boots a MariaDB server that rejects unencrypted connections. The image
-// auto-generates its server certificates, so the test connects with tlsInsecure and no client cert.
+// StartMariadbSSL boots a MariaDB server that rejects unencrypted connections. MariaDB
+// auto-generates its self-signed server certificates only from 11.4, so an older image leaves the
+// server unreachable and burns the full readiness timeout. The test connects with tlsInsecure and
+// no client cert.
 func StartMariadbSSL(t *testing.T, image string) Endpoint {
 	t.Helper()
 
 	req := mariadbRequest(image)
 	req.Cmd = append(req.Cmd, "--require-secure-transport=ON")
+	req.WaitingFor = mysqlFamilyReady(mariadbReadinessSpec(true))
 
 	return start(t, req, mariadbPort)
 }
