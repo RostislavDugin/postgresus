@@ -20,6 +20,8 @@ import (
 	"databasus-backend/internal/util/tools"
 )
 
+var PhysicalPostgresVersionTags = []string{"17", "18"}
+
 func GetTestPostgresConfig() *postgresql_logical.PostgresqlLogicalDatabase {
 	env := config.GetEnv()
 	port, err := strconv.Atoi(env.TestLogicalPostgres16Port)
@@ -47,7 +49,10 @@ func physicalPostgresVersion(versionTag string) tools.PostgresqlVersion {
 	case "18":
 		return tools.PostgresqlVersion18
 	default:
-		panic(fmt.Sprintf("unsupported physical postgres version tag: %s (use \"17\" or \"18\")", versionTag))
+		panic(fmt.Sprintf(
+			"unsupported physical postgres version tag: %s (supported: %v)",
+			versionTag, PhysicalPostgresVersionTags,
+		))
 	}
 }
 
@@ -66,7 +71,10 @@ func physicalPrimaryEndpoint(versionTag string) (string, int) {
 	case "18":
 		portStr = env.TestPhysicalPostgres18Port
 	default:
-		panic(fmt.Sprintf("unsupported physical postgres version tag: %s (use \"17\" or \"18\")", versionTag))
+		panic(fmt.Sprintf(
+			"unsupported physical postgres version tag: %s (supported: %v)",
+			versionTag, PhysicalPostgresVersionTags,
+		))
 	}
 
 	port, err := strconv.Atoi(portStr)

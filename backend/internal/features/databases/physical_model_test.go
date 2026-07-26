@@ -155,6 +155,29 @@ func Test_TestDatabaseConnectionDirect_OnReplicationReadyCluster_ReturnsSuccess(
 	}
 }
 
+func Test_TestDatabaseConnectionDirect_WithoutPhysicalConfig_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+
+	databaseWithoutConfig := Database{
+		WorkspaceID: &workspace.ID,
+		Name:        "physical db without config",
+		Type:        DatabaseTypePostgresPhysical,
+	}
+
+	response := test_utils.MakePostRequest(
+		t, router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+owner.Token,
+		databaseWithoutConfig,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(response.Body), "postgresql physical config is not set")
+}
+
 func Test_CreatePhysicalDatabase_DetectsVersionFromServer_OverridingPayloadVersion(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
@@ -235,6 +258,51 @@ func Test_CreateReplicationOnlyUser_OnLogicalDatabase_ReturnsBadRequest(t *testi
 	)
 
 	assert.Contains(t, string(testResp.Body), "POSTGRES_PHYSICAL")
+}
+
+func Test_UpdatePhysicalDatabase_KeepsSameChildRow_WithStableIdAndDatabaseId(t *testing.T) {
+	for _, fx := range physicalFixtures() {
+		t.Run(fx.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
+			defer func() {
+				RemoveTestDatabase(database)
+				workspaces_testing.RemoveTestWorkspace(workspace, router)
+			}()
+
+			createdDatabase, err := databaseRepository.FindByID(database.ID)
+			require.NoError(t, err)
+			require.NotNil(t, createdDatabase.PostgresqlPhysical)
+			require.NotEqual(t, uuid.Nil, createdDatabase.PostgresqlPhysical.ID)
+			require.NotNil(t, createdDatabase.PostgresqlPhysical.DatabaseID)
+			assert.Equal(t, database.ID, *createdDatabase.PostgresqlPhysical.DatabaseID)
+
+			createdDatabase.Name = "Renamed " + createdDatabase.Name
+			test_utils.MakePostRequest(
+				t, router,
+				"/api/v1/databases/update",
+				"Bearer "+owner.Token,
+				createdDatabase,
+				http.StatusOK,
+			)
+
+			updatedDatabase, err := databaseRepository.FindByID(database.ID)
+			require.NoError(t, err)
+			require.NotNil(t, updatedDatabase.PostgresqlPhysical)
+			assert.Equal(t,
+				createdDatabase.PostgresqlPhysical.ID,
+				updatedDatabase.PostgresqlPhysical.ID,
+				"update must reuse the existing physical config row, not insert a second one")
+			require.NotNil(t, updatedDatabase.PostgresqlPhysical.DatabaseID)
+			assert.Equal(t, database.ID, *updatedDatabase.PostgresqlPhysical.DatabaseID)
+			assert.Equal(t,
+				createdDatabase.PostgresqlPhysical.ReplicationSlotName,
+				updatedDatabase.PostgresqlPhysical.ReplicationSlotName)
+		})
+	}
 }
 
 func Test_CopyDatabase_OnPhysicalDatabase_DoesNotCopySystemIdentifier(t *testing.T) {

@@ -20,10 +20,18 @@ import (
 	util_encryption "databasus-backend/internal/util/encryption"
 )
 
-// manifestSaveTimeout bounds the post-success PUT of the reconstructed
-// `.manifest` sidecar. The manifest is fully materialized in memory (KBs–MBs),
-// so this is a plain buffered upload, not a multi-hour stream.
-const manifestSaveTimeout = 30 * time.Second
+// Bounds for the post-success PUT of the reconstructed `.manifest` sidecar.
+// serializeManifest emits ~210 bytes per source file, so a 500k-file cluster
+// produces a ~100 MB sidecar that a slow S3-compatible endpoint cannot absorb
+// under a flat deadline — and losing the sidecar marks an already-stored backup
+// CHAIN_BROKEN. The floor matches walSegmentUploadTimeout and covers endpoint
+// latency on the common few-MB manifest; the ceiling keeps a wedged endpoint
+// from pinning a backup worker indefinitely.
+const (
+	manifestSaveMinTimeout            = 2 * time.Minute
+	manifestSaveMaxTimeout            = 15 * time.Minute
+	manifestSaveThroughputBytesPerSec = 256 * 1024
+)
 
 // runStreamParams carries everything runStream needs that does not come from the
 // *exec.Cmd itself. Grouped into a struct so FULL and INCR pass the same shape.
@@ -333,6 +341,12 @@ func buildSuccessOutcome(
 	}, nil
 }
 
+func manifestSaveTimeout(payloadSizeBytes int) time.Duration {
+	budget := time.Duration(payloadSizeBytes/manifestSaveThroughputBytesPerSec) * time.Second
+
+	return min(max(budget, manifestSaveMinTimeout), manifestSaveMaxTimeout)
+}
+
 // saveManifestSidecar uploads the reconstructed manifest. When encryption is on
 // it uses a FRESH salt+nonce (SetupEncryptionWriter) — never the tar's — because
 // the chunk nonce is baseNonce||chunkIndex, so reusing the tar's (salt, nonce)
@@ -344,43 +358,48 @@ func saveManifestSidecar(
 	manifestFileName string,
 	manifestBytes []byte,
 ) (saltBase64, nonceBase64 string, err error) {
-	saveCtx, cancel := context.WithTimeout(ctx, manifestSaveTimeout)
-	defer cancel()
+	payload := bytes.NewReader(manifestBytes)
+	payloadSizeBytes := len(manifestBytes)
 
-	if p.Encryption != backups_core_enums.BackupEncryptionEncrypted {
-		if err := p.Storage.SaveFile(
-			saveCtx,
-			p.FieldEncryptor,
-			p.Logger,
-			manifestFileName,
-			bytes.NewReader(manifestBytes),
-		); err != nil {
-			return "", "", err
+	if p.Encryption == backups_core_enums.BackupEncryptionEncrypted {
+		var encrypted bytes.Buffer
+
+		encSetup, setupErr := backup_encryption.SetupEncryptionWriter(&encrypted, p.MasterKey, p.BackupID)
+		if setupErr != nil {
+			return "", "", fmt.Errorf("setup manifest encryption: %w", setupErr)
 		}
 
-		return "", "", nil
+		if _, writeErr := encSetup.Writer.Write(manifestBytes); writeErr != nil {
+			return "", "", fmt.Errorf("encrypt manifest: %w", writeErr)
+		}
+
+		if closeErr := encSetup.Writer.Close(); closeErr != nil {
+			return "", "", fmt.Errorf("flush manifest encryption: %w", closeErr)
+		}
+
+		payload = bytes.NewReader(encrypted.Bytes())
+		payloadSizeBytes = encrypted.Len()
+		saltBase64, nonceBase64 = encSetup.SaltBase64, encSetup.NonceBase64
 	}
 
-	var encrypted bytes.Buffer
+	// The deadline starts here, after encryption, so CPU-bound work never eats the
+	// upload's budget, and it is sized from the bytes that actually go over the wire.
+	saveTimeout := manifestSaveTimeout(payloadSizeBytes)
 
-	encSetup, err := backup_encryption.SetupEncryptionWriter(&encrypted, p.MasterKey, p.BackupID)
-	if err != nil {
-		return "", "", fmt.Errorf("setup manifest encryption: %w", err)
-	}
+	p.Logger.Debug(
+		fmt.Sprintf("uploading manifest sidecar: %.2f MB, timeout %s",
+			float64(payloadSizeBytes)/(1024*1024), saveTimeout),
+		"backup_id", p.BackupID,
+	)
 
-	if _, err := encSetup.Writer.Write(manifestBytes); err != nil {
-		return "", "", fmt.Errorf("encrypt manifest: %w", err)
-	}
+	saveCtx, cancel := context.WithTimeout(ctx, saveTimeout)
+	defer cancel()
 
-	if err := encSetup.Writer.Close(); err != nil {
-		return "", "", fmt.Errorf("flush manifest encryption: %w", err)
-	}
-
-	if err := p.Storage.SaveFile(saveCtx, p.FieldEncryptor, p.Logger, manifestFileName, &encrypted); err != nil {
+	if err := p.Storage.SaveFile(saveCtx, p.FieldEncryptor, p.Logger, manifestFileName, payload); err != nil {
 		return "", "", err
 	}
 
-	return encSetup.SaltBase64, encSetup.NonceBase64, nil
+	return saltBase64, nonceBase64, nil
 }
 
 // isCompressionUnsupportedError reports whether stderr carries pg_basebackup's

@@ -2,6 +2,7 @@ export { databaseApi } from './api/databaseApi';
 export { type Database } from './model/Database';
 export { DatabaseType } from './model/DatabaseType';
 export { getDatabaseLogoFromType } from './model/getDatabaseLogoFromType';
+export { getDatabaseTypeLabel } from './model/getDatabaseTypeLabel';
 export { isPostgresType } from './model/isPostgresType';
 export { initializeDatabaseTypeData } from './model/initializeDatabaseTypeData';
 export { Period } from './model/Period';

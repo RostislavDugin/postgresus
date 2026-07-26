@@ -17,6 +17,8 @@ import (
 // under go test -p=N; 512m dwarfs every test fixture and tmpfs only consumes the bytes written.
 const dataDirTmpfsOptions = "rw,size=512m"
 
+const loopbackIP = "127.0.0.1"
+
 // Endpoint is the reachable address of a started container's primary port.
 type Endpoint struct {
 	Host string
@@ -57,8 +59,9 @@ func startContainer(t *testing.T, req testcontainers.ContainerRequest, mappedPor
 	return ContainerHandle{Endpoint: endpointOf(t, container, mappedPort), Container: container}
 }
 
-// endpointOf honours TESTCONTAINERS_HOST_OVERRIDE, which CI sets to reach containers published on
-// the Docker host bridge.
+// The MySQL client resolves the name "localhost" to a unix socket rather than TCP, and the server
+// lives in a container where no such socket exists. testcontainers reports "localhost" whenever
+// TESTCONTAINERS_HOST_OVERRIDE is unset, i.e. on every local run.
 func endpointOf(t *testing.T, container testcontainers.Container, mappedPort string) Endpoint {
 	t.Helper()
 
@@ -67,6 +70,10 @@ func endpointOf(t *testing.T, container testcontainers.Container, mappedPort str
 	host, err := container.Host(ctx)
 	if err != nil {
 		t.Fatalf("failed to get container host: %v", err)
+	}
+
+	if host == "localhost" {
+		host = loopbackIP
 	}
 
 	port, err := container.MappedPort(ctx, mappedPort)

@@ -23,6 +23,17 @@ const mongodbPort = "27017/tcp"
 // as soon as mongod is listening, so the ceiling is free there.
 const mongodbStartupTimeout = 240 * time.Second
 
+// The image entrypoint boots mongod twice: on 127.0.0.1 to create the root user, then on 0.0.0.0.
+// Docker's proxy accepts on the mapped port during the first boot, so a port check alone hands out
+// a connection that is immediately reset.
+func mongodbReady() wait.Strategy {
+	return wait.ForAll(
+		wait.ForLog("Waiting for connections").
+			WithOccurrence(2).WithStartupTimeout(mongodbStartupTimeout),
+		wait.ForListeningPort(mongodbPort),
+	)
+}
+
 func mongodbEnv() map[string]string {
 	return map[string]string{
 		"MONGO_INITDB_ROOT_USERNAME": MongodbUsername,
@@ -40,7 +51,7 @@ func mongodbRequest(image string) testcontainers.ContainerRequest {
 		Env:          mongodbEnv(),
 		Cmd:          []string{"mongod", "--auth"},
 		Tmpfs:        map[string]string{"/data/db": dataDirTmpfsOptions},
-		WaitingFor:   wait.ForListeningPort(mongodbPort).WithStartupTimeout(mongodbStartupTimeout),
+		WaitingFor:   mongodbReady(),
 	}
 }
 
@@ -72,7 +83,7 @@ func StartMongodbSSL(t *testing.T, pemPath, crtPath string) Endpoint {
 			"--tlsCAFile", "/etc/ssl-test/server.crt",
 			"--tlsAllowConnectionsWithoutCertificates",
 		},
-		WaitingFor: wait.ForListeningPort(mongodbPort).WithStartupTimeout(mongodbStartupTimeout),
+		WaitingFor: mongodbReady(),
 	}
 
 	return start(t, req, mongodbPort)

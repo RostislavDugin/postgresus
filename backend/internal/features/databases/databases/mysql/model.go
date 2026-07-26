@@ -35,7 +35,6 @@ type MysqlDatabase struct {
 	ExcludeTables       []string `json:"excludeTables"       gorm:"-"`
 	ExcludeTablesString string   `json:"-"                   gorm:"column:exclude_tables;type:text;not null;default:''"`
 	Privileges          string   `json:"privileges"          gorm:"column:privileges;type:text;not null;default:''"`
-	IsZstdSupported     bool     `json:"isZstdSupported"     gorm:"column:is_zstd_supported;type:boolean;not null;default:true"`
 	IsUseExtendedInsert bool     `json:"isUseExtendedInsert" gorm:"column:is_use_extended_insert;type:boolean;not null;default:false"`
 }
 
@@ -126,7 +125,6 @@ func (m *MysqlDatabase) TestConnection(
 		return err
 	}
 	m.Privileges = privileges
-	m.IsZstdSupported = detectZstdSupport(ctx, db)
 
 	if err := checkBackupPermissions(m.Privileges); err != nil {
 		return err
@@ -195,7 +193,6 @@ func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
 	m.IsHttps = incoming.IsHttps
 	m.ExcludeTables = incoming.ExcludeTables
 	m.Privileges = incoming.Privileges
-	m.IsZstdSupported = incoming.IsZstdSupported
 	m.IsUseExtendedInsert = incoming.IsUseExtendedInsert
 
 	if incoming.Password != "" {
@@ -255,7 +252,6 @@ func (m *MysqlDatabase) PopulateDbData(
 		return err
 	}
 	m.Privileges = privileges
-	m.IsZstdSupported = detectZstdSupport(ctx, db)
 
 	return nil
 }
@@ -293,7 +289,6 @@ func (m *MysqlDatabase) PopulateVersion(
 		return err
 	}
 	m.Version = detectedVersion
-	m.IsZstdSupported = detectZstdSupport(ctx, db)
 
 	return nil
 }
@@ -687,22 +682,6 @@ func checkBackupPermissions(privileges string) error {
 	}
 
 	return nil
-}
-
-// detectZstdSupport checks if the MySQL server supports zstd network compression.
-// The protocol_compression_algorithms variable was introduced in MySQL 8.0.18.
-// Managed MySQL providers (e.g. PlanetScale) may not support zstd even on 8.0+.
-func detectZstdSupport(ctx context.Context, db *sql.DB) bool {
-	var varName, value string
-
-	err := db.QueryRowContext(ctx,
-		"SHOW VARIABLES LIKE 'protocol_compression_algorithms'",
-	).Scan(&varName, &value)
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(strings.ToLower(value), "zstd")
 }
 
 func decryptPasswordIfNeeded(

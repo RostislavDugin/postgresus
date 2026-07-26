@@ -49,11 +49,15 @@ func (s *HealthcheckAttemptBackgroundService) checkDatabases() {
 	}
 
 	for _, healthcheckConfig := range healthcheckConfigs {
-		go func(healthcheckConfig *healthcheck_config.HealthcheckConfig) {
-			err := s.checkDatabaseHealthUseCase.Execute(now, healthcheckConfig)
+		go func() {
+			err := s.checkDatabaseHealthUseCase.Execute(now, &healthcheckConfig)
 			if err != nil {
-				s.logger.Error("failed to check database health", "error", err)
+				s.logger.Error(
+					"failed to check database health",
+					"database_id", healthcheckConfig.DatabaseID,
+					"error", err,
+				)
 			}
-		}(&healthcheckConfig)
+		}()
 	}
 }

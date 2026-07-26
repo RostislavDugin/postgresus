@@ -534,6 +534,17 @@ func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T)
 	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
 	defer cleanupDatabaseWithBackup(database, backup)
 
+	// Seeded rather than started for real: a restore dispatched over HTTP runs in a goroutine that
+	// reaches a terminal status within milliseconds, so the IN_PROGRESS state the guard reacts to
+	// would be a race.
+	restoreInProgress := restoring.CreateTestRestore(t, backup, restores_core.RestoreStatusInProgress)
+	defer func() {
+		restoreRepository := &restores_core.RestoreRepository{}
+		if err := restoreRepository.DeleteByID(restoreInProgress.ID); err != nil {
+			t.Logf("Failed to delete seeded restore: %v", err)
+		}
+	}()
+
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 			Version:  tools.PostgresqlVersion16,
@@ -544,17 +555,7 @@ func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T)
 		},
 	}
 
-	testResp := test_utils.MakePostRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
-		"Bearer "+owner.Token,
-		request,
-		http.StatusOK,
-	)
-	assert.Contains(t, string(testResp.Body), "restore started successfully")
-
-	testResp2 := test_utils.MakePostRequest(
+	response := test_utils.MakePostRequest(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
@@ -563,7 +564,7 @@ func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T)
 		http.StatusBadRequest,
 	)
 
-	assert.Contains(t, string(testResp2.Body), "another restore is already in progress")
+	assert.Contains(t, string(response.Body), "another restore is already in progress")
 }
 
 func createTestRouter() *gin.Engine {

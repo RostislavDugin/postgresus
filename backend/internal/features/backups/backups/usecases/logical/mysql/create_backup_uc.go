@@ -141,8 +141,6 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 		}
 	}
 
-	args = append(args, uc.getNetworkCompressionArgs(my)...)
-
 	args = append(args, "--max-allowed-packet=1G")
 
 	if my.IsHttps {
@@ -156,28 +154,6 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 	}
 
 	return args
-}
-
-func (uc *CreateMysqlBackupUsecase) getNetworkCompressionArgs(
-	my *mysqltypes.MysqlDatabase,
-) []string {
-	const zstdCompressionLevel = 5
-
-	switch my.Version {
-	case tools.MysqlVersion80, tools.MysqlVersion84, tools.MysqlVersion9:
-		if my.IsZstdSupported {
-			return []string{
-				"--compression-algorithms=zstd",
-				fmt.Sprintf("--zstd-compression-level=%d", zstdCompressionLevel),
-			}
-		}
-
-		return []string{"--compress"}
-	case tools.MysqlVersion57:
-		return []string{"--compress"}
-	default:
-		return []string{"--compress"}
-	}
 }
 
 func (uc *CreateMysqlBackupUsecase) streamToStorage(
@@ -202,7 +178,15 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	}
 	defer func() { _ = os.RemoveAll(filepath.Dir(myCnfFile)) }()
 
-	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
+	compressionArgs := uc.probeNetworkCompressionArgs(ctx, CompressionProbeSpec{
+		MysqldumpBin: mysqlBin,
+		MyCnfFile:    myCnfFile,
+		DatabaseName: *myConfig.Database,
+		DatabaseID:   backup.DatabaseID,
+	}, myConfig.Version)
+
+	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, compressionArgs...)
+	fullArgs = append(fullArgs, args...)
 
 	cmd := exec.CommandContext(ctx, mysqlBin, fullArgs...)
 	uc.logger.Info("Executing MySQL backup command", "command", cmd.String())
@@ -641,11 +625,11 @@ func (uc *CreateMysqlBackupUsecase) handleConnectionErrors(stderrStr string) err
 		)
 	}
 
-	if containsIgnoreCase(stderrStr, "compression algorithm") ||
-		containsIgnoreCase(stderrStr, "2066") {
+	if isCompressionRejection(stderrStr) {
 		return fmt.Errorf(
-			"MySQL connection failed due to unsupported compression algorithm. "+
-				"Try re-saving the database connection to re-detect compression support. stderr: %s",
+			"MySQL rejected the network compression algorithm that had just passed the "+
+				"pre-flight handshake probe. Compression is re-probed on every run, so retry "+
+				"the backup. stderr: %s",
 			stderrStr,
 		)
 	}

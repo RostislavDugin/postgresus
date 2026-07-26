@@ -922,8 +922,6 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 	return username, password, nil
 }
 
-// resolveConnectionTarget merges an unsaved request over the persisted database
-// when an ID is supplied, so a connection test uses the same merge rules as save.
 // fillPhysicalLastBackupTimes populates LastBackupTime for physical databases,
 // whose backups (FULL / INCREMENTAL / WAL) live outside the databases table and so
 // are not denormalized onto the row the way logical backups are. A failure here is
@@ -955,6 +953,8 @@ func (s *DatabaseService) fillPhysicalLastBackupTimes(databases []*Database) {
 	}
 }
 
+// resolveConnectionTarget merges an unsaved request over the persisted database
+// when an ID is supplied, so a connection test uses the same merge rules as save.
 func (s *DatabaseService) resolveConnectionTarget(database *Database) (*Database, error) {
 	if database.ID == uuid.Nil {
 		return database, nil
