@@ -91,11 +91,11 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            {{- toYaml .Values.livenessProbe.probe | nindent 12 }}
-          {{- end }} 
-          {{- if .Values.readinessProbe.enabled }} 
+            {{- toYaml (omit .Values.livenessProbe "enabled") | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            {{- toYaml .Values.readinessProbe.probe | nindent 12 }}
+            {{- toYaml (omit .Values.readinessProbe "enabled") | nindent 12 }}
           {{- end }}
       {{- if or .Values.customRootCA .Values.extraVolumes }}
       volumes:
