@@ -27,6 +27,7 @@ import (
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
 	io_utils "databasus-backend/internal/util/io"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -143,8 +144,8 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 	}
 
 	if my.Database != nil && *my.Database != "" {
-		for _, table := range my.ExcludeTables {
-			args = append(args, "--ignore-table="+*my.Database+"."+table)
+		for _, excludedTable := range namelist.NormalizeUniqueNames(my.ExcludeTables) {
+			args = append(args, "--ignore-table="+*my.Database+"."+excludedTable)
 		}
 	}
 

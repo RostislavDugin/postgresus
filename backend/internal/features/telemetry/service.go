@@ -5,17 +5,12 @@ import (
 	"log/slog"
 	"math"
 	"runtime"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
 
-	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
-	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/notifiers"
-	"databasus-backend/internal/features/storages"
-	verification_agents "databasus-backend/internal/features/verification/agents"
 	verification_config "databasus-backend/internal/features/verification/config"
 )
 
@@ -28,39 +23,6 @@ const (
 	maxArrayEntries = 200
 )
 
-type databaseLister interface {
-	GetAllDatabases() ([]*databases.Database, error)
-}
-
-type storageLister interface {
-	GetAllStorages() ([]*storages.Storage, error)
-}
-
-type notifierLister interface {
-	GetAllNotifiers() ([]*notifiers.Notifier, error)
-}
-
-type backupChecker interface {
-	HasSuccessfulBackupSince(databaseID uuid.UUID, since time.Time) (bool, error)
-	GetLatestCompletedBackup(databaseID uuid.UUID) (*backups_core_logical.LogicalBackup, error)
-}
-
-type physicalFullBackupSizer interface {
-	GetLatestCompletedFullBackup(databaseID uuid.UUID) (*physical_models.PhysicalFullBackup, error)
-}
-
-type userCounter interface {
-	GetUsersCount() (int64, error)
-}
-
-type verificationAgentLister interface {
-	ListAgents() ([]*verification_agents.Agent, error)
-}
-
-type verificationConfigLister interface {
-	ListEnabled() ([]*verification_config.BackupVerificationConfig, error)
-}
-
 type TelemetryService struct {
 	instanceLoader            *InstanceFileLoader
 	sender                    TelemetrySender
@@ -68,7 +30,7 @@ type TelemetryService struct {
 	storageService            storageLister
 	notifierService           notifierLister
 	backupService             backupChecker
-	physicalBackupService     physicalFullBackupSizer
+	physicalBackupService     latestPhysicalBackupReader
 	verificationAgentService  verificationAgentLister
 	verificationConfigService verificationConfigLister
 	userService               userCounter
@@ -83,7 +45,7 @@ func NewTelemetryService(
 	storageService storageLister,
 	notifierService notifierLister,
 	backupService backupChecker,
-	physicalBackupService physicalFullBackupSizer,
+	physicalBackupService latestPhysicalBackupReader,
 	verificationAgentService verificationAgentLister,
 	verificationConfigService verificationConfigLister,
 	userService userCounter,
@@ -149,10 +111,10 @@ func (s *TelemetryService) BuildAndSend(ctx context.Context) error {
 		Arch:               runtime.GOARCH,
 		InstalledAt:        instance.InstalledAt,
 		UserCount:          int(userCount),
-		Databases:          capDatabases(databaseEntries),
-		Storages:           capStrings(storageTypes),
-		Notifiers:          capStrings(notifierTypes),
-		VerificationAgents: capAgents(verificationAgents),
+		Databases:          capEntries(databaseEntries),
+		Storages:           capEntries(storageTypes),
+		Notifiers:          capEntries(notifierTypes),
+		VerificationAgents: capEntries(verificationAgents),
 	}
 
 	return s.sender.Send(ctx, req)
@@ -183,11 +145,16 @@ func (s *TelemetryService) collectActiveDatabases(
 		return nil, err
 	}
 
+	lastPhysicalBackupTimes, err := s.loadLastPhysicalBackupTimes(allDatabases)
+	if err != nil {
+		return nil, err
+	}
+
 	since := time.Now().UTC().Add(-activeBackupWindow)
 	entries := make([]DatabaseEntry, 0, len(allDatabases))
 
 	for _, db := range allDatabases {
-		isActive, err := s.isDatabaseActive(db, since)
+		isActive, err := s.isDatabaseActive(db, since, lastPhysicalBackupTimes)
 		if err != nil {
 			return nil, err
 		}
@@ -249,10 +216,8 @@ func (s *TelemetryService) collectVerificationAgents() ([]VerificationAgentEntry
 	return entries, nil
 }
 
-// attachBackupSizes records raw/compressed size from the size-of-record backup.
 // Physical databases have no logical backup rows, so their size comes from the
-// latest completed physical FULL backup; every other type uses the latest
-// completed logical backup.
+// latest completed physical FULL backup.
 func (s *TelemetryService) attachBackupSizes(
 	entry *DatabaseEntry,
 	db *databases.Database,
@@ -305,21 +270,45 @@ func (s *TelemetryService) attachPhysicalBackupSizes(
 	return nil
 }
 
-// isDatabaseActive returns true when a database should be counted in telemetry.
-//
-//   - HealthStatus == AVAILABLE   → active.
-//   - HealthStatus == UNAVAILABLE → not active (healthcheck is on and the DB is down).
-//   - HealthStatus == nil         → healthcheck is disabled; active only if a
-//     successful backup happened inside `since`.
+// A nil HealthStatus means the healthcheck is switched off for that database, not that it is
+// broken, so the backup recency of the owning engine decides instead.
 func (s *TelemetryService) isDatabaseActive(
 	db *databases.Database,
 	since time.Time,
+	lastPhysicalBackupTimes map[uuid.UUID]time.Time,
 ) (bool, error) {
 	if db.HealthStatus != nil {
 		return *db.HealthStatus == databases.HealthStatusAvailable, nil
 	}
 
+	if db.Type == databases.DatabaseTypePostgresPhysical {
+		lastBackupTime, hasBackup := lastPhysicalBackupTimes[db.ID]
+
+		return hasBackup && lastBackupTime.After(since), nil
+	}
+
 	return s.backupService.HasSuccessfulBackupSince(db.ID, since)
+}
+
+// Only databases whose activity check will actually read the map are queried, so an instance
+// where every physical database is healthchecked never pays for — nor fails a whole ping on — a
+// query it would ignore.
+func (s *TelemetryService) loadLastPhysicalBackupTimes(
+	allDatabases []*databases.Database,
+) (map[uuid.UUID]time.Time, error) {
+	physicalDatabaseIDs := make([]uuid.UUID, 0, len(allDatabases))
+
+	for _, db := range allDatabases {
+		if db.Type == databases.DatabaseTypePostgresPhysical && db.HealthStatus == nil {
+			physicalDatabaseIDs = append(physicalDatabaseIDs, db.ID)
+		}
+	}
+
+	if len(physicalDatabaseIDs) == 0 {
+		return map[uuid.UUID]time.Time{}, nil
+	}
+
+	return s.physicalBackupService.GetLastBackupTimesByDatabaseIDs(physicalDatabaseIDs)
 }
 
 func buildDatabaseEntry(db *databases.Database) (DatabaseEntry, bool) {
@@ -366,18 +355,19 @@ func (s *TelemetryService) collectStorageTypes() ([]string, error) {
 		return nil, err
 	}
 
-	types := make([]string, 0, len(allStorages))
-	for _, st := range allStorages {
-		key := string(st.Type)
-		if key == "" {
+	storageTypes := make([]string, 0, len(allStorages))
+
+	for _, storage := range allStorages {
+		if storage.Type == "" {
 			continue
 		}
 
-		types = append(types, key)
+		storageTypes = append(storageTypes, string(storage.Type))
 	}
 
-	sort.Strings(types)
-	return types, nil
+	slices.Sort(storageTypes)
+
+	return storageTypes, nil
 }
 
 func (s *TelemetryService) collectNotifierTypes() ([]string, error) {
@@ -386,40 +376,25 @@ func (s *TelemetryService) collectNotifierTypes() ([]string, error) {
 		return nil, err
 	}
 
-	types := make([]string, 0, len(allNotifiers))
-	for _, n := range allNotifiers {
-		key := string(n.NotifierType)
-		if key == "" {
+	notifierTypes := make([]string, 0, len(allNotifiers))
+
+	for _, notifier := range allNotifiers {
+		if notifier.NotifierType == "" {
 			continue
 		}
 
-		types = append(types, key)
+		notifierTypes = append(notifierTypes, string(notifier.NotifierType))
 	}
 
-	sort.Strings(types)
-	return types, nil
+	slices.Sort(notifierTypes)
+
+	return notifierTypes, nil
 }
 
-func capStrings(in []string) []string {
-	if len(in) > maxArrayEntries {
-		return in[:maxArrayEntries]
+func capEntries[T any](entries []T) []T {
+	if len(entries) > maxArrayEntries {
+		return entries[:maxArrayEntries]
 	}
 
-	return in
-}
-
-func capDatabases(in []DatabaseEntry) []DatabaseEntry {
-	if len(in) > maxArrayEntries {
-		return in[:maxArrayEntries]
-	}
-
-	return in
-}
-
-func capAgents(in []VerificationAgentEntry) []VerificationAgentEntry {
-	if len(in) > maxArrayEntries {
-		return in[:maxArrayEntries]
-	}
-
-	return in
+	return entries
 }

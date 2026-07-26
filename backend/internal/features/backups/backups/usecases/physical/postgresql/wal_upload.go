@@ -59,10 +59,14 @@ type WalUploader struct {
 
 	mu                 sync.Mutex
 	lastNotifiedGapEnd walmath.LSN
+
+	// The uploader loop retries every second, so a torn segment that never gets
+	// re-streamed would otherwise warn once per second forever.
+	warnedIncompleteSegments map[string]struct{}
 }
 
 func NewWalUploader(deps WalUploadDeps) *WalUploader {
-	return &WalUploader{deps: deps}
+	return &WalUploader{deps: deps, warnedIncompleteSegments: make(map[string]struct{})}
 }
 
 // ProcessSegment runs the full insert-first claim flow for one finalized WAL
@@ -74,6 +78,14 @@ func (u *WalUploader) ProcessSegment(ctx context.Context, localPath, walFilename
 	if err != nil {
 		return err
 	}
+
+	if !isCompleteSegmentFile(localPath, u.deps.WalSegmentSizeBytes) {
+		u.warnIncompleteSegmentOnce(walFilename)
+
+		return nil
+	}
+
+	u.forgetIncompleteSegment(walFilename)
 
 	claim := &physical_models.PhysicalWalSegment{
 		ID:          uuid.New(),
@@ -112,6 +124,14 @@ func (u *WalUploader) RecoverSegment(ctx context.Context, localPath, walFilename
 	if err != nil {
 		return err
 	}
+
+	if !isCompleteSegmentFile(localPath, u.deps.WalSegmentSizeBytes) {
+		u.warnIncompleteSegmentOnce(walFilename)
+
+		return nil
+	}
+
+	u.forgetIncompleteSegment(walFilename)
 
 	claim := &physical_models.PhysicalWalSegment{
 		ID:          uuid.New(),
@@ -341,6 +361,26 @@ func (u *WalUploader) removeLocal(localPath, walFilename string) {
 	if err := os.Remove(localPath); err != nil && !os.IsNotExist(err) {
 		u.deps.Logger.Warn("failed to remove local wal segment", "wal_filename", walFilename, "error", err)
 	}
+}
+
+func (u *WalUploader) warnIncompleteSegmentOnce(walFilename string) {
+	u.mu.Lock()
+	_, wasWarned := u.warnedIncompleteSegments[walFilename]
+	u.warnedIncompleteSegments[walFilename] = struct{}{}
+	u.mu.Unlock()
+
+	if wasWarned {
+		return
+	}
+
+	u.deps.Logger.Warn("skipping incomplete local wal segment", "wal_filename", walFilename)
+}
+
+func (u *WalUploader) forgetIncompleteSegment(walFilename string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	delete(u.warnedIncompleteSegments, walFilename)
 }
 
 func segmentBounds(walFilename string, segSizeBytes int64) (timelineID int, startLSN, endLSN walmath.LSN, err error) {

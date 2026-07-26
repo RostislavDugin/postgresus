@@ -446,7 +446,7 @@ func testMysqlBackupRestoreWithExcludeTablesForVersion(
 		user.Token,
 	)
 
-	database.Mysql.ExcludeTables = []string{"extra_table"}
+	database.Mysql.ExcludeTables = []string{"\nextra_table"}
 	w := workspaces_testing.MakeAPIRequest(
 		router,
 		"POST",

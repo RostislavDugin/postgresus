@@ -71,11 +71,24 @@ func CreateTestPhysicalScheduler() *PhysicalBackupsScheduler {
 	}
 }
 
+type WalStreamSupervisorTestSpec struct {
+	NotificationSender NotificationSender
+
+	// Zero means the production default; the streamer spec in the executor package
+	// reads zero as "disabled", hence the different name.
+	ChainAlertMinIntervalOverride time.Duration
+}
+
 // CreateTestWalStreamSupervisor returns a fresh WAL stream supervisor wired to
 // the production repos and services. A fresh instance (not a copy of the DI
 // singleton) keeps each test's hasRun/running state isolated and avoids copying
 // the embedded mutex.
-func CreateTestWalStreamSupervisor(notificationSender NotificationSender) *PhysicalWalStreamSupervisor {
+func CreateTestWalStreamSupervisor(spec WalStreamSupervisorTestSpec) *PhysicalWalStreamSupervisor {
+	chainAlertMinInterval := spec.ChainAlertMinIntervalOverride
+	if chainAlertMinInterval == 0 {
+		chainAlertMinInterval = defaultChainAlertMinInterval
+	}
+
 	return &PhysicalWalStreamSupervisor{
 		databases.GetDatabaseService(),
 		backups_config_physical.GetBackupConfigService(),
@@ -83,11 +96,12 @@ func CreateTestWalStreamSupervisor(notificationSender NotificationSender) *Physi
 		physical_repositories.GetWalSegmentRepository(),
 		physical_repositories.GetWalHistoryRepository(),
 		physical_repositories.GetWalStreamerRepository(),
-		notificationSender,
+		spec.NotificationSender,
 		tasks_cancellation.GetTaskCancelManager(),
 		encryption_secrets.GetSecretKeyService(),
 		encryption.GetFieldEncryptor(),
 		logger.GetLogger(),
+		chainAlertMinInterval,
 		sync.Mutex{},
 		make(map[uuid.UUID]*runningStreamer),
 		atomicTime{},
@@ -163,7 +177,9 @@ func StartPhysicalSchedulerForTest(t *testing.T) context.CancelFunc {
 func StartPhysicalWalStreamSupervisorForTest(t *testing.T) context.CancelFunc {
 	t.Helper()
 
-	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 

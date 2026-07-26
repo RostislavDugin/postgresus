@@ -26,6 +26,7 @@ import (
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -366,12 +367,12 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlL
 		"--verbose",
 	}
 
-	for _, schema := range pg.IncludeSchemas {
-		args = append(args, "-n", schema)
+	for _, includedSchema := range namelist.NormalizeUniqueNames(pg.IncludeSchemas) {
+		args = append(args, "-n", includedSchema)
 	}
 
-	for _, table := range pg.ExcludeTables {
-		args = append(args, "--exclude-table="+table)
+	for _, excludedTable := range namelist.NormalizeUniqueNames(pg.ExcludeTables) {
+		args = append(args, "--exclude-table="+excludedTable)
 	}
 
 	compressionArgs := uc.getCompressionArgs(pg.Version)

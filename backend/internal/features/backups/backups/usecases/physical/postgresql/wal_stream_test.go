@@ -2,8 +2,12 @@ package usecases_physical_postgresql
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +19,7 @@ import (
 	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
 	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
@@ -32,7 +37,10 @@ func Test_WalStream_FullIncrementalAndWalStream_StreamerArchivesSegments(t *test
 
 	store := newMockWalStorage()
 
-	stop := StartWalStreamerForTest(t, fixture, store, t.TempDir()).Stop
+	stop := StartWalStreamerForTest(
+		t,
+		WalStreamerTestSpec{Fixture: fixture, Storage: store, WatchDirRoot: t.TempDir()},
+	).Stop
 	t.Cleanup(stop)
 
 	adminConn := OpenAdminConn(t, fixture)
@@ -129,8 +137,18 @@ func Test_WalStream_MultipleDbs_EachArchivesSegmentsIndependently(t *testing.T) 
 	storeA := newMockWalStorage()
 	storeB := newMockWalStorage()
 
-	t.Cleanup(StartWalStreamerForTest(t, fixtureA, storeA, t.TempDir()).Stop)
-	t.Cleanup(StartWalStreamerForTest(t, fixtureB, storeB, t.TempDir()).Stop)
+	t.Cleanup(
+		StartWalStreamerForTest(
+			t,
+			WalStreamerTestSpec{Fixture: fixtureA, Storage: storeA, WatchDirRoot: t.TempDir()},
+		).Stop,
+	)
+	t.Cleanup(
+		StartWalStreamerForTest(
+			t,
+			WalStreamerTestSpec{Fixture: fixtureB, Storage: storeB, WatchDirRoot: t.TempDir()},
+		).Stop,
+	)
 
 	connA := OpenAdminConn(t, fixtureA)
 
@@ -166,7 +184,12 @@ func Test_WalStream_MissingSegmentInStreamedChain_SurfacesAsGapChainStaysExtenda
 	store := newMockWalStorage()
 	adminConn := OpenAdminConn(t, fixture)
 
-	t.Cleanup(StartWalStreamerForTest(t, fixture, store, t.TempDir()).Stop)
+	t.Cleanup(
+		StartWalStreamerForTest(
+			t,
+			WalStreamerTestSpec{Fixture: fixture, Storage: store, WatchDirRoot: t.TempDir()},
+		).Stop,
+	)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
@@ -228,7 +251,11 @@ func Test_WalStream_SlotLagGrowsWithoutConsumer_DrainsOnceStreaming(t *testing.T
 	WaitUntilSlotLag(t, adminConn, slotName, lagTarget, 30*time.Second)
 
 	// Once our streamer attaches, it consumes the backlog and the lag drains.
-	t.Cleanup(StartWalStreamerForTest(t, fixture, newMockWalStorage(), t.TempDir()).Stop)
+	t.Cleanup(StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      newMockWalStorage(),
+		WatchDirRoot: t.TempDir(),
+	}).Stop)
 
 	deadline := time.Now().UTC().Add(60 * time.Second)
 	for time.Now().UTC().Before(deadline) {
@@ -263,7 +290,8 @@ func Test_WalStream_CustomWalSegmentSize_LsnMathCorrect(t *testing.T) {
 	// logid=2, segLow=3 starts at (2<<32) + 3*64MB.
 	dir := t.TempDir()
 	name := "000000010000000200000003"
-	require.NoError(t, uploader.ProcessSegment(context.Background(), writeWalFile(t, dir, name), name))
+	segmentPath := writeSegmentOfSize(t, dir, name, customSegSize)
+	require.NoError(t, uploader.ProcessSegment(context.Background(), segmentPath, name))
 
 	expectedStartLSN := walmath.LSN((uint64(2) << 32) + 3*uint64(customSegSize))
 
@@ -338,7 +366,11 @@ func Test_WalStream_ResumePointBelowSlotRestartLsn_RealignsAndKeepsStreaming(t *
 	store := newMockWalStorage()
 	store.startFailingSaves()
 
-	firstRun := StartWalStreamerForTest(t, fixture, store, watchDirRoot)
+	firstRun := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      store,
+		WatchDirRoot: watchDirRoot,
+	})
 
 	for range 3 {
 		_, err := ForceWalRotation(ctx, adminConn)
@@ -375,7 +407,11 @@ func Test_WalStream_ResumePointBelowSlotRestartLsn_RealignsAndKeepsStreaming(t *
 
 	requireQueueBelowSlot(t, ctx, adminConn, slotName, resumeSegmentNo)
 
-	secondRun := StartWalStreamerForTest(t, fixture, store, watchDirRoot)
+	secondRun := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      store,
+		WatchDirRoot: watchDirRoot,
+	})
 	t.Cleanup(secondRun.Stop)
 
 	pendingUploadDir := filepath.Join(secondRun.WatchDir, pendingUploadDirName)
@@ -486,4 +522,300 @@ func requireQueueBelowSlot(
 
 	require.Less(t, uint64(resumeSegmentNo), uint64(segmentNoAtLSN(slotState.RestartLSN, segmentSizeBytes)),
 		"the queue must sit below the recreated slot for this test to mean anything")
+}
+
+// The supervisor invokes these callbacks from its own loops, so a plain slice
+// would race with the assertions (and with require.Eventually's polling
+// goroutine).
+type chainEventRecorder struct {
+	mu      sync.Mutex
+	reasons []string
+}
+
+func (r *chainEventRecorder) recordReason(reason string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.reasons = append(r.reasons, reason)
+}
+
+func (r *chainEventRecorder) getReasons() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.reasons)
+}
+
+func (r *chainEventRecorder) getReasonCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return len(r.reasons)
+}
+
+func Test_RecordMismatchAndDecideEscalation_WhenFirstMismatch_RetriesAfterRealign(t *testing.T) {
+	var mismatchEscalator resumeMismatchEscalator
+
+	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation(),
+		"a realign clears the resume path, so the next spawn deserves a chance before the chain is broken")
+}
+
+func Test_RecordMismatchAndDecideEscalation_WhenSecondMismatch_RequestsSlotRebuild(t *testing.T) {
+	var mismatchEscalator resumeMismatchEscalator
+
+	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation())
+	require.Equal(t, resumeMismatchActionRebuildSlot, mismatchEscalator.recordMismatchAndDecideEscalation(),
+		"a realigned queue that still asks for recycled WAL means the slot itself no longer covers the source")
+}
+
+func Test_RecordMismatchAndDecideEscalation_WhenHealthyRunBetweenMismatches_ResetsCounter(t *testing.T) {
+	var mismatchEscalator resumeMismatchEscalator
+
+	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation())
+
+	mismatchEscalator.reset()
+
+	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation(),
+		"mismatches must be back-to-back to escalate; a healthy run in between clears the incident")
+}
+
+func Test_RecordMismatchAndDecideEscalation_AfterRebuild_StartsCountingFromScratch(t *testing.T) {
+	var mismatchEscalator resumeMismatchEscalator
+
+	mismatchEscalator.recordMismatchAndDecideEscalation()
+	require.Equal(t, resumeMismatchActionRebuildSlot, mismatchEscalator.recordMismatchAndDecideEscalation())
+
+	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation(),
+		"a rebuild is expensive, so the next one needs its own pair of mismatches")
+}
+
+func Test_WalStream_WhenSourceIsIdle_KeepsReceiverAliveAndDoesNotRebuildSlot(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	adminConn := OpenAdminConn(t, fixture)
+	slotName := fixture.DB.PostgresqlPhysical.ReplicationSlotName
+
+	var slotRebuilds, chainRisks chainEventRecorder
+
+	streamer := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      newMockWalStorage(),
+		WatchDirRoot: t.TempDir(),
+		OnSlotRebuilt: func(_ context.Context, reason string) error {
+			slotRebuilds.recordReason(reason)
+
+			return nil
+		},
+		OnChainAtRisk: func(report ChainRiskReport) {
+			chainRisks.recordReason(report.Reason)
+		},
+	})
+	t.Cleanup(streamer.Stop)
+
+	attachedReceiverPID := waitForAttachedReceiverPID(t, adminConn, slotName)
+
+	// The stall window is 60 s and the watcher polls every 10 s, so this outlasts
+	// several full detection cycles: restart_lsn parking on an idle source is not a
+	// stall, and must not cost the receiver its connection.
+	idleDeadline := time.Now().UTC().Add(150 * time.Second)
+	for time.Now().UTC().Before(idleDeadline) {
+		slotState, err := InspectSlot(t.Context(), adminConn, slotName)
+		require.NoError(t, err)
+		require.NotNil(t, slotState)
+		require.NotNil(t, slotState.ActivePID, "an idle database is not a reason to drop the replication connection")
+		require.Equal(t, attachedReceiverPID, *slotState.ActivePID,
+			"restart_lsn parks legitimately while nothing is written; restarting pg_receivewal over it is the bug")
+
+		time.Sleep(2 * time.Second)
+	}
+
+	streamer.Stop()
+
+	require.Empty(t, slotRebuilds.getReasons(),
+		"an idle database must never cost a WAL gap and an out-of-cadence full backup")
+	require.Empty(t, chainRisks.getReasons())
+	require.Empty(t, streamer.Supervisor.GetSlotRebuildTimestamps())
+}
+
+func waitForAttachedReceiverPID(t *testing.T, adminConn *pgx.Conn, slotName string) int {
+	t.Helper()
+
+	var attachedReceiverPID int
+
+	require.Eventually(t, func() bool {
+		slotState, err := InspectSlot(t.Context(), adminConn, slotName)
+		if err != nil || slotState == nil || slotState.ActivePID == nil {
+			return false
+		}
+
+		attachedReceiverPID = *slotState.ActivePID
+
+		return true
+	}, 60*time.Second, 250*time.Millisecond, "pg_receivewal never attached to the slot")
+
+	return attachedReceiverPID
+}
+
+func Test_WalStream_WhenSourceWritesRarely_UploadsSegmentWithinRotationInterval(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	adminConn := OpenAdminConn(t, fixture)
+
+	t.Cleanup(StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:                fixture,
+		Storage:                newMockWalStorage(),
+		WatchDirRoot:           t.TempDir(),
+		ForcedRotationInterval: time.Second,
+	}).Stop)
+
+	// A handful of rows is nowhere near a full segment, so without a forced
+	// rotation this WAL would sit in the local queue for as long as the source
+	// stays quiet.
+	_, err := GenerateWalActivity(t.Context(), adminConn, 4096)
+	require.NoError(t, err)
+
+	WaitForCommittedWalSegmentCount(t, fixture.DB.ID, 1, 90*time.Second)
+}
+
+func Test_WalStream_WhenSwitchWalIsRefused_AlertsOnceAndStopsRotating(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	adminConn := OpenAdminConn(t, fixture)
+
+	fixture.DB.PostgresqlPhysical = createReplicationOnlyRole(t, adminConn, fixture)
+
+	var chainRisks chainEventRecorder
+
+	t.Cleanup(StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:                fixture,
+		Storage:                newMockWalStorage(),
+		WatchDirRoot:           t.TempDir(),
+		ForcedRotationInterval: time.Second,
+		OnChainAtRisk: func(report ChainRiskReport) {
+			chainRisks.recordReason(report.Reason)
+		},
+	}).Stop)
+
+	_, err := GenerateWalActivity(t.Context(), adminConn, 4096)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return chainRisks.getReasonCount() > 0
+	}, 90*time.Second, 500*time.Millisecond, "a source that refuses pg_switch_wal must be reported, not retried silently")
+
+	require.Equal(t, []string{ChainRiskReasonRotationDenied}, chainRisks.getReasons())
+
+	// The refusal is permanent, so the loop must be gone rather than re-alerting
+	// every interval; streaming itself is unaffected.
+	require.Never(t, func() bool {
+		return chainRisks.getReasonCount() > 1
+	}, 5*time.Second, time.Second, "a permanent refusal must be reported once, not once per interval")
+
+	_, err = ForceWalRotation(t.Context(), adminConn)
+	require.NoError(t, err)
+
+	WaitForCommittedWalSegmentCount(t, fixture.DB.ID, 1, 90*time.Second)
+}
+
+// The physical backup role only needs REPLICATION, and PostgreSQL restricts
+// pg_switch_wal to superusers unless EXECUTE is granted — so this is what a real
+// deployment looks like, not a contrived setup.
+func createReplicationOnlyRole(
+	t *testing.T,
+	adminConn *pgx.Conn,
+	fixture *PhysicalDBFixture,
+) *postgresql_physical.PostgresqlPhysicalDatabase {
+	t.Helper()
+
+	roleName := "databasus_no_switch_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:12]
+
+	_, err := adminConn.Exec(t.Context(),
+		fmt.Sprintf("CREATE ROLE %s LOGIN REPLICATION PASSWORD 'switchless'", pgx.Identifier{roleName}.Sanitize()),
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, _ = adminConn.Exec(context.Background(),
+			fmt.Sprintf(
+				"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = %s",
+				pgx.Identifier{roleName}.Sanitize(),
+			),
+		)
+		_, _ = adminConn.Exec(context.Background(),
+			fmt.Sprintf("DROP ROLE IF EXISTS %s", pgx.Identifier{roleName}.Sanitize()),
+		)
+	})
+
+	replicationOnlySourceDB := *fixture.DB.PostgresqlPhysical
+	replicationOnlySourceDB.Username = roleName
+	replicationOnlySourceDB.Password = "switchless"
+
+	return &replicationOnlySourceDB
+}
+
+func Test_WalStream_WhenUploadsKeepFailing_AlertsArchiveStaleOnce(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	adminConn := OpenAdminConn(t, fixture)
+
+	store := newMockWalStorage()
+	store.startFailingSaves()
+
+	var chainRisks chainEventRecorder
+
+	t.Cleanup(StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:                   fixture,
+		Storage:                   store,
+		WatchDirRoot:              t.TempDir(),
+		ArchiveStalenessThreshold: time.Second,
+		OnChainAtRisk: func(report ChainRiskReport) {
+			chainRisks.recordReason(report.Reason)
+		},
+	}).Stop)
+
+	// The source has to keep writing: an archive that stands still behind an idle
+	// source is not falling behind, it is just waiting for the next segment.
+	require.Eventually(t, func() bool {
+		_, err := GenerateWalActivity(t.Context(), adminConn, 4096)
+
+		return err == nil && chainRisks.getReasonCount() > 0
+	}, 3*time.Minute, 2*time.Second,
+		"WAL the source already wrote is not reaching storage — the recovery point has stopped advancing")
+
+	require.Equal(t, []string{ChainRiskReasonArchiveStale}, chainRisks.getReasons(),
+		"one alert per incident, not one per lag-monitor tick")
+
+	store.stopFailingSaves()
+
+	WaitForCommittedWalSegmentCount(t, fixture.DB.ID, 1, 90*time.Second)
+
+	require.Len(t, chainRisks.getReasons(), 1)
 }

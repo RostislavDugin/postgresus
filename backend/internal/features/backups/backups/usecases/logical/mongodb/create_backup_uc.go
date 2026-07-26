@@ -23,6 +23,7 @@ import (
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -111,8 +112,8 @@ func (uc *CreateMongodbBackupUsecase) buildMongodumpArgs(
 		"--gzip",
 	}
 
-	for _, collection := range mdb.ExcludeCollections {
-		args = append(args, "--excludeCollection="+collection)
+	for _, excludedCollection := range namelist.NormalizeUniqueNames(mdb.ExcludeCollections) {
+		args = append(args, "--excludeCollection="+excludedCollection)
 	}
 
 	// Use numParallelCollections based on CPU count

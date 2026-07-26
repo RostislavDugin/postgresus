@@ -11,6 +11,7 @@ import (
 
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/storage"
@@ -133,7 +134,9 @@ func Test_ClaimIfClaimable_WhenConcurrentClaims_ExactlyOneWins(t *testing.T) {
 }
 
 func Test_PhysicalWalStreamSupervisorRun_WhenCalledTwice_Panics(t *testing.T) {
-	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
 
 	ctx := t.Context()
 
@@ -156,7 +159,9 @@ func Test_PhysicalWalStreamSupervisorRun_WhenCalledTwice_Panics(t *testing.T) {
 
 func Test_StopStreamer_WhenOwnedStreamerStops_MarksRowFailed(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
-	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
 	require.NoError(t, physical_repositories.GetWalStreamerRepository().Claim(prereqs.DB.ID))
 
 	done := make(chan struct{})
@@ -184,7 +189,9 @@ func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T
 		physical_enums.PhysicalWalStreamerStatusRunning,
 	)
 
-	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
 
 	require.NoError(t, supervisor.recoverStreamersOnStartup())
 
@@ -195,7 +202,9 @@ func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T
 }
 
 func Test_RemoveWatchDirIfRequested_WhenCleanupRequested_RemovesQueue(t *testing.T) {
-	supervisor := CreateTestWalStreamSupervisor(notifiers.GetNotifierService())
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
 	watchDir := filepath.Join(t.TempDir(), "wal-queue")
 	require.NoError(t, os.MkdirAll(watchDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(watchDir, "segment"), []byte("wal"), 0o600))
@@ -212,7 +221,7 @@ func Test_NotifyChainBroken_WhenSameIncidentRepeats_SendsOneNotificationPerWindo
 	prereqs := seedBackupPrereqs(t)
 
 	sender := &recordingNotificationSender{}
-	supervisor := CreateTestWalStreamSupervisor(sender)
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{NotificationSender: sender})
 
 	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
 		backups_config_physical.NotificationChainBroken,
@@ -236,7 +245,7 @@ func Test_NotifyChainBroken_WhenConfigDoesNotOptIn_SendsNoNotification(t *testin
 	prereqs := seedBackupPrereqs(t)
 
 	sender := &recordingNotificationSender{}
-	supervisor := CreateTestWalStreamSupervisor(sender)
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{NotificationSender: sender})
 
 	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
 		backups_config_physical.NotificationBackupSuccess,
@@ -255,7 +264,7 @@ func Test_NotifyChainBroken_WhenDifferentIncidentKinds_SendsEachOnce(t *testing.
 	prereqs := seedBackupPrereqs(t)
 
 	sender := &recordingNotificationSender{}
-	supervisor := CreateTestWalStreamSupervisor(sender)
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{NotificationSender: sender})
 
 	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
 		backups_config_physical.NotificationChainBroken,
@@ -276,4 +285,98 @@ func Test_NotifyChainBroken_WhenDifferentIncidentKinds_SendsEachOnce(t *testing.
 		"a retention warning must not swallow the rebuild alert that reports the new chain anchor")
 	require.Equal(t, "chain at risk", sender.sentNotifications[0].Notification.Heading)
 	require.Equal(t, "chain rebuilt", sender.sentNotifications[1].Notification.Heading)
+}
+
+func Test_NotifyChainBroken_WhenThrottleWindowElapsed_SendsAgain(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender:            sender,
+		ChainAlertMinIntervalOverride: time.Millisecond,
+	})
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationChainBroken,
+	}
+
+	streamerFailed := chainAlert{
+		Kind:    chainAlertStreamerFailed,
+		Heading: "WAL streaming stopped",
+		Message: "database_id=x",
+	}
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+
+	time.Sleep(5 * time.Millisecond)
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+
+	require.Len(t, sender.sentNotifications, 2,
+		"the throttle must mute a burst, not the incident itself — an unfixed break has to keep reminding the operator")
+}
+
+func Test_StopStreamer_WhenStreamerStops_ForgetsChainAlertThrottle(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{NotificationSender: sender})
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationChainBroken,
+	}
+
+	streamerFailed := chainAlert{
+		Kind:    chainAlertStreamerFailed,
+		Heading: "WAL streaming stopped",
+		Message: "database_id=x",
+	}
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+
+	done := make(chan struct{})
+	close(done)
+
+	supervisor.running[prereqs.DB.ID] = &runningStreamer{cancel: func() {}, done: done}
+	supervisor.stopStreamer(prereqs.DB.ID, false)
+
+	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+
+	require.Len(t, sender.sentNotifications, 2,
+		"a reclaimed database is a fresh incident, so the throttle from the previous streamer must not mute it")
+}
+
+func Test_ChainRiskNotifier_WhenReasonsDiffer_UsesSeparateThrottleKinds(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	sender := &recordingNotificationSender{}
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{NotificationSender: sender})
+
+	prereqs.Config.SendNotificationsOn = []backups_config_physical.BackupNotificationType{
+		backups_config_physical.NotificationChainBroken,
+	}
+
+	notifyChainRisk := supervisor.chainRiskNotifier(prereqs.DB, prereqs.Config)
+
+	lastArchivedWalAt := time.Now().UTC().Add(-2 * time.Hour)
+
+	notifyChainRisk(postgresql_executor.ChainRiskReport{
+		Reason:        postgresql_executor.ChainRiskReasonSlotRetention,
+		SlotWalStatus: "extended",
+		LagBytes:      64 * 1024 * 1024,
+	})
+	notifyChainRisk(postgresql_executor.ChainRiskReport{
+		Reason:            postgresql_executor.ChainRiskReasonArchiveStale,
+		LagBytes:          16 * 1024 * 1024,
+		LastArchivedWalAt: &lastArchivedWalAt,
+	})
+	notifyChainRisk(postgresql_executor.ChainRiskReport{
+		Reason: postgresql_executor.ChainRiskReasonRotationDenied,
+	})
+
+	require.Len(t, sender.sentNotifications, 3,
+		"a slot-retention warning must not mute the alerts about a stalled recovery point or a refused rotation")
+
+	require.Contains(t, sender.sentNotifications[1].Notification.Message, lastArchivedWalAt.Format(time.RFC3339))
+	require.Contains(t, sender.sentNotifications[2].Notification.Message, "pg_switch_wal()")
 }

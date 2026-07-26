@@ -91,10 +91,21 @@ type ParentManifestRef struct {
 	StopLSN    walmath.LSN
 }
 
-// Payload of WalStreamSpec.OnChainAtRisk. Reason is a walBreakReason string:
-// the type is unexported, and the wiring package cannot name it.
+// Values of ChainRiskReport.Reason. Exported because the wiring package routes
+// each one to its own notification kind, and the walBreakReason type it comes
+// from is unexported.
+const (
+	ChainRiskReasonSlotRetention  = "SLOT_WAL_RETENTION"
+	ChainRiskReasonArchiveStale   = "WAL_ARCHIVE_STALE"
+	ChainRiskReasonRotationDenied = "WAL_ROTATION_DENIED"
+)
+
+// Payload of WalStreamSpec.OnChainAtRisk. SlotWalStatus and LagBytes describe the
+// slot; LastArchivedWalAt is set only for ChainRiskReasonArchiveStale, where the
+// question is how far the recovery point has fallen behind.
 type ChainRiskReport struct {
-	Reason        string
-	SlotWalStatus string
-	LagBytes      int64
+	Reason            string
+	SlotWalStatus     string
+	LagBytes          int64
+	LastArchivedWalAt *time.Time
 }

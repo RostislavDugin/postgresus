@@ -720,18 +720,26 @@ type WalStreamerForTest struct {
 	Stop       func()
 }
 
+type WalStreamerTestSpec struct {
+	Fixture                   *PhysicalDBFixture
+	Storage                   storages.StorageFileSaver
+	WatchDirRoot              string
+	WalLagThresholdBytes      int64
+	ForcedRotationInterval    time.Duration
+	ArchiveStalenessThreshold time.Duration
+	OnSlotRebuilt             func(ctx context.Context, reason string) error
+	OnChainAtRisk             func(report ChainRiskReport)
+}
+
 // A replication slot is meant to outlive a streamer restart (so WAL is never
 // lost), so the supervisor deliberately does NOT drop it on shutdown. In tests
 // that would leak one slot per run until max_replication_slots is exhausted, so
 // drop this streamer's slot here. Registered before the caller's stop cleanup,
 // it runs (LIFO) right after the streamer has stopped and before the conn closes.
-func StartWalStreamerForTest(
-	t *testing.T,
-	fixture *PhysicalDBFixture,
-	store storages.StorageFileSaver,
-	watchDirRoot string,
-) *WalStreamerForTest {
+func StartWalStreamerForTest(t *testing.T, spec WalStreamerTestSpec) *WalStreamerForTest {
 	t.Helper()
+
+	fixture := spec.Fixture
 
 	adminConn := OpenAdminConn(t, fixture)
 	t.Cleanup(func() {
@@ -739,16 +747,21 @@ func StartWalStreamerForTest(
 	})
 
 	supervisor := NewWalStreamSupervisor(WalStreamSpec{
-		DatabaseID:     fixture.DB.ID,
-		SourceDB:       fixture.DB.PostgresqlPhysical,
-		StorageID:      fixture.Storage.ID,
-		Storage:        store,
-		Encryption:     backups_core_enums.BackupEncryptionNone,
-		FieldEncryptor: encryption.GetFieldEncryptor(),
-		WalSegmentRepo: physical_repositories.GetWalSegmentRepository(),
-		HistoryRepo:    physical_repositories.GetWalHistoryRepository(),
-		WatchDirRoot:   watchDirRoot,
-		Logger:         logger.GetLogger(),
+		DatabaseID:                fixture.DB.ID,
+		SourceDB:                  fixture.DB.PostgresqlPhysical,
+		StorageID:                 fixture.Storage.ID,
+		Storage:                   spec.Storage,
+		Encryption:                backups_core_enums.BackupEncryptionNone,
+		FieldEncryptor:            encryption.GetFieldEncryptor(),
+		WalSegmentRepo:            physical_repositories.GetWalSegmentRepository(),
+		HistoryRepo:               physical_repositories.GetWalHistoryRepository(),
+		WatchDirRoot:              spec.WatchDirRoot,
+		WalLagThresholdBytes:      spec.WalLagThresholdBytes,
+		ForcedRotationInterval:    spec.ForcedRotationInterval,
+		ArchiveStalenessThreshold: spec.ArchiveStalenessThreshold,
+		OnSlotRebuilt:             spec.OnSlotRebuilt,
+		OnChainAtRisk:             spec.OnChainAtRisk,
+		Logger:                    logger.GetLogger(),
 	})
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -762,7 +775,7 @@ func StartWalStreamerForTest(
 
 	return &WalStreamerForTest{
 		Supervisor: supervisor,
-		WatchDir:   filepath.Join(watchDirRoot, "wal-queue", fixture.DB.ID.String()),
+		WatchDir:   filepath.Join(spec.WatchDirRoot, "wal-queue", fixture.DB.ID.String()),
 		Stop: func() {
 			cancel()
 

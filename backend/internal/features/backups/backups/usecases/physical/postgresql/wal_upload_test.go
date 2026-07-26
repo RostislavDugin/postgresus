@@ -3,13 +3,9 @@ package usecases_physical_postgresql
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -23,119 +19,6 @@ import (
 	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
 )
-
-const testWalSegmentSize = int64(16 * 1024 * 1024)
-
-// lsnSpanUpperBoundForTests is an effectively-unbounded upper LSN used when a
-// chain-span query should return every segment regardless of position.
-const lsnSpanUpperBoundForTests = walmath.LSN(1) << 62
-
-// blockOn exists to interleave the DeleteFull cascade race.
-type mockWalStorage struct {
-	mu        sync.Mutex
-	saved     map[string][]byte
-	deleted   []string
-	saveCount atomic.Int64
-
-	failSaveTimes int
-
-	isFailingAllSaves atomic.Bool
-
-	// blockOn, when set, makes SaveFile for that exact object name signal started
-	// and wait on release before returning.
-	blockOn string
-	started chan struct{}
-	release chan struct{}
-}
-
-func newMockWalStorage() *mockWalStorage {
-	return &mockWalStorage{saved: make(map[string][]byte)}
-}
-
-func (m *mockWalStorage) SaveFile(
-	_ context.Context, _ encryption.FieldEncryptor, _ *slog.Logger, fileName string, file io.Reader,
-) error {
-	m.saveCount.Add(1)
-
-	body, _ := io.ReadAll(file)
-
-	if m.blockOn != "" && fileName == m.blockOn {
-		close(m.started)
-		<-m.release
-	}
-
-	if m.isFailingAllSaves.Load() {
-		return fmt.Errorf("mock storage is failing every save for %s", fileName)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.failSaveTimes > 0 {
-		m.failSaveTimes--
-
-		return fmt.Errorf("mock storage induced failure for %s", fileName)
-	}
-
-	m.saved[fileName] = body
-
-	return nil
-}
-
-func (m *mockWalStorage) startFailingSaves() {
-	m.isFailingAllSaves.Store(true)
-}
-
-func (m *mockWalStorage) stopFailingSaves() {
-	m.isFailingAllSaves.Store(false)
-}
-
-func (m *mockWalStorage) DeleteFile(_ encryption.FieldEncryptor, fileName string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	delete(m.saved, fileName)
-	m.deleted = append(m.deleted, fileName)
-
-	return nil
-}
-
-func (m *mockWalStorage) GetFile(_ encryption.FieldEncryptor, _ string) (io.ReadCloser, error) {
-	return nil, errors.New("GetFile not implemented in mockWalStorage")
-}
-func (m *mockWalStorage) Validate(_ encryption.FieldEncryptor) error             { return nil }
-func (m *mockWalStorage) TestConnection(_ encryption.FieldEncryptor) error       { return nil }
-func (m *mockWalStorage) HideSensitiveData()                                     {}
-func (m *mockWalStorage) EncryptSensitiveData(_ encryption.FieldEncryptor) error { return nil }
-
-func (m *mockWalStorage) hasObject(name string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	_, ok := m.saved[name]
-
-	return ok
-}
-
-// walName builds a canonical 24-hex WAL filename for a timeline + segment number
-// at the default 16 MB segment size (256 segments per logid).
-func walName(timeline uint32, segNo uint64) string {
-	const segmentsPerLogID = 256
-
-	return fmt.Sprintf("%08X%08X%08X", timeline, segNo/segmentsPerLogID, segNo%segmentsPerLogID)
-}
-
-// writeWalFile writes a small placeholder segment file under dir named for the
-// WAL filename. The body size is irrelevant — LSN bounds come from the filename,
-// not the file length — so a tiny file keeps the test fast.
-func writeWalFile(t *testing.T, dir, name string) string {
-	t.Helper()
-
-	path := filepath.Join(dir, name)
-	require.NoError(t, os.WriteFile(path, []byte("wal-segment-body-"+name), 0o600))
-
-	return path
-}
 
 // newTestUploader wires a WalUploader against the real catalog repo and a mock
 // storage, using the fixture's database/storage IDs for FK integrity.
@@ -221,6 +104,42 @@ func Test_WalUpload_SaveFileFails_ClaimRowDeletedLocalRetained_NextTickSucceeds(
 	require.NotNil(t, row)
 	require.NotNil(t, row.FileName)
 	require.NoFileExists(t, localPath)
+}
+
+func Test_WalUpload_WhenSegmentFileIsShort_SkipsClaimAndRetainsFile(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+
+	store := newMockWalStorage()
+	uploader := newTestUploader(fixture, store, nil)
+
+	dir := t.TempDir()
+	name := walName(1, 21)
+	tornSegmentPath := writeSegmentOfSize(t, dir, name, testWalSegmentSize/2)
+
+	require.NoError(t, uploader.ProcessSegment(context.Background(), tornSegmentPath, name))
+
+	require.Nil(t, findWalSegment(t, fixture.DB.ID, 1, walmath.LSN(21*uint64(testWalSegmentSize))),
+		"LSN bounds come from the filename, so claiming a short file would promise WAL the object does not hold")
+	require.FileExists(t, tornSegmentPath, "the receiver owns the file and will re-stream it")
+}
+
+func Test_WalUpload_WhenSegmentFileIsShort_WritesNothingToStorage(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+
+	store := newMockWalStorage()
+	uploader := newTestUploader(fixture, store, nil)
+
+	dir := t.TempDir()
+	name := walName(1, 22)
+
+	require.NoError(t, uploader.ProcessSegment(
+		context.Background(), writeSegmentOfSize(t, dir, name, testWalSegmentSize-1), name,
+	))
+	require.NoError(t, uploader.RecoverSegment(
+		context.Background(), writeSegmentOfSize(t, t.TempDir(), name, 0), name,
+	))
+
+	require.Zero(t, store.saveCount.Load())
 }
 
 func Test_WalUpload_DuplicateClaim_CompletedRow_DropsLocalNoStorageWrite(t *testing.T) {

@@ -82,6 +82,7 @@ var physicalWalStreamSupervisor = &PhysicalWalStreamSupervisor{
 	encryption_secrets.GetSecretKeyService(),
 	encryption.GetFieldEncryptor(),
 	logger.GetLogger(),
+	defaultChainAlertMinInterval,
 	sync.Mutex{},
 	make(map[uuid.UUID]*runningStreamer),
 	atomicTime{},

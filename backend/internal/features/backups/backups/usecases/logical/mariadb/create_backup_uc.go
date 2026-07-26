@@ -27,6 +27,7 @@ import (
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
 	io_utils "databasus-backend/internal/util/io"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -145,8 +146,8 @@ func (uc *CreateMariadbBackupUsecase) buildMariadbDumpArgs(
 	}
 
 	if mdb.Database != nil && *mdb.Database != "" {
-		for _, table := range mdb.ExcludeTables {
-			args = append(args, "--ignore-table="+*mdb.Database+"."+table)
+		for _, excludedTable := range namelist.NormalizeUniqueNames(mdb.ExcludeTables) {
+			args = append(args, "--ignore-table="+*mdb.Database+"."+excludedTable)
 		}
 	}
 

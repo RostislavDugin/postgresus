@@ -95,6 +95,8 @@ func (b *PhysicalBackuper) runFullBackup(
 	b.taskCancelManager.RegisterTask(fullBackup.ID, cancel)
 	defer b.taskCancelManager.UnregisterTask(fullBackup.ID)
 
+	rawSizeMb := b.getSourceClusterSizeMb(ctx, logger, backupCtx.Database)
+
 	fullBackupSpec := postgresql_executor.FullBackupSpec{
 		CommonBackupSpec: postgresql_executor.CommonBackupSpec{
 			SourceDB:       backupCtx.Database.PostgresqlPhysical,
@@ -132,7 +134,7 @@ func (b *PhysicalBackuper) runFullBackup(
 			"message", backupResult.ErrorMessage)
 	}
 
-	if err := b.persistFullResult(fullBackup, backupResult); err != nil {
+	if err := b.persistFullResult(fullBackup, backupResult, rawSizeMb); err != nil {
 		logger.Error("failed to persist full result", "error", err)
 
 		return
@@ -318,9 +320,36 @@ func (b *PhysicalBackuper) resolveParentManifest(
 	}, nil
 }
 
+// The size only feeds telemetry, and a cluster whose pg_hba.conf grants "host replication" but not
+// "host all" backs up fine while refusing this probe, so it must never fail a backup. It runs
+// before the executor and the connection string carries no connect_timeout, so it also gets its
+// own deadline — a stalled source must not hold up the backup it is measuring.
+func (b *PhysicalBackuper) getSourceClusterSizeMb(
+	ctx context.Context,
+	logger *slog.Logger,
+	sourceDatabase *databases.Database,
+) *float64 {
+	probeCtx, cancelProbe := context.WithTimeout(ctx, clusterSizeProbeTimeout)
+	defer cancelProbe()
+
+	clusterSizeMb, err := sourceDatabase.PostgresqlPhysical.GetClusterSizeMb(
+		probeCtx,
+		logger,
+		b.fieldEncryptor,
+	)
+	if err != nil {
+		logger.Warn("failed to measure source cluster size", "error", err)
+
+		return nil
+	}
+
+	return &clusterSizeMb
+}
+
 func (b *PhysicalBackuper) persistFullResult(
 	fullBackup *physical_models.PhysicalFullBackup,
 	backupResult postgresql_executor.PhysicalBackupResult,
+	rawSizeMb *float64,
 ) error {
 	fullBackup.Status = backupResult.Status
 	fullBackup.ErrorReason = backupResult.ErrorReason
@@ -331,6 +360,7 @@ func (b *PhysicalBackuper) persistFullResult(
 		fullBackup.StartLSN = lsnPtr(backupResult.StartLSN)
 		fullBackup.StopLSN = lsnPtr(backupResult.StopLSN)
 		fullBackup.BackupSizeMb = &backupResult.BackupSizeMb
+		fullBackup.RawSizeMb = rawSizeMb
 		fullBackup.BackupDurationMs = &backupResult.BackupDurationMs
 		fullBackup.Encryption = backupResult.EncryptionAlgo
 		fullBackup.EncryptionSalt = nilOrPtr(backupResult.EncryptionSalt)

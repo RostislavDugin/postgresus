@@ -15,6 +15,19 @@ test: clean-testcontainers pull-testcontainers
 	done
 	TESTCONTAINERS_RYUK_DISABLED=true TEST_PARALLEL_WORKERS=$(TEST_PARALLEL_WORKERS) go test -p=$(TEST_PARALLEL_WORKERS) -count=1 -failfast -timeout 15m ./internal/...
 
+LIBEDIT_SHIM_DIR ?= $(HOME)/.local/lib/databasus-compat
+
+# The bundled DB clients in assets/tools are Debian-built and link libedit.so.2,
+# a soname Debian patches in downstream; Fedora ships the upstream libedit.so.0.
+# The ABI is identical, so renaming via symlink is safe.
+test-fedora:
+	@libedit=/usr/lib64/libedit.so.0; \
+	[ -e "$$libedit" ] || libedit=$$(ldconfig -p | awk '/libedit\.so\.0 / {print $$NF; exit}'); \
+	if [ -z "$$libedit" ]; then echo "libedit.so.0 not found — install it with: sudo dnf install libedit"; exit 1; fi; \
+	mkdir -p $(LIBEDIT_SHIM_DIR); \
+	ln -sf "$$libedit" $(LIBEDIT_SHIM_DIR)/libedit.so.2
+	@LD_LIBRARY_PATH="$(LIBEDIT_SHIM_DIR)$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}" $(MAKE) test
+
 clean-testcontainers:
 	@ids=$$(docker ps -aq --filter "label=org.testcontainers"); \
 	if [ -n "$$ids" ]; then docker rm -f $$ids; else echo "no leftover testcontainers"; fi

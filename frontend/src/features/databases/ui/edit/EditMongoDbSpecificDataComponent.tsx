@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { type Database, databaseApi } from '../../../../entity/databases';
 import { MongodbConnectionStringParser } from '../../../../entity/databases/model/mongodb/MongodbConnectionStringParser';
+import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
@@ -476,18 +477,21 @@ export const EditMongoDbSpecificDataComponent = ({
 
                 setEditingDatabase({
                   ...editingDatabase,
-                  mongodb: { ...editingDatabase.mongodb, excludeCollections: values },
+                  mongodb: {
+                    ...editingDatabase.mongodb,
+                    excludeCollections: normalizeNameList(values),
+                  },
                 });
               }}
               size="small"
               className="max-w-[200px] grow"
               placeholder="No collections excluded"
-              tokenSeparators={[',']}
+              tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
             />
 
             <Tooltip
               className="cursor-pointer"
-              title="Collection names to exclude from the backup."
+              title="Collection names to exclude from the backup. You can paste a list separated by commas or new lines."
             >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>

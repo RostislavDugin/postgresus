@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { type Database, databaseApi } from '../../../../entity/databases';
 import { MySqlConnectionStringParser } from '../../../../entity/databases/model/mysql/MySqlConnectionStringParser';
+import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
@@ -387,16 +388,19 @@ export const EditMySqlSpecificDataComponent = ({
 
                 setEditingDatabase({
                   ...editingDatabase,
-                  mysql: { ...editingDatabase.mysql, excludeTables: values },
+                  mysql: { ...editingDatabase.mysql, excludeTables: normalizeNameList(values) },
                 });
               }}
               size="small"
               className="max-w-[200px] grow"
               placeholder="No tables excluded"
-              tokenSeparators={[',']}
+              tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
             />
 
-            <Tooltip className="cursor-pointer" title="Table names to exclude from the backup.">
+            <Tooltip
+              className="cursor-pointer"
+              title="Table names to exclude from the backup. You can paste a list separated by commas or new lines."
+            >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
           </div>

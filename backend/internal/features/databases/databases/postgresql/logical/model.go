@@ -16,6 +16,7 @@ import (
 
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -57,33 +58,15 @@ func (p *PostgresqlLogicalDatabase) TableName() string {
 }
 
 func (p *PostgresqlLogicalDatabase) BeforeSave(_ *gorm.DB) error {
-	if len(p.IncludeSchemas) > 0 {
-		p.IncludeSchemasString = strings.Join(p.IncludeSchemas, ",")
-	} else {
-		p.IncludeSchemasString = ""
-	}
-
-	if len(p.ExcludeTables) > 0 {
-		p.ExcludeTablesString = strings.Join(p.ExcludeTables, ",")
-	} else {
-		p.ExcludeTablesString = ""
-	}
+	p.IncludeSchemasString = namelist.FormatUniqueNames(p.IncludeSchemas)
+	p.ExcludeTablesString = namelist.FormatUniqueNames(p.ExcludeTables)
 
 	return nil
 }
 
 func (p *PostgresqlLogicalDatabase) AfterFind(_ *gorm.DB) error {
-	if p.IncludeSchemasString != "" {
-		p.IncludeSchemas = strings.Split(p.IncludeSchemasString, ",")
-	} else {
-		p.IncludeSchemas = []string{}
-	}
-
-	if p.ExcludeTablesString != "" {
-		p.ExcludeTables = strings.Split(p.ExcludeTablesString, ",")
-	} else {
-		p.ExcludeTables = []string{}
-	}
+	p.IncludeSchemas = namelist.ParseUniqueNames(p.IncludeSchemasString)
+	p.ExcludeTables = namelist.ParseUniqueNames(p.ExcludeTablesString)
 
 	return nil
 }

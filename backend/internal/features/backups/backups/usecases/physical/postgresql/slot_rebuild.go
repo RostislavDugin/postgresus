@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 )
@@ -173,4 +174,11 @@ func (s *WalStreamSupervisor) recordRebuildAttemptWithinCap() bool {
 	s.rebuildTimestamps = append(s.rebuildTimestamps, now)
 
 	return true
+}
+
+func (s *WalStreamSupervisor) GetSlotRebuildTimestamps() []time.Time {
+	s.rebuildMu.Lock()
+	defer s.rebuildMu.Unlock()
+
+	return slices.Clone(s.rebuildTimestamps)
 }

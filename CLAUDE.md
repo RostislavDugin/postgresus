@@ -17,6 +17,8 @@ This root file holds the engineering philosophy that applies everywhere.
 
 Work happens inside the repo's [Dev Container](.devcontainer/devcontainer.json). The container ships Go, Node.js + pnpm, Docker-in-Docker, linters and matching VS Code extensions, so the toolchain is identical for every contributor. Ports `4005` (backend) and `5173` (Vite) are forwarded automatically. Don't install or rely on host-level SDKs — run `make`, `pnpm` and `docker` commands from inside the container.
 
+Running the backend suite host-native is supported on Fedora via `make test-fedora`, which shims the Debian soname the bundled `assets/tools` clients expect. Any other host distro is on its own — the container stays the reference environment. Also project sometimes is run in different worktrees, in this case it is needed to copy .env.example -> .env, `make swagger` and `pnpm install` to run tests
+
 ---
 
 ## Language in code

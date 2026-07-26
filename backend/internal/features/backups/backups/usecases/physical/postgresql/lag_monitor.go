@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"databasus-backend/internal/util/walmath"
 )
 
 const (
@@ -33,10 +35,11 @@ const (
 type walBreakReason string
 
 const (
-	breakReasonSlotLost      walBreakReason = "SLOT_LOST"
-	breakReasonWalLag        walBreakReason = "WAL_LAG_THRESHOLD"
-	breakReasonSlotStolen    walBreakReason = "SLOT_STOLEN"
-	breakReasonSlotRetention walBreakReason = "SLOT_WAL_RETENTION"
+	breakReasonSlotLost       walBreakReason = "SLOT_LOST"
+	breakReasonWalLag         walBreakReason = "WAL_LAG_THRESHOLD"
+	breakReasonSlotStolen     walBreakReason = "SLOT_STOLEN"
+	breakReasonSlotRetention  walBreakReason = ChainRiskReasonSlotRetention
+	breakReasonRotationDenied walBreakReason = ChainRiskReasonRotationDenied
 )
 
 type slotBreakAction int
@@ -121,6 +124,8 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 
 	var classifier slotBreakClassifier
 
+	var stalenessTracker walArchiveStalenessTracker
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,6 +136,8 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 			if !isSourceReachable {
 				continue
 			}
+
+			s.reportArchiveStalenessIfDue(logger, &stalenessTracker, state)
 
 			reason, action := classifier.recordSampleAndClassifyBreak(slotBreakSample{
 				SlotState:            state,
@@ -157,10 +164,28 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 	}
 }
 
-func (s *WalStreamSupervisor) reportChainAtRisk(logger *slog.Logger, reason walBreakReason, state *SlotState) {
-	logger.Warn(
-		fmt.Sprintf("wal chain at risk: slot wal_status=%s, %d bytes behind", state.WalStatus, state.LagBytes),
-		"reason", string(reason),
+// The slot's restart_lsn plus its lag is where the source currently is, so the
+// staleness check needs no extra query on the source.
+func (s *WalStreamSupervisor) reportArchiveStalenessIfDue(
+	logger *slog.Logger,
+	stalenessTracker *walArchiveStalenessTracker,
+	state *SlotState,
+) {
+	lastCommittedWalLSN, lastCommittedWalAt := s.getLastCommittedWal(logger)
+
+	isArchiveStale := stalenessTracker.recordSampleAndDetectStaleness(walArchiveSample{
+		SourceCurrentLSN:    state.RestartLSN + walmath.LSN(state.LagBytes),
+		LastCommittedWalLSN: lastCommittedWalLSN,
+		ObservedAt:          time.Now().UTC(),
+		StalenessThreshold:  s.spec.ArchiveStalenessThreshold,
+	})
+
+	if !isArchiveStale {
+		return
+	}
+
+	logger.Warn("wal archiving fell behind the source; the recovery point is no longer advancing",
+		"reason", ChainRiskReasonArchiveStale,
 		"slot", s.slotName,
 	)
 
@@ -169,8 +194,31 @@ func (s *WalStreamSupervisor) reportChainAtRisk(logger *slog.Logger, reason walB
 	}
 
 	s.spec.OnChainAtRisk(ChainRiskReport{
-		Reason:        string(reason),
-		SlotWalStatus: state.WalStatus,
-		LagBytes:      state.LagBytes,
+		Reason:            ChainRiskReasonArchiveStale,
+		SlotWalStatus:     state.WalStatus,
+		LagBytes:          state.LagBytes,
+		LastArchivedWalAt: lastCommittedWalAt,
 	})
+}
+
+// state is nil for a risk that is not about the slot at all (a refused rotation).
+func (s *WalStreamSupervisor) reportChainAtRisk(logger *slog.Logger, reason walBreakReason, state *SlotState) {
+	report := ChainRiskReport{Reason: string(reason)}
+
+	if state != nil {
+		report.SlotWalStatus = state.WalStatus
+		report.LagBytes = state.LagBytes
+	}
+
+	logger.Warn(
+		fmt.Sprintf("wal chain at risk: slot wal_status=%s, %d bytes behind", report.SlotWalStatus, report.LagBytes),
+		"reason", string(reason),
+		"slot", s.slotName,
+	)
+
+	if s.spec.OnChainAtRisk == nil {
+		return
+	}
+
+	s.spec.OnChainAtRisk(report)
 }
