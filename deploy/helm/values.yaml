@@ -128,26 +128,29 @@ route:
   timeouts: {}
 
 # Health checks configuration
-# Note: The application only has /api/v1/system/health endpoint
 livenessProbe:
   enabled: true
-  httpGet:
-    path: /api/v1/system/health
-    port: 4005
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
+  probe:
+    exec:
+      command:
+        - databasus
+        - healthcheck
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
 
 readinessProbe:
   enabled: true
-  httpGet:
-    path: /api/v1/system/health
-    port: 4005
-  initialDelaySeconds: 10
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
+  probe:
+    exec:
+      command:
+        - databasus
+        - healthcheck
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
 
 # StatefulSet update strategy
 updateStrategy:
