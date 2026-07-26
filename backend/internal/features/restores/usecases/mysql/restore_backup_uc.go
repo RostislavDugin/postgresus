@@ -28,6 +28,7 @@ import (
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -183,7 +184,8 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	}
 	defer zstdReader.Close()
 
-	cmd.Stdin = zstdReader
+	backupStreamReader := io_utils.NewFailureTrackingReader(zstdReader)
+	cmd.Stdin = backupStreamReader
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
@@ -221,6 +223,10 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 
 	if config.IsShouldShutdown() {
 		return fmt.Errorf("restore cancelled due to shutdown")
+	}
+
+	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+		return streamErr
 	}
 
 	if waitErr != nil {

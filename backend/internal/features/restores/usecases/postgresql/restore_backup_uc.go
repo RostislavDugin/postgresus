@@ -28,6 +28,7 @@ import (
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -311,10 +312,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
-	// Copy backup data to stdin in a separate goroutine with proper error handling
+	backupStreamReader := io_utils.NewFailureTrackingReader(backupReader)
+
 	copyErrCh := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(stdinPipe, backupReader)
+		_, copyErr := io.Copy(stdinPipe, backupStreamReader)
 		// Close stdin pipe to signal EOF to pg_restore - critical for proper termination
 		closeErr := stdinPipe.Close()
 		switch {
@@ -344,6 +346,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	// Check for shutdown before finalizing
 	if config.IsShouldShutdown() {
 		return fmt.Errorf("restore cancelled due to shutdown")
+	}
+
+	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+		return streamErr
 	}
 
 	// Check for copy errors first - these indicate issues with decryption or data reading

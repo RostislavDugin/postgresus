@@ -107,7 +107,10 @@ func (r *RcloneStorage) GetFile(
 		return nil, fmt.Errorf("failed to get object from rclone: %w", err)
 	}
 
-	reader, err := obj.Open(ctx)
+	// operations.Open resumes from the last byte read when the transfer drops, so a
+	// multi-gigabyte restore survives transient remote failures instead of handing the
+	// caller a truncated stream.
+	reader, err := operations.Open(ctx, obj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open object from rclone: %w", err)
 	}

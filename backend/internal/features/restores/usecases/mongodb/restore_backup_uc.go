@@ -24,6 +24,7 @@ import (
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
 	util_encryption "databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -199,7 +200,9 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 		inputReader = decryptReader
 	}
 
-	cmd.Stdin = inputReader
+	backupStreamReader := io_utils.NewFailureTrackingReader(inputReader)
+	cmd.Stdin = backupStreamReader
+
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "LC_ALL=C.UTF-8", "LANG=C.UTF-8")
 
@@ -232,6 +235,10 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 
 	if config.IsShouldShutdown() {
 		return fmt.Errorf("restore cancelled due to shutdown")
+	}
+
+	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+		return streamErr
 	}
 
 	if waitErr != nil {
