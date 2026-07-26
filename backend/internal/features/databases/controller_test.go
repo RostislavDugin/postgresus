@@ -1182,6 +1182,51 @@ func Test_TestConnection_PermissionsEnforced(t *testing.T) {
 	}
 }
 
+func Test_UpdateDatabase_WhenExcludeTablesArePastedMultiline_StoresTrimmedUniqueNames(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+
+	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
+	defer RemoveTestDatabase(database)
+
+	database.PostgresqlLogical.ExcludeTables = []string{"orders", "\npersonnel_real_time", " ", "orders"}
+	database.PostgresqlLogical.IncludeSchemas = []string{"public", "\treporting"}
+
+	var updatedDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/update",
+		"Bearer "+owner.Token,
+		database,
+		http.StatusOK,
+		&updatedDatabase,
+	)
+
+	var reloadedDatabase Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/"+database.ID.String(),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&reloadedDatabase,
+	)
+
+	assert.Equal(
+		t,
+		[]string{"orders", "personnel_real_time"},
+		reloadedDatabase.PostgresqlLogical.ExcludeTables,
+	)
+	assert.Equal(
+		t,
+		[]string{"public", "reporting"},
+		reloadedDatabase.PostgresqlLogical.IncludeSchemas,
+	)
+}
+
 func createTestDatabaseViaAPI(
 	name string,
 	workspaceID uuid.UUID,

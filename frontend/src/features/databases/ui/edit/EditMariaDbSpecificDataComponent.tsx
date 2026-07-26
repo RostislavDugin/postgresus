@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { type Database, databaseApi } from '../../../../entity/databases';
 import { MariadbConnectionStringParser } from '../../../../entity/databases/model/mariadb/MariadbConnectionStringParser';
+import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
@@ -448,16 +449,19 @@ export const EditMariaDbSpecificDataComponent = ({
 
                 setEditingDatabase({
                   ...editingDatabase,
-                  mariadb: { ...editingDatabase.mariadb, excludeTables: values },
+                  mariadb: { ...editingDatabase.mariadb, excludeTables: normalizeNameList(values) },
                 });
               }}
               size="small"
               className="max-w-[200px] grow"
               placeholder="No tables excluded"
-              tokenSeparators={[',']}
+              tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
             />
 
-            <Tooltip className="cursor-pointer" title="Table names to exclude from the backup.">
+            <Tooltip
+              className="cursor-pointer"
+              title="Table names to exclude from the backup. You can paste a list separated by commas or new lines."
+            >
               <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
             </Tooltip>
           </div>

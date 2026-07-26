@@ -721,7 +721,7 @@ func testMariadbBackupRestoreWithExcludeTablesForVersion(
 		user.Token,
 	)
 
-	database.Mariadb.ExcludeTables = []string{"extra_table"}
+	database.Mariadb.ExcludeTables = []string{"\nextra_table"}
 	w := workspaces_testing.MakeAPIRequest(
 		router,
 		"POST",

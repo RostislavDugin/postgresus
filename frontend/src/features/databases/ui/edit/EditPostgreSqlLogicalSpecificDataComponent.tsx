@@ -9,6 +9,7 @@ import {
   databaseApi,
 } from '../../../../entity/databases';
 import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
+import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
@@ -645,14 +646,14 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
                       ...editingDatabase,
                       postgresqlLogical: {
                         ...editingDatabase.postgresqlLogical,
-                        includeSchemas: values,
+                        includeSchemas: normalizeNameList(values),
                       },
                     });
                   }}
                   size="small"
                   className="max-w-[200px] grow"
                   placeholder="All schemas (default)"
-                  tokenSeparators={[',']}
+                  tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
                 />
               </div>
             )}
@@ -670,19 +671,19 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
                       ...editingDatabase,
                       postgresqlLogical: {
                         ...editingDatabase.postgresqlLogical,
-                        excludeTables: values,
+                        excludeTables: normalizeNameList(values),
                       },
                     });
                   }}
                   size="small"
                   className="max-w-[200px] grow"
                   placeholder="No tables excluded"
-                  tokenSeparators={[',']}
+                  tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
                 />
 
                 <Tooltip
                   className="cursor-pointer"
-                  title="Tables to exclude from the backup. Use 'tablename' or 'schema.tablename'. Glob patterns are supported (e.g. 'logs_*')."
+                  title="Tables to exclude from the backup. Use 'tablename' or 'schema.tablename'. Glob patterns are supported (e.g. 'logs_*'). You can paste a list separated by commas or new lines."
                 >
                   <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
                 </Tooltip>

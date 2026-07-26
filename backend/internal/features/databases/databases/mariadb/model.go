@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -45,21 +46,13 @@ func (m *MariadbDatabase) TableName() string {
 }
 
 func (m *MariadbDatabase) BeforeSave(_ *gorm.DB) error {
-	if len(m.ExcludeTables) > 0 {
-		m.ExcludeTablesString = strings.Join(m.ExcludeTables, ",")
-	} else {
-		m.ExcludeTablesString = ""
-	}
+	m.ExcludeTablesString = namelist.FormatUniqueNames(m.ExcludeTables)
 
 	return nil
 }
 
 func (m *MariadbDatabase) AfterFind(_ *gorm.DB) error {
-	if m.ExcludeTablesString != "" {
-		m.ExcludeTables = strings.Split(m.ExcludeTablesString, ",")
-	} else {
-		m.ExcludeTables = []string{}
-	}
+	m.ExcludeTables = namelist.ParseUniqueNames(m.ExcludeTablesString)
 
 	return nil
 }
