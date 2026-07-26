@@ -23,7 +23,6 @@ import (
 	encryption_secrets "databasus-backend/internal/features/encryption/secrets"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/encryption"
-	io_utils "databasus-backend/internal/util/io"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -185,8 +184,6 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
-	countingWriter := io_utils.NewCountingWriter(finalWriter)
-
 	saveErrCh := make(chan error, 1)
 	go func() {
 		saveErr := storage.SaveFile(
@@ -212,7 +209,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 	go func() {
 		bytesWritten, copyErr := uc.copyWithShutdownCheck(
 			ctx,
-			countingWriter,
+			finalWriter,
 			pgStdout,
 			backupProgressListener,
 		)
