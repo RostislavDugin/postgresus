@@ -60,8 +60,7 @@ func startContainer(t *testing.T, req testcontainers.ContainerRequest, mappedPor
 }
 
 // The MySQL client resolves the name "localhost" to a unix socket rather than TCP, and the server
-// lives in a container where no such socket exists. testcontainers reports "localhost" whenever
-// TESTCONTAINERS_HOST_OVERRIDE is unset, i.e. on every local run.
+// lives in a container where no such socket exists.
 func endpointOf(t *testing.T, container testcontainers.Container, mappedPort string) Endpoint {
 	t.Helper()
 

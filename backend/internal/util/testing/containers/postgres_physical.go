@@ -383,7 +383,6 @@ func restoreTargetTag(image string) string {
 	return "latest"
 }
 
-// Host is the reachable host of the restore target (honours TESTCONTAINERS_HOST_OVERRIDE).
 func (rt RestoreTarget) Host() string { return rt.handle.Host }
 
 // MappedPort is the host port published for the restored cluster's 5432. Docker publishes it at

@@ -10,24 +10,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
 jobs:
   lint-backend:
     if: github.ref != 'refs/heads/develop'
-    runs-on: self-hosted
-    container:
-      image: golang:1.26.3
-      volumes:
-        - /runner-cache/go-pkg:/go/pkg/mod
-        - /runner-cache/go-build:/root/.cache/go-build
-        - /runner-cache/golangci-lint:/root/.cache/golangci-lint
-        - /runner-cache/apt-archives:/var/cache/apt/archives
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Configure Git for container
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.26.3"
+          cache-dependency-path: backend/go.sum
 
       - name: Download Go modules
         run: |
@@ -61,6 +61,7 @@ jobs:
   lint-frontend:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -101,6 +102,7 @@ jobs:
   dockerfile-scan:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -124,6 +126,7 @@ jobs:
   test-frontend:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [lint-frontend]
     steps:
       - name: Check out code
@@ -154,6 +157,7 @@ jobs:
   lint-verification-agent:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -188,6 +192,7 @@ jobs:
   test-verification-agent:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [lint-verification-agent]
     steps:
       - name: Check out code
@@ -212,6 +217,7 @@ jobs:
   e2e-verification-agent:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [lint-verification-agent]
     steps:
       - name: Check out code
@@ -229,35 +235,37 @@ jobs:
           docker compose down -v --rmi local || true
           rm -rf artifacts || true
 
-  # Self-hosted: performant high-frequency CPU is used to start many containers and run tests fast. Tests
-  # step is bottle-neck, because we need a lot of containers and cannot parallelize tests due to shared resources
   test-backend:
     if: github.ref != 'refs/heads/develop'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     needs: [lint-backend]
-    container:
-      image: golang:1.26.3
-      options: --privileged -v /var/run/docker.sock:/var/run/docker.sock --add-host=host.docker.internal:host-gateway
-      volumes:
-        - /runner-cache/go-pkg:/go/pkg/mod
-        - /runner-cache/go-build:/root/.cache/go-build
-        - /runner-cache/apt-archives:/var/cache/apt/archives
-        # Identity-mapped scratch dir: physical restore/boot tests bind their t.TempDir() into
-        # sibling containers (recovery script's pg_combinebackup, bound-volume boot). The host
-        # daemon resolves bind sources, so the path must exist identically inside and on the host.
-        - /runner-cache/test-tmp:/runner-cache/test-tmp
     steps:
-      - name: Install Docker CLI
+      - name: Free disk space for database images
         run: |
-          apt-get update -qq
-          apt-get install -y -qq docker.io docker-compose netcat-openbsd wget
+          # The suite pre-pulls ~19 GB of database images, which the stock runner's free space only
+          # just covers. These two preinstalled toolchains are unused here and reclaim ~11 GB. The
+          # hosted tool cache is deliberately left alone — setup-go installs into it below.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android
+          df -h /
 
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Configure Git for container
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.26.3"
+          cache-dependency-path: backend/go.sum
+
+      - name: Install database client dependencies
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # The bundled assets/tools clients are Debian-built; Ubuntu ships no libncurses5/libtinfo5
+          # package at all, and the ABI-identical .so.6 satisfies them via these symlinks.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libedit2 libncurses6 libtinfo6 libpq5 libmariadb3 libgnutls30 zstd netcat-openbsd
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
 
       - name: Download Go modules
         run: |
@@ -265,30 +273,7 @@ jobs:
           go mod download
 
       - name: Create .env file for testing
-        run: |
-          cp .env.example .env
-          cat >> .env << EOF
-          # CI overrides — host=172.17.0.1 reaches host from container
-          DATABASE_DSN="host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5437 sslmode=disable"
-          DATABASE_URL=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
-          GOOSE_DBSTRING=postgres://postgres:Q1234567@172.17.0.1:5437/databasus?sslmode=disable
-          TEST_DATABASE_DSN="host=172.17.0.1 user=postgres password=Q1234567 dbname=databasus port=5438 sslmode=disable"
-          GOOSE_TEST_DBSTRING=postgres://postgres:Q1234567@172.17.0.1:5438/databasus?sslmode=disable
-          TEST_LOCALHOST=172.17.0.1
-          TEST_DB_HOST=172.17.0.1
-          VALKEY_HOST=172.17.0.1
-          EOF
-
-      - name: Remove leftover testcontainers from previous runs
-        run: |
-          # Self-hosted runners are not ephemeral, so a cancelled job or crashed runner
-          # leaves Ryuk-less testcontainers behind (Ryuk is disabled below). Clear them
-          # before starting so a stale container can't collide with this run. Only
-          # org.testcontainers-labelled ones match — compose services are untouched.
-          docker rm -f $(docker ps -aq --filter label=org.testcontainers=true) 2>/dev/null || true
-          # Same non-ephemeral-runner reasoning: clear stale per-run reconstruction dirs from the
-          # identity-mapped scratch volume so a crashed run can't collide with this one.
-          rm -rf /runner-cache/test-tmp/* 2>/dev/null || true
+        run: cp .env.example .env
 
       - name: Start test containers
         run: |
@@ -307,14 +292,13 @@ jobs:
           timeout 60 bash -c 'until docker exec backend-valkey valkey-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
           echo "Valkey is ready!"
 
-          # Wait for test databases (using 172.17.0.1 from container).
           # 5004 = shared logical-postgres-16 fixture; 5007-5008 = shared physical-postgres 17/18
           # primary sources. The per-version, no-summary, tablespace, mTLS and restore-target
           # physical containers — like the per-version logical PG tests — run on testcontainers and
           # need no fixed port.
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5004; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5007; do sleep 2; done'
-          timeout 60 bash -c 'until nc -z 172.17.0.1 5008; do sleep 2; done'
+          timeout 60 bash -c 'until nc -z 127.0.0.1 5004; do sleep 2; done'
+          timeout 60 bash -c 'until nc -z 127.0.0.1 5007; do sleep 2; done'
+          timeout 60 bash -c 'until nc -z 127.0.0.1 5008; do sleep 2; done'
 
       - name: Create data and temp directories
         run: |
@@ -322,15 +306,6 @@ jobs:
           # These paths match what's configured in config.go
           mkdir -p databasus-data/backups
           mkdir -p databasus-data/temp
-          # Scratch dir for $TMPDIR below; identity-mapped so sibling-container binds resolve.
-          mkdir -p /runner-cache/test-tmp
-
-      - name: Install database client dependencies
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq libncurses6 libpq5 zstd
-          ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
-          ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
 
       - name: Provision per-worker test databases and run migrations
         env:
@@ -338,6 +313,7 @@ jobs:
         run: |
           cd backend
           go install github.com/pressly/goose/v3/cmd/goose@v3.27.1
+          export PATH="$(go env GOPATH)/bin:$PATH"
           set -a && . ../.env && set +a
           # cleanup_test_db creates databasus_w0..w{workers-1}, flushes Valkey, and
           # resets the test PG containers. Then migrate each slot DB so every
@@ -354,62 +330,25 @@ jobs:
 
       - name: Run Go tests
         env:
-          # MongoDB test containers are started in-process via testcontainers-go.
-          # Their published ports live on the Docker host bridge (reachable at the same
-          # address compose used), so override the host testcontainers reports. Ryuk is
-          # disabled because its callback port is unreliable from this sibling-container
-          # runner; cleanup is handled by t.Cleanup plus the label-filter step below.
-          TESTCONTAINERS_HOST_OVERRIDE: 172.17.0.1
+          # Ryuk stays disabled to match backend/Makefile's `test` target, so CI and local runs
+          # share one code path.
           TESTCONTAINERS_RYUK_DISABLED: "true"
-          # t.TempDir() honors $TMPDIR. Point it at the identity-mapped scratch volume so the
-          # physical restore/boot tests' bind sources exist at the same path on the host daemon.
-          TMPDIR: /runner-cache/test-tmp
           # Each package runs in its own metadata DB + Valkey logical DB, so
           # packages run in parallel; -p must equal the provisioned worker count.
           TEST_PARALLEL_WORKERS: "8"
         run: |
           cd backend
-          go test -p=8 -count=1 -failfast -timeout 15m ./internal/...
-
-      - name: Remove leftover testcontainers
-        if: always()
-        run: |
-          # Safety net: t.Cleanup terminates MongoDB testcontainers, but a panicking
-          # test can skip it. Remove anything testcontainers-go labelled.
-          docker rm -f $(docker ps -aq --filter label=org.testcontainers=true) 2>/dev/null || true
-          # Safety net for the scratch volume: t.TempDir() self-cleans, but a panic can skip it.
-          rm -rf /runner-cache/test-tmp/* 2>/dev/null || true
-
-      - name: Stop test containers
-        if: always()
-        run: |
-          # Stop and remove containers (keeping images for next run)
-          docker compose -f docker-compose.yml down -v
-
-          # Clean up all data directories created by docker-compose
-          echo "Cleaning up data directories..."
-          rm -rf pgdata || true
-          rm -rf pgdata-test || true
-          rm -rf valkey-data || true
-          rm -rf temp/nas || true
-          rm -rf databasus-data || true
-
-          echo "Cleanup complete"
+          # 8 workers oversubscribe the runner's 4 vCPU, so the suite needs more wall-clock than
+          # the 15m the Makefile's `test` target allows on a developer machine.
+          go test -p=8 -count=1 -failfast -timeout 40m ./internal/...
 
   build-dev-image:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     steps:
-      - name: Clean workspace
-        run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
-          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up QEMU (enables multi-arch emulation)
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -421,8 +360,8 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          cache-to: type=gha,mode=min,scope=dev-build
-          cache-from: type=gha,scope=dev-build
+          cache-to: type=gha,mode=max,scope=dev-build-amd64
+          cache-from: type=gha,scope=dev-build-amd64
           build-args: |
             APP_VERSION=dev-${{ github.sha }}
           tags: |
@@ -509,20 +448,25 @@ jobs:
           rm -rf /tmp/databasus-dev-smoke-data || true
 
   push-dev-image:
-    runs-on: self-hosted
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     needs: [build-dev-image]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Clean workspace
-        run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
-          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up QEMU (enables multi-arch emulation)
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -533,34 +477,77 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push dev image
+      - name: Build and push dev image by digest
+        id: dev-image-push
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=dev-build
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=dev-build-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=dev-build-${{ matrix.arch }}
           build-args: |
             APP_VERSION=dev-${{ github.sha }}
-          tags: |
-            databasus/databasus-dev:latest
-            databasus/databasus-dev:${{ github.sha }}
+          outputs: type=image,name=databasus/databasus-dev,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export image digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.dev-image-push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-dev-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-dev-image-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [push-dev-image]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-dev-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch dev manifest
+        working-directory: /tmp/digests
+        run: |
+          platform_image_refs=()
+          for digest in *; do
+            platform_image_refs+=("databasus/databasus-dev@sha256:${digest}")
+          done
+
+          docker buildx imagetools create \
+            -t databasus/databasus-dev:latest \
+            -t "databasus/databasus-dev:${{ github.sha }}" \
+            "${platform_image_refs[@]}"
 
   build-image:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [lint-backend, lint-frontend, lint-verification-agent, dockerfile-scan]
     steps:
-      - name: Clean workspace
-        run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
-          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up QEMU (enables multi-arch emulation)
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -572,8 +559,8 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          cache-to: type=gha,mode=max,scope=release-build
-          cache-from: type=gha,scope=release-build
+          cache-to: type=gha,mode=max,scope=release-build-amd64
+          cache-from: type=gha,scope=release-build-amd64
           build-args: |
             APP_VERSION=ci-${{ github.sha }}
           tags: |
@@ -662,6 +649,7 @@ jobs:
   build-verification-image:
     if: github.ref != 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [lint-verification-agent, dockerfile-scan]
     permissions:
       contents: read
@@ -682,13 +670,12 @@ jobs:
           platforms: linux/amd64
           build-args: |
             PG_MAJOR=16
-          cache-from: type=gha,scope=verification-postgres-16
-          cache-to: type=gha,mode=min,scope=verification-postgres-16
+          cache-from: type=gha,scope=verification-postgres-16-amd64
+          cache-to: type=gha,mode=min,scope=verification-postgres-16-amd64
 
   determine-version:
-    runs-on: self-hosted
-    container:
-      image: node:20
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [test-backend, test-frontend, test-verification-agent, e2e-verification-agent]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
@@ -700,10 +687,6 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
-
-      - name: Configure Git for container
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Install semver
         run: npm install -g semver
@@ -749,7 +732,7 @@ jobs:
               HAS_FIX=true  # Treat refactor as patch
               echo "Found REFACTOR commit: $commit"
             fi
-            
+
             # Check for breaking changes
             if [[ "$commit" =~ BREAKING[[:space:]]CHANGE ]] || [[ "$commit" =~ "!" ]]; then
               HAS_BREAKING=true
@@ -781,23 +764,76 @@ jobs:
           fi
 
   push-image:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     needs: [determine-version, build-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
-      contents: write
-      packages: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Clean workspace
-        run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/* || true
-          sudo rm -rf "$GITHUB_WORKSPACE"/.* || true
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Set up QEMU (enables multi-arch emulation)
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push release image by digest
+        id: release-image-push
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=release-build-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-build-${{ matrix.arch }}
+          build-args: |
+            APP_VERSION=${{ needs.determine-version.outputs.new_version }}
+          outputs: type=image,name=databasus/databasus,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export image digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.release-image-push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-release-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-image-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [determine-version, push-image]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-release-*
+          merge-multiple: true
+          path: /tmp/digests
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -815,27 +851,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Both registries get the same digests from this one build, so the
+      # Both tag sets are assembled from the same per-platform digests, so the
       # ghcr.io mirror cannot drift from the released image.
-      - name: Build and push with version tags
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=release-build
-          build-args: |
-            APP_VERSION=${{ needs.determine-version.outputs.new_version }}
-          tags: |
-            databasus/databasus:latest
-            databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
-            databasus/databasus:${{ github.sha }}
-            ghcr.io/databasus/databasus:latest
-            ghcr.io/databasus/databasus:v${{ needs.determine-version.outputs.new_version }}
-            ghcr.io/databasus/databasus:${{ github.sha }}
+      - name: Create multi-arch release manifests
+        working-directory: /tmp/digests
+        env:
+          VERSION: ${{ needs.determine-version.outputs.new_version }}
+        run: |
+          platform_image_refs=()
+          for digest in *; do
+            platform_image_refs+=("databasus/databasus@sha256:${digest}")
+          done
+
+          docker buildx imagetools create \
+            -t databasus/databasus:latest \
+            -t "databasus/databasus:v${VERSION}" \
+            -t "databasus/databasus:${{ github.sha }}" \
+            "${platform_image_refs[@]}"
+
+          docker buildx imagetools create \
+            -t ghcr.io/databasus/databasus:latest \
+            -t "ghcr.io/databasus/databasus:v${VERSION}" \
+            -t "ghcr.io/databasus/databasus:${{ github.sha }}" \
+            "${platform_image_refs[@]}"
 
   push-verification-image:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     needs: [determine-version, build-verification-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
@@ -844,12 +886,17 @@ jobs:
       fail-fast: false
       matrix:
         major: ["12", "13", "14", "15", "16", "17", "18"]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up QEMU (enables multi-arch emulation)
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -863,48 +910,94 @@ jobs:
       # Pin the base to its current manifest digest so the published image is
       # reproducible rather than tracking a floating postgres:<major> tag.
       - name: Resolve digest-pinned base image
-        id: base
+        id: pinned-base-image
         run: |
           DIGEST=$(docker buildx imagetools inspect postgres:${{ matrix.major }} --format '{{.Manifest.Digest}}')
           echo "image=postgres:${{ matrix.major }}@${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push verification image
+      - name: Build and push verification image by digest
+        id: verification-image-push
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: agent/verification/images/postgres
-          push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=verification-postgres-${{ matrix.major }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=min,scope=verification-postgres-${{ matrix.major }}-${{ matrix.arch }}
           build-args: |
             PG_MAJOR=${{ matrix.major }}
-            BASE_IMAGE=${{ steps.base.outputs.image }}
-          tags: |
-            databasus/verification-postgres:${{ matrix.major }}
-            databasus/verification-postgres:${{ matrix.major }}-v${{ needs.determine-version.outputs.new_version }}
+            BASE_IMAGE=${{ steps.pinned-base-image.outputs.image }}
+          outputs: type=image,name=databasus/verification-postgres,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export image digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.verification-image-push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-verification-${{ matrix.major }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-verification-image-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [determine-version, push-verification-image]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ["12", "13", "14", "15", "16", "17", "18"]
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-verification-${{ matrix.major }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch verification manifest
+        working-directory: /tmp/digests
+        env:
+          VERSION: ${{ needs.determine-version.outputs.new_version }}
+        run: |
+          platform_image_refs=()
+          for digest in *; do
+            platform_image_refs+=("databasus/verification-postgres@sha256:${digest}")
+          done
+
+          docker buildx imagetools create \
+            -t "databasus/verification-postgres:${{ matrix.major }}" \
+            -t "databasus/verification-postgres:${{ matrix.major }}-v${VERSION}" \
+            "${platform_image_refs[@]}"
 
   release:
-    runs-on: self-hosted
-    container:
-      image: node:20
-    needs: [determine-version, push-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [determine-version, merge-image-manifest]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: write
-      pull-requests: write
     steps:
-      - name: Clean workspace
-        run: |
-          rm -rf "$GITHUB_WORKSPACE"/* || true
-          rm -rf "$GITHUB_WORKSPACE"/.* || true
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git for container
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Generate changelog
         id: changelog
@@ -1010,32 +1103,16 @@ jobs:
           prerelease: false
 
   publish-helm-chart:
-    runs-on: self-hosted
-    container:
-      image: alpine:3.19
-      volumes:
-        - /runner-cache/apk-cache:/etc/apk/cache
-    needs: [determine-version, push-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [determine-version, merge-image-manifest]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Clean workspace
-        run: |
-          rm -rf "$GITHUB_WORKSPACE"/* || true
-          rm -rf "$GITHUB_WORKSPACE"/.* || true
-
-      - name: Install dependencies
-        run: |
-          apk add --no-cache git bash curl
-
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Configure Git for container
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
@@ -1043,7 +1120,9 @@ jobs:
           version: v3.14.0
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Update Chart.yaml with release version
         run: |
