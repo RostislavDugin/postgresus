@@ -65,7 +65,9 @@ done
 # (timescale/timescaledb:2.17.0-pg17), so the archive and the extension catalog
 # version match. It carries a hypertable spanning many chunks; restoring it
 # needs the agent's timescaledb_pre_restore / timescaledb_post_restore wrapping
-# and single-threaded -j, or the _timescaledb_catalog restore fails.
+# and single-threaded -j, or the _timescaledb_catalog restore fails. The
+# hypertable and its retention policy belong to a non-bootstrap role, so the
+# restore also needs that role recreated in the target before COPY.
 TS_IMAGE="timescale/timescaledb:2.17.0-pg17"
 TS_OUT="$ARTIFACTS/good-timescale-pg17.dump"
 
@@ -88,15 +90,23 @@ fi
 
 docker exec -i "$CID" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
 CREATE EXTENSION IF NOT EXISTS timescaledb;
+CREATE ROLE ts_app LOGIN;
+GRANT CREATE ON SCHEMA public TO ts_app;
+SET ROLE ts_app;
 CREATE TABLE public.sensor_data (
   time TIMESTAMPTZ NOT NULL,
   sensor_id int NOT NULL,
   temperature double precision NOT NULL
 );
 SELECT create_hypertable('public.sensor_data', 'time');
+-- The retention policy lands in _timescaledb_config.bgw_job with owner = ts_app, a regrole
+-- value the restore target must be able to resolve (issue #721). The interval is absurdly
+-- long so the policy never drops a chunk the assertions count.
+SELECT add_retention_policy('public.sensor_data', INTERVAL '1000 years');
 INSERT INTO public.sensor_data (time, sensor_id, temperature)
 SELECT ts, (random() * 10)::int, random() * 100
 FROM generate_series('2024-01-01'::timestamptz, '2024-03-01'::timestamptz, interval '1 hour') AS ts;
+RESET ROLE;
 SQL
 
 docker exec "$CID" pg_dump -Fc -U postgres postgres > "$TS_OUT"

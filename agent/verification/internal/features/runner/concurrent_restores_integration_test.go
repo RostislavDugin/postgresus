@@ -192,6 +192,12 @@ func (r *barrierRestorer) RunPgRestore(
 	return restore.Result{PgRestoreExitCode: 0, DurationMs: 1}, nil
 }
 
+func (r *barrierRestorer) EnsureArchiveOwnerRoles(
+	_ context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn,
+) ([]string, error) {
+	return nil, nil
+}
+
 func (r *barrierRestorer) RunTimescalePreRestore(context.Context, dbconn.Conn) error  { return nil }
 func (r *barrierRestorer) RunTimescalePostRestore(context.Context, dbconn.Conn) error { return nil }
 

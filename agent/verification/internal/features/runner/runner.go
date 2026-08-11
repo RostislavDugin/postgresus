@@ -234,6 +234,25 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		return
 	}
 
+	archiveOwnerRoleNames, err := r.restorer.EnsureArchiveOwnerRoles(
+		jobCtx, jobContainer, archivePath, jobContainer.GetVerifierConn())
+	if err != nil {
+		if jobCtx.Err() != nil {
+			return
+		}
+
+		r.reportFailure(ctx, job.VerificationID, nil,
+			fmt.Sprintf("ensure archive owner roles: %v", err), runLogger)
+
+		return
+	}
+
+	if len(archiveOwnerRoleNames) > 0 {
+		runLogger.Info(fmt.Sprintf(
+			"archive owner roles present in restore target: roles=%s",
+			strings.Join(archiveOwnerRoleNames, ",")))
+	}
+
 	parallelJobs := min(maxParallelRestoreJobs, r.capacity.CPUPerJob)
 
 	// TimescaleDB restores single-threaded and in restoring mode. Single-threaded because parallel

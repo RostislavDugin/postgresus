@@ -39,6 +39,12 @@ type Restorer interface {
 		conn dbconn.Conn,
 		parallelJobs int,
 	) (restore.Result, error)
+	EnsureArchiveOwnerRoles(
+		ctx context.Context,
+		exec restore.ExecRunner,
+		archivePath string,
+		conn dbconn.Conn,
+	) ([]string, error)
 	RunTimescalePreRestore(ctx context.Context, conn dbconn.Conn) error
 	RunTimescalePostRestore(ctx context.Context, conn dbconn.Conn) error
 }
