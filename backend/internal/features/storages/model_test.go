@@ -15,7 +15,7 @@ import (
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
 	"postgresus-backend/internal/util/encryption"
 	"postgresus-backend/internal/util/logger"
-	"strconv"
+	test_utils "postgresus-backend/internal/util/testing"
 	"testing"
 	"time"
 
@@ -62,21 +62,11 @@ func Test_Storage_BasicOperations(t *testing.T) {
 	require.NoError(t, err, "Failed to setup test file")
 	defer os.Remove(testFilePath)
 
-	// Setup NAS port
-	nasPort := 445
-	if portStr := config.GetEnv().TestNASPort; portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			nasPort = port
-		}
-	}
+	nasHost, nasPort, err := test_utils.SplitAddr(config.GetEnv().TestNasAddr)
+	require.NoError(t, err, "TEST_NAS_ADDR must be host:port")
 
-	// Setup FTP port
-	ftpPort := 21
-	if portStr := config.GetEnv().TestFTPPort; portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			ftpPort = port
-		}
-	}
+	ftpHost, ftpPort, err := test_utils.SplitAddr(config.GetEnv().TestFtpAddr)
+	require.NoError(t, err, "TEST_FTP_ADDR must be host:port")
 
 	// Run tests
 	testCases := []struct {
@@ -102,7 +92,7 @@ func Test_Storage_BasicOperations(t *testing.T) {
 			name: "NASStorage",
 			storage: &nas_storage.NASStorage{
 				StorageID: uuid.New(),
-				Host:      "localhost",
+				Host:      nasHost,
 				Port:      nasPort,
 				Share:     "backups",
 				Username:  "testuser",
@@ -136,7 +126,7 @@ func Test_Storage_BasicOperations(t *testing.T) {
 			name: "FTPStorage",
 			storage: &ftp_storage.FTPStorage{
 				StorageID: uuid.New(),
-				Host:      "localhost",
+				Host:      ftpHost,
 				Port:      ftpPort,
 				Username:  "testuser",
 				Password:  "testpassword",
@@ -240,7 +230,7 @@ func setupS3Container(ctx context.Context) (*S3Container, error) {
 	secretKey := "testpassword"
 	bucketName := "test-bucket"
 	region := "us-east-1"
-	endpoint := fmt.Sprintf("127.0.0.1:%s", env.TestMinioPort)
+	endpoint := env.TestMinioAddr
 
 	// Create MinIO client and ensure bucket exists
 	minioClient, err := minio.New(endpoint, &minio.Options{
@@ -286,16 +276,16 @@ func setupAzuriteContainer(ctx context.Context) (*AzuriteContainer, error) {
 	accountName := "devstoreaccount1"
 	// this is real testing key for azurite, it's not a real key
 	accountKey := "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
-	serviceURL := fmt.Sprintf("http://127.0.0.1:%s/%s", env.TestAzuriteBlobPort, accountName)
+	serviceURL := fmt.Sprintf("http://%s/%s", env.TestAzuriteAddr, accountName)
 	containerNameKey := "test-container-key"
 	containerNameStr := "test-container-connstr"
 
 	// Build explicit connection string for Azurite
 	connectionString := fmt.Sprintf(
-		"DefaultEndpointsProtocol=http;AccountName=%s;AccountKey=%s;BlobEndpoint=http://127.0.0.1:%s/%s",
+		"DefaultEndpointsProtocol=http;AccountName=%s;AccountKey=%s;BlobEndpoint=http://%s/%s",
 		accountName,
 		accountKey,
-		env.TestAzuriteBlobPort,
+		env.TestAzuriteAddr,
 		accountName,
 	)
 
@@ -332,7 +322,8 @@ func setupAzuriteContainer(ctx context.Context) (*AzuriteContainer, error) {
 
 func validateEnvVariables(t *testing.T) {
 	env := config.GetEnv()
-	assert.NotEmpty(t, env.TestMinioPort, "TEST_MINIO_PORT is empty")
-	assert.NotEmpty(t, env.TestAzuriteBlobPort, "TEST_AZURITE_BLOB_PORT is empty")
-	assert.NotEmpty(t, env.TestNASPort, "TEST_NAS_PORT is empty")
+	assert.NotEmpty(t, env.TestMinioAddr, "TEST_MINIO_ADDR is empty")
+	assert.NotEmpty(t, env.TestAzuriteAddr, "TEST_AZURITE_ADDR is empty")
+	assert.NotEmpty(t, env.TestNasAddr, "TEST_NAS_ADDR is empty")
+	assert.NotEmpty(t, env.TestFtpAddr, "TEST_FTP_ADDR is empty")
 }

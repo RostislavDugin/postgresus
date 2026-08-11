@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -70,21 +69,21 @@ func Test_BackupAndRestorePostgresql_RestoreIsSuccesful(t *testing.T) {
 	cases := []struct {
 		name    string
 		version string
-		port    string
+		addr    string
 	}{
-		{"PostgreSQL 12", "12", env.TestPostgres12Port},
-		{"PostgreSQL 13", "13", env.TestPostgres13Port},
-		{"PostgreSQL 14", "14", env.TestPostgres14Port},
-		{"PostgreSQL 15", "15", env.TestPostgres15Port},
-		{"PostgreSQL 16", "16", env.TestPostgres16Port},
-		{"PostgreSQL 17", "17", env.TestPostgres17Port},
-		{"PostgreSQL 18", "18", env.TestPostgres18Port},
+		{"PostgreSQL 12", "12", env.TestPostgres12Addr},
+		{"PostgreSQL 13", "13", env.TestPostgres13Addr},
+		{"PostgreSQL 14", "14", env.TestPostgres14Addr},
+		{"PostgreSQL 15", "15", env.TestPostgres15Addr},
+		{"PostgreSQL 16", "16", env.TestPostgres16Addr},
+		{"PostgreSQL 17", "17", env.TestPostgres17Addr},
+		{"PostgreSQL 18", "18", env.TestPostgres18Addr},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			testBackupRestoreForVersion(t, tc.version, tc.port)
+			testBackupRestoreForVersion(t, tc.version, tc.addr)
 		})
 	}
 }
@@ -94,21 +93,21 @@ func Test_BackupAndRestorePostgresqlWithEncryption_RestoreIsSuccessful(t *testin
 	cases := []struct {
 		name    string
 		version string
-		port    string
+		addr    string
 	}{
-		{"PostgreSQL 12", "12", env.TestPostgres12Port},
-		{"PostgreSQL 13", "13", env.TestPostgres13Port},
-		{"PostgreSQL 14", "14", env.TestPostgres14Port},
-		{"PostgreSQL 15", "15", env.TestPostgres15Port},
-		{"PostgreSQL 16", "16", env.TestPostgres16Port},
-		{"PostgreSQL 17", "17", env.TestPostgres17Port},
-		{"PostgreSQL 18", "18", env.TestPostgres18Port},
+		{"PostgreSQL 12", "12", env.TestPostgres12Addr},
+		{"PostgreSQL 13", "13", env.TestPostgres13Addr},
+		{"PostgreSQL 14", "14", env.TestPostgres14Addr},
+		{"PostgreSQL 15", "15", env.TestPostgres15Addr},
+		{"PostgreSQL 16", "16", env.TestPostgres16Addr},
+		{"PostgreSQL 17", "17", env.TestPostgres17Addr},
+		{"PostgreSQL 18", "18", env.TestPostgres18Addr},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			testBackupRestoreWithEncryptionForVersion(t, tc.version, tc.port)
+			testBackupRestoreWithEncryptionForVersion(t, tc.version, tc.addr)
 		})
 	}
 }
@@ -116,7 +115,7 @@ func Test_BackupAndRestorePostgresqlWithEncryption_RestoreIsSuccessful(t *testin
 func Test_BackupPostgresql_SchemaSelection_AllSchemasWhenNoneSpecified(t *testing.T) {
 	env := config.GetEnv()
 
-	container, err := connectToPostgresContainer("16", env.TestPostgres16Port)
+	container, err := connectToPostgresContainer("16", env.TestPostgres16Addr)
 	assert.NoError(t, err)
 	defer container.DB.Close()
 
@@ -240,7 +239,7 @@ func Test_BackupPostgresql_SchemaSelection_AllSchemasWhenNoneSpecified(t *testin
 func Test_BackupPostgresql_SchemaSelection_OnlySpecifiedSchemas(t *testing.T) {
 	env := config.GetEnv()
 
-	container, err := connectToPostgresContainer("16", env.TestPostgres16Port)
+	container, err := connectToPostgresContainer("16", env.TestPostgres16Addr)
 	assert.NoError(t, err)
 	defer container.DB.Close()
 
@@ -361,8 +360,8 @@ func Test_BackupPostgresql_SchemaSelection_OnlySpecifiedSchemas(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
-	container, err := connectToPostgresContainer(pgVersion, port)
+func testBackupRestoreForVersion(t *testing.T, pgVersion string, addr string) {
+	container, err := connectToPostgresContainer(pgVersion, addr)
 	assert.NoError(t, err)
 	defer func() {
 		if container.DB != nil {
@@ -445,8 +444,8 @@ func testBackupRestoreForVersion(t *testing.T, pgVersion string, port string) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func testBackupRestoreWithEncryptionForVersion(t *testing.T, pgVersion string, port string) {
-	container, err := connectToPostgresContainer(pgVersion, port)
+func testBackupRestoreWithEncryptionForVersion(t *testing.T, pgVersion string, addr string) {
+	container, err := connectToPostgresContainer(pgVersion, addr)
 	assert.NoError(t, err)
 	defer func() {
 		if container.DB != nil {
@@ -817,19 +816,18 @@ func verifyDataIntegrity(t *testing.T, originalDB *sqlx.DB, restoredDB *sqlx.DB)
 	}
 }
 
-func connectToPostgresContainer(version string, port string) (*PostgresContainer, error) {
+func connectToPostgresContainer(version string, addr string) (*PostgresContainer, error) {
 	dbName := "testdb"
 	password := "testpassword"
 	username := "testuser"
-	host := "localhost"
 
-	portInt, err := strconv.Atoi(port)
+	host, port, err := test_utils.SplitAddr(addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse port: %w", err)
+		return nil, err
 	}
 
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, portInt, username, password, dbName)
+		host, port, username, password, dbName)
 
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
@@ -838,7 +836,7 @@ func connectToPostgresContainer(version string, port string) (*PostgresContainer
 
 	return &PostgresContainer{
 		Host:     host,
-		Port:     portInt,
+		Port:     port,
 		Username: username,
 		Password: password,
 		Database: dbName,

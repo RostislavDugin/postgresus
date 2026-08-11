@@ -30,20 +30,18 @@ type EnvVariables struct {
 	TempFolder    string
 	SecretKeyPath string
 
-	TestPostgres12Port string `env:"TEST_POSTGRES_12_PORT"`
-	TestPostgres13Port string `env:"TEST_POSTGRES_13_PORT"`
-	TestPostgres14Port string `env:"TEST_POSTGRES_14_PORT"`
-	TestPostgres15Port string `env:"TEST_POSTGRES_15_PORT"`
-	TestPostgres16Port string `env:"TEST_POSTGRES_16_PORT"`
-	TestPostgres17Port string `env:"TEST_POSTGRES_17_PORT"`
-	TestPostgres18Port string `env:"TEST_POSTGRES_18_PORT"`
+	TestPostgres12Addr string `env:"TEST_POSTGRES_12_ADDR"`
+	TestPostgres13Addr string `env:"TEST_POSTGRES_13_ADDR"`
+	TestPostgres14Addr string `env:"TEST_POSTGRES_14_ADDR"`
+	TestPostgres15Addr string `env:"TEST_POSTGRES_15_ADDR"`
+	TestPostgres16Addr string `env:"TEST_POSTGRES_16_ADDR"`
+	TestPostgres17Addr string `env:"TEST_POSTGRES_17_ADDR"`
+	TestPostgres18Addr string `env:"TEST_POSTGRES_18_ADDR"`
 
-	TestMinioPort string `env:"TEST_MINIO_PORT"`
-
-	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
-
-	TestNASPort string `env:"TEST_NAS_PORT"`
-	TestFTPPort string `env:"TEST_FTP_PORT"`
+	TestMinioAddr   string `env:"TEST_MINIO_ADDR"`
+	TestAzuriteAddr string `env:"TEST_AZURITE_ADDR"`
+	TestNasAddr     string `env:"TEST_NAS_ADDR"`
+	TestFtpAddr     string `env:"TEST_FTP_ADDR"`
 
 	// oauth
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
@@ -142,48 +140,25 @@ func loadEnvVariables() {
 	env.SecretKeyPath = filepath.Join(filepath.Dir(backendRoot), "postgresus-data", "secret.key")
 
 	if env.IsTesting {
-		if env.TestPostgres12Port == "" {
-			log.Error("TEST_POSTGRES_12_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres13Port == "" {
-			log.Error("TEST_POSTGRES_13_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres14Port == "" {
-			log.Error("TEST_POSTGRES_14_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres15Port == "" {
-			log.Error("TEST_POSTGRES_15_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres16Port == "" {
-			log.Error("TEST_POSTGRES_16_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres17Port == "" {
-			log.Error("TEST_POSTGRES_17_PORT is empty")
-			os.Exit(1)
-		}
-		if env.TestPostgres18Port == "" {
-			log.Error("TEST_POSTGRES_18_PORT is empty")
-			os.Exit(1)
+		required := map[string]string{
+			"TEST_POSTGRES_12_ADDR": env.TestPostgres12Addr,
+			"TEST_POSTGRES_13_ADDR": env.TestPostgres13Addr,
+			"TEST_POSTGRES_14_ADDR": env.TestPostgres14Addr,
+			"TEST_POSTGRES_15_ADDR": env.TestPostgres15Addr,
+			"TEST_POSTGRES_16_ADDR": env.TestPostgres16Addr,
+			"TEST_POSTGRES_17_ADDR": env.TestPostgres17Addr,
+			"TEST_POSTGRES_18_ADDR": env.TestPostgres18Addr,
+			"TEST_MINIO_ADDR":       env.TestMinioAddr,
+			"TEST_AZURITE_ADDR":     env.TestAzuriteAddr,
+			"TEST_NAS_ADDR":         env.TestNasAddr,
+			"TEST_FTP_ADDR":         env.TestFtpAddr,
 		}
 
-		if env.TestMinioPort == "" {
-			log.Error("TEST_MINIO_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestAzuriteBlobPort == "" {
-			log.Error("TEST_AZURITE_BLOB_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestNASPort == "" {
-			log.Error("TEST_NAS_PORT is empty")
-			os.Exit(1)
+		for name, value := range required {
+			if value == "" {
+				log.Error("required test environment variable is empty", "variable", name)
+				os.Exit(1)
+			}
 		}
 	}
 

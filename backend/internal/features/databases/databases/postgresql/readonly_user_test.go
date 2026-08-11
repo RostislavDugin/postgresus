@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"postgresus-backend/internal/config"
+	test_utils "postgresus-backend/internal/util/testing"
 	"postgresus-backend/internal/util/tools"
 )
 
@@ -23,21 +23,21 @@ func Test_IsUserReadOnly_AdminUser_ReturnsFalse(t *testing.T) {
 	cases := []struct {
 		name    string
 		version string
-		port    string
+		addr    string
 	}{
-		{"PostgreSQL 12", "12", env.TestPostgres12Port},
-		{"PostgreSQL 13", "13", env.TestPostgres13Port},
-		{"PostgreSQL 14", "14", env.TestPostgres14Port},
-		{"PostgreSQL 15", "15", env.TestPostgres15Port},
-		{"PostgreSQL 16", "16", env.TestPostgres16Port},
-		{"PostgreSQL 17", "17", env.TestPostgres17Port},
+		{"PostgreSQL 12", "12", env.TestPostgres12Addr},
+		{"PostgreSQL 13", "13", env.TestPostgres13Addr},
+		{"PostgreSQL 14", "14", env.TestPostgres14Addr},
+		{"PostgreSQL 15", "15", env.TestPostgres15Addr},
+		{"PostgreSQL 16", "16", env.TestPostgres16Addr},
+		{"PostgreSQL 17", "17", env.TestPostgres17Addr},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			container := connectToPostgresContainer(t, tc.port)
+			container := connectToPostgresContainer(t, tc.addr)
 			defer container.DB.Close()
 
 			pgModel := createPostgresModel(container)
@@ -56,21 +56,21 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 	cases := []struct {
 		name    string
 		version string
-		port    string
+		addr    string
 	}{
-		{"PostgreSQL 12", "12", env.TestPostgres12Port},
-		{"PostgreSQL 13", "13", env.TestPostgres13Port},
-		{"PostgreSQL 14", "14", env.TestPostgres14Port},
-		{"PostgreSQL 15", "15", env.TestPostgres15Port},
-		{"PostgreSQL 16", "16", env.TestPostgres16Port},
-		{"PostgreSQL 17", "17", env.TestPostgres17Port},
+		{"PostgreSQL 12", "12", env.TestPostgres12Addr},
+		{"PostgreSQL 13", "13", env.TestPostgres13Addr},
+		{"PostgreSQL 14", "14", env.TestPostgres14Addr},
+		{"PostgreSQL 15", "15", env.TestPostgres15Addr},
+		{"PostgreSQL 16", "16", env.TestPostgres16Addr},
+		{"PostgreSQL 17", "17", env.TestPostgres17Addr},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			container := connectToPostgresContainer(t, tc.port)
+			container := connectToPostgresContainer(t, tc.addr)
 			defer container.DB.Close()
 
 			_, err := container.DB.Exec(`
@@ -156,7 +156,7 @@ func Test_CreateReadOnlyUser_UserCanReadButNotWrite(t *testing.T) {
 
 func Test_ReadOnlyUser_FutureTables_HaveSelectPermission(t *testing.T) {
 	env := config.GetEnv()
-	container := connectToPostgresContainer(t, env.TestPostgres16Port)
+	container := connectToPostgresContainer(t, env.TestPostgres16Addr)
 	defer container.DB.Close()
 
 	pgModel := createPostgresModel(container)
@@ -198,7 +198,7 @@ func Test_ReadOnlyUser_FutureTables_HaveSelectPermission(t *testing.T) {
 
 func Test_ReadOnlyUser_MultipleSchemas_AllAccessible(t *testing.T) {
 	env := config.GetEnv()
-	container := connectToPostgresContainer(t, env.TestPostgres16Port)
+	container := connectToPostgresContainer(t, env.TestPostgres16Addr)
 	defer container.DB.Close()
 
 	_, err := container.DB.Exec(`
@@ -248,7 +248,7 @@ func Test_ReadOnlyUser_MultipleSchemas_AllAccessible(t *testing.T) {
 
 func Test_CreateReadOnlyUser_DatabaseNameWithDash_Success(t *testing.T) {
 	env := config.GetEnv()
-	container := connectToPostgresContainer(t, env.TestPostgres16Port)
+	container := connectToPostgresContainer(t, env.TestPostgres16Addr)
 	defer container.DB.Close()
 
 	dashDbName := "test-db-with-dash"
@@ -330,17 +330,16 @@ type PostgresContainer struct {
 	DB       *sqlx.DB
 }
 
-func connectToPostgresContainer(t *testing.T, port string) *PostgresContainer {
+func connectToPostgresContainer(t *testing.T, addr string) *PostgresContainer {
 	dbName := "testdb"
 	password := "testpassword"
 	username := "testuser"
-	host := "localhost"
 
-	portInt, err := strconv.Atoi(port)
+	host, port, err := test_utils.SplitAddr(addr)
 	assert.NoError(t, err)
 
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, portInt, username, password, dbName)
+		host, port, username, password, dbName)
 
 	db, err := sqlx.Connect("postgres", dsn)
 	assert.NoError(t, err)
@@ -351,7 +350,7 @@ func connectToPostgresContainer(t *testing.T, port string) *PostgresContainer {
 
 	return &PostgresContainer{
 		Host:     host,
-		Port:     portInt,
+		Port:     port,
 		Username: username,
 		Password: password,
 		Database: dbName,
