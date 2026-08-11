@@ -91,9 +91,23 @@ services:
     # `restart: unless-stopped` restarts unconditionally on any exit,
     # regardless of code, which is what actually recovers this container
     # (verified: forcing this policy through repeated deaths recovered every
-    # time, typically within 1-2s per attempt). The healthcheck below gives
-    # backend-tests a real, fast readiness signal instead of trusting
-    # `service_started` + a blind 60s TCP-probe budget in run-tests.sh.
+    # time, typically within 1-2s per attempt).
+    #
+    # The healthcheck below is observability only — do NOT gate
+    # backend-tests' dependency on `condition: service_healthy`. Compose's
+    # service_healthy wait treats a health status of "unhealthy" as terminal
+    # for the whole `run`, even though this container's own restart policy
+    # would have recovered it a couple of seconds later: reproduced directly,
+    # 2 of 5 cold `docker compose run --rm backend-tests` invocations aborted
+    # with "dependency failed to start: container ... is unhealthy" while
+    # test-ftp was mid-restart-and-about-to-be-fine. So the container-level
+    # fix (restart: unless-stopped) and a service_healthy gate actively fight
+    # each other — the gate turns a two-second recoverable blip into a hard
+    # failure at close to the original bug's rate. Recovery-tolerant waiting
+    # is left entirely to run-tests.sh's existing wait_for_tcp loop (60
+    # attempts, 1/s against test-ftp:21), which — unlike the compose
+    # dependency-wait — just keeps retrying through a death-and-restart cycle
+    # by construction.
     image: delfer/alpine-ftp-server:latest
     restart: unless-stopped
     environment:
@@ -136,7 +150,7 @@ services:
       test-nas:
         condition: service_started
       test-ftp:
-        condition: service_healthy
+        condition: service_started
     environment:
       ENV_MODE: development
       POSTGRES_INSTALL_DIR: /opt/pg-tools
