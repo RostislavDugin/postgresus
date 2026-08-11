@@ -78,18 +78,35 @@ services:
     # emulation on this host fails outright ("rosetta error:
     # mmap_anonymous_rw mmap failed") — pure-ftpd never comes up and every
     # FTP test fails with "failed to dial FTP server: EOF". So we stay on
-    # delfer/alpine-ftp-server, which has a native arm64 image. Its entrypoint
-    # has an occasional boot-time race ("adduser: /ftp/testuser: No such file
-    # or directory") that kills the container right after start; `restart:
-    # on-failure` gives it a few more tries within backend-tests' 60s
-    # wait_for_tcp budget instead of failing the whole run.
+    # delfer/alpine-ftp-server, which has a native arm64 image.
+    #
+    # Its entrypoint has a genuine, host-load-correlated boot race: vsftpd
+    # occasionally dies moments after (or fails to ever reach) a successful
+    # bind on :21. When that happens the image's own supervisor (pidproxy)
+    # logs "process has died, quitting" and the *container* exits 0 — always
+    # 0, because pidproxy itself exits cleanly once it notices its monitored
+    # pid is gone. `restart: on-failure` never sees a failure to react to, so
+    # it is a no-op here; the container just stays dead until something
+    # notices the ensuing FTP-dial failures deep inside the Go test run.
+    # `restart: unless-stopped` restarts unconditionally on any exit,
+    # regardless of code, which is what actually recovers this container
+    # (verified: forcing this policy through repeated deaths recovered every
+    # time, typically within 1-2s per attempt). The healthcheck below gives
+    # backend-tests a real, fast readiness signal instead of trusting
+    # `service_started` + a blind 60s TCP-probe budget in run-tests.sh.
     image: delfer/alpine-ftp-server:latest
-    restart: on-failure:5
+    restart: unless-stopped
     environment:
       USERS: "testuser|testpassword|/ftp/testuser"
       ADDRESS: test-ftp
       MIN_PORT: 30000
       MAX_PORT: 30009
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 21"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   backend-tests:
     build:
@@ -119,7 +136,7 @@ services:
       test-nas:
         condition: service_started
       test-ftp:
-        condition: service_started
+        condition: service_healthy
     environment:
       ENV_MODE: development
       POSTGRES_INSTALL_DIR: /opt/pg-tools
