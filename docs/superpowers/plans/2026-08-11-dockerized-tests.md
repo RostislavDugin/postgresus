@@ -1326,7 +1326,9 @@ git commit -m "REFACTOR (ci): drop test jobs and stale test env, document docker
 - `make test` на машине, где есть только Docker и git, даёт зелёный прогон — без `.env`, brew,
   goose, секретов и свободного порта 5000.
 - `git status --porcelain` после прогона пустой.
-- `grep -rn '^func Test' backend/internal --include='*_test.go' | wc -l` даёт **233**.
+- `grep -rn '^func Test' backend/internal --include='*_test.go' | wc -l` даёт **237**: 237 до правок,
+  минус четыре удалённые в Task 1 функции, плюс четыре новых теста `Test_SplitAddr_*`, которые Task 2
+  добавляет в `backend/internal/util/testing/addr_test.go`. Промежуточная отметка после Task 1 — 233.
 - Падение любого теста даёт ненулевой код возврата `make test`.
 - `backend/tools/`, `backend/Makefile`, `backend/docker-compose.yml.example` отсутствуют.
 - В `.github/workflows/ci-release.yml` нет job'ов `test-backend` и `test-frontend`.
