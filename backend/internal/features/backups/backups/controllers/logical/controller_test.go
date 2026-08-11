@@ -1378,11 +1378,21 @@ func Test_MakeBackup_VerifyBackupAndMetadataFilesExistInStorage(t *testing.T) {
 
 	encryptor := encryption.GetFieldEncryptor()
 
-	backupFile, err := backupStorage.GetFile(encryptor, backup.FileName)
+	backupFile, err := backupStorage.GetFile(
+		t.Context(),
+		encryptor,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		backup.FileName,
+	)
 	require.NoError(t, err)
 	backupFile.Close()
 
-	metadataFile, err := backupStorage.GetFile(encryptor, backup.FileName+".metadata")
+	metadataFile, err := backupStorage.GetFile(
+		t.Context(),
+		encryptor,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		backup.FileName+".metadata",
+	)
 	require.NoError(t, err)
 
 	metadataContent, err := io.ReadAll(metadataFile)

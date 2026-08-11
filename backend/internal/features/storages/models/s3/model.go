@@ -133,51 +133,50 @@ func (s *S3Storage) SaveFile(
 }
 
 func (s *S3Storage) GetFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	client, err := s.getClient(encryptor)
+	coreClient, err := s.getCoreClient(encryptor)
 	if err != nil {
 		return nil, err
 	}
 
 	baseKey := s.buildObjectKey(fileName)
 
-	manifest, hasManifest, err := s.readManifest(context.TODO(), client, baseKey)
+	manifest, hasManifest, err := s.readManifest(ctx, coreClient.Client, baseKey)
 	if err != nil {
 		return nil, err
 	}
 
 	if hasManifest {
-		return newReassemblingReader(client, s.S3Bucket, manifest.Parts), nil
+		return newReassemblingReader(reassemblingReaderSpec{
+			streamCtx:           ctx,
+			logger:              logger,
+			coreClient:          coreClient,
+			bucket:              s.S3Bucket,
+			parts:               manifest.Parts,
+			hasManifestChecksum: true,
+		}), nil
 	}
 
-	object, err := client.GetObject(
-		context.TODO(),
-		s.S3Bucket,
-		baseKey,
-		minio.GetObjectOptions{},
-	)
+	objectInfo, err := coreClient.StatObject(ctx, s.S3Bucket, baseKey, minio.StatObjectOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get file from S3: %w", err)
+		if minio.ToErrorResponse(err).StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("file does not exist in S3: %w", err)
+		}
+
+		return nil, fmt.Errorf("failed to stat file in S3: %w", err)
 	}
 
-	// Check if the file actually exists by reading the first byte
-	buf := make([]byte, 1)
-	_, readErr := object.Read(buf)
-	if readErr != nil && !errors.Is(readErr, io.EOF) {
-		_ = object.Close()
-		return nil, fmt.Errorf("file does not exist in S3: %w", readErr)
-	}
-
-	// Reset the reader to the beginning
-	_, seekErr := object.Seek(0, io.SeekStart)
-	if seekErr != nil {
-		_ = object.Close()
-		return nil, fmt.Errorf("failed to reset file reader: %w", seekErr)
-	}
-
-	return object, nil
+	return newReassemblingReader(reassemblingReaderSpec{
+		streamCtx:  ctx,
+		logger:     logger,
+		coreClient: coreClient,
+		bucket:     s.S3Bucket,
+		parts:      []objectSpan{{Key: baseKey, Size: objectInfo.Size}},
+	}), nil
 }
 
 func (s *S3Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
@@ -385,7 +384,7 @@ func (s *S3Storage) uploadChunked(
 	maxParts := s.maxPartsPerObject()
 	buf := make([]byte, innerPartSize)
 
-	var manifestParts []manifestPart
+	var objectSpans []objectSpan
 	var uploadedKeys []string
 	var totalSize int64
 
@@ -483,7 +482,7 @@ func (s *S3Storage) uploadChunked(
 		}
 
 		uploadedKeys = append(uploadedKeys, objectKey)
-		manifestParts = append(manifestParts, manifestPart{
+		objectSpans = append(objectSpans, objectSpan{
 			Key:    objectKey,
 			Size:   objectSize,
 			SHA256: hex.EncodeToString(objectHasher.Sum(nil)),
@@ -495,7 +494,7 @@ func (s *S3Storage) uploadChunked(
 	manifest := chunkedManifest{
 		Version:   manifestVersion,
 		TotalSize: totalSize,
-		Parts:     manifestParts,
+		Parts:     objectSpans,
 	}
 
 	if err := s.writeManifest(ctx, client, baseKey, manifest); err != nil {
@@ -672,12 +671,15 @@ func (s *S3Storage) getClientParams(
 //  3. It immunizes reads against S3 eventual consistency: a transient 404 on a middle part can no
 //     longer be misread as the end of the stream.
 type chunkedManifest struct {
-	Version   int            `json:"version"`
-	TotalSize int64          `json:"totalSize"`
-	Parts     []manifestPart `json:"parts"`
+	Version   int          `json:"version"`
+	TotalSize int64        `json:"totalSize"`
+	Parts     []objectSpan `json:"parts"`
 }
 
-type manifestPart struct {
+// objectSpan is one stored object with the length and sha256 a read must verify it against. The
+// manifest lists them for a chunked file; a file stored before chunking is described by a single
+// span with no recorded checksum.
+type objectSpan struct {
 	Key    string `json:"key"`
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
@@ -772,96 +774,4 @@ func (s *S3Storage) removeObjects(ctx context.Context, client *minio.Client, key
 	}
 
 	return firstErr
-}
-
-// reassemblingReader streams a chunked backup back as one byte stream by opening each part object
-// in manifest order, reading it to EOF and only then opening the next. It holds at most one part
-// connection at a time, preserving the bounded-memory streaming of the upload path (ADR-0004), and
-// verifies each part's length and sha256 against the manifest so a missing, truncated, or corrupted
-// part surfaces as a read error instead of a silently short stream.
-type reassemblingReader struct {
-	client  *minio.Client
-	bucket  string
-	parts   []manifestPart
-	index   int
-	current *minio.Object
-	hasher  hash.Hash
-	read    int64
-}
-
-func newReassemblingReader(client *minio.Client, bucket string, parts []manifestPart) *reassemblingReader {
-	return &reassemblingReader{client: client, bucket: bucket, parts: parts}
-}
-
-func (r *reassemblingReader) Read(p []byte) (int, error) {
-	for {
-		if r.current == nil {
-			if r.index >= len(r.parts) {
-				return 0, io.EOF
-			}
-
-			object, err := r.client.GetObject(context.TODO(), r.bucket, r.parts[r.index].Key, minio.GetObjectOptions{})
-			if err != nil {
-				return 0, fmt.Errorf("failed to open chunk %s: %w", r.parts[r.index].Key, err)
-			}
-
-			r.current = object
-			r.hasher = sha256.New()
-			r.read = 0
-		}
-
-		n, err := r.current.Read(p)
-		if n > 0 {
-			r.hasher.Write(p[:n])
-			r.read += int64(n)
-		}
-
-		if errors.Is(err, io.EOF) {
-			if verifyErr := r.finishCurrentPart(); verifyErr != nil {
-				return n, verifyErr
-			}
-
-			if n > 0 {
-				return n, nil
-			}
-
-			continue
-		}
-
-		if err != nil {
-			return n, fmt.Errorf("failed to read chunk %s: %w", r.parts[r.index].Key, err)
-		}
-
-		return n, nil
-	}
-}
-
-func (r *reassemblingReader) Close() error {
-	if r.current == nil {
-		return nil
-	}
-
-	err := r.current.Close()
-	r.current = nil
-
-	return err
-}
-
-func (r *reassemblingReader) finishCurrentPart() error {
-	part := r.parts[r.index]
-
-	_ = r.current.Close()
-	r.current = nil
-
-	if r.read != part.Size {
-		return fmt.Errorf("chunk %s size mismatch: manifest %d, read %d", part.Key, part.Size, r.read)
-	}
-
-	if checksum := hex.EncodeToString(r.hasher.Sum(nil)); checksum != part.SHA256 {
-		return fmt.Errorf("chunk %s checksum mismatch", part.Key)
-	}
-
-	r.index++
-
-	return nil
 }

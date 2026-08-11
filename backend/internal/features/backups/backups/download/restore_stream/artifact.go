@@ -2,10 +2,12 @@ package restore_stream
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 
 	"github.com/google/uuid"
@@ -76,16 +78,17 @@ type artifactSource struct {
 	codec      physical_enums.PhysicalBackupCompression
 }
 
-// openArtifact returns a plaintext reader over a stored object, layering
-// decryption then decompression as needed, plus a cleanup that tears the layers
-// down in order. The caller must invoke cleanup.
+// The returned cleanup tears the decrypt/decompress layers down in order and must be invoked by the
+// caller.
 func openArtifact(
+	ctx context.Context,
 	store *storages.Storage,
+	logger *slog.Logger,
 	fieldEncryptor util_encryption.FieldEncryptor,
 	masterKey string,
 	src artifactSource,
 ) (io.Reader, func(), error) {
-	base, err := store.GetFile(fieldEncryptor, src.fileName)
+	base, err := store.GetFile(ctx, fieldEncryptor, logger, src.fileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open %q: %w", src.fileName, err)
 	}
@@ -179,11 +182,13 @@ func newDecryptingReader(
 }
 
 func readHistoryMetadata(
+	ctx context.Context,
 	store *storages.Storage,
+	logger *slog.Logger,
 	fieldEncryptor util_encryption.FieldEncryptor,
 	historyFileName string,
 ) (*physical_dto.PhysicalWalHistoryMetadata, error) {
-	reader, err := store.GetFile(fieldEncryptor, historyFileName+historyMetadataSuffix)
+	reader, err := store.GetFile(ctx, fieldEncryptor, logger, historyFileName+historyMetadataSuffix)
 	if err != nil {
 		return nil, fmt.Errorf("open history metadata: %w", err)
 	}

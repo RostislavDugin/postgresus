@@ -334,11 +334,10 @@ func (s *PhysicalBackupService) GenerateBackupRestoreToken(
 	return s.restoreTokenService.GenerateBackupRestoreToken(databaseID, user.ID, backupID)
 }
 
-// OpenRestoreStream resolves the restore set for (databaseID, targetTime) and
-// streams the ready-to-pg_combinebackup tar into w. It performs NO authorization
-// — callers gate access (the user path via a restore token, restore
+// Performs NO authorization — callers gate access (the user path via a restore token, restore
 // verification via agent ownership). This is the shared seam between the two.
 func (s *PhysicalBackupService) OpenRestoreStream(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	targetTime *time.Time,
 	w io.Writer,
@@ -348,14 +347,13 @@ func (s *PhysicalBackupService) OpenRestoreStream(
 		return err
 	}
 
-	return s.writeRestoreStream(set, w)
+	return s.writeRestoreStream(ctx, set, w)
 }
 
-// OpenRestoreStreamForBackup resolves the per-backup restore set (FULL plus its
-// incremental ancestors, no WAL) for backupID and streams it into w. Like
-// OpenRestoreStream it performs no authorization — the caller's token already
-// did.
+// The per-backup restore set is the FULL plus its incremental ancestors, no WAL. Like
+// OpenRestoreStream it performs no authorization — the caller's token already did.
 func (s *PhysicalBackupService) OpenRestoreStreamForBackup(
+	ctx context.Context,
 	databaseID, backupID uuid.UUID,
 	w io.Writer,
 ) error {
@@ -364,16 +362,20 @@ func (s *PhysicalBackupService) OpenRestoreStreamForBackup(
 		return err
 	}
 
-	return s.writeRestoreStream(set, w)
+	return s.writeRestoreStream(ctx, set, w)
 }
 
-func (s *PhysicalBackupService) writeRestoreStream(set *chain_view.RestoreSet, w io.Writer) error {
+func (s *PhysicalBackupService) writeRestoreStream(
+	ctx context.Context,
+	set *chain_view.RestoreSet,
+	w io.Writer,
+) error {
 	masterKey, err := s.resolveMasterKey(set)
 	if err != nil {
 		return err
 	}
 
-	return s.restoreStreamWriter.Write(w, set, masterKey)
+	return s.restoreStreamWriter.Write(ctx, w, set, masterKey)
 }
 
 func (s *PhysicalBackupService) deleteFull(full *physical_models.PhysicalFullBackup) error {

@@ -94,7 +94,7 @@ func (c *VerificationAgentController) BackupStream(ctx *gin.Context) {
 		return
 	}
 
-	reader, err := c.verificationService.GetBackupFile(agent, verificationID)
+	reader, err := c.verificationService.GetBackupFile(ctx.Request.Context(), agent, verificationID)
 	if err != nil {
 		ctx.JSON(http.StatusGone, gin.H{"error": err.Error(), "reason": "gone"})
 		return

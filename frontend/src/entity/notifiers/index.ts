@@ -22,3 +22,7 @@ export { validateDiscordNotifier } from './models/discord/validateDiscordNotifie
 
 export type { TeamsNotifier } from './models/teams/TeamsNotifier';
 export { validateTeamsNotifier } from './models/teams/validateTeamsNotifier';
+
+export type { MattermostNotifier } from './models/mattermost/MattermostNotifier';
+export { MattermostDeliveryMode } from './models/mattermost/MattermostDeliveryMode';
+export { validateMattermostNotifier } from './models/mattermost/validateMattermostNotifier';

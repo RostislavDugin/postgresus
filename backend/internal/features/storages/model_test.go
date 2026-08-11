@@ -199,7 +199,7 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				)
 				require.NoError(t, err, "SaveFile should succeed")
 
-				file, err := tc.storage.GetFile(encryptor, fileID.String())
+				file, err := tc.storage.GetFile(t.Context(), encryptor, logger.GetLogger(), fileID.String())
 				assert.NoError(t, err, "GetFile should succeed")
 				defer file.Close()
 
@@ -225,7 +225,7 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				err = tc.storage.DeleteFile(encryptor, fileID.String())
 				assert.NoError(t, err, "DeleteFile should succeed")
 
-				file, err := tc.storage.GetFile(encryptor, fileID.String())
+				file, err := tc.storage.GetFile(t.Context(), encryptor, logger.GetLogger(), fileID.String())
 				assert.Error(t, err, "GetFile should fail for non-existent file")
 				if file != nil {
 					file.Close()

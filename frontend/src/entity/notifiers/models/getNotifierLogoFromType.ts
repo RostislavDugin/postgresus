@@ -14,6 +14,8 @@ export const getNotifierLogoFromType = (type: NotifierType) => {
       return '/icons/notifiers/discord.svg';
     case NotifierType.TEAMS:
       return '/icons/notifiers/teams.svg';
+    case NotifierType.MATTERMOST:
+      return '/icons/notifiers/mattermost.svg';
     default:
       return '';
   }

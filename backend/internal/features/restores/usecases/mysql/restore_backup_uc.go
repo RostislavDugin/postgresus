@@ -128,6 +128,8 @@ func (uc *RestoreMysqlBackupUsecase) restoreFromStorage(
 		}
 	}()
 
+	logger := uc.logger.With("backup_id", backup.ID)
+
 	fieldEncryptor := util_encryption.GetFieldEncryptor()
 	decryptedPassword, err := fieldEncryptor.Decrypt(password)
 	if err != nil {
@@ -140,14 +142,13 @@ func (uc *RestoreMysqlBackupUsecase) restoreFromStorage(
 	}
 	defer func() { _ = os.RemoveAll(filepath.Dir(myCnfFile)) }()
 
-	// Stream backup directly from storage
-	rawReader, err := storage.GetFile(fieldEncryptor, backup.FileName)
+	rawReader, err := storage.GetFile(ctx, fieldEncryptor, logger, backup.FileName)
 	if err != nil {
 		return fmt.Errorf("failed to get backup file from storage: %w", err)
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			uc.logger.Error("Failed to close backup reader", "error", err)
+			logger.Error("failed to close backup reader", "error", err)
 		}
 	}()
 

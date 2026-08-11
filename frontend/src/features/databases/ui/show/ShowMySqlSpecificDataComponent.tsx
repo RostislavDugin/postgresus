@@ -8,6 +8,7 @@ const mysqlVersionLabels = {
   [MysqlVersion.MysqlVersion57]: '5.7',
   [MysqlVersion.MysqlVersion80]: '8.0',
   [MysqlVersion.MysqlVersion84]: '8.4',
+  [MysqlVersion.MysqlVersion9]: '9',
 };
 
 export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
@@ -47,13 +48,6 @@ export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
         <div className="min-w-[150px]">Use HTTPS</div>
         <div>{database.mysql?.isHttps ? 'Yes' : 'No'}</div>
       </div>
-
-      {database.mysql?.isUseExtendedInsert && (
-        <div className="mb-1 flex w-full items-center">
-          <div className="min-w-[150px]">Use extended inserts</div>
-          <div>Yes</div>
-        </div>
-      )}
 
       {!!database.mysql?.excludeTables?.length && (
         <div className="mb-1 flex w-full items-center">

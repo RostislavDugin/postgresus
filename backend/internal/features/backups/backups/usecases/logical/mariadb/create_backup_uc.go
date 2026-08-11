@@ -130,13 +130,6 @@ func (uc *CreateMariadbBackupUsecase) buildMariadbDumpArgs(
 		"--verbose",
 	}
 
-	// One INSERT per row caps mariadb-dump memory on huge tables, but bloats the
-	// dump and makes restores far slower. Opting into extended inserts batches
-	// rows (mariadb-dump's default) for fast restores at higher backup memory.
-	if !mdb.IsUseExtendedInsert {
-		args = append(args, "--skip-extended-insert")
-	}
-
 	if mdb.HasPrivilege("TRIGGER") {
 		args = append(args, "--triggers")
 	}

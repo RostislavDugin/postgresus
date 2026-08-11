@@ -34,7 +34,6 @@ type MariadbDatabase struct {
 	Database            *string  `json:"database"            gorm:"type:text"`
 	IsHttps             bool     `json:"isHttps"             gorm:"type:boolean;default:false"`
 	IsExcludeEvents     bool     `json:"isExcludeEvents"     gorm:"type:boolean;default:false"`
-	IsUseExtendedInsert bool     `json:"isUseExtendedInsert" gorm:"column:is_use_extended_insert;type:boolean;not null;default:false"`
 	IsSkipGaleraDisable bool     `json:"isSkipGaleraDisable" gorm:"column:is_skip_galera_disable;type:boolean;not null;default:false"`
 	ExcludeTables       []string `json:"excludeTables"       gorm:"-"`
 	ExcludeTablesString string   `json:"-"                   gorm:"column:exclude_tables;type:text;not null;default:''"`
@@ -187,7 +186,6 @@ func (m *MariadbDatabase) Update(incoming *MariadbDatabase) {
 	m.Database = incoming.Database
 	m.IsHttps = incoming.IsHttps
 	m.IsExcludeEvents = incoming.IsExcludeEvents
-	m.IsUseExtendedInsert = incoming.IsUseExtendedInsert
 	m.IsSkipGaleraDisable = incoming.IsSkipGaleraDisable
 	m.ExcludeTables = incoming.ExcludeTables
 	m.Privileges = incoming.Privileges

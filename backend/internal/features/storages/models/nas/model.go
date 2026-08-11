@@ -156,7 +156,9 @@ func (n *NASStorage) SaveFile(
 }
 
 func (n *NASStorage) GetFile(
+	_ context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	session, err := n.createSession(encryptor)

@@ -57,10 +57,12 @@ func (s *Storage) SaveFile(
 }
 
 func (s *Storage) GetFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	return s.getSpecificStorage().GetFile(encryptor, fileName)
+	return s.getSpecificStorage().GetFile(ctx, encryptor, logger, fileName)
 }
 
 func (s *Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {

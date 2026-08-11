@@ -129,13 +129,6 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 		"--verbose",
 	}
 
-	// One INSERT per row caps mysqldump memory on huge tables, but bloats the
-	// dump and makes restores far slower. Opting into extended inserts batches
-	// rows (mysqldump's default) for fast restores at higher backup memory.
-	if !my.IsUseExtendedInsert {
-		args = append(args, "--skip-extended-insert")
-	}
-
 	if my.HasPrivilege("TRIGGER") {
 		args = append(args, "--triggers")
 	}

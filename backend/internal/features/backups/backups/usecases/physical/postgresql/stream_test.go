@@ -84,7 +84,12 @@ func (f *fakeStorageFileSaver) deadlineFor(fileName string) (time.Time, bool) {
 	return deadline, hasDeadline
 }
 
-func (f *fakeStorageFileSaver) GetFile(_ encryption.FieldEncryptor, fileName string) (io.ReadCloser, error) {
+func (f *fakeStorageFileSaver) GetFile(
+	_ context.Context,
+	_ encryption.FieldEncryptor,
+	_ *slog.Logger,
+	fileName string,
+) (io.ReadCloser, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

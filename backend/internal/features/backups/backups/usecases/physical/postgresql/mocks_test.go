@@ -92,7 +92,12 @@ func (m *mockWalStorage) DeleteFile(_ encryption.FieldEncryptor, fileName string
 	return nil
 }
 
-func (m *mockWalStorage) GetFile(_ encryption.FieldEncryptor, _ string) (io.ReadCloser, error) {
+func (m *mockWalStorage) GetFile(
+	_ context.Context,
+	_ encryption.FieldEncryptor,
+	_ *slog.Logger,
+	_ string,
+) (io.ReadCloser, error) {
 	return nil, errors.New("GetFile not implemented in mockWalStorage")
 }
 func (m *mockWalStorage) Validate(_ encryption.FieldEncryptor) error             { return nil }

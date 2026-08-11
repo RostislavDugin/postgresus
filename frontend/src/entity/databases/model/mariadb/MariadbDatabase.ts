@@ -10,7 +10,6 @@ export interface MariadbDatabase {
   database?: string;
   isHttps: boolean;
   isExcludeEvents?: boolean;
-  isUseExtendedInsert?: boolean;
   isSkipGaleraDisable?: boolean;
   excludeTables?: string[];
 }

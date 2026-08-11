@@ -1,6 +1,7 @@
 package verification_runs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -351,6 +352,7 @@ func (s *VerificationService) OnAgentHeartbeated(
 }
 
 func (s *VerificationService) GetBackupFile(
+	ctx context.Context,
 	agent *verification_agents.Agent,
 	verificationID uuid.UUID,
 ) (io.ReadCloser, error) {
@@ -371,7 +373,7 @@ func (s *VerificationService) GetBackupFile(
 		return nil, errors.New("verification is not owned by this agent")
 	}
 
-	reader, _, _, err := s.backupService.GetBackupFileWithoutAuth(verification.BackupID)
+	reader, _, _, err := s.backupService.GetBackupFileWithoutAuth(ctx, verification.BackupID)
 	if err != nil {
 		return nil, err
 	}

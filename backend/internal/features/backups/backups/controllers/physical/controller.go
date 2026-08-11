@@ -374,7 +374,7 @@ func (c *PhysicalBackupController) GetRestoreStream(ctx *gin.Context) {
 	ctx.Header("Content-Disposition",
 		fmt.Sprintf(`attachment; filename="restore-%s.tar"`, restoreToken.DatabaseID))
 
-	if err := c.openRestoreStream(restoreToken, ctx.Writer); err != nil {
+	if err := c.openRestoreStream(ctx.Request.Context(), restoreToken, ctx.Writer); err != nil {
 		// Resolution runs before any bytes are written, so if nothing has been
 		// flushed yet we can still answer with a proper status. Once the tar has
 		// started, the status is already 200 and we can only log.
@@ -421,12 +421,16 @@ func classifyRestoreStreamError(err error) (int, string, bool) {
 // openRestoreStream dispatches by what the token carries: a BackupID streams a
 // per-backup restore (FULL + incremental ancestors, no WAL); otherwise
 // TargetTime drives a point-in-time restore.
-func (c *PhysicalBackupController) openRestoreStream(token *restore_token.Token, w io.Writer) error {
+func (c *PhysicalBackupController) openRestoreStream(
+	streamCtx context.Context,
+	token *restore_token.Token,
+	w io.Writer,
+) error {
 	if token.BackupID != nil {
-		return c.physicalBackupService.OpenRestoreStreamForBackup(token.DatabaseID, *token.BackupID, w)
+		return c.physicalBackupService.OpenRestoreStreamForBackup(streamCtx, token.DatabaseID, *token.BackupID, w)
 	}
 
-	return c.physicalBackupService.OpenRestoreStream(token.DatabaseID, token.TargetTime, w)
+	return c.physicalBackupService.OpenRestoreStream(streamCtx, token.DatabaseID, token.TargetTime, w)
 }
 
 func (c *PhysicalBackupController) requestBackupOfType(

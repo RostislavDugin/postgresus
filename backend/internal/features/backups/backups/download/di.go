@@ -37,6 +37,7 @@ func init() {
 	restoreStreamWriter = restore_stream.NewWriter(
 		storages.GetStorageService(),
 		util_encryption.GetFieldEncryptor(),
+		logger.GetLogger(),
 	)
 }
 

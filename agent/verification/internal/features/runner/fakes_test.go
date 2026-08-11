@@ -129,15 +129,16 @@ func (s *fakeSpawner) Spawn(_ context.Context, _ SpawnRequest) (JobContainer, er
 }
 
 type fakeRestorer struct {
-	stageErr  error
-	runResult restore.Result
-	runErr    error
-	runBlocks bool
+	stageErr       error
+	ensureRolesErr error
+	runResult      restore.Result
+	runErr         error
+	runBlocks      bool
 
 	runEntered      atomic.Bool
 	runCtxCancelled atomic.Bool
 
-	// calls records the restore-related call order ("pre", "restore", "post") for a single job.
+	// calls records the restore-related call order ("roles", "pre", "restore", "post") for a single job.
 	calls []string
 	// runParallelJobs records the -j value RunPgRestore was invoked with.
 	runParallelJobs int
@@ -168,6 +169,18 @@ func (r *fakeRestorer) RunPgRestore(
 	}
 
 	return r.runResult, r.runErr
+}
+
+func (r *fakeRestorer) EnsureArchiveOwnerRoles(
+	_ context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn,
+) ([]string, error) {
+	r.calls = append(r.calls, "roles")
+
+	if r.ensureRolesErr != nil {
+		return nil, r.ensureRolesErr
+	}
+
+	return []string{"ts_app"}, nil
 }
 
 func (r *fakeRestorer) RunTimescalePreRestore(context.Context, dbconn.Conn) error {

@@ -157,7 +157,9 @@ func (s *AzureBlobStorage) SaveFile(
 }
 
 func (s *AzureBlobStorage) GetFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	client, err := s.getClient(encryptor)
@@ -168,7 +170,7 @@ func (s *AzureBlobStorage) GetFile(
 	blobName := s.buildBlobName(fileName)
 
 	response, err := client.DownloadStream(
-		context.TODO(),
+		ctx,
 		s.ContainerName,
 		blobName,
 		nil,

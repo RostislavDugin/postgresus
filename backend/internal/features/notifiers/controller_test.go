@@ -12,6 +12,7 @@ import (
 	audit_logs "databasus-backend/internal/features/audit_logs"
 	discord_notifier "databasus-backend/internal/features/notifiers/models/discord"
 	email_notifier "databasus-backend/internal/features/notifiers/models/email_notifier"
+	mattermost_notifier "databasus-backend/internal/features/notifiers/models/mattermost"
 	slack_notifier "databasus-backend/internal/features/notifiers/models/slack"
 	teams_notifier "databasus-backend/internal/features/notifiers/models/teams"
 	telegram_notifier "databasus-backend/internal/features/notifiers/models/telegram"
@@ -683,6 +684,98 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			},
 		},
 		{
+			name:         "Mattermost Notifier - incoming webhook mode",
+			notifierType: NotifierTypeMattermost,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Mattermost Webhook Notifier",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode:      mattermost_notifier.DeliveryModeWebhook,
+						WebhookURL:        "https://mattermost.example.com/hooks/original-key",
+						TargetChannelName: "town-square",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Mattermost Webhook Notifier",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode:      mattermost_notifier.DeliveryModeWebhook,
+						WebhookURL:        "",
+						TargetChannelName: "off-topic",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.True(
+					t,
+					isEncrypted(notifier.MattermostNotifier.WebhookURL),
+					"WebhookURL should be encrypted in DB",
+				)
+				decrypted := decryptField(t, notifier.MattermostNotifier.WebhookURL)
+				assert.Equal(t, "https://mattermost.example.com/hooks/original-key", decrypted)
+				assert.Equal(t, "off-topic", notifier.MattermostNotifier.TargetChannelName)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.MattermostNotifier.WebhookURL)
+				assert.NotEmpty(t, notifier.MattermostNotifier.TargetChannelName)
+			},
+		},
+		{
+			name:         "Mattermost Notifier - bot account mode",
+			notifierType: NotifierTypeMattermost,
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Mattermost Bot Notifier",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode:    mattermost_notifier.DeliveryModeBot,
+						ServerURL:       "https://mattermost.example.com",
+						BotToken:        "original-mattermost-bot-token",
+						TargetChannelID: "abcdefghijklmnopqrstuvwxyz",
+					},
+				}
+			},
+			updateNotifier: func(workspaceID, notifierID uuid.UUID) *Notifier {
+				return &Notifier{
+					ID:           notifierID,
+					WorkspaceID:  workspaceID,
+					Name:         "Updated Mattermost Bot Notifier",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode:    mattermost_notifier.DeliveryModeBot,
+						ServerURL:       "https://mattermost.internal.example.com",
+						BotToken:        "",
+						TargetChannelID: "zyxwvutsrqponmlkjihgfedcba",
+					},
+				}
+			},
+			verifySensitiveData: func(t *testing.T, notifier *Notifier) {
+				assert.True(
+					t,
+					isEncrypted(notifier.MattermostNotifier.BotToken),
+					"BotToken should be encrypted in DB",
+				)
+				decrypted := decryptField(t, notifier.MattermostNotifier.BotToken)
+				assert.Equal(t, "original-mattermost-bot-token", decrypted)
+				assert.Equal(
+					t,
+					"https://mattermost.internal.example.com",
+					notifier.MattermostNotifier.ServerURL,
+				)
+			},
+			verifyHiddenData: func(t *testing.T, notifier *Notifier) {
+				assert.Equal(t, "", notifier.MattermostNotifier.BotToken)
+				assert.NotEmpty(t, notifier.MattermostNotifier.ServerURL)
+			},
+		},
+		{
 			name:         "Webhook Notifier",
 			notifierType: NotifierTypeWebhook,
 			createNotifier: func(workspaceID uuid.UUID) *Notifier {
@@ -958,6 +1051,60 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 				)
 				decrypted := decryptField(t, notifier.TeamsNotifier.WebhookURL)
 				assert.Equal(t, "https://outlook.office.com/webhook/test123", decrypted)
+			},
+		},
+		{
+			name: "Mattermost Notifier - incoming webhook URL encrypted",
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Mattermost Webhook",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode: mattermost_notifier.DeliveryModeWebhook,
+						WebhookURL:   "https://mattermost.example.com/hooks/plain-key-123",
+					},
+				}
+			},
+			verifySensitiveEncryption: func(t *testing.T, notifier *Notifier) {
+				assert.True(
+					t,
+					isEncrypted(notifier.MattermostNotifier.WebhookURL),
+					"WebhookURL should be encrypted",
+				)
+				decrypted := decryptField(t, notifier.MattermostNotifier.WebhookURL)
+				assert.Equal(t, "https://mattermost.example.com/hooks/plain-key-123", decrypted)
+			},
+		},
+		{
+			name: "Mattermost Notifier - BotToken encrypted, ServerURL not encrypted",
+			createNotifier: func(workspaceID uuid.UUID) *Notifier {
+				return &Notifier{
+					WorkspaceID:  workspaceID,
+					Name:         "Test Mattermost Bot",
+					NotifierType: NotifierTypeMattermost,
+					MattermostNotifier: &mattermost_notifier.MattermostNotifier{
+						DeliveryMode:    mattermost_notifier.DeliveryModeBot,
+						ServerURL:       "https://mattermost.example.com",
+						BotToken:        "plain-mattermost-token-321",
+						TargetChannelID: "abcdefghijklmnopqrstuvwxyz",
+					},
+				}
+			},
+			verifySensitiveEncryption: func(t *testing.T, notifier *Notifier) {
+				assert.True(
+					t,
+					isEncrypted(notifier.MattermostNotifier.BotToken),
+					"BotToken should be encrypted",
+				)
+				decrypted := decryptField(t, notifier.MattermostNotifier.BotToken)
+				assert.Equal(t, "plain-mattermost-token-321", decrypted)
+
+				assert.False(
+					t,
+					isEncrypted(notifier.MattermostNotifier.ServerURL),
+					"ServerURL should NOT be encrypted",
+				)
 			},
 		},
 		{

@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	notifier_models "databasus-backend/internal/features/notifiers/models"
 )
 
 func Test_BuildHTTPClient_WhenProxyEnabled_UsesConfiguredProxy(t *testing.T) {
@@ -20,7 +22,7 @@ func Test_BuildHTTPClient_WhenProxyEnabled_UsesConfiguredProxy(t *testing.T) {
 			ProxyURL:       proxyURL,
 		}
 
-		client, err := notifier.buildHTTPClient(passthroughEncryptor{})
+		client, err := notifier.buildHTTPClient(notifier_models.PassthroughEncryptor{})
 		require.NoError(t, err)
 
 		transport, ok := client.Transport.(*http.Transport)
@@ -40,7 +42,7 @@ func Test_BuildHTTPClient_WhenProxyEnabled_UsesConfiguredProxy(t *testing.T) {
 func Test_BuildHTTPClient_WhenProxyDisabled_UsesDefaultTransport(t *testing.T) {
 	notifier := &TelegramNotifier{}
 
-	client, err := notifier.buildHTTPClient(passthroughEncryptor{})
+	client, err := notifier.buildHTTPClient(notifier_models.PassthroughEncryptor{})
 
 	require.NoError(t, err)
 	assert.Nil(t, client.Transport)

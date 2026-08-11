@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,73 +14,11 @@ import (
 	notifier_models "databasus-backend/internal/features/notifiers/models"
 )
 
-type passthroughEncryptor struct{}
-
-func (p passthroughEncryptor) Encrypt(plaintext string) (string, error) {
-	return plaintext, nil
-}
-
-func (p passthroughEncryptor) Decrypt(ciphertext string) (string, error) {
-	return ciphertext, nil
-}
-
-type capturedRequest struct {
-	method  string
-	query   url.Values
-	headers http.Header
-	body    string
-}
-
-type requestRecorder struct {
-	mu       sync.Mutex
-	requests []capturedRequest
-}
-
-func (r *requestRecorder) add(request capturedRequest) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.requests = append(r.requests, request)
-}
-
-func (r *requestRecorder) GetRequestCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return len(r.requests)
-}
-
-func (r *requestRecorder) GetLastRequest() capturedRequest {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.requests[len(r.requests)-1]
-}
-
-func startRecordingWebhook(t *testing.T, statusCode int) (string, *requestRecorder) {
-	recorder := &requestRecorder{}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		body, _ := io.ReadAll(req.Body)
-		recorder.add(capturedRequest{
-			method:  req.Method,
-			query:   req.URL.Query(),
-			headers: req.Header.Clone(),
-			body:    string(body),
-		})
-
-		w.WriteHeader(statusCode)
-	}))
-	t.Cleanup(server.Close)
-
-	return server.URL, recorder
-}
-
 func send(t *testing.T, notifier *WebhookNotifier, notificationType notifier_models.NotificationType) error {
 	t.Helper()
 
 	return notifier.Send(
-		passthroughEncryptor{},
+		notifier_models.PassthroughEncryptor{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		notifier_models.Notification{
 			Type:    notificationType,
@@ -97,7 +33,10 @@ func acceptAll() []notifier_models.NotificationType {
 }
 
 func Test_Send_WithPOSTAndNoBodyTemplate_SendsDefaultJSONBody(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -108,17 +47,20 @@ func Test_Send_WithPOSTAndNoBodyTemplate_SendsDefaultJSONBody(t *testing.T) {
 
 	require.Equal(t, 1, recorder.GetRequestCount())
 	request := recorder.GetLastRequest()
-	assert.Equal(t, http.MethodPost, request.method)
-	assert.Equal(t, "application/json", request.headers.Get("Content-Type"))
+	assert.Equal(t, http.MethodPost, request.Method)
+	assert.Equal(t, "application/json", request.Headers.Get("Content-Type"))
 
 	var payload map[string]string
-	require.NoError(t, json.Unmarshal([]byte(request.body), &payload))
+	require.NoError(t, json.Unmarshal([]byte(request.Body), &payload))
 	assert.Equal(t, "Backup completed", payload["heading"])
 	assert.Equal(t, "All good", payload["message"])
 }
 
 func Test_Send_WithPOSTAndBodyTemplate_SubstitutesAndEscapesPlaceholders(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	template := `{"title":"{{heading}}","text":"{{message}}"}`
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
@@ -128,7 +70,7 @@ func Test_Send_WithPOSTAndBodyTemplate_SubstitutesAndEscapesPlaceholders(t *test
 	}
 
 	err := notifier.Send(
-		passthroughEncryptor{},
+		notifier_models.PassthroughEncryptor{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		notifier_models.Notification{
 			Type:    notifier_models.NotificationTypeBackupSuccess,
@@ -139,13 +81,16 @@ func Test_Send_WithPOSTAndBodyTemplate_SubstitutesAndEscapesPlaceholders(t *test
 	require.NoError(t, err)
 
 	var payload map[string]string
-	require.NoError(t, json.Unmarshal([]byte(recorder.GetLastRequest().body), &payload))
+	require.NoError(t, json.Unmarshal([]byte(recorder.GetLastRequest().Body), &payload))
 	assert.Equal(t, `He said "hi"`, payload["title"])
 	assert.Equal(t, "line1\nline2", payload["text"])
 }
 
 func Test_Send_WithCustomContentTypeHeader_DoesNotOverrideIt(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -155,11 +100,14 @@ func Test_Send_WithCustomContentTypeHeader_DoesNotOverrideIt(t *testing.T) {
 
 	require.NoError(t, send(t, notifier, notifier_models.NotificationTypeBackupSuccess))
 
-	assert.Equal(t, "application/xml", recorder.GetLastRequest().headers.Get("Content-Type"))
+	assert.Equal(t, "application/xml", recorder.GetLastRequest().Headers.Get("Content-Type"))
 }
 
 func Test_Send_WithGET_SendsHeadingAndMessageAsQueryParams(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodGET,
@@ -169,14 +117,17 @@ func Test_Send_WithGET_SendsHeadingAndMessageAsQueryParams(t *testing.T) {
 	require.NoError(t, send(t, notifier, notifier_models.NotificationTypeBackupSuccess))
 
 	request := recorder.GetLastRequest()
-	assert.Equal(t, http.MethodGet, request.method)
-	assert.Equal(t, "Backup completed", request.query.Get("heading"))
-	assert.Equal(t, "All good", request.query.Get("message"))
-	assert.Empty(t, request.body)
+	assert.Equal(t, http.MethodGet, request.Method)
+	assert.Equal(t, "Backup completed", request.Query.Get("heading"))
+	assert.Equal(t, "All good", request.Query.Get("message"))
+	assert.Empty(t, request.Body)
 }
 
 func Test_Send_WithCustomHeaders_AppliesThemToRequest(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -186,11 +137,14 @@ func Test_Send_WithCustomHeaders_AppliesThemToRequest(t *testing.T) {
 
 	require.NoError(t, send(t, notifier, notifier_models.NotificationTypeBackupSuccess))
 
-	assert.Equal(t, "secret-value", recorder.GetLastRequest().headers.Get("X-Api-Key"))
+	assert.Equal(t, "secret-value", recorder.GetLastRequest().Headers.Get("X-Api-Key"))
 }
 
 func Test_Send_WhenServerReturnsNon2xx_ReturnsError(t *testing.T) {
-	webhookURL, _ := startRecordingWebhook(t, http.StatusInternalServerError)
+	webhookURL, _ := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusInternalServerError},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -215,7 +169,10 @@ func Test_Send_WhenURLUnreachable_ReturnsError(t *testing.T) {
 }
 
 func Test_Send_WhenAcceptTypesEmpty_SendsEveryType(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:    webhookURL,
 		WebhookMethod: WebhookMethodPOST,
@@ -228,7 +185,10 @@ func Test_Send_WhenAcceptTypesEmpty_SendsEveryType(t *testing.T) {
 }
 
 func Test_Send_WhenAcceptContainsAll_SendsEveryType(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -242,7 +202,10 @@ func Test_Send_WhenAcceptContainsAll_SendsEveryType(t *testing.T) {
 }
 
 func Test_Send_WhenNarrowedToBackupSuccess_SkipsOtherTypes(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,
@@ -258,7 +221,10 @@ func Test_Send_WhenNarrowedToBackupSuccess_SkipsOtherTypes(t *testing.T) {
 }
 
 func Test_Send_WhenNarrowed_StillSendsWildcardTestNotification(t *testing.T) {
-	webhookURL, recorder := startRecordingWebhook(t, http.StatusOK)
+	webhookURL, recorder := notifier_models.StartRecordingServer(
+		t,
+		notifier_models.StubResponse{StatusCode: http.StatusOK},
+	)
 	notifier := &WebhookNotifier{
 		WebhookURL:              webhookURL,
 		WebhookMethod:           WebhookMethodPOST,

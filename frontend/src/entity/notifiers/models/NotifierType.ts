@@ -5,4 +5,5 @@ export enum NotifierType {
   SLACK = 'SLACK',
   DISCORD = 'DISCORD',
   TEAMS = 'TEAMS',
+  MATTERMOST = 'MATTERMOST',
 }

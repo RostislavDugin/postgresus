@@ -106,12 +106,22 @@ func Test_FullOverMtls_ProducesArtifactAndManifest(t *testing.T) {
 	)
 
 	require.NotEmpty(t, result.FileName)
-	artifact, err := fixture.Storage.GetFile(encryption.GetFieldEncryptor(), result.FileName)
+	artifact, err := fixture.Storage.GetFile(
+		t.Context(),
+		encryption.GetFieldEncryptor(),
+		logger.GetLogger(),
+		result.FileName,
+	)
 	require.NoError(t, err, "artifact must be in storage")
 	require.NoError(t, artifact.Close())
 
 	require.NotEmpty(t, result.ManifestFileName)
-	manifest, err := fixture.Storage.GetFile(encryption.GetFieldEncryptor(), result.ManifestFileName)
+	manifest, err := fixture.Storage.GetFile(
+		t.Context(),
+		encryption.GetFieldEncryptor(),
+		logger.GetLogger(),
+		result.ManifestFileName,
+	)
 	require.NoError(t, err, "reconstructed manifest must be in storage")
 	require.NoError(t, manifest.Close())
 }

@@ -1,7 +1,9 @@
 package usecases_physical_postgresql
 
 import (
+	"context"
 	"io"
+	"log/slog"
 
 	util_encryption "databasus-backend/internal/util/encryption"
 )
@@ -11,5 +13,10 @@ import (
 // concrete storages.StorageFileSaver is asserted to this narrower seam in
 // downloadParentManifest so the executor depends only on what it uses.
 type parentManifestFetcher interface {
-	GetFile(encryptor util_encryption.FieldEncryptor, fileName string) (io.ReadCloser, error)
+	GetFile(
+		ctx context.Context,
+		encryptor util_encryption.FieldEncryptor,
+		logger *slog.Logger,
+		fileName string,
+	) (io.ReadCloser, error)
 }
