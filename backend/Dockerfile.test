@@ -1,0 +1,41 @@
+FROM golang:1.23.3-bookworm
+
+# PostgreSQL client tools 12-18 from the official pgdg repository.
+# Same source as the production image, so tests run against the same binaries.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  wget ca-certificates gnupg lsb-release && \
+  wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+  echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  > /etc/apt/sources.list.d/pgdg.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+  postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
+  postgresql-client-16 postgresql-client-17 postgresql-client-18 && \
+  rm -rf /var/lib/apt/lists/*
+
+# The app expects <dir>/postgresql-<version>/bin/{pg_dump,psql}.
+# /opt is outside the bind-mounted source tree, so the mount cannot shadow it.
+RUN for v in 12 13 14 15 16 17 18; do \
+  mkdir -p /opt/pg-tools/postgresql-$v/bin && \
+  for b in pg_dump pg_dumpall psql pg_restore createdb dropdb; do \
+  ln -sf /usr/lib/postgresql/$v/bin/$b /opt/pg-tools/postgresql-$v/bin/$b; \
+  done; \
+  done
+
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
+
+# config.go resolves the data/secret-key/temp directories by walking up from
+# CWD to the nearest go.mod (here /app/backend/go.mod) and taking its parent,
+# i.e. /app/postgresus-data{,/backups,/temp}. Those are normally created by
+# cmd/main.go's EnsureDirectories() at startup, but `go test` never runs
+# main(), so nothing else creates them. This sits outside the bind-mounted
+# /app/backend tree, so directories baked in here at build time survive the
+# mount.
+RUN mkdir -p /app/postgresus-data/backups /app/postgresus-data/temp
+
+WORKDIR /app/backend
+
+COPY scripts/run-tests.sh /usr/local/bin/run-tests.sh
+RUN chmod +x /usr/local/bin/run-tests.sh
+
+ENTRYPOINT ["/usr/local/bin/run-tests.sh"]

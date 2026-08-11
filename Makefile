@@ -1,24 +1,14 @@
-help:
-	@echo ''
-	@echo 'Usage: make [TARGET] [EXTRA_ARGUMENTS]'
-	@echo 'Targets:'
-	@echo 'make dev: make dev for development work'
-	@echo 'make build: make build container'
-	@echo 'make production: docker production build'
-	@echo 'clean: clean for all clear docker images'
+COMPOSE_TEST = docker compose -f docker-compose.test.yml
 
-dev:
-	if [ ! -f .env ]; then cp .env.example .env; fi;
-	docker-compose -f docker-compose-dev.yml down
-	docker-compose -f docker-compose-dev.yml up
+.PHONY: test test-backend test-frontend test-logs test-clean
 
-build:
-	docker-compose -f docker-compose-prod.yml build
-	docker-compose -f docker-compose-dev.yml down build
+test: test-backend
 
-production:
-	docker-compose -f docker-compose-prod.yml up -d --build
+test-backend:
+	$(COMPOSE_TEST) run --rm backend-tests
 
-clean:
-	docker-compose -f docker-compose-prod.yml down -v
-	docker-compose -f docker-compose-dev.yml down -v
+test-logs:
+	$(COMPOSE_TEST) logs
+
+test-clean:
+	$(COMPOSE_TEST) down -v --remove-orphans

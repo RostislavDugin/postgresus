@@ -1,0 +1,149 @@
+name: postgresus-test
+
+x-test-postgres: &test-postgres
+  environment:
+    POSTGRES_DB: testdb
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpassword
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+    interval: 2s
+    timeout: 5s
+    retries: 30
+  shm_size: 1gb
+
+services:
+  app-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: postgresus
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Q1234567
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgresus"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    shm_size: 1gb
+
+  test-postgres-12:
+    image: postgres:12
+    <<: *test-postgres
+  test-postgres-13:
+    image: postgres:13
+    <<: *test-postgres
+  test-postgres-14:
+    image: postgres:14
+    <<: *test-postgres
+  test-postgres-15:
+    image: postgres:15
+    <<: *test-postgres
+  test-postgres-16:
+    image: postgres:16
+    <<: *test-postgres
+  test-postgres-17:
+    image: postgres:17
+    <<: *test-postgres
+  test-postgres-18:
+    image: postgres:18
+    <<: *test-postgres
+
+  test-minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: testuser
+      MINIO_ROOT_PASSWORD: testpassword
+    command: server /data --console-address ":9001"
+
+  test-azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite-blob --blobHost 0.0.0.0
+
+  test-nas:
+    image: dperson/samba:latest
+    environment:
+      USERID: 1000
+      GROUPID: 1000
+    volumes:
+      - test-nas-data:/shared
+    command: >
+      -u "testuser;testpassword"
+      -s "backups;/shared;yes;no;no;testuser"
+      -p
+
+  test-ftp:
+    # The task brief's documented fallback for this service is
+    # stilliard/pure-ftpd:latest with platform: linux/amd64. That image has
+    # no arm64 manifest at all, and running it under Docker Desktop's Rosetta
+    # emulation on this host fails outright ("rosetta error:
+    # mmap_anonymous_rw mmap failed") — pure-ftpd never comes up and every
+    # FTP test fails with "failed to dial FTP server: EOF". So we stay on
+    # delfer/alpine-ftp-server, which has a native arm64 image. Its entrypoint
+    # has an occasional boot-time race ("adduser: /ftp/testuser: No such file
+    # or directory") that kills the container right after start; `restart:
+    # on-failure` gives it a few more tries within backend-tests' 60s
+    # wait_for_tcp budget instead of failing the whole run.
+    image: delfer/alpine-ftp-server:latest
+    restart: on-failure:5
+    environment:
+      USERS: "testuser|testpassword|/ftp/testuser"
+      ADDRESS: test-ftp
+      MIN_PORT: 30000
+      MAX_PORT: 30009
+
+  backend-tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      app-db:
+        condition: service_healthy
+      test-postgres-12:
+        condition: service_healthy
+      test-postgres-13:
+        condition: service_healthy
+      test-postgres-14:
+        condition: service_healthy
+      test-postgres-15:
+        condition: service_healthy
+      test-postgres-16:
+        condition: service_healthy
+      test-postgres-17:
+        condition: service_healthy
+      test-postgres-18:
+        condition: service_healthy
+      test-minio:
+        condition: service_started
+      test-azurite:
+        condition: service_started
+      test-nas:
+        condition: service_started
+      test-ftp:
+        condition: service_started
+    environment:
+      ENV_MODE: development
+      POSTGRES_INSTALL_DIR: /opt/pg-tools
+      DATABASE_DSN: "host=app-db user=postgres password=Q1234567 dbname=postgresus port=5432 sslmode=disable"
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://postgres:Q1234567@app-db:5432/postgresus?sslmode=disable"
+      GOOSE_MIGRATION_DIR: "."
+      TEST_POSTGRES_12_ADDR: test-postgres-12:5432
+      TEST_POSTGRES_13_ADDR: test-postgres-13:5432
+      TEST_POSTGRES_14_ADDR: test-postgres-14:5432
+      TEST_POSTGRES_15_ADDR: test-postgres-15:5432
+      TEST_POSTGRES_16_ADDR: test-postgres-16:5432
+      TEST_POSTGRES_17_ADDR: test-postgres-17:5432
+      TEST_POSTGRES_18_ADDR: test-postgres-18:5432
+      TEST_MINIO_ADDR: test-minio:9000
+      TEST_AZURITE_ADDR: test-azurite:10000
+      TEST_NAS_ADDR: test-nas:445
+      TEST_FTP_ADDR: test-ftp:21
+    volumes:
+      - ./backend:/app/backend
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+
+volumes:
+  test-nas-data:
+  go-mod-cache:
+  go-build-cache:
