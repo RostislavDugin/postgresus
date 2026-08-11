@@ -30,10 +30,6 @@ type EnvVariables struct {
 	TempFolder    string
 	SecretKeyPath string
 
-	TestGoogleDriveClientID     string `env:"TEST_GOOGLE_DRIVE_CLIENT_ID"`
-	TestGoogleDriveClientSecret string `env:"TEST_GOOGLE_DRIVE_CLIENT_SECRET"`
-	TestGoogleDriveTokenJSON    string `env:"TEST_GOOGLE_DRIVE_TOKEN_JSON"`
-
 	TestPostgres12Port string `env:"TEST_POSTGRES_12_PORT"`
 	TestPostgres13Port string `env:"TEST_POSTGRES_13_PORT"`
 	TestPostgres14Port string `env:"TEST_POSTGRES_14_PORT"`
@@ -42,8 +38,7 @@ type EnvVariables struct {
 	TestPostgres17Port string `env:"TEST_POSTGRES_17_PORT"`
 	TestPostgres18Port string `env:"TEST_POSTGRES_18_PORT"`
 
-	TestMinioPort        string `env:"TEST_MINIO_PORT"`
-	TestMinioConsolePort string `env:"TEST_MINIO_CONSOLE_PORT"`
+	TestMinioPort string `env:"TEST_MINIO_PORT"`
 
 	TestAzuriteBlobPort string `env:"TEST_AZURITE_BLOB_PORT"`
 
@@ -55,17 +50,6 @@ type EnvVariables struct {
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
-
-	// testing Telegram
-	TestTelegramBotToken string `env:"TEST_TELEGRAM_BOT_TOKEN"`
-	TestTelegramChatID   string `env:"TEST_TELEGRAM_CHAT_ID"`
-
-	// testing Supabase
-	TestSupabaseHost     string `env:"TEST_SUPABASE_HOST"`
-	TestSupabasePort     string `env:"TEST_SUPABASE_PORT"`
-	TestSupabaseUsername string `env:"TEST_SUPABASE_USERNAME"`
-	TestSupabasePassword string `env:"TEST_SUPABASE_PASSWORD"`
-	TestSupabaseDatabase string `env:"TEST_SUPABASE_DATABASE"`
 }
 
 var (
@@ -191,10 +175,6 @@ func loadEnvVariables() {
 			log.Error("TEST_MINIO_PORT is empty")
 			os.Exit(1)
 		}
-		if env.TestMinioConsolePort == "" {
-			log.Error("TEST_MINIO_CONSOLE_PORT is empty")
-			os.Exit(1)
-		}
 
 		if env.TestAzuriteBlobPort == "" {
 			log.Error("TEST_AZURITE_BLOB_PORT is empty")
@@ -203,16 +183,6 @@ func loadEnvVariables() {
 
 		if env.TestNASPort == "" {
 			log.Error("TEST_NAS_PORT is empty")
-			os.Exit(1)
-		}
-
-		if env.TestTelegramBotToken == "" {
-			log.Error("TEST_TELEGRAM_BOT_TOKEN is empty")
-			os.Exit(1)
-		}
-
-		if env.TestTelegramChatID == "" {
-			log.Error("TEST_TELEGRAM_CHAT_ID is empty")
 			os.Exit(1)
 		}
 	}

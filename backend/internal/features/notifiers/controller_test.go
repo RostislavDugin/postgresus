@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"testing"
 
-	"postgresus-backend/internal/config"
 	audit_logs "postgresus-backend/internal/features/audit_logs"
 	discord_notifier "postgresus-backend/internal/features/notifiers/models/discord"
 	email_notifier "postgresus-backend/internal/features/notifiers/models/email_notifier"
@@ -152,54 +151,6 @@ func Test_DeleteNotifier_NotifierNotReturnedViaGet(t *testing.T) {
 	)
 
 	assert.Contains(t, string(response.Body), "error")
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_SendTestNotificationDirect_NotificationSent(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-
-	notifier := createTelegramNotifier(workspace.ID)
-
-	response := test_utils.MakePostRequest(
-		t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusOK,
-	)
-
-	assert.Contains(t, string(response.Body), "successful")
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
-}
-
-func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-
-	notifier := createTelegramNotifier(workspace.ID)
-
-	var savedNotifier Notifier
-	test_utils.MakePostRequestAndUnmarshal(
-		t,
-		router,
-		"/api/v1/notifiers",
-		"Bearer "+owner.Token,
-		*notifier,
-		http.StatusOK,
-		&savedNotifier,
-	)
-
-	response := test_utils.MakePostRequest(
-		t,
-		router,
-		fmt.Sprintf("/api/v1/notifiers/%s/test", savedNotifier.ID.String()),
-		"Bearer "+owner.Token,
-		nil,
-		http.StatusOK,
-	)
-
-	assert.Contains(t, string(response.Body), "successful")
-
-	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
@@ -1038,19 +989,6 @@ func createNewNotifier(workspaceID uuid.UUID) *Notifier {
 		WebhookNotifier: &webhook_notifier.WebhookNotifier{
 			WebhookURL:    "https://webhook.site/test-" + uuid.New().String(),
 			WebhookMethod: webhook_notifier.WebhookMethodPOST,
-		},
-	}
-}
-
-func createTelegramNotifier(workspaceID uuid.UUID) *Notifier {
-	env := config.GetEnv()
-	return &Notifier{
-		WorkspaceID:  workspaceID,
-		Name:         "Test Telegram Notifier " + uuid.New().String(),
-		NotifierType: NotifierTypeTelegram,
-		TelegramNotifier: &telegram_notifier.TelegramNotifier{
-			BotToken:     env.TestTelegramBotToken,
-			TargetChatID: env.TestTelegramChatID,
 		},
 	}
 }

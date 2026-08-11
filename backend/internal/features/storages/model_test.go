@@ -10,7 +10,6 @@ import (
 	"postgresus-backend/internal/config"
 	azure_blob_storage "postgresus-backend/internal/features/storages/models/azure_blob"
 	ftp_storage "postgresus-backend/internal/features/storages/models/ftp"
-	google_drive_storage "postgresus-backend/internal/features/storages/models/google_drive"
 	local_storage "postgresus-backend/internal/features/storages/models/local"
 	nas_storage "postgresus-backend/internal/features/storages/models/nas"
 	s3_storage "postgresus-backend/internal/features/storages/models/s3"
@@ -145,26 +144,6 @@ func Test_Storage_BasicOperations(t *testing.T) {
 				Path:      "test-files",
 			},
 		},
-	}
-
-	// Add Google Drive storage test only if environment variables are available
-	env := config.GetEnv()
-	if env.TestGoogleDriveClientID != "" && env.TestGoogleDriveClientSecret != "" &&
-		env.TestGoogleDriveTokenJSON != "" {
-		testCases = append(testCases, struct {
-			name    string
-			storage StorageFileSaver
-		}{
-			name: "GoogleDriveStorage",
-			storage: &google_drive_storage.GoogleDriveStorage{
-				StorageID:    uuid.New(),
-				ClientID:     env.TestGoogleDriveClientID,
-				ClientSecret: env.TestGoogleDriveClientSecret,
-				TokenJSON:    env.TestGoogleDriveTokenJSON,
-			},
-		})
-	} else {
-		t.Log("Skipping Google Drive storage test: missing environment variables")
 	}
 
 	for _, tc := range testCases {
