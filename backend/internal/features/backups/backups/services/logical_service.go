@@ -1,6 +1,7 @@
 package backups_services
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -263,54 +264,12 @@ func (s *LogicalBackupService) CancelBackup(
 	return nil
 }
 
-func (s *LogicalBackupService) GetBackupFile(
-	user *users_models.User,
+func (s *LogicalBackupService) GetBackupReader(
+	ctx context.Context,
 	backupID uuid.UUID,
-) (io.ReadCloser, *backups_core_logical.LogicalBackup, *databases.Database, error) {
-	backup, err := s.backupRepository.FindByID(backupID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+) (io.ReadCloser, error) {
+	logger := s.logger.With("backup_id", backupID)
 
-	database, err := s.databaseService.GetDatabaseByID(backup.DatabaseID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	if database.WorkspaceID == nil {
-		return nil, nil, nil, errors.New("cannot download backup for database without workspace")
-	}
-
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
-		*database.WorkspaceID,
-		user,
-	)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if !canAccess {
-		return nil, nil, nil, errors.New(
-			"insufficient permissions to download backup for this database",
-		)
-	}
-
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Backup file downloaded for database: %s", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
-
-	reader, err := s.GetBackupReader(backupID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return reader, backup, database, nil
-}
-
-// GetBackupReader returns a reader for the backup file.
-// If encrypted, wraps with DecryptionReader.
-func (s *LogicalBackupService) GetBackupReader(backupID uuid.UUID) (io.ReadCloser, error) {
 	backup, err := s.backupRepository.FindByID(backupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find backup: %w", err)
@@ -321,46 +280,42 @@ func (s *LogicalBackupService) GetBackupReader(backupID uuid.UUID) (io.ReadClose
 		return nil, fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	fileReader, err := storage.GetFile(s.fieldEncryptor, backup.FileName)
+	fileReader, err := storage.GetFile(ctx, s.fieldEncryptor, logger, backup.FileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get backup file: %w", err)
 	}
 
-	// If not encrypted, return raw reader
 	if backup.Encryption == backups_core_enums.BackupEncryptionNone {
-		s.logger.Info("Returning non-encrypted backup", "backupId", backupID)
+		logger.Info("returning non-encrypted backup")
 		return fileReader, nil
 	}
 
-	// Decrypt on-the-fly for encrypted backups
 	if backup.Encryption != backups_core_enums.BackupEncryptionEncrypted {
 		if err := fileReader.Close(); err != nil {
-			s.logger.Error("Failed to close file reader", "error", err)
+			logger.Error("failed to close file reader", "error", err)
 		}
 		return nil, fmt.Errorf("unsupported encryption type: %s", backup.Encryption)
 	}
 
 	if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 		if err := fileReader.Close(); err != nil {
-			s.logger.Error("Failed to close file reader", "error", err)
+			logger.Error("failed to close file reader", "error", err)
 		}
 		return nil, fmt.Errorf("backup marked as encrypted but missing encryption metadata")
 	}
 
-	// Get master key
 	masterKey, err := s.secretKeyService.GetSecretKey()
 	if err != nil {
 		if closeErr := fileReader.Close(); closeErr != nil {
-			s.logger.Error("Failed to close file reader", "error", closeErr)
+			logger.Error("failed to close file reader", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to get master key: %w", err)
 	}
 
-	// Decode salt and IV
 	salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
 	if err != nil {
 		if closeErr := fileReader.Close(); closeErr != nil {
-			s.logger.Error("Failed to close file reader", "error", closeErr)
+			logger.Error("failed to close file reader", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to decode salt: %w", err)
 	}
@@ -368,12 +323,11 @@ func (s *LogicalBackupService) GetBackupReader(backupID uuid.UUID) (io.ReadClose
 	iv, err := base64.StdEncoding.DecodeString(*backup.EncryptionIV)
 	if err != nil {
 		if closeErr := fileReader.Close(); closeErr != nil {
-			s.logger.Error("Failed to close file reader", "error", closeErr)
+			logger.Error("failed to close file reader", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to decode IV: %w", err)
 	}
 
-	// Wrap with decrypting reader
 	decryptionReader, err := encryption.NewDecryptionReader(
 		fileReader,
 		masterKey,
@@ -383,12 +337,12 @@ func (s *LogicalBackupService) GetBackupReader(backupID uuid.UUID) (io.ReadClose
 	)
 	if err != nil {
 		if closeErr := fileReader.Close(); closeErr != nil {
-			s.logger.Error("Failed to close file reader", "error", closeErr)
+			logger.Error("failed to close file reader", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to create decrypting reader: %w", err)
 	}
 
-	s.logger.Info("Returning encrypted backup with decryption", "backupId", backupID)
+	logger.Info("returning encrypted backup with decryption")
 
 	return &backups_dto_logical.DecryptionReaderCloser{
 		DecryptionReader: decryptionReader,
@@ -455,6 +409,7 @@ func (s *LogicalBackupService) GetLatestVerifiableBackup(
 }
 
 func (s *LogicalBackupService) GetBackupFileWithoutAuth(
+	ctx context.Context,
 	backupID uuid.UUID,
 ) (io.ReadCloser, *backups_core_logical.LogicalBackup, *databases.Database, error) {
 	backup, err := s.backupRepository.FindByID(backupID)
@@ -467,7 +422,7 @@ func (s *LogicalBackupService) GetBackupFileWithoutAuth(
 		return nil, nil, nil, err
 	}
 
-	reader, err := s.GetBackupReader(backupID)
+	reader, err := s.GetBackupReader(ctx, backupID)
 	if err != nil {
 		return nil, nil, nil, err
 	}

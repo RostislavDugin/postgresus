@@ -113,7 +113,9 @@ func (f *FTPStorage) SaveFile(
 }
 
 func (f *FTPStorage) GetFile(
+	_ context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	conn, err := f.connect(encryptor, ftpConnectTimeout)

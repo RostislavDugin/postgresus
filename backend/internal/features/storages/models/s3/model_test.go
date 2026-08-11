@@ -45,7 +45,7 @@ func Test_DeleteFile_LegacySingleObjectWithoutManifest_RemovesObject(t *testing.
 
 	assert.Empty(t, listObjectKeys(t, rawClient, storage.S3Bucket, fileName))
 
-	_, err := storage.GetFile(encryptor, fileName)
+	_, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	assert.Error(t, err)
 }
 
@@ -120,7 +120,7 @@ func Test_GetFile_ChunkedBackupMissingPart_ReturnsError(t *testing.T) {
 		rawClient.RemoveObject(t.Context(), storage.S3Bucket, fileName+".part000002", minio.RemoveObjectOptions{}),
 	)
 
-	reader, err := storage.GetFile(encryptor, fileName)
+	reader, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	require.NoError(t, err)
 	defer func() { _ = reader.Close() }()
 
@@ -246,7 +246,7 @@ func Test_GetFile_ChunkedBackupCorruptedPart_ReturnsChecksumError(t *testing.T) 
 	corruptedSameSize := bytes.Repeat([]byte{0xAB}, 10*1024*1024)
 	putRawObject(t, rawClient, storage.S3Bucket, fileName+".part000002", corruptedSameSize)
 
-	reader, err := storage.GetFile(encryptor, fileName)
+	reader, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	require.NoError(t, err)
 	defer func() { _ = reader.Close() }()
 
@@ -269,7 +269,7 @@ func Test_GetFile_ChunkedBackupTruncatedPart_ReturnsSizeError(t *testing.T) {
 	// length check must reject it before its bytes reach the restore.
 	putRawObject(t, rawClient, storage.S3Bucket, fileName+".part000002", generateBytes(4*1024*1024))
 
-	reader, err := storage.GetFile(encryptor, fileName)
+	reader, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	require.NoError(t, err)
 	defer func() { _ = reader.Close() }()
 
@@ -292,7 +292,7 @@ func Test_GetFile_CorruptedManifest_ReturnsError(t *testing.T) {
 	// single-object path and silently read nothing.
 	putRawObject(t, rawClient, storage.S3Bucket, fileName+manifestSuffix, []byte("not a valid manifest{"))
 
-	_, err := storage.GetFile(encryptor, fileName)
+	_, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "manifest")
 }
@@ -356,7 +356,7 @@ func putRawObject(t *testing.T, client *minio.Client, bucket, key string, data [
 func readWholeFile(t *testing.T, storage *S3Storage, encryptor encryption.FieldEncryptor, fileName string) []byte {
 	t.Helper()
 
-	reader, err := storage.GetFile(encryptor, fileName)
+	reader, err := storage.GetFile(t.Context(), encryptor, discardLogger(), fileName)
 	require.NoError(t, err)
 	defer func() { _ = reader.Close() }()
 

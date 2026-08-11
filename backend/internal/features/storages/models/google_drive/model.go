@@ -149,12 +149,14 @@ func (r *backpressureReader) Read(p []byte) (n int, err error) {
 }
 
 func (s *GoogleDriveStorage) GetFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	var result io.ReadCloser
 	err := s.withRetryOnAuth(
-		context.Background(),
+		ctx,
 		encryptor,
 		func(driveService *drive.Service) error {
 			folderID, err := s.findBackupsFolder(driveService)
@@ -167,7 +169,7 @@ func (s *GoogleDriveStorage) GetFile(
 				return err
 			}
 
-			resp, err := driveService.Files.Get(fileIDGoogle).Download() //nolint:bodyclose
+			resp, err := driveService.Files.Get(fileIDGoogle).Context(ctx).Download() //nolint:bodyclose
 			if err != nil {
 				return fmt.Errorf("failed to download file from Google Drive: %w", err)
 			}

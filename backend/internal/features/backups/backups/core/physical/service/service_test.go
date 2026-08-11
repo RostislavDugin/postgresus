@@ -73,7 +73,7 @@ func saveObject(t *testing.T, st *storages.Storage, fileName string) {
 func objectExists(t *testing.T, st *storages.Storage, fileName string) bool {
 	t.Helper()
 
-	reader, err := st.GetFile(encryption.GetFieldEncryptor(), fileName)
+	reader, err := st.GetFile(t.Context(), encryption.GetFieldEncryptor(), logger.GetLogger(), fileName)
 	if err != nil {
 		return false
 	}

@@ -2,8 +2,10 @@ package restore_stream
 
 import (
 	"archive/tar"
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -27,19 +29,25 @@ import (
 type Writer struct {
 	storageService *storages.StorageService
 	fieldEncryptor util_encryption.FieldEncryptor
+	logger         *slog.Logger
 }
 
 func NewWriter(
 	storageService *storages.StorageService,
 	fieldEncryptor util_encryption.FieldEncryptor,
+	logger *slog.Logger,
 ) *Writer {
-	return &Writer{storageService, fieldEncryptor}
+	return &Writer{storageService, fieldEncryptor, logger}
 }
 
-// Write streams the whole restore tar into w. masterKey may be empty when no
-// artifact is encrypted; an encrypted artifact with an empty key is a hard
-// error rather than a silently-corrupt download.
-func (rw *Writer) Write(w io.Writer, set *chain_view.RestoreSet, masterKey string) error {
+// masterKey may be empty when no artifact is encrypted; an encrypted artifact with an empty key is
+// a hard error rather than a silently-corrupt download.
+func (rw *Writer) Write(
+	ctx context.Context,
+	w io.Writer,
+	set *chain_view.RestoreSet,
+	masterKey string,
+) error {
 	tarWriter := tar.NewWriter(w)
 
 	storageCache := make(map[uuid.UUID]*storages.Storage)
@@ -50,7 +58,7 @@ func (rw *Writer) Write(w io.Writer, set *chain_view.RestoreSet, masterKey strin
 		return fmt.Errorf("stream full backup: %w", err)
 	}
 
-	if err := rw.writeBackupDir(tarWriter, "full", backupArtifact{
+	if err := rw.writeBackupDir(ctx, tarWriter, "full", backupArtifact{
 		FileName:         deref(set.RootFull.FileName),
 		Encryption:       set.RootFull.Encryption,
 		EncryptionSalt:   set.RootFull.EncryptionSalt,
@@ -72,7 +80,7 @@ func (rw *Writer) Write(w io.Writer, set *chain_view.RestoreSet, masterKey strin
 			return fmt.Errorf("stream incremental %s: %w", incremental.ID, err)
 		}
 
-		if err := rw.writeBackupDir(tarWriter, fmt.Sprintf("incr-%d", i+1), backupArtifact{
+		if err := rw.writeBackupDir(ctx, tarWriter, fmt.Sprintf("incr-%d", i+1), backupArtifact{
 			FileName:         deref(incremental.FileName),
 			Encryption:       incremental.Encryption,
 			EncryptionSalt:   incremental.EncryptionSalt,
@@ -90,13 +98,13 @@ func (rw *Writer) Write(w io.Writer, set *chain_view.RestoreSet, masterKey strin
 	}
 
 	for _, segment := range set.WalSegments {
-		if err := rw.writeWalSegment(tarWriter, segment, masterKey, storageCache, checksums); err != nil {
+		if err := rw.writeWalSegment(ctx, tarWriter, segment, masterKey, storageCache, checksums); err != nil {
 			return fmt.Errorf("stream wal segment %s: %w", segment.WalFilename, err)
 		}
 	}
 
 	for _, history := range set.HistoryFiles {
-		if err := rw.writeHistoryFile(tarWriter, history, masterKey, storageCache, checksums); err != nil {
+		if err := rw.writeHistoryFile(ctx, tarWriter, history, masterKey, storageCache, checksums); err != nil {
 			return fmt.Errorf("stream history file %s: %w", history.HistoryFilename, err)
 		}
 	}
@@ -108,11 +116,10 @@ func (rw *Writer) Write(w io.Writer, set *chain_view.RestoreSet, masterKey strin
 	return tarWriter.Close()
 }
 
-// writeBackupDir ships one backup as its stored compressed blob under
-// dirName/base.tar<ext> and drops its reconstructed backup_manifest beside it. The
-// recovery script decompresses the blob into a directory and pg_combinebackup reads
-// the manifest from there (one per input directory).
+// The recovery script decompresses the blob into a directory and pg_combinebackup reads
+// the manifest from there, one per input directory, so the manifest must ship beside the blob.
 func (rw *Writer) writeBackupDir(
+	ctx context.Context,
 	tarWriter *tar.Writer,
 	dirName string,
 	artifact backupArtifact,
@@ -132,17 +139,25 @@ func (rw *Writer) writeBackupDir(
 		return err
 	}
 
+	artifactLogger := rw.logger.With("backup_id", artifact.RowID)
+
 	// Ship as stored (decrypt only, still compressed); the recovery script
 	// decompresses on the restore side. Decompressing here would inflate the blob
 	// by its compression ratio and blow the download up by that factor.
-	reader, cleanup, err := openArtifact(store, rw.fieldEncryptor, masterKey, artifactSource{
-		fileName:   artifact.FileName,
-		encryption: artifact.Encryption,
-		salt:       artifact.EncryptionSalt,
-		iv:         artifact.EncryptionIV,
-		keyID:      artifact.RowID,
-		codec:      physical_enums.PhysicalBackupCompressionNone,
-	})
+	reader, cleanup, err := openArtifact(
+		ctx,
+		store,
+		artifactLogger,
+		rw.fieldEncryptor,
+		masterKey,
+		artifactSource{
+			fileName:   artifact.FileName,
+			encryption: artifact.Encryption,
+			salt:       artifact.EncryptionSalt,
+			iv:         artifact.EncryptionIV,
+			keyID:      artifact.RowID,
+			codec:      physical_enums.PhysicalBackupCompressionNone,
+		})
 	if err != nil {
 		return err
 	}
@@ -153,11 +168,13 @@ func (rw *Writer) writeBackupDir(
 		return err
 	}
 
-	return rw.writeManifest(tarWriter, dirName, artifact, masterKey, storageCache, checksums)
+	return rw.writeManifest(ctx, tarWriter, artifactLogger, dirName, artifact, masterKey, storageCache, checksums)
 }
 
 func (rw *Writer) writeManifest(
+	ctx context.Context,
 	tarWriter *tar.Writer,
+	artifactLogger *slog.Logger,
 	dirName string,
 	artifact backupArtifact,
 	masterKey string,
@@ -171,14 +188,20 @@ func (rw *Writer) writeManifest(
 
 	// The manifest sidecar is stored as raw bytes (encrypted with the backup's
 	// row ID but a fresh salt/IV), never zstd-compressed.
-	reader, cleanup, err := openArtifact(store, rw.fieldEncryptor, masterKey, artifactSource{
-		fileName:   *artifact.ManifestFileName,
-		encryption: artifact.Encryption,
-		salt:       artifact.ManifestSalt,
-		iv:         artifact.ManifestIV,
-		keyID:      artifact.RowID,
-		codec:      physical_enums.PhysicalBackupCompressionNone,
-	})
+	reader, cleanup, err := openArtifact(
+		ctx,
+		store,
+		artifactLogger,
+		rw.fieldEncryptor,
+		masterKey,
+		artifactSource{
+			fileName:   *artifact.ManifestFileName,
+			encryption: artifact.Encryption,
+			salt:       artifact.ManifestSalt,
+			iv:         artifact.ManifestIV,
+			keyID:      artifact.RowID,
+			codec:      physical_enums.PhysicalBackupCompressionNone,
+		})
 	if err != nil {
 		return err
 	}
@@ -188,6 +211,7 @@ func (rw *Writer) writeManifest(
 }
 
 func (rw *Writer) writeWalSegment(
+	ctx context.Context,
 	tarWriter *tar.Writer,
 	segment *physical_models.PhysicalWalSegment,
 	masterKey string,
@@ -207,14 +231,22 @@ func (rw *Writer) writeWalSegment(
 	// the recovery script decompresses on demand at replay time. Decompressing
 	// here would re-inflate every near-empty segment back to a full 16 MB and
 	// blow the download up by orders of magnitude.
-	reader, cleanup, err := openArtifact(store, rw.fieldEncryptor, masterKey, artifactSource{
-		fileName:   *segment.FileName,
-		encryption: segment.Encryption,
-		salt:       segment.EncryptionSalt,
-		iv:         segment.EncryptionIV,
-		keyID:      segment.ID,
-		codec:      physical_enums.PhysicalBackupCompressionNone,
-	})
+	segmentLogger := rw.logger.With("wal_segment", segment.WalFilename)
+
+	reader, cleanup, err := openArtifact(
+		ctx,
+		store,
+		segmentLogger,
+		rw.fieldEncryptor,
+		masterKey,
+		artifactSource{
+			fileName:   *segment.FileName,
+			encryption: segment.Encryption,
+			salt:       segment.EncryptionSalt,
+			iv:         segment.EncryptionIV,
+			keyID:      segment.ID,
+			codec:      physical_enums.PhysicalBackupCompressionNone,
+		})
 	if err != nil {
 		return err
 	}
@@ -224,6 +256,7 @@ func (rw *Writer) writeWalSegment(
 }
 
 func (rw *Writer) writeHistoryFile(
+	ctx context.Context,
 	tarWriter *tar.Writer,
 	history *physical_models.PhysicalWalHistoryFile,
 	masterKey string,
@@ -235,21 +268,35 @@ func (rw *Writer) writeHistoryFile(
 		return err
 	}
 
+	historyLogger := rw.logger.With("history_file", history.HistoryFilename)
+
 	// History files keep their encryption parameters only in the .metadata
 	// sidecar, not on the catalog row — read it to learn how to decrypt.
-	metadata, err := readHistoryMetadata(store, rw.fieldEncryptor, history.FileName)
+	metadata, err := readHistoryMetadata(
+		ctx,
+		store,
+		historyLogger,
+		rw.fieldEncryptor,
+		history.FileName,
+	)
 	if err != nil {
 		return err
 	}
 
-	reader, cleanup, err := openArtifact(store, rw.fieldEncryptor, masterKey, artifactSource{
-		fileName:   history.FileName,
-		encryption: metadata.Encryption,
-		salt:       emptyToNil(metadata.EncryptionSalt),
-		iv:         emptyToNil(metadata.EncryptionIV),
-		keyID:      history.ID,
-		codec:      physical_enums.PhysicalBackupCompressionZstd,
-	})
+	reader, cleanup, err := openArtifact(
+		ctx,
+		store,
+		historyLogger,
+		rw.fieldEncryptor,
+		masterKey,
+		artifactSource{
+			fileName:   history.FileName,
+			encryption: metadata.Encryption,
+			salt:       emptyToNil(metadata.EncryptionSalt),
+			iv:         emptyToNil(metadata.EncryptionIV),
+			keyID:      history.ID,
+			codec:      physical_enums.PhysicalBackupCompressionZstd,
+		})
 	if err != nil {
 		return err
 	}

@@ -137,7 +137,9 @@ func (l *LocalStorage) SaveFile(
 }
 
 func (l *LocalStorage) GetFile(
+	_ context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	filePath := filepath.Join(config.GetEnv().DataFolder, fileName)

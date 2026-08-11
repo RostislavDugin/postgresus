@@ -61,7 +61,7 @@ func (uc *CreateIncrementalBackupUsecase) Execute(
 	// Manifest System-Identifier from the stored row (see create_full_uc.go Execute).
 	systemID := spec.SourceDB.SystemIdentifierUint64()
 
-	manifestPath, manifestCleanup, err := downloadParentManifest(spec)
+	manifestPath, manifestCleanup, err := downloadParentManifest(ctx, spec)
 	if err != nil {
 		reason := physical_enums.PhysicalBackupErrorParentManifestMissing
 
@@ -220,6 +220,7 @@ func canceledResult(
 }
 
 func downloadParentManifest(
+	ctx context.Context,
 	spec IncrementalBackupSpec,
 ) (manifestPath string, cleanup func(), err error) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "pgincr_"+uuid.New().String())
@@ -236,7 +237,7 @@ func downloadParentManifest(
 		return "", func() {}, errors.New("storage does not support GetFile")
 	}
 
-	reader, err := storageHandle.GetFile(spec.FieldEncryptor, spec.ParentManifest.FileName)
+	reader, err := storageHandle.GetFile(ctx, spec.FieldEncryptor, spec.Logger, spec.ParentManifest.FileName)
 	if err != nil {
 		cleanupAll()
 

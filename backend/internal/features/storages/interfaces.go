@@ -19,7 +19,15 @@ type StorageFileSaver interface {
 		file io.Reader,
 	) error
 
-	GetFile(encryptor encryption.FieldEncryptor, fileName string) (io.ReadCloser, error)
+	// The returned reader may keep fetching from the remote as it is consumed, so ctx must span the
+	// lifetime of the stream, not just the call: a caller that cancels ctx on return gets a stream
+	// that dies on the first read.
+	GetFile(
+		ctx context.Context,
+		encryptor encryption.FieldEncryptor,
+		logger *slog.Logger,
+		fileName string,
+	) (io.ReadCloser, error)
 
 	DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error
 

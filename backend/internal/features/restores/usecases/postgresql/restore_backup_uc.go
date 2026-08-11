@@ -152,7 +152,6 @@ func (uc *RestorePostgresqlBackupUsecase) withTimescaleHooks(
 	return runRestore()
 }
 
-// restoreViaStdin streams backup via stdin for single CPU restore
 func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	parentCtx context.Context,
 	originalDB *databases.Database,
@@ -161,7 +160,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	storage *storages.Storage,
 	pg *pgtypes.PostgresqlLogicalDatabase,
 ) error {
-	uc.logger.Info("Restoring via stdin streaming (CPU=1)", "backupId", backup.ID)
+	logger := uc.logger.With("backup_id", backup.ID)
+
+	logger.Info("restoring via stdin streaming (CPU=1)")
 
 	args := []string{
 		"-Fc", // expect custom type
@@ -222,14 +223,13 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	}
 	defer credentials.Remove()
 
-	// Get backup stream from storage
-	rawReader, err := storage.GetFile(fieldEncryptor, backup.FileName)
+	rawReader, err := storage.GetFile(ctx, fieldEncryptor, logger, backup.FileName)
 	if err != nil {
 		return fmt.Errorf("failed to get backup file from storage: %w", err)
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			uc.logger.Error("Failed to close backup reader", "error", err)
+			logger.Error("failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -270,11 +270,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		}
 
 		backupReader = decryptReader
-		uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+		logger.Info("using decryption for encrypted backup")
 	}
 
 	cmd := exec.CommandContext(ctx, pgBin, args...)
-	uc.logger.Info("Executing PostgreSQL restore command via stdin", "command", cmd.String())
+	logger.Info("executing PostgreSQL restore command via stdin", "command", cmd.String())
 
 	// Setup environment variables
 	uc.setupPgRestoreEnvironment(cmd, credentials, pg)
@@ -532,7 +532,6 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	return uc.executePgRestore(ctx, database, pgBin, args, credentials, pgConfig)
 }
 
-// downloadBackupToTempFile downloads backup data from storage to a temporary file
 func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	ctx context.Context,
 	backup *backups_core_logical.LogicalBackup,
@@ -544,25 +543,24 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		return "", nil, fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 
+	logger := uc.logger.With("backup_id", backup.ID)
+
 	cleanupFunc := func() {
 		_ = os.RemoveAll(tempDir)
 	}
 
 	tempBackupFile := filepath.Join(tempDir, "backup.dump")
 
-	// Get backup data from storage
-	uc.logger.Info(
-		"Downloading backup file from storage to temporary file",
-		"backupId",
-		backup.ID,
-		"tempFile",
+	logger.Info(
+		"downloading backup file from storage to temporary file",
+		"temp_file",
 		tempBackupFile,
 		"encrypted",
 		backup.Encryption == backups_core_enums.BackupEncryptionEncrypted,
 	)
 
 	fieldEncryptor := util_encryption.GetFieldEncryptor()
-	rawReader, err := storage.GetFile(fieldEncryptor, backup.FileName)
+	rawReader, err := storage.GetFile(ctx, fieldEncryptor, logger, backup.FileName)
 	if err != nil {
 		cleanupFunc()
 		return "", nil, fmt.Errorf("failed to get backup file from storage: %w", err)
@@ -570,7 +568,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			uc.logger.Error("Failed to close backup reader", "error", err)
+			logger.Error("failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -617,7 +615,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		}
 
 		backupReader = decryptReader
-		uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+		logger.Info("using decryption for encrypted backup")
 	}
 
 	// Create temporary backup file
@@ -628,7 +626,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	}
 	defer func() {
 		if err := tempFile.Close(); err != nil {
-			uc.logger.Error("Failed to close temporary file", "error", err)
+			logger.Error("failed to close temporary file", "error", err)
 		}
 	}()
 
@@ -639,10 +637,8 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		return "", nil, fmt.Errorf("failed to write backup to temporary file: %w", err)
 	}
 
-	// Close the temp file to ensure all data is written - this is handled by defer
-	// Removing explicit close to avoid double-close error
+	logger.Info("backup file written to temporary location", "temp_file", tempBackupFile)
 
-	uc.logger.Info("Backup file written to temporary location", "tempFile", tempBackupFile)
 	return tempBackupFile, cleanupFunc, nil
 }
 

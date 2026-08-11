@@ -90,11 +90,11 @@ func (r *RcloneStorage) SaveFile(
 }
 
 func (r *RcloneStorage) GetFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	ctx := context.Background()
-
 	remoteFs, err := r.getFs(ctx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rclone filesystem: %w", err)

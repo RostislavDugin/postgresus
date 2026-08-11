@@ -131,7 +131,9 @@ func (s *SFTPStorage) SaveFile(
 }
 
 func (s *SFTPStorage) GetFile(
+	_ context.Context,
 	encryptor encryption.FieldEncryptor,
+	_ *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	client, sshConn, err := s.connect(encryptor, sftpConnectTimeout)

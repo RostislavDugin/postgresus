@@ -275,6 +275,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 	}
 
 	fileReader, backup, database, err := c.backupService.GetBackupFileWithoutAuth(
+		ctx.Request.Context(),
 		downloadToken.BackupID,
 	)
 	if err != nil {
