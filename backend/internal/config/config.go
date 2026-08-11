@@ -26,6 +26,14 @@ type EnvVariables struct {
 	EnvMode              env_utils.EnvMode `env:"ENV_MODE"             required:"true"`
 	PostgresesInstallDir string            `env:"POSTGRES_INSTALL_DIR"`
 
+	// ServerHost overrides the host the HTTP server binds to (see
+	// startServerWithGracefulShutdown in cmd/main.go). Left unset, dev mode
+	// binds loopback-only and production binds all interfaces, exactly as
+	// before this variable existed. Set it explicitly (e.g. "0.0.0.0") to
+	// make the server reachable from outside its own network namespace,
+	// which dev mode needs when running inside a container.
+	ServerHost string `env:"SERVER_HOST"`
+
 	DataFolder    string
 	TempFolder    string
 	SecretKeyPath string

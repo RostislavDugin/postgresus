@@ -140,14 +140,17 @@ func resetPassword(email string, newPassword string, log *slog.Logger) {
 
 func startServerWithGracefulShutdown(log *slog.Logger, app *gin.Engine) {
 	host := ""
-	if config.GetEnv().EnvMode == env_utils.EnvModeDevelopment && !runningInContainer() {
+	if config.GetEnv().EnvMode == env_utils.EnvModeDevelopment {
 		// for dev we use localhost to avoid firewall
-		// requests on each run for Windows. Skipped inside a container:
-		// binding to loopback there makes the server unreachable through
-		// the container's published port, since the host's Docker port
-		// forwarding targets the container's own network interface, not
-		// its loopback.
+		// requests on each run for Windows
 		host = "127.0.0.1"
+	}
+
+	if serverHost := config.GetEnv().ServerHost; serverHost != "" {
+		// Explicit override (see SERVER_HOST in config.go), e.g. "0.0.0.0"
+		// so the server is reachable from outside its own network
+		// namespace, such as through Docker's published ports.
+		host = serverHost
 	}
 
 	srv := &http.Server{
@@ -175,14 +178,6 @@ func startServerWithGracefulShutdown(log *slog.Logger, app *gin.Engine) {
 	}
 
 	log.Info("Server gracefully stopped")
-}
-
-// runningInContainer reports whether the process is running inside a Docker
-// container. /.dockerenv is created by the Docker daemon in every container
-// it starts and is absent otherwise.
-func runningInContainer() bool {
-	_, err := os.Stat("/.dockerenv")
-	return err == nil
 }
 
 func setUpRoutes(r *gin.Engine) {

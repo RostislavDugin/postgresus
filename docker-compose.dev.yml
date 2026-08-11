@@ -29,6 +29,7 @@ services:
     command: ["go", "run", "cmd/main.go"]
     environment:
       ENV_MODE: development
+      SERVER_HOST: 0.0.0.0
       POSTGRES_INSTALL_DIR: /opt/pg-tools
       DATABASE_DSN: "host=dev-db user=postgres password=Q1234567 dbname=postgresus port=5432 sslmode=disable"
       GOOSE_DRIVER: postgres
