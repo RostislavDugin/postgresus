@@ -74,6 +74,7 @@ var mysqlVersions = []mysqlVersion{
 	{"MySQL 5.7", tools.MysqlVersion57, "mysql:5.7"},
 	{"MySQL 8.0", tools.MysqlVersion80, "mysql:8.0"},
 	{"MySQL 8.4", tools.MysqlVersion84, "mysql:8.4"},
+	{"MySQL 9", tools.MysqlVersion9, "mysql:9"},
 }
 
 // Test_MysqlBackupRestore_AcrossSupportedVersions boots each MySQL version once, runs every

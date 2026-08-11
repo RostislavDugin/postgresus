@@ -8,6 +8,7 @@ const mysqlVersionLabels = {
   [MysqlVersion.MysqlVersion57]: '5.7',
   [MysqlVersion.MysqlVersion80]: '8.0',
   [MysqlVersion.MysqlVersion84]: '8.4',
+  [MysqlVersion.MysqlVersion9]: '9',
 };
 
 export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
