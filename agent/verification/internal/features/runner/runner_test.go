@@ -145,7 +145,7 @@ func Test_ExecuteJob_WhenDiskWatcherTrips_ReportsTerminalDiskLimitExceeded(t *te
 
 	apiClient := &fakeAPI{downloadBody: []byte("ARCHIVE")}
 	jobContainer := fakeContainerWith(testConn())
-	jobContainer.diskUsageBytes = 1 << 40
+	jobContainer.diskUsageBytes.Store(1 << 40)
 	restorer := &fakeRestorer{runBlocks: true}
 
 	r := newTestRunner(
@@ -162,10 +162,35 @@ func Test_ExecuteJob_WhenDiskWatcherTrips_ReportsTerminalDiskLimitExceeded(t *te
 	assert.True(t, jobContainer.terminated, "the container must be torn down on disk-limit abort")
 }
 
+func Test_ExecuteJob_WhenDiskWatcherTripsDuringOwnerRoles_ReportsTerminalDiskLimitExceeded(t *testing.T) {
+	originalInterval := diskWatchInterval
+	diskWatchInterval = time.Millisecond
+	t.Cleanup(func() { diskWatchInterval = originalInterval })
+
+	apiClient := &fakeAPI{downloadBody: []byte("ARCHIVE")}
+	jobContainer := fakeContainerWith(testConn())
+	restorer := &fakeRestorer{
+		ensureRolesBlocks:    true,
+		onEnsureRolesEntered: func() { jobContainer.diskUsageBytes.Store(1 << 40) },
+	}
+
+	r := newTestRunner(
+		apiClient, &fakeSpawner{container: jobContainer}, restorer, &fakeStats{}, newFakeRegistrar())
+
+	r.executeJob(t.Context(), postgresJob())
+
+	report, ok := apiClient.lastReport()
+	require.Contains(t, restorer.calls, "roles", "the watcher must trip inside the owner-roles stage")
+	require.True(t, ok, "a stage cancelled by the watcher must still post the disk verdict")
+	assert.Equal(t, api.VerificationStatusFailed, report.Status)
+	require.NotNil(t, report.FailureKind)
+	assert.Equal(t, api.FailureKindDiskLimitExceeded, *report.FailureKind)
+}
+
 func Test_ExecuteJob_WhenServerSendsNoDiskBudget_DoesNotFalselyTrip(t *testing.T) {
 	apiClient := &fakeAPI{downloadBody: []byte("ARCHIVE")}
 	jobContainer := fakeContainerWith(testConn())
-	jobContainer.diskUsageBytes = 1 << 40
+	jobContainer.diskUsageBytes.Store(1 << 40)
 
 	job := postgresJob()
 	job.MaxContainerDiskMb = 0

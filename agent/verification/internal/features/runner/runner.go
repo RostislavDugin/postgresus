@@ -195,6 +195,20 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 
 	var isDiskLimitHit atomic.Bool
 
+	// Every stage running under jobCtx must consult this before treating a
+	// cancelled context as a silent abort: the watcher cancels jobCtx itself, so
+	// a bare `jobCtx.Err() != nil` early return would swallow the disk verdict
+	// and leave the verification hanging until the backend reclaims it.
+	reportIfDiskLimitHit := func() bool {
+		if !isDiskLimitHit.Load() {
+			return false
+		}
+
+		r.reportDiskLimitExceeded(ctx, job.VerificationID, diskBudgetFailMessage, runLogger)
+
+		return true
+	}
+
 	// A zero/absent budget (older backend) means no enforceable ceiling — skip
 	// the watcher rather than trip instantly on used >= 0.
 	if diskBudgetMb > 0 {
@@ -219,9 +233,7 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		archivePath,
 		runLogger,
 	); err != nil {
-		if isDiskLimitHit.Load() {
-			r.reportDiskLimitExceeded(ctx, job.VerificationID, diskBudgetFailMessage, runLogger)
-
+		if reportIfDiskLimitHit() {
 			return
 		}
 
@@ -237,6 +249,10 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 	archiveOwnerRoleNames, err := r.restorer.EnsureArchiveOwnerRoles(
 		jobCtx, jobContainer, archivePath, jobContainer.GetVerifierConn())
 	if err != nil {
+		if reportIfDiskLimitHit() {
+			return
+		}
+
 		if jobCtx.Err() != nil {
 			return
 		}
@@ -265,6 +281,10 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		parallelJobs = 1
 
 		if err := r.restorer.RunTimescalePreRestore(jobCtx, jobContainer.GetVerifierConn()); err != nil {
+			if reportIfDiskLimitHit() {
+				return
+			}
+
 			if jobCtx.Err() != nil {
 				return
 			}
@@ -279,9 +299,7 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 	restoreResult, err := r.restorer.RunPgRestore(
 		jobCtx, jobContainer, archivePath, jobContainer.GetInContainerConn(), parallelJobs)
 	if err != nil {
-		if isDiskLimitHit.Load() {
-			r.reportDiskLimitExceeded(ctx, job.VerificationID, diskBudgetFailMessage, runLogger)
-
+		if reportIfDiskLimitHit() {
 			return
 		}
 
@@ -332,6 +350,10 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 
 	if job.TimescaledbVersion != "" {
 		if err := r.restorer.RunTimescalePostRestore(jobCtx, jobContainer.GetVerifierConn()); err != nil {
+			if reportIfDiskLimitHit() {
+				return
+			}
+
 			if jobCtx.Err() != nil {
 				return
 			}
@@ -347,9 +369,7 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 
 	stats, err := r.verifier.CollectStats(jobCtx, verifierConn)
 	if err != nil {
-		if isDiskLimitHit.Load() {
-			r.reportDiskLimitExceeded(ctx, job.VerificationID, diskBudgetFailMessage, runLogger)
-
+		if reportIfDiskLimitHit() {
 			return
 		}
 
@@ -370,9 +390,7 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		return
 	}
 
-	if isDiskLimitHit.Load() {
-		r.reportDiskLimitExceeded(ctx, job.VerificationID, diskBudgetFailMessage, runLogger)
-
+	if reportIfDiskLimitHit() {
 		return
 	}
 

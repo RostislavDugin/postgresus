@@ -89,7 +89,7 @@ type fakeContainer struct {
 	inContainerConn dbconn.Conn
 	verifierConn    dbconn.Conn
 	terminated      bool
-	diskUsageBytes  int64
+	diskUsageBytes  atomic.Int64
 	diskUsageErr    error
 }
 
@@ -107,7 +107,7 @@ func (c *fakeContainer) GetInContainerConn() dbconn.Conn { return c.inContainerC
 func (c *fakeContainer) GetVerifierConn() dbconn.Conn    { return c.verifierConn }
 
 func (c *fakeContainer) GetDiskUsageBytes(context.Context) (int64, error) {
-	return c.diskUsageBytes, c.diskUsageErr
+	return c.diskUsageBytes.Load(), c.diskUsageErr
 }
 
 func (c *fakeContainer) Terminate(context.Context) error {
@@ -129,11 +129,13 @@ func (s *fakeSpawner) Spawn(_ context.Context, _ SpawnRequest) (JobContainer, er
 }
 
 type fakeRestorer struct {
-	stageErr       error
-	ensureRolesErr error
-	runResult      restore.Result
-	runErr         error
-	runBlocks      bool
+	stageErr             error
+	ensureRolesErr       error
+	ensureRolesBlocks    bool
+	onEnsureRolesEntered func()
+	runResult            restore.Result
+	runErr               error
+	runBlocks            bool
 
 	runEntered      atomic.Bool
 	runCtxCancelled atomic.Bool
@@ -172,9 +174,19 @@ func (r *fakeRestorer) RunPgRestore(
 }
 
 func (r *fakeRestorer) EnsureArchiveOwnerRoles(
-	_ context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn,
+	ctx context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn,
 ) ([]string, error) {
 	r.calls = append(r.calls, "roles")
+
+	if r.onEnsureRolesEntered != nil {
+		r.onEnsureRolesEntered()
+	}
+
+	if r.ensureRolesBlocks {
+		<-ctx.Done()
+
+		return nil, ctx.Err()
+	}
 
 	if r.ensureRolesErr != nil {
 		return nil, r.ensureRolesErr
