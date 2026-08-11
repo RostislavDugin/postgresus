@@ -2,12 +2,14 @@ import { Button, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
 
 import {
+  MattermostDeliveryMode,
   type Notifier,
   NotifierType,
   WebhookMethod,
   notifierApi,
   validateDiscordNotifier,
   validateEmailNotifier,
+  validateMattermostNotifier,
   validateSlackNotifier,
   validateTeamsNotifier,
   validateTelegramNotifier,
@@ -17,6 +19,7 @@ import { getNotifierLogoFromType } from '../../../../entity/notifiers/models/get
 import { ToastHelper } from '../../../../shared/toast';
 import { EditDiscordNotifierComponent } from './notifiers/EditDiscordNotifierComponent';
 import { EditEmailNotifierComponent } from './notifiers/EditEmailNotifierComponent';
+import { EditMattermostNotifierComponent } from './notifiers/EditMattermostNotifierComponent';
 import { EditSlackNotifierComponent } from './notifiers/EditSlackNotifierComponent';
 import { EditTeamsNotifierComponent } from './notifiers/EditTeamsNotifierComponent';
 import { EditTelegramNotifierComponent } from './notifiers/EditTelegramNotifierComponent';
@@ -96,6 +99,10 @@ export function EditNotifierComponent({
     notifier.emailNotifier = undefined;
     notifier.telegramNotifier = undefined;
     notifier.teamsNotifier = undefined;
+    notifier.webhookNotifier = undefined;
+    notifier.slackNotifier = undefined;
+    notifier.discordNotifier = undefined;
+    notifier.mattermostNotifier = undefined;
 
     if (type === NotifierType.TELEGRAM) {
       notifier.telegramNotifier = {
@@ -139,6 +146,20 @@ export function EditNotifierComponent({
 
     if (type === NotifierType.TEAMS) {
       notifier.teamsNotifier = { powerAutomateUrl: '' };
+    }
+
+    if (type === NotifierType.MATTERMOST) {
+      notifier.mattermostNotifier = {
+        deliveryMode: MattermostDeliveryMode.WEBHOOK,
+        webhookUrl: '',
+        serverUrl: '',
+        botToken: '',
+        targetChannelName: '',
+        targetChannelId: '',
+        overrideUsername: '',
+        overrideIconUrl: '',
+        isInsecureSkipVerify: false,
+      };
     }
 
     setNotifier(
@@ -202,6 +223,10 @@ export function EditNotifierComponent({
       return validateTeamsNotifier(!notifier.id, notifier.teamsNotifier);
     }
 
+    if (notifier.notifierType === NotifierType.MATTERMOST && notifier.mattermostNotifier) {
+      return validateMattermostNotifier(!notifier.id, notifier.mattermostNotifier);
+    }
+
     return false;
   };
 
@@ -239,6 +264,7 @@ export function EditNotifierComponent({
               { label: 'Slack', value: NotifierType.SLACK },
               { label: 'Discord', value: NotifierType.DISCORD },
               { label: 'Teams', value: NotifierType.TEAMS },
+              { label: 'Mattermost', value: NotifierType.MATTERMOST },
             ]}
             onChange={(value) => {
               setNotifierType(value);
@@ -311,6 +337,17 @@ export function EditNotifierComponent({
         )}
         {notifier?.notifierType === NotifierType.TEAMS && (
           <EditTeamsNotifierComponent
+            notifier={notifier}
+            setNotifier={setNotifier}
+            setUnsaved={() => {
+              setIsUnsaved(true);
+              setIsTestNotificationSuccess(false);
+            }}
+          />
+        )}
+
+        {notifier?.notifierType === NotifierType.MATTERMOST && (
+          <EditMattermostNotifierComponent
             notifier={notifier}
             setNotifier={setNotifier}
             setUnsaved={() => {

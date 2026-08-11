@@ -9,6 +9,7 @@ import (
 	notifier_models "databasus-backend/internal/features/notifiers/models"
 	discord_notifier "databasus-backend/internal/features/notifiers/models/discord"
 	"databasus-backend/internal/features/notifiers/models/email_notifier"
+	mattermost_notifier "databasus-backend/internal/features/notifiers/models/mattermost"
 	slack_notifier "databasus-backend/internal/features/notifiers/models/slack"
 	teams_notifier "databasus-backend/internal/features/notifiers/models/teams"
 	telegram_notifier "databasus-backend/internal/features/notifiers/models/telegram"
@@ -24,12 +25,13 @@ type Notifier struct {
 	LastSendError *string      `json:"lastSendError" gorm:"column:last_send_error;type:text"`
 
 	// specific notifier
-	TelegramNotifier *telegram_notifier.TelegramNotifier `json:"telegramNotifier"       gorm:"foreignKey:NotifierID"`
-	EmailNotifier    *email_notifier.EmailNotifier       `json:"emailNotifier"          gorm:"foreignKey:NotifierID"`
-	WebhookNotifier  *webhook_notifier.WebhookNotifier   `json:"webhookNotifier"        gorm:"foreignKey:NotifierID"`
-	SlackNotifier    *slack_notifier.SlackNotifier       `json:"slackNotifier"          gorm:"foreignKey:NotifierID"`
-	DiscordNotifier  *discord_notifier.DiscordNotifier   `json:"discordNotifier"        gorm:"foreignKey:NotifierID"`
-	TeamsNotifier    *teams_notifier.TeamsNotifier       `json:"teamsNotifier,omitzero" gorm:"foreignKey:NotifierID;constraint:OnDelete:CASCADE"`
+	TelegramNotifier   *telegram_notifier.TelegramNotifier     `json:"telegramNotifier"       gorm:"foreignKey:NotifierID"`
+	EmailNotifier      *email_notifier.EmailNotifier           `json:"emailNotifier"          gorm:"foreignKey:NotifierID"`
+	WebhookNotifier    *webhook_notifier.WebhookNotifier       `json:"webhookNotifier"        gorm:"foreignKey:NotifierID"`
+	SlackNotifier      *slack_notifier.SlackNotifier           `json:"slackNotifier"          gorm:"foreignKey:NotifierID"`
+	DiscordNotifier    *discord_notifier.DiscordNotifier       `json:"discordNotifier"        gorm:"foreignKey:NotifierID"`
+	TeamsNotifier      *teams_notifier.TeamsNotifier           `json:"teamsNotifier,omitzero" gorm:"foreignKey:NotifierID;constraint:OnDelete:CASCADE"`
+	MattermostNotifier *mattermost_notifier.MattermostNotifier `json:"mattermostNotifier"     gorm:"foreignKey:NotifierID"`
 }
 
 func (n *Notifier) TableName() string {
@@ -98,6 +100,10 @@ func (n *Notifier) Update(incoming *Notifier) {
 		if n.TeamsNotifier != nil && incoming.TeamsNotifier != nil {
 			n.TeamsNotifier.Update(incoming.TeamsNotifier)
 		}
+	case NotifierTypeMattermost:
+		if n.MattermostNotifier != nil && incoming.MattermostNotifier != nil {
+			n.MattermostNotifier.Update(incoming.MattermostNotifier)
+		}
 	}
 }
 
@@ -115,6 +121,8 @@ func (n *Notifier) getSpecificNotifier() NotificationSender {
 		return n.DiscordNotifier
 	case NotifierTypeTeams:
 		return n.TeamsNotifier
+	case NotifierTypeMattermost:
+		return n.MattermostNotifier
 	default:
 		panic("unknown notifier type: " + string(n.NotifierType))
 	}

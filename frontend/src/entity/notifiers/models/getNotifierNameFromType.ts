@@ -14,6 +14,8 @@ export const getNotifierNameFromType = (type: NotifierType) => {
       return 'Discord';
     case NotifierType.TEAMS:
       return 'Teams';
+    case NotifierType.MATTERMOST:
+      return 'Mattermost';
     default:
       return '';
   }
