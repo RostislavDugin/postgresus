@@ -143,7 +143,16 @@ services:
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
 
+  frontend-tests:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend-node-modules:/app/frontend/node_modules
+
 volumes:
   test-nas-data:
   go-mod-cache:
   go-build-cache:
+  frontend-node-modules:

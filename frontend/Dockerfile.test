@@ -1,0 +1,10 @@
+FROM node:24-alpine
+
+WORKDIR /app/frontend
+
+# Dependencies are baked into the image; the named volume mounted over
+# node_modules is prepopulated from here on first run.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+CMD ["npx", "vitest", "run"]
