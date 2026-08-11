@@ -1,45 +1,38 @@
-# Before run
-
-Keep in mind: you need to use dev-db from docker-compose.yml in this folder
-instead of postgresus-db from docker-compose.yml in the root folder.
-
-> Copy .env.example to .env
-> Copy docker-compose.yml.example to docker-compose.yml (for development only)
-> Go to tools folder and install Postgres versions
-
 # Run
 
-To run:
+Всё запускается из корня репозитория, на хосте нужен только Docker.
+
+Приложение (http://localhost:4005):
 
 > make run
 
-To run tests:
+Все тесты (бэкенд + фронтенд):
 
 > make test
 
-Before commit (make sure `golangci-lint` is installed):
+Только бэкенд или только фронтенд:
 
-> make lint
+> make test-backend
+> make test-frontend
+
+Логи сервисов последнего прогона и полный сброс окружения:
+
+> make test-logs
+> make test-clean
+
+Линтеры остаются хостовыми (нужен установленный `golangci-lint`):
+
+> make lint-backend
 
 # Migrations
 
-To create migration:
-
 > make migration-create name=MIGRATION_NAME
-
-To run migrations:
-
 > make migration-up
-
-If latest migration failed:
-
-To rollback on migration:
-
 > make migration-down
 
 # Swagger
 
-To generate swagger docs:
+To generate swagger docs (run from the repo root):
 
 > make swagger
 
