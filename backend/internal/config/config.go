@@ -98,8 +98,7 @@ func loadEnvVariables() {
 	}
 
 	if !loaded {
-		log.Error("Error loading .env file: could not find .env in any location")
-		os.Exit(1)
+		log.Info("No .env file found, reading configuration from environment variables")
 	}
 
 	err = cleanenv.ReadEnv(&env)
@@ -130,7 +129,9 @@ func loadEnvVariables() {
 	}
 	log.Info("ENV_MODE loaded", "mode", env.EnvMode)
 
-	env.PostgresesInstallDir = filepath.Join(backendRoot, "tools", "postgresql")
+	if env.PostgresesInstallDir == "" {
+		env.PostgresesInstallDir = filepath.Join(backendRoot, "tools", "postgresql")
+	}
 	tools.VerifyPostgresesInstallation(log, env.EnvMode, env.PostgresesInstallDir)
 
 	// Store the data and temp folders one level below the root
