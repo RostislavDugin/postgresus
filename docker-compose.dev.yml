@@ -1,0 +1,47 @@
+name: postgresus-dev
+
+services:
+  dev-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: postgresus
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Q1234567
+    ports:
+      - "5437:5432"
+    volumes:
+      - dev-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgresus"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    shm_size: 1gb
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      dev-db:
+        condition: service_healthy
+    entrypoint: []
+    command: ["go", "run", "cmd/main.go"]
+    environment:
+      ENV_MODE: development
+      POSTGRES_INSTALL_DIR: /opt/pg-tools
+      DATABASE_DSN: "host=dev-db user=postgres password=Q1234567 dbname=postgresus port=5432 sslmode=disable"
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://postgres:Q1234567@dev-db:5432/postgresus?sslmode=disable"
+      GOOSE_MIGRATION_DIR: "."
+    ports:
+      - "4005:4005"
+    volumes:
+      - ./backend:/app/backend
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+
+volumes:
+  dev-db-data:
+  go-mod-cache:
+  go-build-cache:
