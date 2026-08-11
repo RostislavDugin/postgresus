@@ -250,13 +250,12 @@ func (s *MembershipService) TransferOwnership(
 	request *workspaces_dto.TransferOwnershipRequestDTO,
 	user *users_models.User,
 ) error {
-	currentRole, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	canTransfer, err := s.workspaceService.CanUserManageAdmins(workspaceID, user)
 	if err != nil {
 		return fmt.Errorf("failed to get current user role: %w", err)
 	}
 
-	if user.Role != users_enums.UserRoleAdmin &&
-		(currentRole == nil || *currentRole != users_enums.WorkspaceRoleOwner) {
+	if !canTransfer {
 		return errors.New("only workspace owner or admin can transfer ownership")
 	}
 

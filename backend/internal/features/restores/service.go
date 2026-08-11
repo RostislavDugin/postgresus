@@ -106,14 +106,11 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return errors.New("cannot restore backup for database without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
-		*database.WorkspaceID,
-		user,
-	)
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
-	if !canAccess {
+	if !canManage {
 		return errors.New("insufficient permissions to restore this backup")
 	}
 

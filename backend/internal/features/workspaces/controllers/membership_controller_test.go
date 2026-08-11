@@ -55,11 +55,11 @@ func Test_GetWorkspaceMembers_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot view members",
+			name:               "non-member views members as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusForbidden,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can view members",

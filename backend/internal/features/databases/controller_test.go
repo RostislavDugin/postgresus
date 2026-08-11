@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	users_enums "postgresus-backend/internal/features/users/enums"
@@ -348,11 +349,11 @@ func Test_GetDatabase_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get database",
+			name:               "non-member gets database as implicit viewer",
 			userRole:           nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can get database",
@@ -420,11 +421,11 @@ func Test_GetDatabasesByWorkspace_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot list databases",
+			name:               "non-member lists databases as implicit viewer",
 			isMember:           false,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can list databases",
@@ -478,6 +479,31 @@ func Test_GetDatabasesByWorkspace_PermissionsEnforced(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetDatabasesByWorkspace_WhenUserIsMemberWithoutMembership_ReturnsDatabases(
+	t *testing.T,
+) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Implicit Viewer DBs", owner, router)
+
+	createTestDatabaseViaAPI("Visible DB", workspace.ID, owner.Token, router)
+
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	var databases []Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases?workspace_id="+workspace.ID.String(),
+		"Bearer "+outsider.Token,
+		http.StatusOK,
+		&databases,
+	)
+
+	require.Len(t, databases, 1)
+	assert.Equal(t, "Visible DB", databases[0].Name)
 }
 
 func Test_GetDatabasesByWorkspace_WhenMultipleDatabasesExist_ReturnsCorrectCount(t *testing.T) {
@@ -666,10 +692,10 @@ func Test_TestConnection_PermissionsEnforced(t *testing.T) {
 			expectedStatusCodeOnErr: http.StatusBadRequest,
 		},
 		{
-			name:                    "non-member cannot test connection",
+			name:                    "non-member tests connection as implicit viewer",
 			isMember:                false,
 			isGlobalAdmin:           false,
-			expectAccessGranted:     false,
+			expectAccessGranted:     true,
 			expectedStatusCodeOnErr: http.StatusBadRequest,
 		},
 		{

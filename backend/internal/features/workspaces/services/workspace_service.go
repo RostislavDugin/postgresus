@@ -148,15 +148,13 @@ func (s *WorkspaceService) UpdateWorkspace(
 }
 
 func (s *WorkspaceService) DeleteWorkspace(workspaceID uuid.UUID, user *users_models.User) error {
-	if user.Role != users_enums.UserRoleAdmin {
-		userWorkspaceRole, err := s.GetUserWorkspaceRole(workspaceID, user.ID)
-		if err != nil {
-			return fmt.Errorf("failed to get user role: %w", err)
-		}
+	canDelete, err := s.CanUserManageAdmins(workspaceID, user)
+	if err != nil {
+		return fmt.Errorf("failed to get user role: %w", err)
+	}
 
-		if userWorkspaceRole == nil || *userWorkspaceRole != users_enums.WorkspaceRoleOwner {
-			return errors.New("only workspace owner or admin can delete workspace")
-		}
+	if !canDelete {
+		return errors.New("only workspace owner or admin can delete workspace")
 	}
 
 	workspace, err := s.workspaceRepository.GetWorkspaceByID(workspaceID)
@@ -194,99 +192,64 @@ func (s *WorkspaceService) CanUserAccessWorkspace(
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (bool, *users_enums.WorkspaceRole, error) {
-	if user.Role == users_enums.UserRoleAdmin {
-		adminRole := users_enums.WorkspaceRoleOwner
-		return true, &adminRole, nil
-	}
-
-	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	role, err := s.resolveEffectiveRole(workspaceID, user)
 	if err != nil {
-		return false, nil, nil
+		return false, nil, err
 	}
 
-	return role != nil, role, nil
+	return true, &role, nil
 }
 
 func (s *WorkspaceService) CanUserManageWorkspace(
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (bool, error) {
-	if user.Role == users_enums.UserRoleAdmin {
-		return true, nil
-	}
-
-	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	role, err := s.resolveEffectiveRole(workspaceID, user)
 	if err != nil {
 		return false, err
 	}
 
-	if role == nil {
-		return false, nil
-	}
-
-	return *role == users_enums.WorkspaceRoleOwner ||
-		*role == users_enums.WorkspaceRoleAdmin, nil
+	return role == users_enums.WorkspaceRoleOwner ||
+		role == users_enums.WorkspaceRoleAdmin, nil
 }
 
 func (s *WorkspaceService) CanUserManageDBs(
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (bool, error) {
-	if user.Role == users_enums.UserRoleAdmin {
-		return true, nil
-	}
-
-	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	role, err := s.resolveEffectiveRole(workspaceID, user)
 	if err != nil {
 		return false, err
 	}
 
-	if role == nil {
-		return false, nil
-	}
-
-	return *role == users_enums.WorkspaceRoleOwner ||
-		*role == users_enums.WorkspaceRoleAdmin || *role == users_enums.WorkspaceRoleMember, nil
+	return role == users_enums.WorkspaceRoleOwner ||
+		role == users_enums.WorkspaceRoleAdmin ||
+		role == users_enums.WorkspaceRoleMember, nil
 }
 
 func (s *WorkspaceService) CanUserManageMembership(
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (bool, error) {
-	if user.Role == users_enums.UserRoleAdmin {
-		return true, nil
-	}
-
-	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	role, err := s.resolveEffectiveRole(workspaceID, user)
 	if err != nil {
 		return false, err
 	}
 
-	if role == nil {
-		return false, nil
-	}
-
-	return *role == users_enums.WorkspaceRoleOwner || *role == users_enums.WorkspaceRoleAdmin, nil
+	return role == users_enums.WorkspaceRoleOwner ||
+		role == users_enums.WorkspaceRoleAdmin, nil
 }
 
 func (s *WorkspaceService) CanUserManageAdmins(
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (bool, error) {
-	if user.Role == users_enums.UserRoleAdmin {
-		return true, nil
-	}
-
-	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	role, err := s.resolveEffectiveRole(workspaceID, user)
 	if err != nil {
 		return false, err
 	}
 
-	if role == nil {
-		return false, nil
-	}
-
-	return *role == users_enums.WorkspaceRoleOwner, nil
+	return role == users_enums.WorkspaceRoleOwner, nil
 }
 
 func (s *WorkspaceService) GetWorkspaceAuditLogs(
@@ -313,4 +276,24 @@ func (s *WorkspaceService) GetWorkspaceByID(
 	workspaceID uuid.UUID,
 ) (*workspaces_models.Workspace, error) {
 	return s.workspaceRepository.GetWorkspaceByID(workspaceID)
+}
+
+func (s *WorkspaceService) resolveEffectiveRole(
+	workspaceID uuid.UUID,
+	user *users_models.User,
+) (users_enums.WorkspaceRole, error) {
+	if user.Role == users_enums.UserRoleAdmin {
+		return users_enums.WorkspaceRoleOwner, nil
+	}
+
+	role, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	if err != nil {
+		return "", err
+	}
+
+	if role != nil {
+		return *role, nil
+	}
+
+	return users_enums.WorkspaceRoleViewer, nil
 }
