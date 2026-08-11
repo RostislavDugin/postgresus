@@ -70,7 +70,7 @@ func VerifyPostgresesInstallation(
 		if _, err := os.Stat(binDir); os.IsNotExist(err) {
 			if envMode == env_utils.EnvModeDevelopment {
 				logger.Error(
-					"PostgreSQL bin directory not found. Make sure PostgreSQL is installed. Read ./tools/readme.md for details",
+					"PostgreSQL bin directory not found. Make sure PostgreSQL is installed. Run `make test` from the repository root, or see the root README for details",
 					"version",
 					string(version),
 					"path",
@@ -109,7 +109,7 @@ func VerifyPostgresesInstallation(
 			if _, err := os.Stat(cmdPath); os.IsNotExist(err) {
 				if envMode == env_utils.EnvModeDevelopment {
 					logger.Error(
-						"PostgreSQL command not found. Make sure PostgreSQL is installed. Read ./tools/readme.md for details",
+						"PostgreSQL command not found. Make sure PostgreSQL is installed. Run `make test` from the repository root, or see the root README for details",
 						"command",
 						cmd,
 						"version",

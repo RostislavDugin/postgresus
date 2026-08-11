@@ -23,6 +23,7 @@ RUN for v in 12 13 14 15 16 17 18; do \
   done
 
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
+RUN go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
 # config.go resolves the data/secret-key/temp directories by walking up from
 # CWD to the nearest go.mod (here /app/backend/go.mod) and taking its parent,
@@ -31,7 +32,19 @@ RUN go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
 # main(), so nothing else creates them. This sits outside the bind-mounted
 # /app/backend tree, so directories baked in here at build time survive the
 # mount.
-RUN mkdir -p /app/postgresus-data/backups /app/postgresus-data/temp
+#
+# secret.key is seeded here too, for the same reason: every `docker compose
+# run --rm` starts from this image fresh, so GetSecretKey()'s
+# check-then-create (absent file -> generate -> write -> cache, no mutex)
+# would otherwise run anew in every container. Parallel test packages racing
+# that unsynchronized path can each generate a different key, so a token
+# signed in one package fails to validate in another (misleading
+# "401 Invalid token"). GetSecretKey() reads the file as opaque bytes with no
+# format parsing, only a downstream `[:32]` slice when deriving an AES key,
+# so any file of at least 32 bytes works; 48 random bytes, base64-encoded,
+# comfortably clears that bar.
+RUN mkdir -p /app/postgresus-data/backups /app/postgresus-data/temp && \
+  head -c 48 /dev/urandom | base64 > /app/postgresus-data/secret.key
 
 WORKDIR /app/backend
 

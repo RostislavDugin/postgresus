@@ -6,7 +6,7 @@ test:
 	$(MAKE) -j2 test-backend test-frontend
 
 test-backend:
-	$(COMPOSE_TEST) run --rm backend-tests
+	$(COMPOSE_TEST) run --rm --build backend-tests
 
 test-frontend:
 	$(COMPOSE_TEST) run --rm --build frontend-tests
