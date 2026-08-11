@@ -219,11 +219,11 @@ func Test_GetBackupConfigByDbID_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get backup config",
+			name:               "non-member gets backup config as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusNotFound,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 
@@ -310,10 +310,10 @@ func Test_IsStorageUsing_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-storage-owner cannot check storage usage",
+			name:               "non-storage-owner checks storage usage as implicit viewer",
 			isStorageOwner:     false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusInternalServerError,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 

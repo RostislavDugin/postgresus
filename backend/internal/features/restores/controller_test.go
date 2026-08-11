@@ -69,24 +69,26 @@ func Test_GetRestores_WhenUserIsWorkspaceMember_RestoresReturned(t *testing.T) {
 	assert.NotNil(t, database)
 }
 
-func Test_GetRestores_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
+func Test_GetRestores_WhenUserIsMemberWithoutMembership_RestoresReturned(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
 
 	_, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
 
-	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
 
-	testResp := test_utils.MakeGetRequest(
+	var restores []*models.Restore
+	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/restores/%s", backup.ID.String()),
-		"Bearer "+nonMember.Token,
-		http.StatusBadRequest,
+		"Bearer "+outsider.Token,
+		http.StatusOK,
+		&restores,
 	)
 
-	assert.Contains(t, string(testResp.Body), "insufficient permissions")
+	assert.NotNil(t, restores)
 }
 
 func Test_GetRestores_WhenUserIsGlobalAdmin_RestoresReturned(t *testing.T) {
@@ -169,6 +171,45 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 	)
 
 	assert.Contains(t, string(testResp.Body), "insufficient permissions")
+}
+
+func Test_RestoreBackup_WhenUserIsWorkspaceViewer_ReturnsForbidden(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
+
+	viewer := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspaces_testing.AddMemberToWorkspace(
+		workspace,
+		viewer,
+		users_enums.WorkspaceRoleViewer,
+		owner.Token,
+		router,
+	)
+
+	request := RestoreBackupRequest{
+		PostgresqlDatabase: &postgresql.PostgresqlDatabase{
+			Version:  tools.PostgresqlVersion16,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "postgres",
+			Password: "postgres",
+		},
+	}
+
+	testResp := test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/restores/%s/restore", backup.ID.String()),
+		"Bearer "+viewer.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(testResp.Body), "insufficient permissions to restore this backup")
+	assert.NotNil(t, database)
 }
 
 func Test_RestoreBackup_AuditLogWritten(t *testing.T) {

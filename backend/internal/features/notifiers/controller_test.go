@@ -24,6 +24,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_SaveNewNotifier_NotifierReturnedViaGet(t *testing.T) {
@@ -362,7 +363,7 @@ func Test_AdminCanManageNotifiers(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
+func Test_Notifiers_WhenUserIsMemberWithoutMembership_ReadsButCannotManage(t *testing.T) {
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	router := createRouter()
@@ -381,14 +382,19 @@ func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
 		&savedNotifier,
 	)
 
-	// Outsider cannot GET notifiers
-	test_utils.MakeGetRequest(
+	// Outsider is an implicit workspace viewer and CAN list notifiers
+	var visibleNotifiers []Notifier
+	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/notifiers?workspace_id=%s", workspace.ID.String()),
 		"Bearer "+outsider.Token,
-		http.StatusForbidden,
+		http.StatusOK,
+		&visibleNotifiers,
 	)
+
+	require.Len(t, visibleNotifiers, 1)
+	assert.Equal(t, savedNotifier.ID, visibleNotifiers[0].ID)
 
 	// Outsider cannot CREATE notifier
 	test_utils.MakePostRequest(
@@ -418,7 +424,9 @@ func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_CrossWorkspaceSecurity_CannotAccessNotifierFromAnotherWorkspace(t *testing.T) {
+func Test_CrossWorkspaceSecurity_WhenUserIsMemberWithoutMembership_ReadsButCannotMutateNotifier(
+	t *testing.T,
+) {
 	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	router := createRouter()
@@ -438,15 +446,54 @@ func Test_CrossWorkspaceSecurity_CannotAccessNotifierFromAnotherWorkspace(t *tes
 		&savedNotifier,
 	)
 
-	// Try to access workspace1's notifier with owner2 from workspace2
-	response := test_utils.MakeGetRequest(
+	// owner2 has no membership in workspace1, so they are an implicit viewer there
+	// and CAN read workspace1's notifier.
+	var readNotifier Notifier
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
+		"Bearer "+owner2.Token,
+		http.StatusOK,
+		&readNotifier,
+	)
+	assert.Equal(t, savedNotifier.ID, readNotifier.ID)
+	assert.Equal(t, workspace1.ID, readNotifier.WorkspaceID)
+
+	// ...but a viewer must not be able to mutate anything in workspace1.
+	hijackedNotifier := savedNotifier
+	hijackedNotifier.Name = "Hijacked by cross-workspace user"
+
+	updateResponse := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/notifiers",
+		"Bearer "+owner2.Token,
+		hijackedNotifier,
+		http.StatusForbidden,
+	)
+	assert.Contains(t, string(updateResponse.Body), "insufficient permissions")
+
+	deleteResponse := test_utils.MakeDeleteRequest(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
 		"Bearer "+owner2.Token,
 		http.StatusForbidden,
 	)
-	assert.Contains(t, string(response.Body), "insufficient permissions")
+	assert.Contains(t, string(deleteResponse.Body), "insufficient permissions")
+
+	// The notifier is untouched: still there, still named as owner1 created it.
+	var untouchedNotifier Notifier
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers/%s", savedNotifier.ID.String()),
+		"Bearer "+owner1.Token,
+		http.StatusOK,
+		&untouchedNotifier,
+	)
+	assert.Equal(t, savedNotifier.Name, untouchedNotifier.Name)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace1.ID, owner1.Token)
 	workspaces_testing.RemoveTestWorkspace(workspace1, router)

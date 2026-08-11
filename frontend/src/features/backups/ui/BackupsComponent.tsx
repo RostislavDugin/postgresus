@@ -668,6 +668,7 @@ export const BackupsComponent = ({
           <RestoresComponent
             database={database}
             backup={backups.find((b) => b.id === showingRestoresBackupId) as Backup}
+            isCanManageDBs={isCanManageDBs}
           />
         </Modal>
       )}

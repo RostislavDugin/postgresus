@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_CreateWorkspace_PermissionsEnforced(t *testing.T) {
@@ -227,11 +228,11 @@ func Test_GetSingleWorkspace_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get workspace",
+			name:               "non-member gets workspace as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusForbidden,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can get workspace",
@@ -654,11 +655,12 @@ func Test_GetWorkspaceAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrec
 
 	assert.GreaterOrEqual(t, len(globalAdminResponse.AuditLogs), 2)
 
-	resp := test_utils.MakeGetRequest(t, router,
+	var nonMemberResponse audit_logs.GetAuditLogsResponse
+	test_utils.MakeGetRequestAndUnmarshal(t, router,
 		"/api/v1/workspaces/"+workspace.ID.String()+"/audit-logs",
-		"Bearer "+nonMember.Token, http.StatusForbidden)
+		"Bearer "+nonMember.Token, http.StatusOK, &nonMemberResponse)
 
-	assert.Contains(t, string(resp.Body), "insufficient permissions to view workspace audit logs")
+	assert.GreaterOrEqual(t, len(nonMemberResponse.AuditLogs), 2)
 }
 
 func Test_GetWorkspaceAuditLogs_WithoutAuthToken_ReturnsUnauthorized(t *testing.T) {
@@ -703,4 +705,167 @@ func (a *AuditLogWriterStub) WriteAuditLog(
 	userID *uuid.UUID,
 	workspaceID *uuid.UUID,
 ) {
+}
+
+func Test_GetWorkspace_WhenUserIsMemberWithoutMembership_ReturnsWorkspaceAsViewer(t *testing.T) {
+	router := workspaces_testing.CreateTestRouter(
+		GetWorkspaceController(),
+		GetMembershipController(),
+	)
+
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+		"Implicit Viewer Workspace",
+		owner.Token,
+		router,
+	)
+
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	var response workspaces_models.Workspace
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/workspaces/"+workspace.ID.String(),
+		"Bearer "+outsider.Token,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.Equal(t, workspace.ID, response.ID)
+}
+
+func Test_UpdateWorkspace_WhenUserIsMemberWithoutMembership_ReturnsForbidden(t *testing.T) {
+	router := workspaces_testing.CreateTestRouter(
+		GetWorkspaceController(),
+		GetMembershipController(),
+	)
+
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+		"Implicit Viewer Readonly Workspace",
+		owner.Token,
+		router,
+	)
+
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	updateRequest := workspaces_models.Workspace{
+		Name: "Renamed By Outsider",
+	}
+
+	resp := test_utils.MakePutRequest(
+		t,
+		router,
+		"/api/v1/workspaces/"+workspace.ID.String(),
+		"Bearer "+outsider.Token,
+		updateRequest,
+		http.StatusForbidden,
+	)
+
+	assert.Contains(t, string(resp.Body), "insufficient permissions to update workspace")
+}
+
+func Test_GetUserWorkspaces_WhenUserIsMemberWithoutMembership_ReturnsWorkspaceAsViewer(t *testing.T) {
+	router := workspaces_testing.CreateTestRouter(
+		GetWorkspaceController(),
+		GetMembershipController(),
+	)
+
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspaceName := fmt.Sprintf("Listed Implicit Workspace %s", uuid.New().String()[:8])
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+		workspaceName,
+		owner.Token,
+		router,
+	)
+
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	var response workspaces_dto.ListWorkspacesResponseDTO
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/workspaces",
+		"Bearer "+outsider.Token,
+		http.StatusOK,
+		&response,
+	)
+
+	var found *workspaces_dto.WorkspaceResponseDTO
+	for i := range response.Workspaces {
+		if response.Workspaces[i].ID == workspace.ID {
+			found = &response.Workspaces[i]
+			break
+		}
+	}
+
+	require.NotNil(t, found, "workspace should be listed for implicit viewer")
+	require.NotNil(t, found.UserRole)
+	assert.Equal(t, users_enums.WorkspaceRoleViewer, *found.UserRole)
+}
+
+func Test_GetUserWorkspaces_WhenUserHasExplicitMembership_ReturnsExplicitRole(t *testing.T) {
+	router := workspaces_testing.CreateTestRouter(
+		GetWorkspaceController(),
+		GetMembershipController(),
+	)
+
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspaceName := fmt.Sprintf("Explicit Role Workspace %s", uuid.New().String()[:8])
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+		workspaceName,
+		owner.Token,
+		router,
+	)
+
+	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspaces_testing.AddMemberToWorkspace(
+		workspace,
+		member,
+		users_enums.WorkspaceRoleAdmin,
+		owner.Token,
+		router,
+	)
+
+	var response workspaces_dto.ListWorkspacesResponseDTO
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/workspaces",
+		"Bearer "+member.Token,
+		http.StatusOK,
+		&response,
+	)
+
+	var found *workspaces_dto.WorkspaceResponseDTO
+	for i := range response.Workspaces {
+		if response.Workspaces[i].ID == workspace.ID {
+			found = &response.Workspaces[i]
+			break
+		}
+	}
+
+	require.NotNil(t, found)
+	require.NotNil(t, found.UserRole)
+	assert.Equal(t, users_enums.WorkspaceRoleAdmin, *found.UserRole)
+}
+
+func Test_GetWorkspace_WithNonExistentWorkspaceID_ReturnsError(t *testing.T) {
+	router := workspaces_testing.CreateTestRouter(
+		GetWorkspaceController(),
+		GetMembershipController(),
+	)
+
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	resp := test_utils.MakeGetRequest(
+		t,
+		router,
+		"/api/v1/workspaces/"+uuid.New().String(),
+		"Bearer "+user.Token,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(resp.Body), "record not found")
 }

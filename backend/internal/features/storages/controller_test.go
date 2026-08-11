@@ -25,6 +25,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_SaveNewStorage_StorageReturnedViaGet(t *testing.T) {
@@ -355,7 +356,7 @@ func Test_AdminCanManageStorages(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
+func Test_Storages_WhenUserIsMemberWithoutMembership_ReadsButCannotManage(t *testing.T) {
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	router := createRouter()
@@ -373,14 +374,19 @@ func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
 		&savedStorage,
 	)
 
-	// Outsider cannot GET storages
-	test_utils.MakeGetRequest(
+	// Outsider is an implicit workspace viewer and CAN list storages
+	var visibleStorages []Storage
+	test_utils.MakeGetRequestAndUnmarshal(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/storages?workspace_id=%s", workspace.ID.String()),
 		"Bearer "+outsider.Token,
-		http.StatusForbidden,
+		http.StatusOK,
+		&visibleStorages,
 	)
+
+	require.Len(t, visibleStorages, 1)
+	assert.Equal(t, savedStorage.ID, visibleStorages[0].ID)
 
 	// Outsider cannot CREATE storage
 	test_utils.MakePostRequest(
@@ -410,7 +416,9 @@ func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
 	workspaces_testing.RemoveTestWorkspace(workspace, router)
 }
 
-func Test_CrossWorkspaceSecurity_CannotAccessStorageFromAnotherWorkspace(t *testing.T) {
+func Test_CrossWorkspaceSecurity_WhenUserIsMemberWithoutMembership_ReadsButCannotMutateStorage(
+	t *testing.T,
+) {
 	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	router := createRouter()
@@ -429,15 +437,54 @@ func Test_CrossWorkspaceSecurity_CannotAccessStorageFromAnotherWorkspace(t *test
 		&savedStorage,
 	)
 
-	// Try to access workspace1's storage with owner2 from workspace2
-	response := test_utils.MakeGetRequest(
+	// owner2 has no membership in workspace1, so they are an implicit viewer there
+	// and CAN read workspace1's storage.
+	var readStorage Storage
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
+		"Bearer "+owner2.Token,
+		http.StatusOK,
+		&readStorage,
+	)
+	assert.Equal(t, savedStorage.ID, readStorage.ID)
+	assert.Equal(t, workspace1.ID, readStorage.WorkspaceID)
+
+	// ...but a viewer must not be able to mutate anything in workspace1.
+	hijackedStorage := savedStorage
+	hijackedStorage.Name = "Hijacked by cross-workspace user"
+
+	updateResponse := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/storages",
+		"Bearer "+owner2.Token,
+		hijackedStorage,
+		http.StatusForbidden,
+	)
+	assert.Contains(t, string(updateResponse.Body), "insufficient permissions")
+
+	deleteResponse := test_utils.MakeDeleteRequest(
 		t,
 		router,
 		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
 		"Bearer "+owner2.Token,
 		http.StatusForbidden,
 	)
-	assert.Contains(t, string(response.Body), "insufficient permissions")
+	assert.Contains(t, string(deleteResponse.Body), "insufficient permissions")
+
+	// The storage is untouched: still there, still named as owner1 created it.
+	var untouchedStorage Storage
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/storages/%s", savedStorage.ID.String()),
+		"Bearer "+owner1.Token,
+		http.StatusOK,
+		&untouchedStorage,
+	)
+	assert.Equal(t, savedStorage.Name, untouchedStorage.Name)
 
 	deleteStorage(t, router, savedStorage.ID, workspace1.ID, owner1.Token)
 	workspaces_testing.RemoveTestWorkspace(workspace1, router)

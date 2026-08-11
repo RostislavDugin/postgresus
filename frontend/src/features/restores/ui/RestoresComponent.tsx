@@ -13,9 +13,10 @@ import { EditDatabaseSpecificDataComponent } from '../../databases/ui/edit/EditD
 interface Props {
   database: Database;
   backup: Backup;
+  isCanManageDBs: boolean;
 }
 
-export const RestoresComponent = ({ database, backup }: Props) => {
+export const RestoresComponent = ({ database, backup, isCanManageDBs }: Props) => {
   const { message } = App.useApp();
 
   const [editingDatabase, setEditingDatabase] = useState<Database>({
@@ -83,7 +84,7 @@ export const RestoresComponent = ({ database, backup }: Props) => {
     try {
       const databases = await databaseApi.getDatabases(database.workspaceId);
       setAvailableDatabases(databases);
-    } catch (e) {
+    } catch {
       message.error('Failed to load databases');
     }
     setIsLoadingDatabases(false);
@@ -219,15 +220,17 @@ export const RestoresComponent = ({ database, backup }: Props) => {
         </div>
       ) : (
         <>
-          <Button
-            className="w-full"
-            type="primary"
-            disabled={isRestoreInProgress}
-            loading={isRestoreInProgress}
-            onClick={() => setIsShowRestore(true)}
-          >
-            Restore from backup
-          </Button>
+          {isCanManageDBs && (
+            <Button
+              className="w-full"
+              type="primary"
+              disabled={isRestoreInProgress}
+              loading={isRestoreInProgress}
+              onClick={() => setIsShowRestore(true)}
+            >
+              Restore from backup
+            </Button>
+          )}
 
           {restores.length === 0 && (
             <div className="my-5 text-center text-gray-400">No restores yet</div>

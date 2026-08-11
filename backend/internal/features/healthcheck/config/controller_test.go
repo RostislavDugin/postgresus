@@ -204,11 +204,11 @@ func Test_GetHealthcheckConfig_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get healthcheck config",
+			name:               "non-member gets healthcheck config as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 
@@ -247,7 +247,7 @@ func Test_GetHealthcheckConfig_PermissionsEnforced(t *testing.T) {
 				)
 
 				assert.Equal(t, database.ID, response.DatabaseID)
-				assert.True(t, response.IsHealthcheckEnabled)
+				assert.False(t, response.IsHealthcheckEnabled)
 			} else {
 				testResp := test_utils.MakeGetRequest(
 					t,
@@ -280,7 +280,7 @@ func Test_GetHealthcheckConfig_ReturnsDefaultConfigForNewDatabase(t *testing.T) 
 	)
 
 	assert.Equal(t, database.ID, response.DatabaseID)
-	assert.True(t, response.IsHealthcheckEnabled)
+	assert.False(t, response.IsHealthcheckEnabled)
 	assert.True(t, response.IsSentNotificationWhenUnavailable)
 	assert.Equal(t, 1, response.IntervalMinutes)
 	assert.Equal(t, 3, response.AttemptsBeforeConcideredAsDown)

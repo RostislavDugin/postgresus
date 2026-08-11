@@ -123,9 +123,11 @@ func (r *MembershipRepository) GetWorkspacesWithRolesByUserID(
 
 	err := storage.GetDb().
 		Table("workspaces w").
-		Select("w.id, w.name, w.created_at, wm.role as user_role").
-		Joins("JOIN workspace_memberships wm ON w.id = wm.workspace_id").
-		Where("wm.user_id = ?", userID).
+		Select(
+			"w.id, w.name, w.created_at, COALESCE(wm.role, ?) as user_role",
+			users_enums.WorkspaceRoleViewer,
+		).
+		Joins("LEFT JOIN workspace_memberships wm ON w.id = wm.workspace_id AND wm.user_id = ?", userID).
 		Order("w.name ASC").
 		Scan(&results).Error
 

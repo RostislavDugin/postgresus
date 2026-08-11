@@ -75,11 +75,11 @@ func Test_GetAttemptsByDatabase_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get healthcheck attempts",
+			name:               "non-member gets healthcheck attempts as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 

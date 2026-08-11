@@ -55,11 +55,11 @@ func Test_GetBackups_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot get backups",
+			name:               "non-member gets backups as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can get backups",
@@ -146,11 +146,11 @@ func Test_CreateBackup_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot create backup",
+			name:               "non-member creates backup as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can create backup",
@@ -204,6 +204,29 @@ func Test_CreateBackup_PermissionsEnforced(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_MakeBackup_WhenUserIsMemberWithoutMembership_BackupTriggered(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Implicit Viewer Backups", owner, router)
+
+	database, _ := createTestDatabaseWithBackups(workspace, owner, router)
+
+	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	request := MakeBackupRequest{DatabaseID: database.ID}
+
+	resp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backups",
+		"Bearer "+outsider.Token,
+		request,
+		http.StatusOK,
+	)
+
+	assert.Contains(t, string(resp.Body), "backup started successfully")
 }
 
 func Test_CreateBackup_AuditLogWritten(t *testing.T) {
@@ -401,11 +424,11 @@ func Test_DownloadBackup_PermissionsEnforced(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "non-member cannot download backup",
+			name:               "non-member downloads backup as implicit viewer",
 			workspaceRole:      nil,
 			isGlobalAdmin:      false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusBadRequest,
+			expectSuccess:      true,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "global admin can download backup",
