@@ -9,31 +9,21 @@ import (
 	"databasus-backend/internal/util/tools"
 )
 
-func Test_BuildMariadbDumpArgs_WhenExtendedInsertDisabled_SkipsExtendedInsert(t *testing.T) {
+// One INSERT per row costs ~127x on restore and saves no memory: with --quick the
+// dumper streams rows and caps a batched statement at net_buffer_length (~1 MB)
+// however large the table is (issue #630).
+func Test_BuildMariadbDumpArgs_ForAnyDatabase_NeverSkipsExtendedInsert(t *testing.T) {
 	uc := &CreateMariadbBackupUsecase{}
 	database := &mariadbtypes.MariadbDatabase{
-		Version:             tools.MariadbVersion1011,
-		IsUseExtendedInsert: false,
+		Version:       tools.MariadbVersion1011,
+		Database:      new("oa_db"),
+		ExcludeTables: []string{"personnel_real_time"},
 	}
 
-	args := uc.buildMariadbDumpArgs(database)
+	dumpArgs := uc.buildMariadbDumpArgs(database)
 
-	if !slices.Contains(args, "--skip-extended-insert") {
-		t.Fatalf("expected --skip-extended-insert when extended inserts are disabled, got %v", args)
-	}
-}
-
-func Test_BuildMariadbDumpArgs_WhenExtendedInsertEnabled_OmitsSkipExtendedInsert(t *testing.T) {
-	uc := &CreateMariadbBackupUsecase{}
-	database := &mariadbtypes.MariadbDatabase{
-		Version:             tools.MariadbVersion1011,
-		IsUseExtendedInsert: true,
-	}
-
-	args := uc.buildMariadbDumpArgs(database)
-
-	if slices.Contains(args, "--skip-extended-insert") {
-		t.Fatalf("expected no --skip-extended-insert when extended inserts are enabled, got %v", args)
+	if slices.Contains(dumpArgs, "--skip-extended-insert") {
+		t.Fatalf("mariadb-dump args must never contain --skip-extended-insert: %v", dumpArgs)
 	}
 }
 
