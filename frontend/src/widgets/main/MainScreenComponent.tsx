@@ -1,7 +1,6 @@
 import { LoadingOutlined, MenuOutlined } from '@ant-design/icons';
 import { App, Button, Spin, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
-import GitHubButton from 'react-github-btn';
 
 import { APP_VERSION } from '../../constants';
 import { type DiskUsage, diskApi } from '../../entity/disk';
@@ -215,44 +214,6 @@ export const MainScreenComponent = () => {
         </div>
 
         <div className="ml-auto hidden items-center gap-5 md:flex">
-          <a
-            className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://postgresus.com/installation"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Docs
-          </a>
-
-          <a
-            className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://postgresus.com/contribute"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Contribute
-          </a>
-          <a
-            className="!text-black hover:opacity-80 dark:!text-gray-200"
-            href="https://t.me/postgresus_community"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Community
-          </a>
-
-          <div className="mt-1">
-            <GitHubButton
-              href="https://github.com/RostislavDugin/postgresus"
-              data-icon="octicon-star"
-              data-size="large"
-              data-show-count="true"
-              aria-label="Star RostislavDugin/postgresus on GitHub"
-            >
-              &nbsp;Star Postgresus on GitHub
-            </GitHubButton>
-          </div>
-
           {diskUsage && (
             <Tooltip title="To make backups locally and restore them, you need to have enough space on your disk. For restore, you need to have same amount of space that the backup size.">
               <div

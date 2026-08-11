@@ -1,12 +1,8 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
 
-import { backupConfigApi } from '../../../entity/backups';
 import { type Database } from '../../../entity/databases';
 import { HealthStatus } from '../../../entity/databases/model/HealthStatus';
-import type { Storage } from '../../../entity/storages';
-import { getStorageLogoFromType } from '../../../entity/storages/models/getStorageLogoFromType';
 
 interface Props {
   database: Database;
@@ -19,14 +15,6 @@ export const DatabaseCardComponent = ({
   selectedDatabaseId,
   setSelectedDatabaseId,
 }: Props) => {
-  const [storage, setStorage] = useState<Storage | undefined>();
-
-  useEffect(() => {
-    if (!database.id) return;
-
-    backupConfigApi.getBackupConfigByDbID(database.id).then((res) => setStorage(res?.storage));
-  }, [database.id]);
-
   return (
     <div
       className={`mb-3 cursor-pointer rounded p-3 shadow ${selectedDatabaseId === database.id ? 'bg-blue-100 dark:bg-blue-800' : 'bg-white dark:bg-gray-800'}`}
@@ -47,22 +35,6 @@ export const DatabaseCardComponent = ({
           </div>
         )}
       </div>
-
-      {storage && (
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          <span>Storage: </span>
-          <span className="inline-flex items-center">
-            {storage.name}{' '}
-            {storage.type && (
-              <img
-                src={getStorageLogoFromType(storage.type)}
-                alt="storageIcon"
-                className="ml-1 h-4 w-4"
-              />
-            )}
-          </span>
-        </div>
-      )}
 
       {database.lastBackupTime && (
         <div className="text-gray-500 dark:text-gray-400">

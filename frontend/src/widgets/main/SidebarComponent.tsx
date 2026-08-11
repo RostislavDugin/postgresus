@@ -1,7 +1,6 @@
 import { CloseOutlined } from '@ant-design/icons';
 import { Drawer, Tooltip } from 'antd';
 import { useEffect } from 'react';
-import GitHubButton from 'react-github-btn';
 
 import { type DiskUsage } from '../../entity/disk';
 import { type UserProfile, UserRole } from '../../entity/users';
@@ -184,46 +183,6 @@ export const SidebarComponent = ({
             </div>
           )}
 
-          <div className="space-y-2">
-            <a
-              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://postgresus.com/installation"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Documentation
-            </a>
-
-            <a
-              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://postgresus.com/contribute"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Contribute
-            </a>
-
-            <a
-              className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700"
-              href="https://t.me/postgresus_community"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Community
-            </a>
-
-            <div className="pt-2">
-              <GitHubButton
-                href="https://github.com/RostislavDugin/postgresus"
-                data-icon="octicon-star"
-                data-size="large"
-                data-show-count="true"
-                aria-label="Star RostislavDugin/postgresus on GitHub"
-              >
-                Star on GitHub
-              </GitHubButton>
-            </div>
-          </div>
         </div>
       </div>
     </Drawer>
