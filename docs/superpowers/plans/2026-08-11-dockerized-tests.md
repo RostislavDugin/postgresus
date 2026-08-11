@@ -905,6 +905,7 @@ git commit -m "FEATURE (tests): run backend tests in docker"
 
 **Files:**
 - Create: `frontend/Dockerfile.test`
+- Create: `frontend/.dockerignore`
 - Modify: `docker-compose.test.yml` (сервис `frontend-tests`)
 - Modify: `Makefile` (цели `test`, `test-frontend`)
 
@@ -914,6 +915,15 @@ git commit -m "FEATURE (tests): run backend tests in docker"
 
 - [ ] **Step 1: Написать Dockerfile для vitest**
 
+Изначальный вариант монтировал `node_modules` через именованный volume, прогреваемый из
+образа при первом запуске. Fix round 1 (review finding, human ruling) отказался от этой
+схемы: именованный volume переживает пересборки, поэтому после смены
+`package.json`/`package-lock.json` `npm ci` в образе перезаписывается старым содержимым
+volume и тесты молча гоняются против устаревших зависимостей. Вместо volume и bind-mount
+исходники запекаются в образ, а сам образ пересобирается при каждом запуске (см. Step 3).
+`npm ci` остаётся в отдельном слое над копированием исходников, чтобы установка
+зависимостей кэшировалась при изменении только исходников.
+
 Создать `frontend/Dockerfile.test`:
 
 ```dockerfile
@@ -921,44 +931,60 @@ FROM node:24-alpine
 
 WORKDIR /app/frontend
 
-# Dependencies are baked into the image; the named volume mounted over
-# node_modules is prepopulated from here on first run.
+# npm ci sits in its own layer above the source copy so dependency
+# installation stays cached across rebuilds that only touch sources.
 COPY package.json package-lock.json ./
 RUN npm ci
+
+# Sources are baked into the image (no bind mount / volume at runtime),
+# so the image is self-contained and never runs against stale
+# dependencies. frontend/.dockerignore keeps node_modules, dist and
+# .env* out of the build context.
+COPY . .
 
 CMD ["npx", "vitest", "run"]
 ```
 
+Так как теперь весь контекст сборки (включая `COPY . .`) уходит в образ, без
+`.dockerignore` в него попал бы локальный `node_modules` (~309 МБ на хосте разработки).
+Создать `frontend/.dockerignore`:
+
+```
+node_modules
+dist
+dist-ssr
+.env*
+```
+
 - [ ] **Step 2: Добавить сервис в тестовый compose**
 
-В `docker-compose.test.yml` добавить в `services`:
+В `docker-compose.test.yml` добавить в `services`. Секции `volumes` у сервиса нет
+намеренно — исходники и зависимости запечены в образ (Step 1), поэтому монтировать
+нечего:
 
 ```yaml
   frontend-tests:
     build:
       context: ./frontend
       dockerfile: Dockerfile.test
-    volumes:
-      - ./frontend:/app/frontend
-      - frontend-node-modules:/app/frontend/node_modules
 ```
 
-и в `volumes`:
-
-```yaml
-  frontend-node-modules:
-```
+Именованный volume `frontend-node-modules` из top-level `volumes:` не создаётся — его не
+существует в этой схеме. Остальные volume'ы (`test-nas-data`, `go-mod-cache`,
+`go-build-cache`) не трогаются.
 
 - [ ] **Step 3: Добавить цели в Makefile**
 
-Заменить в корневом `Makefile` цель `test` и добавить `test-frontend`:
+Заменить в корневом `Makefile` цель `test` и добавить `test-frontend`. `--build`
+обязателен: без него `docker compose run` переиспользовал бы уже собранный образ и не
+подхватил бы изменения в исходниках или в `package.json`/`package-lock.json`:
 
 ```makefile
 test:
 	$(MAKE) -j2 test-backend test-frontend
 
 test-frontend:
-	$(COMPOSE_TEST) run --rm frontend-tests
+	$(COMPOSE_TEST) run --rm --build frontend-tests
 ```
 
 - [ ] **Step 4: Прогнать фронтовые тесты**

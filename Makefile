@@ -9,7 +9,7 @@ test-backend:
 	$(COMPOSE_TEST) run --rm backend-tests
 
 test-frontend:
-	$(COMPOSE_TEST) run --rm frontend-tests
+	$(COMPOSE_TEST) run --rm --build frontend-tests
 
 test-logs:
 	$(COMPOSE_TEST) logs

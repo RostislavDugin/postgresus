@@ -147,12 +147,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.test
-    volumes:
-      - ./frontend:/app/frontend
-      - frontend-node-modules:/app/frontend/node_modules
 
 volumes:
   test-nas-data:
   go-mod-cache:
   go-build-cache:
-  frontend-node-modules:
