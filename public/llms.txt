@@ -7,9 +7,9 @@
 - Name: Databasus
 - Type: Self-hosted databases backup tool
 - License: Apache 2.0
-- Repository: https://github.com/databasus/databasus
-- Website: https://databasus.com
-- Community: https://t.me/databasus_community
+- Repository: [github.com/databasus/databasus](https://github.com/databasus/databasus)
+- Website: [databasus.com](https://databasus.com)
+- Community: [Telegram community chat](https://t.me/databasus_community)
 
 ## Key Features
 
@@ -41,7 +41,7 @@
 
 ## Backup Types
 
-Physical, full, incremental and WAL backups are built on PostgreSQL 17's native backup mechanism, so Databasus relies on PostgreSQL's own battle-tested tooling instead of re-inventing it. They require PostgreSQL 17 or newer. All backup types can run over an SSH tunnel when a non-public connection is required, so the database never has to be exposed publicly. See the FAQ for a detailed explanation: /faq#pitr
+Physical, full, incremental and WAL backups are built on PostgreSQL 17's native backup mechanism, so Databasus relies on PostgreSQL's own battle-tested tooling instead of re-inventing it. They require PostgreSQL 17 or newer. All backup types can run over an SSH tunnel when a non-public connection is required, so the database never has to be exposed publicly. See the FAQ for a detailed explanation: [How physical and PITR backups work](https://databasus.com/faq#pitr)
 
 - **Physical**: File-level copy of the entire database cluster. Faster backup and restore for large datasets than logical dumps. Built on PostgreSQL 17's native backup mechanism (pg_basebackup)
 - **Full**: A complete, self-contained copy of the cluster — the base every backup chain starts from
@@ -51,89 +51,65 @@ Physical, full, incremental and WAL backups are built on PostgreSQL 17's native 
 
 ## Documentation
 
-### Installation
-URL: /installation
-Content: Four installation methods - automated script, Docker run, Docker Compose and Helm for Kubernetes. Here you can read how to install Databasus
+### Setup and Configuration
 
-### Advanced Config
-URL: /advanced-config
-Content: Optional environment variables for self-hosting Databasus — none required for a default install. Covers Google and GitHub OAuth sign-in, SMTP email, Cloudflare Turnstile sign-up captcha, anonymous telemetry, VictoriaLogs log shipping and a custom analytics script. Notes that OAuth sign-in and email require the instance to be served over HTTPS on a public domain.
+- [Installation](https://databasus.com/installation): Four installation methods - automated script, Docker run, Docker Compose and Helm for Kubernetes. Here you can read how to install Databasus
+- [Agent Installation](https://databasus.com/installation/agent): How to install the Databasus agent used for physical backups, incremental backups, WAL archiving and Point-in-Time Recovery (PITR) of PostgreSQL databases.
+- [Advanced Config](https://databasus.com/advanced-config): Optional environment variables for self-hosting Databasus — none required for a default install. Covers Google and GitHub OAuth sign-in, SMTP email, Cloudflare Turnstile sign-up captcha, anonymous telemetry, VictoriaLogs log shipping and a custom analytics script. Notes that OAuth sign-in and email require the instance to be served over HTTPS on a public domain.
+- [Access Management](https://databasus.com/access-management): Workspaces, user roles, audit logs and global settings for managing access control. Here you can read how to manage access to Databasus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
+- [Password Reset](https://databasus.com/password): How to reset user passwords using command-line tool
 
-### Access Management
-URL: /access-management
-Content: Workspaces, user roles, audit logs and global settings for managing access control. Here you can read how to manage access to Databasus, which roles system does it have. As well here exaplained how teams and organizations can control usage for their team members.
+### Security and Legal
 
-### Password Reset
-URL: /password
-Content: How to reset user passwords using command-line tool
-
-### Security
-URL: /security
-Content: Information about how Databasus ensures enterprise-level security through three runtime layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption. Also documents the security & reliability engineering pipeline that runs on every commit and PR: CodeQL static analysis, CodeRabbit reviews with gitleaks (secret scanning) and semgrep (security rules), Dependabot CVE monitoring against the GitHub Advisory Database with a cooldown for newly-published versions, the Dependency Review Action blocking HIGH and CRITICAL CVEs, Trivy scans of container images and Dockerfiles, GitHub Actions pinned to full commit SHAs (no floating @v4 or @main tags), least-privilege workflow permissions and periodic Codex Security audits from OpenAI. Integration tests run against real PostgreSQL, MySQL, MariaDB and MongoDB containers and every PR runs full backup-then-restore cycles to verify end-to-end recoverability, not just write success. Anchor: /security#security-and-reliability-engineering
-
-### Privacy Policy
-URL: /privacy
-Content: Detailed privacy policy covering the website, the self-hosted Databasus app and sponsorship. Website analytics use Rybbit.io only — no personal information, no IP addresses, randomly generated salted user IDs, fully GDPR and CCPA compliant with no tracking cookies, all data stored on own server. The self-hosted app sends minimal anonymous telemetry (database types/versions, storages, notifiers) that can be disabled. Sponsorship payments are processed by Paddle as merchant of record; card details go only to Paddle, and the sponsor name/logo/link is published publicly in the sponsors list on the website and GitHub repository.
-
-### Terms of Use
-URL: /terms-of-use
-Content: Terms of use for Databasus sponsorship. Databasus itself stays free and open source under Apache 2.0 with no paywalled features. Sponsorship is a recurring digital good — a listing (name, logo, link) in the sponsors list on the website and in the GitHub repository — sold through Paddle as merchant of record on a monthly auto-renewing cycle. Covers billing, a 14-day refund window on the initial purchase, self-serve cancellation, listing content rules and our right to refuse or remove listings, disclaimers, limitation of liability and Georgian governing law.
+- [Security](https://databasus.com/security): Information about how Databasus ensures enterprise-level security through three runtime layers: sensitive data encryption with AES-256-GCM, backup encryption with unique keys per backup and read-only database access enforcement. Explains how credentials are protected, how backups remain encrypted even if cloud storage is compromised, and how the principle of least privilege prevents database corruption. Also documents the [security & reliability engineering pipeline](https://databasus.com/security#security-and-reliability-engineering) that runs on every commit and PR: CodeQL static analysis, CodeRabbit reviews with gitleaks (secret scanning) and semgrep (security rules), Dependabot CVE monitoring against the GitHub Advisory Database with a cooldown for newly-published versions, the Dependency Review Action blocking HIGH and CRITICAL CVEs, Trivy scans of container images and Dockerfiles, GitHub Actions pinned to full commit SHAs (no floating @v4 or @main tags), least-privilege workflow permissions and periodic Codex Security audits from OpenAI. Integration tests run against real PostgreSQL, MySQL, MariaDB and MongoDB containers and every PR runs full backup-then-restore cycles to verify end-to-end recoverability, not just write success.
+- [Privacy Policy](https://databasus.com/privacy): Detailed privacy policy covering the website, the self-hosted Databasus app and sponsorship. Website analytics use Rybbit.io only — no personal information, no IP addresses, randomly generated salted user IDs, fully GDPR and CCPA compliant with no tracking cookies, all data stored on own server. The self-hosted app sends minimal anonymous telemetry (database types/versions, storages, notifiers) that can be disabled. Sponsorship payments are processed by Paddle as merchant of record; card details go only to Paddle, and the sponsor name/logo/link is published publicly in the sponsors list on the website and GitHub repository.
+- [Terms of Use](https://databasus.com/terms-of-use): Terms of use for Databasus sponsorship. Databasus itself stays free and open source under Apache 2.0 with no paywalled features. Sponsorship is a recurring digital good — a listing (name, logo, link) in the sponsors list on the website and in the GitHub repository — sold through Paddle as merchant of record on a monthly auto-renewing cycle. Covers billing, a 14-day refund window on the initial purchase, self-serve cancellation, listing content rules and our right to refuse or remove listings, disclaimers, limitation of liability and Georgian governing law.
 
 ### FAQ - Frequently Asked Questions
-URL: /faq
-Content: Frequently asked questions about Databasus. Includes questions about backup formats, installation directory, backup types, how physical and PITR backups work on PostgreSQL 17's native backup mechanism, disaster recovery and AI usage in development.
 
-#### How to backup localhost databases
-URL: /faq/localhost
-Content: Step-by-step guide on how to backup localhost databases running on localhost using Databasus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
-
-#### How to backup Supabase
-URL: /faq/supabase
-Content: Step-by-step guide on how to backup Supabase PostgreSQL databases using Databasus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
+- [FAQ](https://databasus.com/faq): Frequently asked questions about Databasus. Includes questions about backup formats, installation directory, backup types, how physical and PITR backups work on PostgreSQL 17's native backup mechanism, disaster recovery and AI usage in development.
+- [How to backup localhost databases](https://databasus.com/faq/localhost): Step-by-step guide on how to backup localhost databases running on localhost using Databasus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
+- [How to backup Supabase](https://databasus.com/faq/supabase): Step-by-step guide on how to backup Supabase PostgreSQL databases using Databasus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
 
 ### Storage Configuration
-URL: /storages
-Content: Overview of supported storage destinations. Here you can see which storages are supported and how to configure them.
 
-#### Google Drive Storage
-URL: /storages/google-drive
-Content: Step-by-step guide to configure Google Drive storage with OAuth setup
-
-#### Cloudflare R2 Storage
-URL: /storages/cloudflare-r2
-Content: Guide to configure Cloudflare R2 S3-compatible storage
+- [Storages](https://databasus.com/storages): Overview of supported storage destinations. Here you can see which storages are supported and how to configure them.
+- [Google Drive Storage](https://databasus.com/storages/google-drive): Step-by-step guide to configure Google Drive storage with OAuth setup
+- [Cloudflare R2 Storage](https://databasus.com/storages/cloudflare-r2): Guide to configure Cloudflare R2 S3-compatible storage
 
 ### Notification Configuration
-URL: /notifiers
-Content: Overview of supported notification channels. Here you can see which notifiers are supported and how to configure them.
 
-#### Slack Notifications
-URL: /notifiers/slack
-Content: How to set up Slack webhook notifications
+- [Notifiers](https://databasus.com/notifiers): Overview of supported notification channels. Here you can see which notifiers are supported and how to configure them.
+- [Slack Notifications](https://databasus.com/notifiers/slack): How to set up Slack webhook notifications
+- [Microsoft Teams Notifications](https://databasus.com/notifiers/teams): How to configure Teams webhook notifications
 
-#### Microsoft Teams Notifications
-URL: /notifiers/teams
-Content: How to configure Teams webhook notifications
+### Database Guides
 
-### MySQL and MariaDB Backup
-URL: /mysql-backup
-Content: Comprehensive guide on using Databasus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10, 11 and 12 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
+- [MySQL and MariaDB Backup](https://databasus.com/mysql-backup): Comprehensive guide on using Databasus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10, 11 and 12 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
+- [MongoDB Backup](https://databasus.com/mongodb-backup): Complete guide on using Databasus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
 
-### MongoDB Backup
-URL: /mongodb-backup
-Content: Complete guide on using Databasus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
+### Restore and Recovery
 
-### How to restore from backup without Databasus
-URL: /how-to-recover-without-databasus
-Content: Step-by-step guide on manually restoring database backups without Databasus. Demonstrates no vendor lock-in by explaining how to decrypt and restore backups using standard tools and your secret key. Includes Python decryption script for AES-256-GCM encrypted backups with PBKDF2 key derivation, restoration instructions for PostgreSQL (pg_restore), MySQL (mysqldump with zstd decompression), MariaDB (mariadb-dump with zstd) and MongoDB (mongorestore with gzip). Covers file structure, metadata files, encryption details and troubleshooting. Emphasizes data ownership and ability to recover backups even without access to Databasus UI.
+- [How to restore from backup without Databasus](https://databasus.com/how-to-recover-without-databasus): Step-by-step guide on manually restoring database backups without Databasus. Demonstrates no vendor lock-in by explaining how to decrypt and restore backups using standard tools and your secret key. Includes Python decryption script for AES-256-GCM encrypted backups with PBKDF2 key derivation, restoration instructions for PostgreSQL (pg_restore), MySQL (mysqldump with zstd decompression), MariaDB (mariadb-dump with zstd) and MongoDB (mongorestore with gzip). Covers file structure, metadata files, encryption details and troubleshooting. Emphasizes data ownership and ability to recover backups even without access to Databasus UI.
+- [Restore Verification](https://databasus.com/restore-verification): How Databasus proves backups are actually restorable. A verification agent pulls the latest backup, restores it into a real database Docker container, sanity-checks the restored database against the source, then tears the container down. Covers the verification agent binary, resource budgets, scheduled verification intervals (After backup, hourly, daily, weekly, monthly, cron), notifications and reading results.
 
-### Restore Verification
-URL: /restore-verification
-Content: How Databasus proves backups are actually restorable. A verification agent pulls the latest backup, restores it into a real database Docker container, sanity-checks the restored database against the source, then tears the container down. Covers the verification agent binary, resource budgets, scheduled verification intervals (After backup, hourly, daily, weekly, monthly, cron), notifications and reading results.
+### Comparisons with Other Backup Tools
+
+- [Databasus vs pg_dump](https://databasus.com/pgdump-alternative): Databasus is built on pg_dump and extends it with backups management, a web UI, automated scheduling, cloud storage, notifications, team collaboration and encryption.
+- [Databasus vs pgBackRest](https://databasus.com/databasus-vs-pgbackrest): Differences in backup approach, target audience, ease of use and recovery options, and when to choose each tool.
+- [Databasus vs Barman](https://databasus.com/databasus-vs-barman): Differences in backup approach, PITR capabilities, ease of use and team features, and when to choose each tool.
+- [Databasus vs WAL-G](https://databasus.com/databasus-vs-wal-g): Differences in backup approach, multi-database support, ease of use and team features, and when to choose each tool.
+- [Databasus vs PgBackWeb](https://databasus.com/databasus-vs-pgbackweb): Differences in features, security, team support, storage options, notifications and ease of use.
+
+### Contributing
+
+- [Contribute to Databasus](https://databasus.com/contribute): How to contribute through promotion, documentation, social sharing or code development. Add new storages, notifiers or fix bugs.
+- [How to add new storage](https://databasus.com/contribute/how-to-add-storage): Developer guide for contributing new storage integrations. Covers backend models, migrations and frontend UI components for storage providers.
+- [How to add new notifier](https://databasus.com/contribute/how-to-add-notifier): Developer guide for contributing new notification integrations. Covers backend models, migrations and frontend UI components.
 
 ### Sponsorship
-URL: /sponsorship
-Content: Databasus is free forever under Apache 2.0 — no open core, no feature gates, no paywalled features. Sponsorship funds ongoing maintenance, security work and new features that everyone gets for free, and keeps the project independent with no pressure to relicense. Offers six monthly tiers ($50 Supporter to $5,000 Enterprise) billed via Paddle (proper invoices, cancel anytime), plus the option to fund a specific feature directly. Sponsors get no private or exclusive features — nothing is locked.
+
+- [Sponsorship](https://databasus.com/sponsorship): Databasus is free forever under Apache 2.0 — no open core, no feature gates, no paywalled features. Sponsorship funds ongoing maintenance, security work and new features that everyone gets for free, and keeps the project independent with no pressure to relicense. Offers six monthly tiers ($50 Supporter to $5,000 Enterprise) billed via Paddle (proper invoices, cancel anytime), plus the option to fund a specific feature directly. Sponsors get no private or exclusive features — nothing is locked.
 
 ## Technical Details
 
@@ -254,15 +230,15 @@ Databasus supports PostgreSQL, MySQL, MariaDB and MongoDB. However, Databasus wa
 
 ### Where can I read comparisons with other PostgreSQL backup tools?
 We have detailed comparison pages for popular backup tools:
-- Databasus vs pg_dump: /pgdump-alternative
-- Databasus vs pgBackRest: /databasus-vs-pgbackrest
-- Databasus vs Barman: /databasus-vs-barman
-- Databasus vs WAL-G: /databasus-vs-wal-g
-- Databasus vs pgBackWeb: /databasus-vs-pgbackweb
+- [Databasus vs pg_dump](https://databasus.com/pgdump-alternative)
+- [Databasus vs pgBackRest](https://databasus.com/databasus-vs-pgbackrest)
+- [Databasus vs Barman](https://databasus.com/databasus-vs-barman)
+- [Databasus vs WAL-G](https://databasus.com/databasus-vs-wal-g)
+- [Databasus vs pgBackWeb](https://databasus.com/databasus-vs-pgbackweb)
 Each comparison explains the key differences, pros and cons and helps you choose the right tool for your needs.
 
 ### What backup types does Databasus support?
-Databasus supports physical, full, incremental, WAL and logical backups. Physical backups are a file-level copy of the entire database cluster, faster to back up and restore for large datasets than logical dumps, and built on PostgreSQL 17's native backup mechanism, so Databasus relies on PostgreSQL's own battle-tested tooling instead of re-inventing it. Full backups are a complete, self-contained copy of the cluster — the base every backup chain starts from. Incremental backups store only what changed since the previous backup, so backups stay small and fast. WAL streaming continuously captures the database write stream, enabling Point-in-Time Recovery (PITR) for disaster recovery and near-zero data loss. Logical backups are a native dump in the engine-specific binary format, also available for MySQL, MariaDB and MongoDB. All of these backups can run over an SSH tunnel if a non-public connection is required, so the database never has to be exposed publicly. See /faq#pitr for a detailed explanation.
+Databasus supports physical, full, incremental, WAL and logical backups. Physical backups are a file-level copy of the entire database cluster, faster to back up and restore for large datasets than logical dumps, and built on PostgreSQL 17's native backup mechanism, so Databasus relies on PostgreSQL's own battle-tested tooling instead of re-inventing it. Full backups are a complete, self-contained copy of the cluster — the base every backup chain starts from. Incremental backups store only what changed since the previous backup, so backups stay small and fast. WAL streaming continuously captures the database write stream, enabling Point-in-Time Recovery (PITR) for disaster recovery and near-zero data loss. Logical backups are a native dump in the engine-specific binary format, also available for MySQL, MariaDB and MongoDB. All of these backups can run over an SSH tunnel if a non-public connection is required, so the database never has to be exposed publicly. SSH tunneling is built in. See [How physical and PITR backups work](https://databasus.com/faq#pitr) for a detailed explanation.
 
 ### Backup Schedules
 Hourly, daily, weekly, monthly or cron cycles with exact run time specification (e.g., 04:00). Weekly schedules support specific weekdays, monthly schedules support specific calendar days.
@@ -277,24 +253,24 @@ Archives saved to local volumes, S3-compatible buckets, Google Drive, Dropbox an
 Real-time notifications via email, Slack, Telegram, webhooks, Mattermost, Discord and more. DevOps teams receive immediate alerts for successes and failures.
 
 ### Security
-All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Enterprise-grade AES-256-GCM encryption protects backup files, making them useless even if storage is compromised. Open source allows full code inspection. Beyond runtime, security and reliability are engineered into every commit and PR through layered checks: CodeQL static analysis, CodeRabbit reviews with gitleaks and semgrep, Dependabot CVE monitoring with version cooldown, Dependency Review Action blocking HIGH/CRITICAL CVEs, Trivy image and Dockerfile scans, GitHub Actions pinned to commit SHAs, least-privilege workflow permissions and periodic Codex Security audits from OpenAI. Integration tests run against real database containers for every supported engine and every PR runs full backup-then-restore cycles, verifying that backups can actually be restored end-to-end. Full breakdown: /security#security-and-reliability-engineering
+All data executes within containers you control on servers you own. Credentials and backup files remain on your server or in your cloud account. Enterprise-grade AES-256-GCM encryption protects backup files, making them useless even if storage is compromised. Open source allows full code inspection. Beyond runtime, security and reliability are engineered into every commit and PR through layered checks: CodeQL static analysis, CodeRabbit reviews with gitleaks and semgrep, Dependabot CVE monitoring with version cooldown, Dependency Review Action blocking HIGH/CRITICAL CVEs, Trivy image and Dockerfile scans, GitHub Actions pinned to commit SHAs, least-privilege workflow permissions and periodic Codex Security audits from OpenAI. Integration tests run against real database containers for every supported engine and every PR runs full backup-then-restore cycles, verifying that backups can actually be restored end-to-end. Full breakdown: [Security & reliability engineering](https://databasus.com/security#security-and-reliability-engineering)
 
 ### What is the adoption level of Databasus?
 Databasus is the most widely adopted open-source PostgreSQL backup tool today. At the moment of 17 June 2026, it has been pulled over 1,000,000 times on Docker by DBAs, DevOps engineers, developers and teams worldwide. With 7,500+ GitHub stars it surpasses pgBackRest (~4,200 stars, available since 2014), WAL-G (~4,100 stars, available since 2017) and Barman (~3,100 stars), which makes Databasus the most popular database backup tool on GitHub. Databasus has been developed and used since 2023, and open source in widespread use since early 2025, so it has been in real production use for a while and is battle-tested across many edge cases. It is used by enterprises, teams and DevOps engineers, backed by a large and active community. Crucially, Databasus does not invent custom ways to back up data — it relies on PostgreSQL's native, tested implementation instead of building its own workarounds for edge cases. Our goal is to become the standard backup tool for PostgreSQL from version 17 and above: Databasus is the first backup tool built on PostgreSQL's native, efficient and now standard backup protocol instead of writing its own implementations.
 
 ### Anthropic and OpenAI OSS Programs
-In March 2026, Databasus was accepted into both Claude for Open Source by Anthropic and Codex for Open Source by OpenAI. The project has been independently evaluated and recognized by industry leaders as critical open-source infrastructure worth supporting. For more details, see /faq#oss-programs
+In March 2026, Databasus was accepted into both Claude for Open Source by Anthropic and Codex for Open Source by OpenAI. The project has been independently evaluated and recognized by industry leaders as critical open-source infrastructure worth supporting. For more details, see [OSS programs in the FAQ](https://databasus.com/faq#oss-programs)
 
 ### AI Usage in Development
-For information about AI usage in Databasus development, see /faq#ai-usage
+For information about AI usage in Databasus development, see [AI usage in the FAQ](https://databasus.com/faq#ai-usage)
 
 ### Community
-You can join our large community of developers, DBAs and DevOps engineers at https://t.me/databasus_community. The community is a great place to ask questions, share experiences, get help with configuration and stay updated with the latest features and releases.
+You can join our large community of developers, DBAs and DevOps engineers at [t.me/databasus_community](https://t.me/databasus_community). The community is a great place to ask questions, share experiences, get help with configuration and stay updated with the latest features and releases.
 
 ## Developer Information
 
 - Developer: Rostislav Dugin
-- Developer website: https://rostislav-dugin.com
+- Developer website: [rostislav-dugin.com](https://rostislav-dugin.com)
 - Docker Image: databasus/databasus:latest
 - Default Port: 4005
 - Data Directory: ./databasus-data
