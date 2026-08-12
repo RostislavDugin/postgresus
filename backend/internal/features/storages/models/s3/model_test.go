@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -297,8 +300,48 @@ func Test_GetFile_CorruptedManifest_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "manifest")
 }
 
-// setupChunkedStorage boots a MinIO container, creates the bucket and returns a raw client for
-// direct object assertions alongside an S3Storage configured to roll objects on small inputs.
+func Test_TestConnection_WhenDeleteIsDenied_Succeeds(t *testing.T) {
+	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{deleteErrorCode: s3ErrCodeAccessDenied})
+
+	assert.NoError(t, storage.TestConnection(encryptor))
+}
+
+func Test_TestConnection_WhenBucketIsMissing_ReturnsBucketDoesNotExist(t *testing.T) {
+	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{putErrorCode: s3ErrCodeNoSuchBucket})
+
+	err := storage.TestConnection(encryptor)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
+}
+
+func Test_TestConnection_WhenWriteIsDenied_ReturnsWriteAccessError(t *testing.T) {
+	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{putErrorCode: s3ErrCodeAccessDenied})
+
+	err := storage.TestConnection(encryptor)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot write to")
+}
+
+func Test_TestConnection_WhenReadIsDenied_ReturnsReadAccessError(t *testing.T) {
+	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{getErrorCode: s3ErrCodeAccessDenied})
+
+	err := storage.TestConnection(encryptor)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot read back from")
+}
+
+func Test_TestConnection_WhenReadReturnsDifferentContent_ReturnsMismatchError(t *testing.T) {
+	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{servedContent: "corrupted"})
+
+	err := storage.TestConnection(encryptor)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "different content")
+}
+
 func setupChunkedStorage(t *testing.T) (*minio.Client, *S3Storage, encryption.FieldEncryptor) {
 	t.Helper()
 
@@ -337,6 +380,103 @@ func setupChunkedStorage(t *testing.T) (*minio.Client, *S3Storage, encryption.Fi
 	}
 
 	return rawClient, storage, encryptor
+}
+
+func setupProbeStubStorage(
+	t *testing.T,
+	stub s3ProbeStub,
+) (*S3Storage, encryption.FieldEncryptor) {
+	t.Helper()
+
+	server := startS3ProbeServer(t, stub)
+
+	encryptor := encryption.GetFieldEncryptor()
+
+	accessKey, err := encryptor.Encrypt(containers.MinioRootUser)
+	require.NoError(t, err)
+	secretKey, err := encryptor.Encrypt(containers.MinioRootPassword)
+	require.NoError(t, err)
+
+	storage := &S3Storage{
+		StorageID:   uuid.New(),
+		S3Bucket:    "test-bucket",
+		S3Region:    containers.MinioRegion,
+		S3AccessKey: accessKey,
+		S3SecretKey: secretKey,
+		S3Endpoint:  server.URL,
+	}
+
+	return storage, encryptor
+}
+
+// A real MinIO container cannot express these branches: its root credentials ignore bucket
+// policies, so a denied write, read or delete is not reproducible against it.
+type s3ProbeStub struct {
+	putErrorCode    string
+	getErrorCode    string
+	deleteErrorCode string
+	servedContent   string
+}
+
+func startS3ProbeServer(t *testing.T, stub s3ProbeStub) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut:
+			if stub.putErrorCode != "" {
+				writeS3ErrorResponse(w, stub.putErrorCode)
+				return
+			}
+
+			w.Header().Set("ETag", `"probe"`)
+		case http.MethodGet:
+			if stub.getErrorCode != "" {
+				writeS3ErrorResponse(w, stub.getErrorCode)
+				return
+			}
+
+			content := stub.servedContent
+			if content == "" {
+				content = connectionTestObjectContent
+			}
+
+			w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+			w.Header().Set("Last-Modified", "Mon, 02 Jan 2006 15:04:05 GMT")
+			_, _ = w.Write([]byte(content))
+		case http.MethodDelete:
+			if stub.deleteErrorCode != "" {
+				writeS3ErrorResponse(w, stub.deleteErrorCode)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func writeS3ErrorResponse(w http.ResponseWriter, code string) {
+	statusByCode := map[string]int{
+		s3ErrCodeNoSuchBucket: http.StatusNotFound,
+		s3ErrCodeAccessDenied: http.StatusForbidden,
+	}
+
+	status, isKnownCode := statusByCode[code]
+	if !isKnownCode {
+		status = http.StatusForbidden
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(status)
+	_, _ = fmt.Fprintf(
+		w,
+		`<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`,
+		code,
+		code,
+	)
 }
 
 func putRawObject(t *testing.T, client *minio.Client, bucket, key string, data []byte) {
