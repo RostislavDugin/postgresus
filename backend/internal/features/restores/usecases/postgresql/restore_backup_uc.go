@@ -233,20 +233,19 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		}
 	}()
 
-	var backupReader io.Reader = rawReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(rawReader)
+
+	var backupReader io.Reader = storageReadFailureTracker
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			return fmt.Errorf("backup is encrypted but missing encryption metadata")
 		}
 
-		// Get master key
 		masterKey, err := uc.secretKeyService.GetSecretKey()
 		if err != nil {
 			return fmt.Errorf("failed to get master key for decryption: %w", err)
 		}
 
-		// Decode salt and IV from base64
 		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
 		if err != nil {
 			return fmt.Errorf("failed to decode encryption salt: %w", err)
@@ -257,9 +256,8 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 			return fmt.Errorf("failed to decode encryption IV: %w", err)
 		}
 
-		// Create decryption reader
 		decryptReader, err := encryption.NewDecryptionReader(
-			rawReader,
+			storageReadFailureTracker,
 			masterKey,
 			backup.ID,
 			salt,
@@ -312,11 +310,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
-	backupStreamReader := io_utils.NewFailureTrackingReader(backupReader)
+	decodedStreamFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
 
 	copyErrCh := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(stdinPipe, backupStreamReader)
+		_, copyErr := io.Copy(stdinPipe, decodedStreamFailureTracker)
 		// Close stdin pipe to signal EOF to pg_restore - critical for proper termination
 		closeErr := stdinPipe.Close()
 		switch {
@@ -348,7 +346,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("restore cancelled due to shutdown")
 	}
 
-	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+	if streamErr := restores_core.GetBackupStreamFailure(restores_core.BackupStreamTrackers{
+		StorageRead:   storageReadFailureTracker,
+		DecodedStream: decodedStreamFailureTracker,
+	}); streamErr != nil {
 		return streamErr
 	}
 
@@ -371,7 +372,15 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 			return fmt.Errorf("restore cancelled due to shutdown")
 		}
 
-		return uc.handlePgRestoreError(originalDB, waitErr, stderrOutput, pgBin, args, pg)
+		return uc.resolvePgRestoreOutcome(pgRestoreFailure{
+			database:     originalDB,
+			waitErr:      waitErr,
+			stderrOutput: stderrOutput,
+			pgBin:        pgBin,
+			args:         args,
+			pgConfig:     pg,
+			logger:       logger,
+		})
 	}
 
 	return nil
@@ -452,15 +461,17 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	pgConfig *pgtypes.PostgresqlLogicalDatabase,
 	options restores_core.RestoreOptions,
 ) error {
-	uc.logger.Info(
-		"Restoring PostgreSQL backup from storage via temporary file",
-		"pgBin",
+	logger := uc.logger.With("backup_id", backup.ID)
+
+	logger.Info(
+		"restoring backup from storage via temporary file",
+		"pg_bin",
 		pgBin,
 		"args",
 		args,
-		"isExcludeExtensions",
+		"is_exclude_extensions",
 		options.IsExcludeExtensions,
-		"isSkipUserMappings",
+		"is_skip_user_mappings",
 		options.IsSkipUserMappings,
 	)
 
@@ -529,7 +540,14 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 	// Add the temporary backup file as the last argument to pg_restore
 	args = append(args, tempBackupFile)
 
-	return uc.executePgRestore(ctx, database, pgBin, args, credentials, pgConfig)
+	return uc.executePgRestore(ctx, pgRestoreCommand{
+		database:    database,
+		pgBin:       pgBin,
+		args:        args,
+		credentials: credentials,
+		pgConfig:    pgConfig,
+		logger:      logger,
+	})
 }
 
 func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
@@ -572,23 +590,21 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		}
 	}()
 
-	// Create a reader that handles decryption if needed
-	var backupReader io.Reader = rawReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(rawReader)
+
+	var backupReader io.Reader = storageReadFailureTracker
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			cleanupFunc()
 			return "", nil, fmt.Errorf("backup is encrypted but missing encryption metadata")
 		}
 
-		// Get master key
 		masterKey, err := uc.secretKeyService.GetSecretKey()
 		if err != nil {
 			cleanupFunc()
 			return "", nil, fmt.Errorf("failed to get master key for decryption: %w", err)
 		}
 
-		// Decode salt and IV from base64
 		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
 		if err != nil {
 			cleanupFunc()
@@ -601,9 +617,8 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 			return "", nil, fmt.Errorf("failed to decode encryption IV: %w", err)
 		}
 
-		// Create decryption reader
 		decryptReader, err := encryption.NewDecryptionReader(
-			rawReader,
+			storageReadFailureTracker,
 			masterKey,
 			backup.ID,
 			salt,
@@ -642,20 +657,26 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	return tempBackupFile, cleanupFunc, nil
 }
 
-// executePgRestore executes the pg_restore command with proper environment setup
+type pgRestoreCommand struct {
+	database    *databases.Database
+	pgBin       string
+	args        []string
+	credentials *postgresql_shared.CredentialTempFiles
+	pgConfig    *pgtypes.PostgresqlLogicalDatabase
+	logger      *slog.Logger
+}
+
 func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 	ctx context.Context,
-	database *databases.Database,
-	pgBin string,
-	args []string,
-	credentials *postgresql_shared.CredentialTempFiles,
-	pgConfig *pgtypes.PostgresqlLogicalDatabase,
+	command pgRestoreCommand,
 ) error {
-	cmd := exec.CommandContext(ctx, pgBin, args...)
-	uc.logger.Info("Executing PostgreSQL restore command", "command", cmd.String())
+	pgBin := command.pgBin
+
+	cmd := exec.CommandContext(ctx, pgBin, command.args...)
+	command.logger.Info("executing pg_restore command", "command", cmd.String())
 
 	// Setup environment variables
-	uc.setupPgRestoreEnvironment(cmd, credentials, pgConfig)
+	uc.setupPgRestoreEnvironment(cmd, command.credentials, command.pgConfig)
 
 	// Verify executable exists and is accessible
 	if _, err := exec.LookPath(pgBin); err != nil {
@@ -716,7 +737,15 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 			return fmt.Errorf("restore cancelled due to shutdown")
 		}
 
-		return uc.handlePgRestoreError(database, waitErr, stderrOutput, pgBin, args, pgConfig)
+		return uc.resolvePgRestoreOutcome(pgRestoreFailure{
+			database:     command.database,
+			waitErr:      waitErr,
+			stderrOutput: stderrOutput,
+			pgBin:        command.pgBin,
+			args:         command.args,
+			pgConfig:     command.pgConfig,
+			logger:       command.logger,
+		})
 	}
 
 	return nil
@@ -758,22 +787,34 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	uc.logger.Info("Using SSL mode", "sslMode", sslMode)
 }
 
-// handlePgRestoreError processes and formats pg_restore errors
-func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
-	database *databases.Database,
-	waitErr error,
-	stderrOutput []byte,
-	pgBin string,
-	args []string,
-	pgConfig *pgtypes.PostgresqlLogicalDatabase,
-) error {
-	// Enhanced error handling for PostgreSQL connection and restore issues
-	stderrStr := string(stderrOutput)
+type pgRestoreFailure struct {
+	database     *databases.Database
+	waitErr      error
+	stderrOutput []byte
+	pgBin        string
+	args         []string
+	pgConfig     *pgtypes.PostgresqlLogicalDatabase
+	logger       *slog.Logger
+}
+
+func (uc *RestorePostgresqlBackupUsecase) resolvePgRestoreOutcome(failure pgRestoreFailure) error {
+	pgBin := failure.pgBin
+	waitErr := failure.waitErr
+	stderr := string(failure.stderrOutput)
+
+	if IsPreexistingPublicSchemaOnly(stderr) {
+		failure.logger.Warn(
+			"pg_restore ignored a pre-existing public schema; treating the restore as successful",
+		)
+
+		return nil
+	}
+
 	errorMsg := fmt.Sprintf(
 		"%s failed: %v – stderr: %s",
 		filepath.Base(pgBin),
 		waitErr,
-		stderrStr,
+		stderr,
 	)
 
 	// Check for specific PostgreSQL error patterns
@@ -782,7 +823,7 @@ func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
 		exitCode := exitErr.ExitCode()
 
 		switch {
-		case exitCode == 1 && strings.TrimSpace(stderrStr) == "":
+		case exitCode == 1 && strings.TrimSpace(stderr) == "":
 			errorMsg = fmt.Sprintf(
 				"%s failed with exit status 1 but provided no error details. "+
 					"This often indicates: "+
@@ -795,63 +836,65 @@ func (uc *RestorePostgresqlBackupUsecase) handlePgRestoreError(
 					"Command executed: %s %s",
 				filepath.Base(pgBin),
 				pgBin,
-				strings.Join(args, " "),
+				strings.Join(failure.args, " "),
 			)
 		case exitCode == -1073741819: // 0xC0000005 in decimal
 			errorMsg = fmt.Sprintf(
 				"%s crashed with access violation (0xC0000005). This may indicate incompatible PostgreSQL version, corrupted installation, or connection issues. stderr: %s",
 				filepath.Base(pgBin),
-				stderrStr,
+				stderr,
 			)
 		case exitCode == 1 || exitCode == 2:
 			// Check for common connection and authentication issues
 			switch {
-			case containsIgnoreCase(stderrStr, "pg_hba.conf"):
+			case containsIgnoreCase(stderr, "pg_hba.conf"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL connection rejected by server configuration (pg_hba.conf). stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "no password supplied") || containsIgnoreCase(stderrStr, "fe_sendauth"):
+			case containsIgnoreCase(stderr, "no password supplied") || containsIgnoreCase(stderr, "fe_sendauth"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL authentication failed - no password supplied. stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "ssl") && containsIgnoreCase(stderrStr, "connection"):
+			case containsIgnoreCase(stderr, "ssl") && containsIgnoreCase(stderr, "connection"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL SSL connection failed. stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "connection") && containsIgnoreCase(stderrStr, "refused"):
+			case containsIgnoreCase(stderr, "connection") && containsIgnoreCase(stderr, "refused"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL connection refused. Check if the server is running and accessible. stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "authentication") || containsIgnoreCase(stderrStr, "password"):
+			case containsIgnoreCase(stderr, "authentication") || containsIgnoreCase(stderr, "password"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL authentication failed. Check username and password. stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "timeout"):
+			case containsIgnoreCase(stderr, "timeout"):
 				errorMsg = fmt.Sprintf(
 					"PostgreSQL connection timeout. stderr: %s",
-					stderrStr,
+					stderr,
 				)
-			case containsIgnoreCase(stderrStr, "database") && containsIgnoreCase(stderrStr, "does not exist"):
+			case containsIgnoreCase(stderr, "database") && containsIgnoreCase(stderr, "does not exist"):
+				sourceDatabase := failure.database.PostgresqlLogical
+
 				backupDbName := "unknown"
-				if database.PostgresqlLogical != nil && database.PostgresqlLogical.Database != nil {
-					backupDbName = *database.PostgresqlLogical.Database
+				if sourceDatabase != nil && sourceDatabase.Database != nil {
+					backupDbName = *sourceDatabase.Database
 				}
 
 				targetDbName := "unknown"
-				if pgConfig.Database != nil {
-					targetDbName = *pgConfig.Database
+				if failure.pgConfig.Database != nil {
+					targetDbName = *failure.pgConfig.Database
 				}
 
 				errorMsg = fmt.Sprintf(
 					"Target database does not exist (backup db %s, not found %s). Create the database before restoring. stderr: %s",
 					backupDbName,
 					targetDbName,
-					stderrStr,
+					stderr,
 				)
 			}
 		}

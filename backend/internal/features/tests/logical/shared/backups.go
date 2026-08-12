@@ -73,8 +73,6 @@ func CreateBackupViaAPI(
 	)
 }
 
-// WaitForBackupCompletion polls the backups API until the latest backup for the
-// database reaches Completed, failing the test on Failed or timeout.
 func WaitForBackupCompletion(
 	t *testing.T,
 	router *gin.Engine,
@@ -82,45 +80,20 @@ func WaitForBackupCompletion(
 	token string,
 	timeout time.Duration,
 ) *backups_core_logical.LogicalBackup {
-	startTime := time.Now()
-	pollInterval := 500 * time.Millisecond
+	backup := WaitForBackupTerminalStatus(t, router, databaseID, token, timeout)
 
-	for {
-		if time.Since(startTime) > timeout {
-			t.Fatalf("Timeout waiting for backup completion after %v", timeout)
+	if backup.Status != backups_core_logical.BackupStatusCompleted {
+		failMessage := "unknown error"
+		if backup.FailMessage != nil {
+			failMessage = *backup.FailMessage
 		}
 
-		var response backups_dto_logical.GetBackupsResponse
-		test_utils.MakeGetRequestAndUnmarshal(
-			t,
-			router,
-			fmt.Sprintf("/api/v1/backups?database_id=%s&limit=1", databaseID.String()),
-			"Bearer "+token,
-			http.StatusOK,
-			&response,
-		)
-
-		if len(response.Backups) > 0 {
-			backup := response.Backups[0]
-			if backup.Status == backups_core_logical.BackupStatusCompleted {
-				return backup
-			}
-			if backup.Status == backups_core_logical.BackupStatusFailed {
-				failMsg := "unknown error"
-				if backup.FailMessage != nil {
-					failMsg = *backup.FailMessage
-				}
-				t.Fatalf("Backup failed: %s", failMsg)
-			}
-		}
-
-		time.Sleep(pollInterval)
+		t.Fatalf("backup reached %s instead of completing: %s", backup.Status, failMessage)
 	}
+
+	return backup
 }
 
-// WaitForBackupTerminalStatus polls until the latest backup reaches any terminal
-// status (Completed, Failed, Canceled) and returns it, failing on timeout. Used
-// by the issue-582 regression which asserts a failed backup does not hang.
 func WaitForBackupTerminalStatus(
 	t *testing.T,
 	router *gin.Engine,
@@ -143,11 +116,11 @@ func WaitForBackupTerminalStatus(
 		)
 
 		if len(response.Backups) > 0 {
-			b := response.Backups[0]
-			if b.Status == backups_core_logical.BackupStatusCompleted ||
-				b.Status == backups_core_logical.BackupStatusFailed ||
-				b.Status == backups_core_logical.BackupStatusCanceled {
-				return b
+			newestBackup := response.Backups[0]
+			if newestBackup.Status == backups_core_logical.BackupStatusCompleted ||
+				newestBackup.Status == backups_core_logical.BackupStatusFailed ||
+				newestBackup.Status == backups_core_logical.BackupStatusCanceled {
+				return newestBackup
 			}
 		}
 
@@ -155,8 +128,7 @@ func WaitForBackupTerminalStatus(
 	}
 
 	t.Fatalf(
-		"backup for database %s did not reach a terminal status within %v "+
-			"(issue #582: backup hangs forever when SaveFile fails)",
+		"backup for database %s did not reach a terminal status within %v",
 		databaseID,
 		timeout,
 	)

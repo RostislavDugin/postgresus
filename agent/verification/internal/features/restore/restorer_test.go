@@ -46,6 +46,14 @@ func testConn() dbconn.Conn {
 	}
 }
 
+func testSpec(parallelJobs int) PgRestoreSpec {
+	return PgRestoreSpec{
+		ArchivePath:  "/restore/x.dump",
+		Conn:         testConn(),
+		ParallelJobs: parallelJobs,
+	}
+}
+
 func Test_StageBackupViaExec_WhenDdSucceeds_StreamsBodyToDest(t *testing.T) {
 	exec := &fakeExecRunner{result: ExecResult{ExitCode: 0}}
 	r := NewRestorer(testutil.DiscardLogger())
@@ -84,7 +92,7 @@ func Test_RunPgRestore_WhenPgRestoreSucceeds_ReturnsResultWithoutError(t *testin
 	exec := &fakeExecRunner{result: ExecResult{ExitCode: 0}}
 	r := NewRestorer(testutil.DiscardLogger())
 
-	result, err := r.RunPgRestore(t.Context(), exec, "/restore/x.dump", testConn(), 4)
+	result, err := r.RunPgRestore(t.Context(), exec, testSpec(4))
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.PgRestoreExitCode)
@@ -103,11 +111,39 @@ func Test_RunPgRestore_WhenPgRestoreSucceeds_ReturnsResultWithoutError(t *testin
 	assert.Equal(t, []string{"PGPASSWORD=deadbeef"}, exec.recorded[0].env)
 }
 
+func Test_RunPgRestore_WhenNotTimescaledb_PassesCleanAndIfExists(t *testing.T) {
+	exec := &fakeExecRunner{result: ExecResult{ExitCode: 0}}
+	r := NewRestorer(testutil.DiscardLogger())
+
+	_, err := r.RunPgRestore(t.Context(), exec, testSpec(1))
+
+	require.NoError(t, err)
+	require.Len(t, exec.recorded, 1)
+	assert.Contains(t, exec.recorded[0].cmd, "--clean")
+	assert.Contains(t, exec.recorded[0].cmd, "--if-exists")
+}
+
+func Test_RunPgRestore_WhenTimescaledb_OmitsCleanAndIfExists(t *testing.T) {
+	exec := &fakeExecRunner{result: ExecResult{ExitCode: 0}}
+	r := NewRestorer(testutil.DiscardLogger())
+
+	spec := testSpec(1)
+	spec.IsTimescaledb = true
+
+	_, err := r.RunPgRestore(t.Context(), exec, spec)
+
+	require.NoError(t, err)
+	require.Len(t, exec.recorded, 1)
+	assert.NotContains(t, exec.recorded[0].cmd, "--clean",
+		"--clean would DROP EXTENSION timescaledb before pre_restore needs its catalog")
+	assert.NotContains(t, exec.recorded[0].cmd, "--if-exists")
+}
+
 func Test_RunPgRestore_WhenPgRestoreExitsNonZero_ReturnsErrRestoreFailedWithPopulatedResult(t *testing.T) {
 	exec := &fakeExecRunner{result: ExecResult{ExitCode: 1, Stderr: "could not execute query"}}
 	r := NewRestorer(testutil.DiscardLogger())
 
-	result, err := r.RunPgRestore(t.Context(), exec, "/restore/x.dump", testConn(), 2)
+	result, err := r.RunPgRestore(t.Context(), exec, testSpec(2))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrRestoreFailed)
@@ -119,7 +155,7 @@ func Test_RunPgRestore_WhenExecInfraFails_ReturnsNonRestoreError(t *testing.T) {
 	exec := &fakeExecRunner{err: errors.New("exec create failed")}
 	r := NewRestorer(testutil.DiscardLogger())
 
-	_, err := r.RunPgRestore(t.Context(), exec, "/restore/x.dump", testConn(), 1)
+	_, err := r.RunPgRestore(t.Context(), exec, testSpec(1))
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrRestoreFailed,
@@ -131,7 +167,7 @@ func Test_RunPgRestore_WhenStderrHuge_TailIsTruncatedSuffix(t *testing.T) {
 	exec := &fakeExecRunner{result: ExecResult{ExitCode: 0, Stderr: huge}}
 	r := NewRestorer(testutil.DiscardLogger())
 
-	result, err := r.RunPgRestore(t.Context(), exec, "/restore/x.dump", testConn(), 1)
+	result, err := r.RunPgRestore(t.Context(), exec, testSpec(1))
 
 	require.NoError(t, err)
 	assert.Len(t, result.StderrTail, 8192)

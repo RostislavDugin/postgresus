@@ -191,18 +191,20 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 		safeArgs,
 	)
 
-	var inputReader io.Reader = backupReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
+
+	var inputReader io.Reader = storageReadFailureTracker
 
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		decryptReader, err := uc.setupDecryption(backupReader, backup)
+		decryptReader, err := uc.setupDecryption(storageReadFailureTracker, backup)
 		if err != nil {
 			return fmt.Errorf("failed to setup decryption: %w", err)
 		}
 		inputReader = decryptReader
 	}
 
-	backupStreamReader := io_utils.NewFailureTrackingReader(inputReader)
-	cmd.Stdin = backupStreamReader
+	decodedStreamFailureTracker := io_utils.NewFailureTrackingReader(inputReader)
+	cmd.Stdin = decodedStreamFailureTracker
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "LC_ALL=C.UTF-8", "LANG=C.UTF-8")
@@ -238,7 +240,10 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 		return fmt.Errorf("restore cancelled due to shutdown")
 	}
 
-	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+	if streamErr := restores_core.GetBackupStreamFailure(restores_core.BackupStreamTrackers{
+		StorageRead:   storageReadFailureTracker,
+		DecodedStream: decodedStreamFailureTracker,
+	}); streamErr != nil {
 		return streamErr
 	}
 

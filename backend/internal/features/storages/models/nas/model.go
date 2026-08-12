@@ -16,6 +16,7 @@ import (
 	"github.com/hirochachacha/go-smb2"
 
 	"databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 )
 
 const (
@@ -156,9 +157,9 @@ func (n *NASStorage) SaveFile(
 }
 
 func (n *NASStorage) GetFile(
-	_ context.Context,
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
-	_ *slog.Logger,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	session, err := n.createSession(encryptor)
@@ -166,35 +167,37 @@ func (n *NASStorage) GetFile(
 		return nil, fmt.Errorf("failed to create NAS session: %w", err)
 	}
 
-	fs, err := session.Mount(n.Share)
+	share, err := session.Mount(n.Share)
 	if err != nil {
 		_ = session.Logoff()
+
 		return nil, fmt.Errorf("failed to mount share '%s': %w", n.Share, err)
 	}
 
 	filePath := n.getFilePath(fileName)
 
-	// Check if file exists
-	_, err = fs.Stat(filePath)
+	fileInfo, err := share.Stat(filePath)
 	if err != nil {
-		_ = fs.Umount()
+		_ = share.Umount()
 		_ = session.Logoff()
+
 		return nil, fmt.Errorf("file not found: %s", fileName)
 	}
 
-	nasFile, err := fs.Open(filePath)
-	if err != nil {
-		_ = fs.Umount()
-		_ = session.Logoff()
-		return nil, fmt.Errorf("failed to open file from NAS: %w", err)
-	}
+	totalBytes := fileInfo.Size()
 
-	// Return a wrapped reader that cleans up resources when closed
-	return &nasFileReader{
-		file:    nasFile,
-		fs:      fs,
-		session: session,
-	}, nil
+	_ = share.Umount()
+	_ = session.Logoff()
+
+	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+		StreamCtx:  ctx,
+		Logger:     logger,
+		FileName:   fileName,
+		TotalBytes: totalBytes,
+		OpenAtOffset: func(attemptCtx context.Context, offsetBytes int64) (io.ReadCloser, error) {
+			return n.openFileAtOffset(attemptCtx, encryptor, filePath, offsetBytes)
+		},
+	}), nil
 }
 
 func (n *NASStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
@@ -424,11 +427,11 @@ func (n *NASStorage) getFilePath(filename string) string {
 	return cleanPath + "/" + filename
 }
 
-// nasFileReader wraps the NAS file and handles cleanup of resources
 type nasFileReader struct {
-	file    *smb2.File
-	fs      *smb2.Share
-	session *smb2.Session
+	file              *smb2.File
+	share             *smb2.Share
+	session           *smb2.Session
+	stopCloseOnCancel func() bool
 }
 
 func (r *nasFileReader) Read(p []byte) (n int, err error) {
@@ -436,30 +439,32 @@ func (r *nasFileReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *nasFileReader) Close() error {
-	// Close resources in reverse order
-	var errors []error
+	var closeErrors []error
+
+	if r.stopCloseOnCancel != nil {
+		r.stopCloseOnCancel()
+	}
 
 	if r.file != nil {
 		if err := r.file.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close file: %w", err))
+			closeErrors = append(closeErrors, fmt.Errorf("failed to close file: %w", err))
 		}
 	}
 
-	if r.fs != nil {
-		if err := r.fs.Umount(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to unmount share: %w", err))
+	if r.share != nil {
+		if err := r.share.Umount(); err != nil {
+			closeErrors = append(closeErrors, fmt.Errorf("failed to unmount share: %w", err))
 		}
 	}
 
 	if r.session != nil {
 		if err := r.session.Logoff(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to logoff session: %w", err))
+			closeErrors = append(closeErrors, fmt.Errorf("failed to logoff session: %w", err))
 		}
 	}
 
-	if len(errors) > 0 {
-		// Return the first error, but log others if needed
-		return errors[0]
+	if len(closeErrors) > 0 {
+		return closeErrors[0]
 	}
 
 	return nil
@@ -531,4 +536,56 @@ func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, 
 	}
 
 	return written, nil
+}
+
+// Each attempt logs in again: a resumed read follows a dropped one, and the SMB session that
+// carried it is no longer usable.
+func (n *NASStorage) openFileAtOffset(
+	attemptCtx context.Context,
+	encryptor encryption.FieldEncryptor,
+	filePath string,
+	offsetBytes int64,
+) (io.ReadCloser, error) {
+	session, err := n.createSessionWithContext(attemptCtx, encryptor)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NAS session: %w", err)
+	}
+
+	share, err := session.Mount(n.Share)
+	if err != nil {
+		_ = session.Logoff()
+
+		return nil, fmt.Errorf("failed to mount share '%s': %w", n.Share, err)
+	}
+
+	nasFile, err := share.Open(filePath)
+	if err != nil {
+		_ = share.Umount()
+		_ = session.Logoff()
+
+		return nil, fmt.Errorf("failed to open file from NAS: %w", err)
+	}
+
+	if offsetBytes > 0 {
+		if _, err := nasFile.Seek(offsetBytes, io.SeekStart); err != nil {
+			_ = nasFile.Close()
+			_ = share.Umount()
+			_ = session.Logoff()
+
+			return nil, fmt.Errorf("failed to resume NAS read at offset %d: %w", offsetBytes, err)
+		}
+	}
+
+	// The SMB file takes no context, so a read blocked on a silent server would ignore the
+	// caller's cancellation; closing the file is what unblocks it.
+	stopCloseOnCancel := context.AfterFunc(attemptCtx, func() {
+		_ = nasFile.Close()
+	})
+
+	return &nasFileReader{
+		file:              nasFile,
+		share:             share,
+		session:           session,
+		stopCloseOnCancel: stopCloseOnCancel,
+	}, nil
 }

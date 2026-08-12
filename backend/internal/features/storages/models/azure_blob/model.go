@@ -16,10 +16,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 )
 
 const (
@@ -159,7 +161,7 @@ func (s *AzureBlobStorage) SaveFile(
 func (s *AzureBlobStorage) GetFile(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
-	_ *slog.Logger,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	client, err := s.getClient(encryptor)
@@ -169,17 +171,43 @@ func (s *AzureBlobStorage) GetFile(
 
 	blobName := s.buildBlobName(fileName)
 
-	response, err := client.DownloadStream(
-		ctx,
-		s.ContainerName,
-		blobName,
-		nil,
-	)
+	properties, err := client.ServiceClient().
+		NewContainerClient(s.ContainerName).
+		NewBlobClient(blobName).
+		GetProperties(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download blob from Azure: %w", err)
+		return nil, fmt.Errorf("failed to stat blob in Azure: %w", err)
 	}
 
-	return response.Body, nil
+	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+		StreamCtx:  ctx,
+		Logger:     logger,
+		FileName:   fileName,
+		TotalBytes: getBlobSizeOrUnknown(properties.ContentLength),
+		OpenAtOffset: func(attemptCtx context.Context, offsetBytes int64) (io.ReadCloser, error) {
+			return s.downloadBlobFromOffset(attemptCtx, client, blobName, offsetBytes)
+		},
+		IsRetryableError: isRetryableAzureError,
+	}), nil
+}
+
+func isRetryableAzureError(err error) bool {
+	var responseError *azcore.ResponseError
+	if errors.As(err, &responseError) {
+		return responseError.StatusCode == http.StatusRequestTimeout ||
+			responseError.StatusCode == http.StatusTooManyRequests ||
+			responseError.StatusCode >= http.StatusInternalServerError
+	}
+
+	return true
+}
+
+func getBlobSizeOrUnknown(contentLength *int64) int64 {
+	if contentLength == nil {
+		return io_utils.UnknownTotalBytes
+	}
+
+	return *contentLength
 }
 
 func (s *AzureBlobStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
@@ -418,4 +446,36 @@ func (s *AzureBlobStorage) buildAccountURL() string {
 	}
 
 	return fmt.Sprintf("https://%s.blob.core.windows.net/", s.AccountName)
+}
+
+func (s *AzureBlobStorage) downloadBlobFromOffset(
+	attemptCtx context.Context,
+	client *azblob.Client,
+	blobName string,
+	offsetBytes int64,
+) (io.ReadCloser, error) {
+	response, err := client.DownloadStream(
+		attemptCtx,
+		s.ContainerName,
+		blobName,
+		&azblob.DownloadStreamOptions{Range: blob.HTTPRange{Offset: offsetBytes}},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download blob from Azure: %w", err)
+	}
+
+	if offsetBytes > 0 {
+		contentRange := ""
+		if response.ContentRange != nil {
+			contentRange = *response.ContentRange
+		}
+
+		if err := io_utils.VerifyContentRangeStart(contentRange, offsetBytes); err != nil {
+			_ = response.Body.Close()
+
+			return nil, err
+		}
+	}
+
+	return response.Body, nil
 }

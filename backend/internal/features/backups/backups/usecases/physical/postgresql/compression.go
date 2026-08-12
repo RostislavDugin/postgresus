@@ -1,12 +1,16 @@
 package usecases_physical_postgresql
 
-import physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+import (
+	"strings"
+
+	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+)
 
 // codecFallbackOrder is the server-side compression preference, highest ratio
 // first. The real backup IS the probe: each attempt runs pg_basebackup, and a
-// "compression is not supported by this build" rejection (raised pre-stream, so
-// it costs only a sub-second round-trip) advances to the next codec. `none`
-// needs no library and never raises that error, so the loop always terminates.
+// source build that lacks the codec's library rejects it pre-stream, so the
+// wasted attempt costs only a sub-second round-trip. `none` needs no library
+// and never raises that rejection, so the loop always terminates.
 var codecFallbackOrder = []physical_enums.PhysicalBackupCompression{
 	physical_enums.PhysicalBackupCompressionZstd,
 	physical_enums.PhysicalBackupCompressionGzip,
@@ -27,4 +31,15 @@ func compressFlag(codec physical_enums.PhysicalBackupCompression) string {
 	default:
 		return "server-zstd:5"
 	}
+}
+
+// The source server rejects a codec its build lacks inside
+// parse_compress_specification (src/common/compression.c), which fills in
+// "this build does not support compression with %s" and surfaces as
+// "invalid compression specification: ..." — the algorithm-specific sinks
+// (basebackup_zstd.c) are never reached. Only the inner clause is matched:
+// the outer "invalid compression specification" also covers a rejected
+// compression level, which is a configuration bug, not a missing library.
+func isCompressionUnsupportedError(stderr []byte) bool {
+	return strings.Contains(string(stderr), "does not support compression with")
 }

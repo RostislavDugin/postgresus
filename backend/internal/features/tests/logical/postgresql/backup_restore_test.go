@@ -175,6 +175,10 @@ func Test_PostgresqlBackupRestore_AcrossSupportedVersions(t *testing.T) {
 				testBackupRestoreWithReadOnlyUserForVersion(t, endpoint, dbVersion.tag)
 			})
 
+			t.Run("Test_BackupPostgresql_WhenUserCannotReadSequences_BackupFails", func(t *testing.T) {
+				testBackupFailsWhenUserCannotReadSequencesForVersion(t, endpoint, dbVersion.tag)
+			})
+
 			t.Run("Test_BackupAndRestorePostgresql_WithSkipUserMappings_RestoreIsSuccessful", func(t *testing.T) {
 				testBackupRestoreSkipUserMappingsForVersion(t, endpoint, dbVersion.tag)
 			})
@@ -1156,6 +1160,105 @@ func testBackupRestoreWithReadOnlyUserForVersion(t *testing.T, endpoint containe
 		t,
 		router,
 		"/api/v1/databases/"+updatedDatabase.ID.String(),
+		"Bearer "+user.Token,
+		http.StatusNoContent,
+	)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
+}
+
+// pg_dump 18.0 and 18.1 emitted wrong sequence values instead of failing when the
+// dumping role could not read a sequence, so a backup completed while silently
+// losing every sequence position (issue #725, fixed upstream in PostgreSQL 18.2).
+func testBackupFailsWhenUserCannotReadSequencesForVersion(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	pgVersion string,
+) {
+	container, err := connectToPostgresEndpoint(t, endpoint)
+	assert.NoError(t, err)
+	defer func() {
+		if container.DB != nil {
+			container.DB.Close()
+		}
+	}()
+
+	uniqueSuffix := uuid.New().String()[:8]
+	tableName := fmt.Sprintf("test_data_%s", uniqueSuffix)
+	sequenceName := tableName + "_id_seq"
+	restrictedUsername := fmt.Sprintf("no_sequence_reader_%s", uniqueSuffix)
+	restrictedPassword := uuid.New().String()
+
+	_, err = container.DB.Exec(createAndFillTableQuery(tableName))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(`
+		CREATE ROLE %[1]s LOGIN PASSWORD '%[2]s';
+		GRANT CONNECT ON DATABASE %[3]s TO %[1]s;
+		GRANT USAGE ON SCHEMA public TO %[1]s;
+		GRANT SELECT ON TABLE %[4]s TO %[1]s;
+		REVOKE ALL ON SEQUENCE %[5]s FROM PUBLIC, %[1]s;
+	`, restrictedUsername, restrictedPassword, container.Database, tableName, sequenceName))
+	assert.NoError(t, err)
+
+	defer func() {
+		_, _ = container.DB.Exec(fmt.Sprintf(`
+			DROP TABLE IF EXISTS %s;
+			REASSIGN OWNED BY %s TO %s;
+			DROP OWNED BY %s;
+			DROP ROLE IF EXISTS %s;
+		`, tableName, restrictedUsername, container.Username, restrictedUsername, restrictedUsername))
+	}()
+
+	router := logicaltesting.CreateTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Sequence Privileges Workspace", user, router)
+
+	storage := storages.CreateTestStorage(workspace.ID)
+
+	database := createDatabaseViaAPI(
+		t, router, "Sequence Privileges Database", workspace.ID,
+		container.Host, container.Port,
+		container.Username, container.Password, container.Database,
+		user.Token,
+	)
+
+	restrictedDatabase := updateDatabaseCredentialsViaAPI(
+		t, router, database,
+		restrictedUsername, restrictedPassword,
+		user.Token,
+	)
+
+	logicaltesting.EnableBackupsViaAPI(
+		t, router, restrictedDatabase.ID, storage.ID,
+		backups_core_enums.BackupEncryptionNone, user.Token,
+	)
+
+	logicaltesting.CreateBackupViaAPI(t, router, restrictedDatabase.ID, user.Token)
+
+	backup := logicaltesting.WaitForBackupTerminalStatus(
+		t, router, restrictedDatabase.ID, user.Token, 5*time.Minute,
+	)
+
+	assert.Equal(
+		t,
+		backups_core_logical.BackupStatusFailed,
+		backup.Status,
+		"PostgreSQL %s: backup must fail when the dumping role cannot read sequences", pgVersion,
+	)
+
+	// PG 18 says "failed to get data for sequence ..." where earlier majors say
+	// "permission denied for sequence ..."; both name the sequence they choked on.
+	if assert.NotNil(t, backup.FailMessage) {
+		assert.Contains(t, *backup.FailMessage, sequenceName)
+	}
+
+	_ = os.Remove(filepath.Join(config.GetEnv().DataFolder, backup.ID.String()))
+
+	test_utils.MakeDeleteRequest(
+		t,
+		router,
+		"/api/v1/databases/"+restrictedDatabase.ID.String(),
 		"Bearer "+user.Token,
 		http.StatusNoContent,
 	)

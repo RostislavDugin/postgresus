@@ -252,6 +252,27 @@ func Test_ExecuteJob_WhenRestoreFailsWithOnlyMissingExtensions_ReportsCompleted(
 	assert.Equal(t, int64(9_000_000), *report.DBSizeBytesAfterRestore)
 }
 
+func Test_ExecuteJob_WhenRestoreFailsWithOnlyPreexistingPublicSchema_ReportsCompleted(t *testing.T) {
+	apiClient := &fakeAPI{downloadBody: []byte("ARCHIVE")}
+	stderr := "pg_restore: error: could not execute query: ERROR:  schema \"public\" already exists\n" +
+		"Command was: CREATE SCHEMA public;\n" +
+		"pg_restore: warning: errors ignored on restore: 1\n"
+	restorer := &fakeRestorer{
+		runErr:    fmt.Errorf("restore: %w", restore.ErrRestoreFailed),
+		runResult: restore.Result{PgRestoreExitCode: 1, DurationMs: 10, StderrTail: stderr},
+	}
+	stats := &fakeStats{stats: verifier.Stats{DBSizeBytes: 9_000_000, TableCount: 3}}
+	r := newTestRunner(apiClient, okSpawner(), restorer, stats, newFakeRegistrar())
+	r.connAlive = func(context.Context, dbconn.Conn) bool { return true }
+
+	r.executeJob(t.Context(), postgresJob())
+
+	report, ok := apiClient.lastReport()
+	require.True(t, ok)
+	assert.Equal(t, api.VerificationStatusCompleted, report.Status,
+		"an archive dumped with -n public collides with the target's own public schema; the data restored")
+}
+
 func Test_ExecuteJob_WhenRestoreExecInfraFails_ReportsFailedWithoutExitCode(t *testing.T) {
 	apiClient := &fakeAPI{downloadBody: []byte("ARCHIVE")}
 	restorer := &fakeRestorer{runErr: errors.New("exec create failed")}
@@ -345,6 +366,8 @@ func Test_ExecuteJob_WhenTimescaleJobSucceeds_RunsPreRestoreThenRestoreThenPostR
 		"timescaledb restore must enter restoring mode, restore, then leave it")
 	assert.Equal(t, 1, restorer.runParallelJobs,
 		"timescaledb restore must be single-threaded to keep _timescaledb_catalog FK order")
+	assert.True(t, restorer.runIsTimescaledb,
+		"the restorer decides on --clean from this flag")
 }
 
 func Test_ExecuteJob_WhenNonTimescaleJob_DoesNotRunTimescaleHooks(t *testing.T) {
@@ -360,6 +383,8 @@ func Test_ExecuteJob_WhenNonTimescaleJob_DoesNotRunTimescaleHooks(t *testing.T) 
 		"a non-timescaledb restore must not run the timescaledb hooks")
 	assert.Equal(t, 2, restorer.runParallelJobs,
 		"a non-timescaledb restore keeps parallel jobs (CPUPerJob)")
+	assert.False(t, restorer.runIsTimescaledb,
+		"the restorer decides on --clean from this flag")
 }
 
 func Test_ExecuteJob_WhenOwnerRoleCreationFails_ReportsFailedWithoutRestoring(t *testing.T) {

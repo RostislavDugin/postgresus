@@ -33,6 +33,11 @@ const (
 	s3TLSHandshakeTimeout = 30 * time.Second
 	s3DeleteTimeout       = 30 * time.Second
 
+	s3ConnectionTestTimeout = 10 * time.Second
+
+	connectionTestObjectName    = "databasus-connection-test"
+	connectionTestObjectContent = "databasus connection test"
+
 	// defaultInnerPartSize is the multipart part we feed S3 for one object. 16 MiB balances
 	// memory against request count and creates backpressure to pg_dump: we keep one part in
 	// flight and wait for S3 to confirm it before reading the next, so pipeline memory does not
@@ -49,6 +54,9 @@ const (
 
 	manifestSuffix  = ".parts"
 	manifestVersion = 1
+
+	s3ErrCodeNoSuchBucket = "NoSuchBucket"
+	s3ErrCodeAccessDenied = "AccessDenied"
 )
 
 type S3Storage struct {
@@ -236,61 +244,27 @@ func (s *S3Storage) Validate(encryptor encryption.FieldEncryptor) error {
 	return nil
 }
 
+// A backup credential may be scoped to the configured prefix and denied deletes on purpose, so the
+// probe stays on a single key inside the prefix and never lets a refused delete fail the storage:
+// writing and reading back is everything a backup needs from S3.
 func (s *S3Storage) TestConnection(encryptor encryption.FieldEncryptor) error {
 	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
 	}
 
-	// Create a context with 10 second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	probeKey := s.buildObjectKey(connectionTestObjectName)
+	probeContent := []byte(connectionTestObjectContent)
 
-	// Check if the bucket exists to verify connection
-	exists, err := client.BucketExists(ctx, s.S3Bucket)
-	if err != nil {
-		// Check if the error is due to context deadline exceeded
-		if errors.Is(err, context.DeadlineExceeded) {
-			return errors.New("failed to connect to the bucket. Please check params")
-		}
-		return fmt.Errorf("failed to connect to S3: %w", err)
+	if err := s.writeConnectionProbe(client, probeKey, probeContent); err != nil {
+		return err
 	}
 
-	if !exists {
-		return fmt.Errorf("bucket '%s' does not exist", s.S3Bucket)
+	if err := s.readAndVerifyConnectionProbe(client, probeKey, probeContent); err != nil {
+		return err
 	}
 
-	// Test write and delete permissions by uploading and removing a small test file
-	testFileID := uuid.New().String() + "-test"
-	testObjectKey := s.buildObjectKey(testFileID)
-	testData := []byte("test connection")
-	testReader := bytes.NewReader(testData)
-
-	// Upload test file
-	_, err = client.PutObject(
-		ctx,
-		s.S3Bucket,
-		testObjectKey,
-		testReader,
-		int64(len(testData)),
-		minio.PutObjectOptions{
-			SendContentMd5: true,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to upload test file to S3: %w", err)
-	}
-
-	// Delete test file
-	err = client.RemoveObject(
-		ctx,
-		s.S3Bucket,
-		testObjectKey,
-		minio.RemoveObjectOptions{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to delete test file from S3: %w", err)
-	}
+	_ = s.deleteConnectionProbe(client, probeKey)
 
 	return nil
 }
@@ -338,6 +312,93 @@ func (s *S3Storage) Update(incoming *S3Storage) {
 
 	// we do not allow to change the prefix after creation,
 	// otherwise we will have to transfer all the data to the new prefix
+}
+
+func (s *S3Storage) writeConnectionProbe(
+	client *minio.Client,
+	objectKey string,
+	content []byte,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s3ConnectionTestTimeout)
+	defer cancel()
+
+	// The probe carries the configured storage class so a policy that constrains
+	// s3:x-amz-storage-class accepts or rejects it exactly as it would a real backup.
+	options := s.putObjectOptions()
+	options.SendContentMd5 = true
+
+	_, err := client.PutObject(
+		ctx,
+		s.S3Bucket,
+		objectKey,
+		bytes.NewReader(content),
+		int64(len(content)),
+		options,
+	)
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.New("failed to connect to the bucket. Please check params")
+	}
+
+	switch minio.ToErrorResponse(err).Code {
+	case s3ErrCodeNoSuchBucket:
+		return fmt.Errorf("bucket '%s' does not exist", s.S3Bucket)
+	case s3ErrCodeAccessDenied:
+		return fmt.Errorf("credentials cannot write to '%s' in bucket '%s'", objectKey, s.S3Bucket)
+	}
+
+	return fmt.Errorf("failed to upload test file to S3: %w", err)
+}
+
+func (s *S3Storage) readAndVerifyConnectionProbe(
+	client *minio.Client,
+	objectKey string,
+	writtenContent []byte,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s3ConnectionTestTimeout)
+	defer cancel()
+
+	object, err := client.GetObject(ctx, s.S3Bucket, objectKey, minio.GetObjectOptions{})
+	if err != nil {
+		return s.describeConnectionProbeReadError(err, objectKey)
+	}
+
+	defer func() {
+		_ = object.Close()
+	}()
+
+	storedContent, err := io.ReadAll(object)
+	if err != nil {
+		return s.describeConnectionProbeReadError(err, objectKey)
+	}
+
+	if !bytes.Equal(storedContent, writtenContent) {
+		return fmt.Errorf("storage returned different content than was written to '%s'", objectKey)
+	}
+
+	return nil
+}
+
+func (s *S3Storage) describeConnectionProbeReadError(err error, objectKey string) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.New("failed to connect to the bucket. Please check params")
+	}
+
+	if minio.ToErrorResponse(err).Code == s3ErrCodeAccessDenied {
+		return fmt.Errorf("credentials cannot read back from '%s', so restores would fail", objectKey)
+	}
+
+	return fmt.Errorf("failed to read test file from S3: %w", err)
+}
+
+func (s *S3Storage) deleteConnectionProbe(client *minio.Client, objectKey string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s3ConnectionTestTimeout)
+	defer cancel()
+
+	return client.RemoveObject(ctx, s.S3Bucket, objectKey, minio.RemoveObjectOptions{})
 }
 
 func (s *S3Storage) innerPartSize() int {

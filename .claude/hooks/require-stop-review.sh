@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
-# Stop hook: blocks once per distinct working-tree state until claude-md-reviewer has audited it.
+# Stop hook: blocks once per distinct working-tree state until the review round named by $1 has run.
 #
-# Blocking is guarded by a marker file keyed on session id + a hash of the diff. Claude Code does
-# not document a `stop_hook_active` field, so the marker is the only thing standing between this
-# hook and an infinite stop loop. Any git failure exits 0 — never block on a broken repo.
+# usage: require-stop-review.sh <marker-prefix> <reason>
+#
+# Blocking is guarded by a marker file keyed on marker prefix + session id + a hash of the diff.
+# Claude Code does not document a `stop_hook_active` field, so the marker is the only thing standing
+# between this hook and an infinite stop loop. Any git failure exits 0 — never block on a broken repo.
+#
+# Several rounds can share this script: each gets its own marker prefix, so they block together on
+# the same tree state and clear together, costing one stop round rather than one per round.
 
 set -uo pipefail
 
 REVIEWED_SOURCE_DIRS=(backend agent frontend)
+
+marker_prefix=${1:-}
+reason=${2:-}
+[ -n "$marker_prefix" ] || exit 0
+[ -n "$reason" ] || exit 0
 
 hook_input=$(cat)
 
@@ -37,12 +47,9 @@ session_id=${session_id//[^a-zA-Z0-9_-]/}
 
 marker_dir="${TMPDIR:-/tmp}/databasus-claude-review"
 mkdir -p "$marker_dir" 2>/dev/null || exit 0
-marker="$marker_dir/$session_id-$tree_hash"
+marker="$marker_dir/$marker_prefix-$session_id-$tree_hash"
 
 [ -e "$marker" ] && exit 0
 : >"$marker" 2>/dev/null || exit 0
 
-jq -n '{
-  decision: "block",
-  reason: "The working tree has unreviewed changes under backend/, agent/ or frontend/. Invoke the claude-md-reviewer subagent in implementation mode, then resolve every CHANGES REQUIRED finding before stopping. If it returns PASS, stop as normal."
-}'
+jq -n --arg reason "$reason" '{decision: "block", reason: $reason}'

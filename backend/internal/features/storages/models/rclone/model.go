@@ -18,6 +18,7 @@ import (
 	"github.com/rclone/rclone/fs/operations"
 
 	"databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 )
 
 const (
@@ -92,7 +93,7 @@ func (r *RcloneStorage) SaveFile(
 func (r *RcloneStorage) GetFile(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
-	_ *slog.Logger,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	remoteFs, err := r.getFs(ctx, encryptor)
@@ -107,15 +108,27 @@ func (r *RcloneStorage) GetFile(
 		return nil, fmt.Errorf("failed to get object from rclone: %w", err)
 	}
 
-	// operations.Open resumes from the last byte read when the transfer drops, so a
-	// multi-gigabyte restore survives transient remote failures instead of handing the
-	// caller a truncated stream.
-	reader, err := operations.Open(ctx, obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open object from rclone: %w", err)
-	}
+	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+		StreamCtx:  ctx,
+		Logger:     logger,
+		FileName:   fileName,
+		TotalBytes: obj.Size(),
+		OpenAtOffset: func(attemptCtx context.Context, offsetBytes int64) (io.ReadCloser, error) {
+			if offsetBytes == 0 {
+				return obj.Open(attemptCtx)
+			}
 
-	return reader, nil
+			return obj.Open(attemptCtx, &fs.RangeOption{Start: offsetBytes, End: -1})
+		},
+		IsRetryableError: isRetryableRcloneError,
+	}), nil
+}
+
+func isRetryableRcloneError(err error) bool {
+	return !errors.Is(err, fs.ErrorObjectNotFound) &&
+		!errors.Is(err, fs.ErrorDirNotFound) &&
+		!errors.Is(err, fs.ErrorNotAFile) &&
+		!errors.Is(err, fs.ErrorPermissionDenied)
 }
 
 func (r *RcloneStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {

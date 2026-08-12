@@ -10,23 +10,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
-)
 
-const (
-	// Once headers have arrived the transport's ResponseHeaderTimeout no longer applies, so a backend
-	// that accepts the GET and then goes silent would block until the OS TCP timeout. Armed around
-	// each blocking body read only: the gap between a consumer's reads is its own business, and a
-	// restore target that pauses on a slow statement must not lose its connection over it.
-	s3ReadStallTimeout = 60 * time.Second
-
-	s3MaxReadAttemptsWithoutProgress = 10
-	s3ReadRetryBaseDelay             = 1 * time.Second
-	s3ReadRetryMaxDelay              = 30 * time.Second
+	io_utils "databasus-backend/internal/util/io"
 )
 
 type reassemblingReaderSpec struct {
@@ -59,33 +47,23 @@ type reassemblingReader struct {
 	bucket     string
 	parts      []objectSpan
 
-	hasManifestChecksum        bool
-	stallTimeout               time.Duration
-	maxAttemptsWithoutProgress int
-	retryBaseDelay             time.Duration
+	hasManifestChecksum bool
+	stallTimeout        time.Duration
+	retryPolicy         *io_utils.ReadRetryPolicy
 
-	isClosed              bool
-	partIndex             int
-	partBody              io.ReadCloser
-	partHasher            hash.Hash
-	attemptCancel         context.CancelFunc
-	stallTimer            *time.Timer
-	partReadBytes         int64
-	attemptReadBytes      int64
-	attemptsSinceProgress int
+	isClosed         bool
+	partIndex        int
+	partBody         io.ReadCloser
+	partHasher       hash.Hash
+	attemptCancel    context.CancelFunc
+	stallTimer       *time.Timer
+	partReadBytes    int64
+	attemptReadBytes int64
 }
 
 func newReassemblingReader(spec reassemblingReaderSpec) *reassemblingReader {
 	if spec.stallTimeout == 0 {
-		spec.stallTimeout = s3ReadStallTimeout
-	}
-
-	if spec.maxAttemptsWithoutProgress == 0 {
-		spec.maxAttemptsWithoutProgress = s3MaxReadAttemptsWithoutProgress
-	}
-
-	if spec.retryBaseDelay == 0 {
-		spec.retryBaseDelay = s3ReadRetryBaseDelay
+		spec.stallTimeout = io_utils.DefaultReadStallTimeout
 	}
 
 	// The retry path is the only thing that logs, so a nil logger would panic exactly during an
@@ -95,23 +73,25 @@ func newReassemblingReader(spec reassemblingReaderSpec) *reassemblingReader {
 	}
 
 	return &reassemblingReader{
-		streamCtx:                  spec.streamCtx,
-		logger:                     spec.logger,
-		coreClient:                 spec.coreClient,
-		bucket:                     spec.bucket,
-		parts:                      spec.parts,
-		hasManifestChecksum:        spec.hasManifestChecksum,
-		stallTimeout:               spec.stallTimeout,
-		maxAttemptsWithoutProgress: spec.maxAttemptsWithoutProgress,
-		retryBaseDelay:             spec.retryBaseDelay,
-		partHasher:                 sha256.New(),
+		streamCtx:           spec.streamCtx,
+		logger:              spec.logger,
+		coreClient:          spec.coreClient,
+		bucket:              spec.bucket,
+		parts:               spec.parts,
+		hasManifestChecksum: spec.hasManifestChecksum,
+		stallTimeout:        spec.stallTimeout,
+		retryPolicy: io_utils.NewReadRetryPolicy(io_utils.ReadRetryPolicySpec{
+			MaxAttemptsWithoutProgress: spec.maxAttemptsWithoutProgress,
+			BaseDelay:                  spec.retryBaseDelay,
+		}),
+		partHasher: sha256.New(),
 	}
 }
 
 func (r *reassemblingReader) Read(p []byte) (int, error) {
 	for {
 		if r.isClosed {
-			return 0, ErrReaderClosed
+			return 0, io_utils.ErrReaderClosed
 		}
 
 		if err := r.streamCtx.Err(); err != nil {
@@ -205,7 +185,13 @@ func (r *reassemblingReader) openCurrentPart() error {
 		if err := options.SetRange(r.partReadBytes, part.Size-1); err != nil {
 			cancelAttempt()
 
-			return fmt.Errorf("%w: chunk %s at offset %d: %w", ErrRangeNotHonoured, part.Key, r.partReadBytes, err)
+			return fmt.Errorf(
+				"%w: chunk %s at offset %d: %w",
+				io_utils.ErrRangeNotHonoured,
+				part.Key,
+				r.partReadBytes,
+				err,
+			)
 		}
 	}
 
@@ -243,11 +229,11 @@ func (r *reassemblingReader) verifyResponseSpan(
 	expectedBytes := part.Size - r.partReadBytes
 
 	if r.partReadBytes > 0 {
-		if rangeStart, isParsed := rangeStartOfContentRange(responseHeader.Get("Content-Range")); isParsed {
+		if rangeStart, isParsed := io_utils.GetRangeStartOfContentRange(responseHeader.Get("Content-Range")); isParsed {
 			if rangeStart != r.partReadBytes {
 				return fmt.Errorf(
 					"%w: chunk %s resumed at offset %d but the response starts at %d",
-					ErrRangeNotHonoured, part.Key, r.partReadBytes, rangeStart,
+					io_utils.ErrRangeNotHonoured, part.Key, r.partReadBytes, rangeStart,
 				)
 			}
 
@@ -257,7 +243,7 @@ func (r *reassemblingReader) verifyResponseSpan(
 		if objectInfo.Size != expectedBytes {
 			return fmt.Errorf(
 				"%w: chunk %s resumed at offset %d answered %d bytes, expected %d",
-				ErrRangeNotHonoured, part.Key, r.partReadBytes, objectInfo.Size, expectedBytes,
+				io_utils.ErrRangeNotHonoured, part.Key, r.partReadBytes, objectInfo.Size, expectedBytes,
 			)
 		}
 
@@ -275,25 +261,6 @@ func (r *reassemblingReader) verifyResponseSpan(
 	}
 
 	return nil
-}
-
-func rangeStartOfContentRange(contentRange string) (int64, bool) {
-	span, isBytesUnit := strings.CutPrefix(contentRange, "bytes ")
-	if !isBytesUnit {
-		return 0, false
-	}
-
-	start, _, isSplit := strings.Cut(span, "-")
-	if !isSplit {
-		return 0, false
-	}
-
-	parsed, err := strconv.ParseInt(strings.TrimSpace(start), 10, 64)
-	if err != nil {
-		return 0, false
-	}
-
-	return parsed, true
 }
 
 func (r *reassemblingReader) finishCurrentPart() error {
@@ -316,14 +283,12 @@ func (r *reassemblingReader) finishCurrentPart() error {
 
 	r.partIndex++
 	r.partReadBytes = 0
-	r.attemptsSinceProgress = 0
+	r.retryPolicy.ResetAttemptsAfterCompletedRead()
 	r.partHasher = sha256.New()
 
 	return nil
 }
 
-// The budget counts attempts since the last byte delivered, not attempts per part: a multi-hour
-// restore with sparse drops must not exhaust it.
 func (r *reassemblingReader) resumeAfterFailure(cause error) error {
 	hasDeliveredBytes := r.attemptReadBytes > 0
 	partKey := r.parts[r.partIndex].Key
@@ -338,23 +303,21 @@ func (r *reassemblingReader) resumeAfterFailure(cause error) error {
 		return cause
 	}
 
-	if hasDeliveredBytes {
-		r.attemptsSinceProgress = 1
-	} else {
-		r.attemptsSinceProgress++
-	}
+	r.retryPolicy.RegisterFailedAttempt(hasDeliveredBytes)
 
-	if r.attemptsSinceProgress > r.maxAttemptsWithoutProgress {
+	if r.retryPolicy.IsExhausted() {
 		return fmt.Errorf(
 			"%w: chunk %s stuck at offset %d: %w",
-			ErrReadRetryBudgetExhausted, partKey, r.partReadBytes, cause,
+			io_utils.ErrReadRetryBudgetExhausted, partKey, r.partReadBytes, cause,
 		)
 	}
 
 	r.logger.Warn(
 		fmt.Sprintf(
 			"s3 chunk read failed, resuming from offset %d (attempt %d of %d)",
-			r.partReadBytes, r.attemptsSinceProgress, r.maxAttemptsWithoutProgress,
+			r.partReadBytes,
+			r.retryPolicy.GetAttemptsSinceProgress(),
+			r.retryPolicy.GetMaxAttemptsWithoutProgress(),
 		),
 		"part_key", partKey,
 		"error", cause,
@@ -364,24 +327,7 @@ func (r *reassemblingReader) resumeAfterFailure(cause error) error {
 		return nil
 	}
 
-	return r.waitBeforeRetry()
-}
-
-func (r *reassemblingReader) waitBeforeRetry() error {
-	delay := s3ReadRetryMaxDelay
-	if shift := r.attemptsSinceProgress - 1; shift < 32 {
-		delay = min(r.retryBaseDelay<<shift, s3ReadRetryMaxDelay)
-	}
-
-	retryTimer := time.NewTimer(delay)
-	defer retryTimer.Stop()
-
-	select {
-	case <-r.streamCtx.Done():
-		return r.streamCtx.Err()
-	case <-retryTimer.C:
-		return nil
-	}
+	return r.retryPolicy.WaitBeforeRetry(r.streamCtx)
 }
 
 func (r *reassemblingReader) abandonAttempt() {
@@ -404,7 +350,7 @@ func (r *reassemblingReader) abandonAttempt() {
 }
 
 func isRetryableReadError(err error) bool {
-	if errors.Is(err, ErrRangeNotHonoured) ||
+	if errors.Is(err, io_utils.ErrRangeNotHonoured) ||
 		errors.Is(err, ErrChunkSizeMismatch) ||
 		errors.Is(err, ErrChunkChecksumMismatch) {
 		return false

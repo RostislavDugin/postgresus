@@ -16,6 +16,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	io_utils "databasus-backend/internal/util/io"
 )
 
 func Test_ReadChunkedStream_ConnectionDropsMidPart_ResumesFromOffsetAndReturnsFullStream(t *testing.T) {
@@ -60,7 +62,7 @@ func Test_ReadChunkedStream_ServerIgnoresRange_ReturnsErrorWithoutCorruptingStre
 
 	deliveredBytes, err := io.ReadAll(reader)
 
-	require.ErrorIs(t, err, ErrRangeNotHonoured)
+	require.ErrorIs(t, err, io_utils.ErrRangeNotHonoured)
 	assert.Equal(
 		t,
 		partBytes[:3000],
@@ -124,7 +126,7 @@ func Test_ReadChunkedStream_ResumeAnsweredFromTheStartOfTheObject_ReturnsError(t
 
 	deliveredBytes, err := io.ReadAll(reader)
 
-	require.ErrorIs(t, err, ErrRangeNotHonoured)
+	require.ErrorIs(t, err, io_utils.ErrRangeNotHonoured)
 	assert.Equal(t, partBytes[:3000], deliveredBytes)
 }
 
@@ -283,7 +285,7 @@ func Test_ReadChunkedStream_RetryBudgetExhausted_ReturnsError(t *testing.T) {
 
 	_, err := io.ReadAll(reader)
 
-	require.ErrorIs(t, err, ErrReadRetryBudgetExhausted)
+	require.ErrorIs(t, err, io_utils.ErrReadRetryBudgetExhausted)
 	assert.Equal(t, 3, transport.attempts, "the first attempt plus the two retries the budget allows")
 }
 
@@ -320,7 +322,7 @@ func Test_ReadChunkedStream_ReopenKeepsFailingAfterAProductiveAttempt_ExhaustsBu
 	require.ErrorIs(
 		t,
 		err,
-		ErrReadRetryBudgetExhausted,
+		io_utils.ErrReadRetryBudgetExhausted,
 		"bytes delivered by an earlier attempt must not keep crediting later re-open failures with progress",
 	)
 }
@@ -392,7 +394,7 @@ func Test_ReadChunkedStream_ReadAfterClose_ReturnsClosedError(t *testing.T) {
 	require.NoError(t, reader.Close())
 
 	_, err = reader.Read(buffer)
-	assert.ErrorIs(t, err, ErrReaderClosed, "a closed reader must not silently re-open the chunk")
+	assert.ErrorIs(t, err, io_utils.ErrReaderClosed, "a closed reader must not silently re-open the chunk")
 }
 
 func Test_ReadChunkedStream_SpecWithoutALogger_RetriesWithoutPanicking(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/jlaffaye/ftp"
 
 	"databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 )
 
 const (
@@ -113,9 +115,9 @@ func (f *FTPStorage) SaveFile(
 }
 
 func (f *FTPStorage) GetFile(
-	_ context.Context,
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
-	_ *slog.Logger,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
 	conn, err := f.connect(encryptor, ftpConnectTimeout)
@@ -125,16 +127,35 @@ func (f *FTPStorage) GetFile(
 
 	filePath := f.getFilePath(fileName)
 
-	resp, err := conn.Retr(filePath)
+	totalBytes, err := conn.FileSize(filePath)
 	if err != nil {
-		_ = conn.Quit()
-		return nil, fmt.Errorf("failed to retrieve file from FTP: %w", err)
+		// A server that does not implement SIZE still serves the file, so an unsupported command
+		// costs the completeness check rather than the whole restore. Any other reply, 550 above
+		// all, means the file itself is unreachable.
+		if !isUnsupportedFtpCommand(err) {
+			_ = conn.Quit()
+
+			return nil, fmt.Errorf("failed to stat file on FTP: %w", err)
+		}
+
+		logger.Warn("storage does not support the FTP SIZE command", "file_name", fileName, "error", err)
+
+		totalBytes = io_utils.UnknownTotalBytes
 	}
 
-	return &ftpFileReader{
-		response: resp,
-		conn:     conn,
-	}, nil
+	if err := conn.Quit(); err != nil {
+		logger.Warn("failed to close the FTP connection used for stat", "error", err)
+	}
+
+	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+		StreamCtx:  ctx,
+		Logger:     logger,
+		FileName:   fileName,
+		TotalBytes: totalBytes,
+		OpenAtOffset: func(attemptCtx context.Context, offsetBytes int64) (io.ReadCloser, error) {
+			return f.retrieveFileFromOffset(attemptCtx, encryptor, filePath, offsetBytes)
+		},
+	}), nil
 }
 
 func (f *FTPStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
@@ -330,8 +351,9 @@ func (f *FTPStorage) getFilePath(filename string) string {
 }
 
 type ftpFileReader struct {
-	response *ftp.Response
-	conn     *ftp.ServerConn
+	response             *ftp.Response
+	conn                 *ftp.ServerConn
+	stopDeadlineOnCancel func() bool
 }
 
 func (r *ftpFileReader) Read(p []byte) (n int, err error) {
@@ -340,6 +362,10 @@ func (r *ftpFileReader) Read(p []byte) (n int, err error) {
 
 func (r *ftpFileReader) Close() error {
 	var errs []error
+
+	if r.stopDeadlineOnCancel != nil {
+		r.stopDeadlineOnCancel()
+	}
 
 	if r.response != nil {
 		if err := r.response.Close(); err != nil {
@@ -372,4 +398,48 @@ func (r *contextReader) Read(p []byte) (n int, err error) {
 	default:
 		return r.reader.Read(p)
 	}
+}
+
+// Each attempt dials a fresh control connection: an FTP data transfer dies together with the
+// control channel that opened it, so a resumed REST cannot reuse the broken one.
+func (f *FTPStorage) retrieveFileFromOffset(
+	attemptCtx context.Context,
+	encryptor encryption.FieldEncryptor,
+	filePath string,
+	offsetBytes int64,
+) (io.ReadCloser, error) {
+	conn, err := f.connect(encryptor, ftpConnectTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to FTP: %w", err)
+	}
+
+	response, err := conn.RetrFrom(filePath, uint64(offsetBytes))
+	if err != nil {
+		_ = conn.Quit()
+
+		return nil, fmt.Errorf("failed to retrieve file from FTP: %w", err)
+	}
+
+	// The FTP client takes no context, so a read blocked on a silent server would ignore the
+	// caller's cancellation; an expired deadline is what unblocks it.
+	stopDeadlineOnCancel := context.AfterFunc(attemptCtx, func() {
+		_ = response.SetDeadline(time.Now())
+	})
+
+	return &ftpFileReader{
+		response:             response,
+		conn:                 conn,
+		stopDeadlineOnCancel: stopDeadlineOnCancel,
+	}, nil
+}
+
+func isUnsupportedFtpCommand(err error) bool {
+	var protocolError *textproto.Error
+	if !errors.As(err, &protocolError) {
+		return false
+	}
+
+	return protocolError.Code == ftp.StatusNotImplemented ||
+		protocolError.Code == ftp.StatusBadCommand ||
+		protocolError.Code == ftp.StatusCommandNotImplemented
 }

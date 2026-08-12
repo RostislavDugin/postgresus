@@ -24,6 +24,23 @@ assets/tools/<arch>/
 | `linux` / `amd64` | `x64` | ~160 MB |
 | `linux` / `arm64` | `arm` | ~125 MB |
 
+Bundled PostgreSQL minors (identical on both arches, Debian bookworm pgdg):
+
+| major | minor | source package                    |
+|-------|-------|-----------------------------------|
+| 12    | 12.22 | `12.22-3.pgdg12+1` (final, EOL)   |
+| 13    | 13.23 | `13.23-1.pgdg12+1` (final, EOL)   |
+| 14    | 14.23 | `14.23-1.pgdg12+1`                |
+| 15    | 15.18 | `15.18-1.pgdg12+1`                |
+| 16    | 16.14 | `16.14-1.pgdg12+1`                |
+| 17    | 17.10 | `17.10-1.pgdg12+1`                |
+| 18    | 18.4  | `18.4-1.pgdg12+1`                 |
+
+Majors 12 and 13 are past upstream EOL, so those minors are the last ones that
+will ever exist. Keep every binary within one major on the same package build —
+a `pg_dump` older than its sibling `pg_basebackup` is how issue #725 (pg_dump
+18.1 silently emitting wrong sequence values) survived unnoticed.
+
 Notes:
 - MySQL `5.7` is amd64-only — `arm/mysql/mysql-5.7/` is intentionally absent.
 - MariaDB ships two client versions: legacy `10.6` (for MariaDB servers 5.5 / 10.1) and modern `12.1` (for 10.2+). The mapping lives in `tools/mariadb.go`.
@@ -31,4 +48,7 @@ Notes:
 
 To refresh a tool set, drop the corresponding `bin/` contents in place
 and commit. There are no install scripts in this directory; binaries
-are sourced from the upstream vendor downloads.
+are sourced from the upstream vendor downloads. For PostgreSQL that means
+`postgresql-client-<major>` from `apt.postgresql.org` for `bookworm`, both
+`amd64` and `arm64`, matching the `debian:bookworm-slim` runtime base in the
+Dockerfile. Update the minor table above in the same commit.
