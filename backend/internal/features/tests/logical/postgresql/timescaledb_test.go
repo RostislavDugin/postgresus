@@ -42,6 +42,105 @@ func Test_PostgresqlBackupRestore_TimescaleDB(t *testing.T) {
 	}
 }
 
+// A TimescaleDB restore is the one path that omits --clean --if-exists, so an archive dumped with
+// -n public (which carries CREATE SCHEMA public) collides with the schema the target already owns.
+// pg_restore ignores that item and exits non-zero; the restore must still succeed (issue #726).
+func Test_PostgresqlBackupRestore_TimescaleDBWithIncludePublicSchema_RestoreSucceeds(t *testing.T) {
+	endpoint := containers.StartTimescaleDB(t, timescaleImage)
+
+	container, err := connectToPostgresEndpoint(t, endpoint)
+	require.NoError(t, err)
+	defer func() {
+		if container.DB != nil {
+			container.DB.Close()
+		}
+	}()
+
+	tableName := fmt.Sprintf("readings_%s", uuid.New().String()[:8])
+	_, err = container.DB.Exec(fmt.Sprintf(`
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+CREATE TABLE public.%s (id INTEGER PRIMARY KEY, label TEXT NOT NULL);
+
+INSERT INTO public.%s (id, label) VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+`, tableName, tableName))
+	require.NoError(t, err)
+
+	defer func() {
+		_, _ = container.DB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s;", tableName))
+	}()
+
+	router := logicaltesting.CreateTestRouter()
+	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	storage := storages.CreateTestStorage(workspace.ID)
+
+	database := createDatabaseWithSchemasViaAPI(
+		t, router, "Timescale Public Schema Database", workspace.ID,
+		container.Host, container.Port,
+		container.Username, container.Password, container.Database,
+		[]string{"public"},
+		user.Token,
+	)
+
+	logicaltesting.EnableBackupsViaAPI(
+		t, router, database.ID, storage.ID,
+		backups_core_enums.BackupEncryptionNone, user.Token,
+	)
+
+	logicaltesting.CreateBackupViaAPI(t, router, database.ID, user.Token)
+
+	backup := logicaltesting.WaitForBackupCompletion(t, router, database.ID, user.Token, 5*time.Minute)
+	require.Equal(t, backups_core_logical.BackupStatusCompleted, backup.Status)
+	require.NotEmpty(t, backup.TimescaledbVersion,
+		"the restore only skips --clean when the backup is timescaledb-flavoured")
+
+	newDBName := fmt.Sprintf("restored_ts_public_%s", uuid.New().String()[:8])
+	_, err = container.DB.Exec(fmt.Sprintf("CREATE DATABASE %s;", newDBName))
+	require.NoError(t, err)
+
+	defer func() {
+		_, _ = container.DB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", newDBName))
+	}()
+
+	newDSN := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		container.Host, container.Port, container.Username, container.Password, newDBName)
+	restoredDB, err := sqlx.Connect("postgres", newDSN)
+	require.NoError(t, err)
+	defer restoredDB.Close()
+
+	createRestoreWithCpuCountViaAPI(
+		t, router, backup.ID,
+		container.Host, container.Port,
+		container.Username, container.Password, newDBName,
+		1,
+		user.Token,
+	)
+
+	restore := waitForRestoreCompletion(t, router, backup.ID, user.Token, 5*time.Minute)
+	assert.Equal(t, restores_core.RestoreStatusCompleted, restore.Status,
+		"a pre-existing public schema is the only ignored error, so the restore is successful")
+
+	var restoredRowCount int
+	require.NoError(t, restoredDB.Get(&restoredRowCount,
+		fmt.Sprintf("SELECT count(*) FROM public.%s", tableName)))
+	assert.Equal(t, 3, restoredRowCount)
+
+	err = os.Remove(filepath.Join(config.GetEnv().DataFolder, backup.ID.String()))
+	if err != nil {
+		t.Logf("Warning: Failed to delete backup file: %v", err)
+	}
+
+	test_utils.MakeDeleteRequest(
+		t, router,
+		"/api/v1/databases/"+database.ID.String(),
+		"Bearer "+user.Token,
+		http.StatusNoContent,
+	)
+	storages.RemoveTestStorage(storage.ID)
+	workspaces_testing.RemoveTestWorkspace(workspace, router)
+}
+
 func seedHypertableQuery(tableName string) string {
 	return fmt.Sprintf(`
 CREATE EXTENSION IF NOT EXISTS timescaledb;

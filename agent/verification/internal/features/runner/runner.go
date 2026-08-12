@@ -296,8 +296,12 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		}
 	}
 
-	restoreResult, err := r.restorer.RunPgRestore(
-		jobCtx, jobContainer, archivePath, jobContainer.GetInContainerConn(), parallelJobs)
+	restoreResult, err := r.restorer.RunPgRestore(jobCtx, jobContainer, restore.PgRestoreSpec{
+		ArchivePath:   archivePath,
+		Conn:          jobContainer.GetInContainerConn(),
+		ParallelJobs:  parallelJobs,
+		IsTimescaledb: job.TimescaledbVersion != "",
+	})
 	if err != nil {
 		if reportIfDiskLimitHit() {
 			return
@@ -325,7 +329,7 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 			return
 		}
 
-		if !restore.IsMissingExtensionOnly(restoreResult.StderrTail) {
+		if !restore.IsToleratedErrorsOnly(restoreResult.StderrTail) {
 			runLogger.Error("pg_restore failed",
 				"exit_code", restoreResult.PgRestoreExitCode,
 				"stderr_tail", restoreResult.StderrTail)
@@ -336,12 +340,12 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 			return
 		}
 
-		// The only items pg_restore skipped are CREATE/COMMENT EXTENSION for
-		// extensions this verification environment lacks — the data restored.
-		// Treat the backup as restorable and fall through to stats; the backend's
-		// restored-size check is the remaining safety net.
+		// The only items pg_restore skipped are ones that say nothing about the archive's integrity:
+		// CREATE/COMMENT EXTENSION for extensions this environment lacks, and a public schema the
+		// target already owned — the data restored. Treat the backup as restorable and fall through
+		// to stats; the backend's restored-size check is the remaining safety net.
 		runLogger.Warn(
-			"pg_restore completed with only missing-extension errors; treating backup as restorable",
+			"pg_restore completed with only tolerated errors; treating backup as restorable",
 			"exit_code", restoreResult.PgRestoreExitCode,
 			"skipped_extensions",
 			strings.Join(restore.ExtractUnavailableExtensions(restoreResult.StderrTail), ","),

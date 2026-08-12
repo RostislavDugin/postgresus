@@ -143,7 +143,8 @@ type fakeRestorer struct {
 	// calls records the restore-related call order ("roles", "pre", "restore", "post") for a single job.
 	calls []string
 	// runParallelJobs records the -j value RunPgRestore was invoked with.
-	runParallelJobs int
+	runParallelJobs  int
+	runIsTimescaledb bool
 }
 
 func (r *fakeRestorer) StageBackupViaExec(
@@ -157,10 +158,11 @@ func (r *fakeRestorer) StageBackupViaExec(
 }
 
 func (r *fakeRestorer) RunPgRestore(
-	ctx context.Context, _ restore.ExecRunner, _ string, _ dbconn.Conn, parallelJobs int,
+	ctx context.Context, _ restore.ExecRunner, spec restore.PgRestoreSpec,
 ) (restore.Result, error) {
 	r.calls = append(r.calls, "restore")
-	r.runParallelJobs = parallelJobs
+	r.runParallelJobs = spec.ParallelJobs
+	r.runIsTimescaledb = spec.IsTimescaledb
 
 	if r.runBlocks {
 		r.runEntered.Store(true)

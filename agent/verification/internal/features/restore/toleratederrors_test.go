@@ -48,45 +48,77 @@ Command was: COPY public.places (geom) FROM stdin;
 pg_restore: warning: errors ignored on restore: 3
 `
 
-func Test_IsMissingExtensionOnly_WhenAllIgnoredErrorsAreMissingExtensions_ReturnsTrue(t *testing.T) {
-	assert.True(t, IsMissingExtensionOnly(missingAuxExtensionsStderr))
+// An archive dumped with -n public carries the schema definition, and the restore target already
+// owns public (issue #726).
+const preexistingPublicSchemaStderr = `pg_restore: error: could not execute query: ERROR:  schema "public" already exists
+Command was: CREATE SCHEMA public;
+
+
+pg_restore: warning: errors ignored on restore: 1
+`
+
+func Test_IsToleratedErrorsOnly_WhenAllIgnoredErrorsAreMissingExtensions_ReturnsTrue(t *testing.T) {
+	assert.True(t, IsToleratedErrorsOnly(missingAuxExtensionsStderr))
 }
 
-func Test_IsMissingExtensionOnly_WhenCascadeDataErrorsPresent_ReturnsFalse(t *testing.T) {
-	assert.False(t, IsMissingExtensionOnly(postgisCascadeStderr))
+func Test_IsToleratedErrorsOnly_WhenCascadeDataErrorsPresent_ReturnsFalse(t *testing.T) {
+	assert.False(t, IsToleratedErrorsOnly(postgisCascadeStderr))
 }
 
-func Test_IsMissingExtensionOnly_WhenNoIgnoredErrorsMarker_ReturnsFalse(t *testing.T) {
+func Test_IsToleratedErrorsOnly_WhenNoIgnoredErrorsMarker_ReturnsFalse(t *testing.T) {
 	fatal := `pg_restore: error: could not execute query: ERROR:  extension "set_user" is not available
 Command was: CREATE EXTENSION IF NOT EXISTS set_user WITH SCHEMA public;
 pg_restore: error: aborting because of errors`
 
-	assert.False(t, IsMissingExtensionOnly(fatal))
+	assert.False(t, IsToleratedErrorsOnly(fatal))
 }
 
-func Test_IsMissingExtensionOnly_WhenVisibleErrorCountBelowMarker_ReturnsFalse(t *testing.T) {
+func Test_IsToleratedErrorsOnly_WhenVisibleErrorCountBelowMarker_ReturnsFalse(t *testing.T) {
 	truncated := `pg_restore: error: could not execute query: ERROR:  extension "set_user" is not available
 Command was: CREATE EXTENSION IF NOT EXISTS set_user WITH SCHEMA public;
 pg_restore: error: could not execute query: ERROR:  extension "set_user" does not exist
 Command was: COMMENT ON EXTENSION set_user IS 'x';
 pg_restore: warning: errors ignored on restore: 5`
 
-	assert.False(t, IsMissingExtensionOnly(truncated),
+	assert.False(t, IsToleratedErrorsOnly(truncated),
 		"a truncated tail that cannot account for all N errors must not be tolerated")
 }
 
-func Test_IsMissingExtensionOnly_WhenNonExtensionErrorMixedIn_ReturnsFalse(t *testing.T) {
+func Test_IsToleratedErrorsOnly_WhenNonExtensionErrorMixedIn_ReturnsFalse(t *testing.T) {
 	mixed := `pg_restore: error: could not execute query: ERROR:  extension "set_user" is not available
 Command was: CREATE EXTENSION IF NOT EXISTS set_user WITH SCHEMA public;
 pg_restore: error: could not execute query: ERROR:  duplicate key value violates unique constraint "places_pkey"
 Command was: COPY public.places (id) FROM stdin;
 pg_restore: warning: errors ignored on restore: 2`
 
-	assert.False(t, IsMissingExtensionOnly(mixed))
+	assert.False(t, IsToleratedErrorsOnly(mixed))
 }
 
-func Test_IsMissingExtensionOnly_WhenEmpty_ReturnsFalse(t *testing.T) {
-	assert.False(t, IsMissingExtensionOnly(""))
+func Test_IsToleratedErrorsOnly_WhenEmpty_ReturnsFalse(t *testing.T) {
+	assert.False(t, IsToleratedErrorsOnly(""))
+}
+
+func Test_IsToleratedErrorsOnly_WhenOnlyPreexistingPublicSchema_ReturnsTrue(t *testing.T) {
+	assert.True(t, IsToleratedErrorsOnly(preexistingPublicSchemaStderr))
+}
+
+func Test_IsToleratedErrorsOnly_WhenMissingExtensionsAndPreexistingPublicSchema_ReturnsTrue(t *testing.T) {
+	combined := `pg_restore: error: could not execute query: ERROR:  schema "public" already exists
+Command was: CREATE SCHEMA public;
+pg_restore: error: could not execute query: ERROR:  extension "set_user" is not available
+Command was: CREATE EXTENSION IF NOT EXISTS set_user WITH SCHEMA public;
+pg_restore: warning: errors ignored on restore: 2`
+
+	assert.True(t, IsToleratedErrorsOnly(combined))
+}
+
+func Test_IsToleratedErrorsOnly_WhenRelationAlreadyExists_ReturnsFalse(t *testing.T) {
+	relationClash := `pg_restore: error: could not execute query: ERROR:  relation "public.t_a" already exists
+Command was: CREATE TABLE public.t_a (id integer NOT NULL);
+pg_restore: warning: errors ignored on restore: 1`
+
+	assert.False(t, IsToleratedErrorsOnly(relationClash),
+		"tolerating a pre-existing public schema must not become a blanket already-exists rule")
 }
 
 func Test_ExtractUnavailableExtensions_ReturnsSortedDedupedNames(t *testing.T) {

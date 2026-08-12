@@ -11,14 +11,9 @@ const ignoredErrorsMarker = "errors ignored on restore:"
 
 var extensionNamePattern = regexp.MustCompile(`extension "([^"]+)"`)
 
-// IsMissingExtensionOnly reports whether a non-zero pg_restore exit is explained
-// solely by extensions absent from this environment — i.e. the data itself
-// restored. pg_restore runs without --exit-on-error, so it tails "errors ignored
-// on restore: N"; this returns true only when every visible item error is
-// extension-related and their count equals N. The count guard matters because
-// StderrTail is capped at 8192 bytes: a truncated tail could hide a non-extension
-// error, so when N can't be fully accounted for we refuse to tolerate.
-func IsMissingExtensionOnly(stderrTail string) bool {
+// The count guard matters because StderrTail is capped at 8192 bytes: a truncated tail could hide an
+// error we would never tolerate, so when N can't be fully accounted for we refuse to tolerate.
+func IsToleratedErrorsOnly(stderrTail string) bool {
 	ignoredCount, hasMarker := parseIgnoredErrorCount(stderrTail)
 	if !hasMarker || ignoredCount < 1 {
 		return false
@@ -30,7 +25,7 @@ func IsMissingExtensionOnly(stderrTail string) bool {
 	}
 
 	for _, line := range itemErrors {
-		if !isExtensionErrorLine(line) {
+		if !isToleratedErrorLine(line) {
 			return false
 		}
 	}
@@ -46,7 +41,7 @@ func ExtractUnavailableExtensions(stderrTail string) []string {
 	var names []string
 
 	for _, line := range queryErrorLines(stderrTail) {
-		if !isExtensionErrorLine(line) {
+		if !isMissingExtensionLine(line) {
 			continue
 		}
 
@@ -97,10 +92,20 @@ func queryErrorLines(stderrTail string) []string {
 	return lines
 }
 
-// isExtensionErrorLine matches the phrasings a missing extension produces — the
-// failed CREATE EXTENSION and its cascading COMMENT ON EXTENSION. The "extension"
-// guard keeps unrelated cascades (`type "..." does not exist`) out.
-func isExtensionErrorLine(line string) bool {
+func isToleratedErrorLine(line string) bool {
+	return isMissingExtensionLine(line) || isPreexistingPublicSchemaLine(line)
+}
+
+// The archive was dumped with -n public, which makes pg_dump emit the schema definition too, and
+// every freshly initdb'd target already owns public (issue #726). Deliberately narrow: a blanket
+// "already exists" rule would hide a genuinely half-restored archive.
+func isPreexistingPublicSchemaLine(line string) bool {
+	return strings.Contains(strings.ToLower(line), `schema "public" already exists`)
+}
+
+// The "extension" guard keeps unrelated cascades (`type "..." does not exist`) out, leaving the
+// failed CREATE EXTENSION and its cascading COMMENT ON EXTENSION.
+func isMissingExtensionLine(line string) bool {
 	lowered := strings.ToLower(line)
 	if !strings.Contains(lowered, "extension") {
 		return false

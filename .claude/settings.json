@@ -16,7 +16,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/require-implementation-review.sh\""
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/require-stop-review.sh\" compliance \"The working tree has unreviewed changes under backend/, agent/ or frontend/. Invoke the claude-md-reviewer subagent in implementation mode, then resolve every CHANGES REQUIRED finding before stopping. If it returns PASS, stop as normal.\""
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/require-stop-review.sh\" solution \"Re-audit the finished change end to end before stopping, with fresh eyes and no attachment to what you already built. Does it remove the root cause the user actually asked about, or only the symptom they happened to see? Would a reviewer who never saw the plan choose this approach, or a simpler or more complete one? Did the plan itself get something wrong — wrong layer, wrong scope, a case it never considered, a break it did not flag? Confirm every test and lint command you claimed actually ran and passed, and that new tests fail when the fix is reverted. If any of that does not hold, say so plainly and fix it, reworking the approach or replanning if that is what it takes — do not defend the implemented solution or narrow the scope to fit it. If the change holds up, stop as normal.\""
           }
         ]
       }

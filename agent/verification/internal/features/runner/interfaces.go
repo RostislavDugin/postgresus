@@ -35,9 +35,7 @@ type Restorer interface {
 	RunPgRestore(
 		ctx context.Context,
 		exec restore.ExecRunner,
-		archivePath string,
-		conn dbconn.Conn,
-		parallelJobs int,
+		spec restore.PgRestoreSpec,
 	) (restore.Result, error)
 	EnsureArchiveOwnerRoles(
 		ctx context.Context,

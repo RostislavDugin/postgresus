@@ -1,5 +1,6 @@
 #!/bin/bash
 # Produces /artifacts/good-pgN.dump for each supported Postgres major, one
+# /artifacts/good-pg18-public-schema.dump (dumped with -n public), one
 # /artifacts/good-timescale-pg17.dump (a hypertable dump), and a single
 # /artifacts/broken.dump sentinel. For each fixture: spawn a sibling container
 # against the host daemon, wait for pg_isready, seed the schema, pg_dump -Fc to
@@ -54,6 +55,15 @@ SQL
 
   OUT="$ARTIFACTS/good-pg${V}.dump"
   docker exec "$CID" pg_dump -Fc -U postgres postgres > "$OUT"
+
+  # An include-schemas backup selects public explicitly, which makes pg_dump emit the schema
+  # definition too — and every restore target already owns public (issue #726). Only the newest
+  # major is covered; the archive shape does not vary by version.
+  if [ "$V" = "18" ]; then
+    PUBLIC_OUT="$ARTIFACTS/good-pg${V}-public-schema.dump"
+    docker exec "$CID" pg_dump -Fc -n public -U postgres postgres > "$PUBLIC_OUT"
+    echo "fixture: good-pg${V}-public-schema.dump=$(stat -c%s "$PUBLIC_OUT")B"
+  fi
 
   docker rm -f "$CID" >/dev/null
   CID=""
