@@ -280,9 +280,15 @@ func Test_RunStream_WhenManifestWalkFails_ReturnsManifestCorrupted(t *testing.T)
 func Test_RunStream_WhenCompressionUnsupported_ReturnsRetrySignal(t *testing.T) {
 	storage := newFakeStorage()
 
-	outcome, err := runStream(t.Context(), testRunStreamParams(storage, physical_enums.PhysicalBackupCompressionZstd),
-		shellBuildCmd(`echo "pg_basebackup: error: zstd compression is not supported by this build" >&2; exit 1`),
-		classifyFullStreamError)
+	outcome, err := runStream(
+		t.Context(),
+		testRunStreamParams(storage, physical_enums.PhysicalBackupCompressionZstd),
+		shellBuildCmd(
+			`echo "pg_basebackup: error: could not initiate base backup: ERROR:  invalid compression specification: `+
+				`this build does not support compression with ZSTD" >&2; exit 1`,
+		),
+		classifyFullStreamError,
+	)
 	require.NoError(t, err)
 
 	assert.True(t, outcome.isCompressionUnsupported,
@@ -394,20 +400,4 @@ func Test_SaveManifestSidecar_WhenManifestIsLarge_ExtendsDeadlineBeyondFloor(t *
 	assert.Greater(t, time.Until(deadline), manifestSaveMinTimeout,
 		"a manifest past the floor's throughput budget must get more time")
 	assert.Len(t, storage.saved["obj.manifest"], len(largeManifest))
-}
-
-func Test_IsCompressionUnsupportedError_MatchesBuildRejection(t *testing.T) {
-	cases := []struct {
-		stderr   string
-		expected bool
-	}{
-		{"pg_basebackup: error: zstd compression is not supported by this build", true},
-		{"pg_basebackup: error: gzip compression is not supported by this build", true},
-		{"pg_basebackup: error: could not connect to server", false},
-		{"", false},
-	}
-
-	for _, testCase := range cases {
-		assert.Equal(t, testCase.expected, isCompressionUnsupportedError([]byte(testCase.stderr)), testCase.stderr)
-	}
 }

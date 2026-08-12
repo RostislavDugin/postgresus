@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -400,15 +399,6 @@ func saveManifestSidecar(
 	}
 
 	return saltBase64, nonceBase64, nil
-}
-
-// isCompressionUnsupportedError reports whether stderr carries pg_basebackup's
-// definitive "this build cannot compress with the requested codec" handshake
-// error (basebackup_zstd.c / basebackup_gzip.c, raised before any data streams).
-// Both "zstd compression is not supported by this build" and the gzip variant
-// share this substring, across PG 17 and 18.
-func isCompressionUnsupportedError(stderr []byte) bool {
-	return strings.Contains(string(stderr), "compression is not supported by this build")
 }
 
 func outcomeNetworkStall(stderr []byte) streamOutcome {
