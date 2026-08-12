@@ -62,6 +62,19 @@ func StartMongodb(t *testing.T, image string) Endpoint {
 	return start(t, mongodbRequest(image), mongodbPort)
 }
 
+func StartMongodbOnNetwork(t *testing.T, spec OnNetworkSpec) Endpoint {
+	t.Helper()
+
+	req := mongodbRequest(spec.Image)
+	// wait.ForListeningPort resolves the published host port, and this container has none.
+	req.WaitingFor = wait.ForLog("Waiting for connections").
+		WithOccurrence(2).WithStartupTimeout(mongodbStartupTimeout)
+
+	startUnpublished(t, req, spec.Placement)
+
+	return Endpoint{Host: spec.Placement.Alias, Port: getPortNumber(mongodbPort)}
+}
+
 // StartMongodbSSL boots a requireTLS mongod, copying the server key/cert from pemPath and crtPath
 // into the container. tlsAllowConnectionsWithoutCertificates lets clients connect without a client
 // cert (the SSL test uses tlsInsecure).

@@ -1,3 +1,4 @@
+import type { SshTunnelConfig } from '../sshtunnel/SshTunnelConfig';
 import type { PostgresSslMode } from './PostgresSslMode';
 import type { PostgresqlVersion } from './PostgresqlVersion';
 
@@ -17,6 +18,9 @@ export interface PostgresqlLogicalDatabase {
   sslClientCert?: string;
   sslClientKey?: string;
   sslRootCert?: string;
+
+  // When enabled, host and port above address the database as the bastion sees it.
+  sshTunnel?: SshTunnelConfig;
 
   // backup settings
   includeSchemas?: string[];

@@ -72,47 +72,54 @@ func (uc *CreateMariadbBackupUsecase) Execute(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info(
-		"Creating MariaDB backup via mariadb-dump",
-		"databaseId", db.ID,
-		"storageId", storage.ID,
-	)
+	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID)
 
-	mdb := db.Mariadb
-	if mdb == nil {
+	logger.Info("creating mariadb backup via mariadb-dump")
+
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
+		Database:  db,
+		Logger:    logger,
+		Encryptor: uc.fieldEncryptor,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer tunneledDatabase.Close()
+
+	mariadbDatabase := tunneledDatabase.GetDatabaseThroughTunnel().Mariadb
+	if mariadbDatabase == nil {
 		return nil, fmt.Errorf("mariadb database configuration is required")
 	}
 
-	if mdb.Database == nil || *mdb.Database == "" {
+	if mariadbDatabase.Database == nil || *mariadbDatabase.Database == "" {
 		return nil, fmt.Errorf("database name is required for mariadb-dump backups")
 	}
 
-	decryptedPassword, err := uc.fieldEncryptor.Decrypt(mdb.Password)
+	decryptedPassword, err := uc.fieldEncryptor.Decrypt(mariadbDatabase.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
-	rawSizeMB, err := mdb.GetRawDbSizeMb(ctx, uc.logger, uc.fieldEncryptor)
+	rawSizeMB, err := mariadbDatabase.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		uc.logger.Warn("failed to fetch raw db size before backup",
-			"database_id", db.ID,
-			"error", err)
+		logger.Warn("failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
 
-	args := uc.buildMariadbDumpArgs(mdb)
+	args := uc.buildMariadbDumpArgs(mariadbDatabase)
 
 	return uc.streamToStorage(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetMariadbExecutable(mdb.Version, tools.MariadbExecutableMariadbDump),
+		tools.GetMariadbExecutable(mariadbDatabase.Version, tools.MariadbExecutableMariadbDump),
 		args,
 		decryptedPassword,
 		storage,
 		backupProgressListener,
-		mdb,
+		mariadbDatabase,
 	)
 }
 

@@ -6,9 +6,12 @@ package containers
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 )
 
 // dataDirTmpfsOptions mounts a container's data directory on tmpfs (RAM) instead of the overlay
@@ -31,6 +34,72 @@ type Endpoint struct {
 type ContainerHandle struct {
 	Endpoint
 	Container testcontainers.Container
+}
+
+// For tests that need one container reachable only from another rather than from the host.
+func StartNetwork(t *testing.T) string {
+	t.Helper()
+
+	testNetwork, err := network.New(context.Background())
+	if err != nil {
+		t.Fatalf("failed to create test network: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := testNetwork.Remove(context.Background()); err != nil {
+			t.Logf("failed to remove test network: %v", err)
+		}
+	})
+
+	return testNetwork.Name
+}
+
+// Publishing no ports leaves the server unreachable from the host, dialable only by another
+// container on the network. The Endpoint each Start*OnNetwork returns is that in-network
+// address, which is what an SSH bastion on the same network resolves.
+type OnNetworkSpec struct {
+	Image     string
+	Placement NetworkPlacement
+}
+
+type NetworkPlacement struct {
+	NetworkName string
+	Alias       string
+}
+
+// The engine port consts are testcontainers-shaped ("5432/tcp"); an unpublished container is dialed
+// by that raw number rather than by a mapped one.
+func getPortNumber(exposedPort string) int {
+	number, _, _ := strings.Cut(exposedPort, "/")
+
+	port, err := strconv.Atoi(number)
+	if err != nil {
+		panic("malformed exposed port " + exposedPort)
+	}
+
+	return port
+}
+
+func startUnpublished(t *testing.T, req testcontainers.ContainerRequest, placement NetworkPlacement) {
+	t.Helper()
+
+	req.ExposedPorts = nil
+	req.Networks = []string{placement.NetworkName}
+	req.NetworkAliases = map[string][]string{placement.NetworkName: {placement.Alias}}
+
+	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatalf("failed to start %s container: %v", req.Image, err)
+	}
+
+	t.Cleanup(func() {
+		if err := container.Terminate(context.Background()); err != nil {
+			t.Logf("failed to terminate %s container: %v", req.Image, err)
+		}
+	})
 }
 
 func start(t *testing.T, req testcontainers.ContainerRequest, mappedPort string) Endpoint {

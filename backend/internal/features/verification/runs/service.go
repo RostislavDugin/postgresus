@@ -747,6 +747,7 @@ func validateDatabaseIsVerifiable(database *databases.Database) error {
 func sanitizeDatabaseForAgent(database *databases.Database) *databases.Database {
 	database.HideSensitiveData()
 	database.Notifiers = nil
+	database.ClearSshTunnelConfig()
 
 	return database
 }

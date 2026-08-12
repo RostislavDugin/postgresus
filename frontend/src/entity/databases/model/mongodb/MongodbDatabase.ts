@@ -1,3 +1,4 @@
+import type { SshTunnelConfig } from '../sshtunnel/SshTunnelConfig';
 import type { MongodbVersion } from './MongodbVersion';
 
 export interface MongodbDatabase {
@@ -13,5 +14,6 @@ export interface MongodbDatabase {
   isSrv: boolean;
   isDirectConnection: boolean;
   cpuCount: number;
+  sshTunnel?: SshTunnelConfig;
   excludeCollections?: string[];
 }

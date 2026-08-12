@@ -45,6 +45,20 @@ type mysqlFamilyReadinessSpec struct {
 	IsSslRequired bool
 }
 
+// mysqlFamilyReadyOnNetwork is the unpublished-container counterpart of mysqlFamilyReady, which
+// cannot be used there because wait.ForSQL resolves a published host port. Forcing TCP is what
+// keeps the probe honest: the entrypoint's temporary initdb server runs with --skip-networking, so
+// it cannot answer, and the probe only passes once the real server is listening.
+func mysqlFamilyReadyOnNetwork(adminBinary, rootPassword string) wait.Strategy {
+	return wait.ForExec([]string{
+		adminBinary, "ping",
+		"--protocol=TCP",
+		"--host=127.0.0.1",
+		"--user=root",
+		"--password=" + rootPassword,
+	}).WithExitCode(0).WithStartupTimeout(mysqlStartupTimeout)
+}
+
 // mysqlFamilyReady completes a real handshake rather than counting "ready for connections" log
 // lines: the entrypoint's temporary socket-only initdb server logs that phrase too, and MySQL 8.x
 // adds two more lines from X Plugin, so no fixed occurrence identifies the real server across the
@@ -119,6 +133,17 @@ func StartMysql(t *testing.T, image string) Endpoint {
 	t.Helper()
 
 	return start(t, mysqlRequest(image), mysqlPort)
+}
+
+func StartMysqlOnNetwork(t *testing.T, spec OnNetworkSpec) Endpoint {
+	t.Helper()
+
+	req := mysqlRequest(spec.Image)
+	req.WaitingFor = mysqlFamilyReadyOnNetwork("mysqladmin", MysqlRootPassword)
+
+	startUnpublished(t, req, spec.Placement)
+
+	return Endpoint{Host: spec.Placement.Alias, Port: getPortNumber(mysqlPort)}
 }
 
 // StartMysqlWithoutCompression stands in for managed endpoints whose proxy cannot negotiate

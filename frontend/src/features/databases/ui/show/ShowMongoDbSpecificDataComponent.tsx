@@ -1,4 +1,5 @@
 import { type Database } from '../../../../entity/databases';
+import { ShowSshTunnelComponent } from './ShowSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -36,6 +37,7 @@ export const ShowMongoDbSpecificDataComponent = ({ database }: Props) => {
         <div className="min-w-[150px]">Use HTTPS</div>
         <div>{database.mongodb?.isHttps ? 'Yes' : 'No'}</div>
       </div>
+      <ShowSshTunnelComponent sshTunnel={database.mongodb?.sshTunnel} />
 
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">CPU count</div>

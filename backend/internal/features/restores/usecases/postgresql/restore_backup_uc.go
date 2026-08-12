@@ -751,7 +751,6 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 	return nil
 }
 
-// setupPgRestoreEnvironment configures environment variables for pg_restore
 func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	cmd *exec.Cmd,
 	credentials *postgresql_shared.CredentialTempFiles,
@@ -760,6 +759,7 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	cmd.Env = os.Environ()
 
 	cmd.Env = append(cmd.Env, "PGPASSFILE="+credentials.PgpassPath)
+	cmd.Env = append(cmd.Env, postgresql_shared.GetPgHostAddrEnv(pgConfig.CredentialSpec())...)
 	uc.logger.Info(
 		"Using temporary .pgpass file for authentication",
 		"pgpassFile", credentials.PgpassPath,

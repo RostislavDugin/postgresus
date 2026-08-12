@@ -1,4 +1,5 @@
 import { type Database, MysqlVersion } from '../../../../entity/databases';
+import { ShowSshTunnelComponent } from './ShowSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -48,6 +49,7 @@ export const ShowMySqlSpecificDataComponent = ({ database }: Props) => {
         <div className="min-w-[150px]">Use HTTPS</div>
         <div>{database.mysql?.isHttps ? 'Yes' : 'No'}</div>
       </div>
+      <ShowSshTunnelComponent sshTunnel={database.mysql?.sshTunnel} />
 
       {!!database.mysql?.excludeTables?.length && (
         <div className="mb-1 flex w-full items-center">

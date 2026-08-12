@@ -2,12 +2,18 @@ import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant
 import { App, Button, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, databaseApi } from '../../../../entity/databases';
+import {
+  type Database,
+  databaseApi,
+  hasStoredSshTunnelSecrets,
+  isSshTunnelReadyToTest,
+} from '../../../../entity/databases';
 import { MySqlConnectionStringParser } from '../../../../entity/databases/model/mysql/MySqlConnectionStringParser';
 import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -167,16 +173,24 @@ export const EditMySqlSpecificDataComponent = ({
 
   if (!editingDatabase) return null;
 
+  const hasStoredSshSecrets = hasStoredSshTunnelSecrets(database.mysql?.sshTunnel, database.id);
+
   let isAllFieldsFilled = true;
   if (!editingDatabase.mysql?.host) isAllFieldsFilled = false;
   if (!editingDatabase.mysql?.port) isAllFieldsFilled = false;
   if (!editingDatabase.mysql?.username) isAllFieldsFilled = false;
   if (!editingDatabase.id && !editingDatabase.mysql?.password) isAllFieldsFilled = false;
   if (!editingDatabase.mysql?.database) isAllFieldsFilled = false;
+  if (!isSshTunnelReadyToTest(editingDatabase.mysql?.sshTunnel, hasStoredSshSecrets))
+    isAllFieldsFilled = false;
 
+  // Behind a bastion a loopback address names the database as the bastion sees it, so the hint
+  // about reaching a local database would be wrong.
+  const isTunnelEnabled = !!editingDatabase.mysql?.sshTunnel?.isEnabled;
   const isLocalhostDb =
-    editingDatabase.mysql?.host?.includes('localhost') ||
-    editingDatabase.mysql?.host?.includes('127.0.0.1');
+    !isTunnelEnabled &&
+    (editingDatabase.mysql?.host?.includes('localhost') ||
+      editingDatabase.mysql?.host?.includes('127.0.0.1'));
 
   return (
     <div>
@@ -313,6 +327,20 @@ export const EditMySqlSpecificDataComponent = ({
           />
         </div>
       )}
+
+      <EditSshTunnelComponent
+        sshTunnel={editingDatabase.mysql?.sshTunnel}
+        hasStoredSecrets={hasStoredSshSecrets}
+        onChange={(sshTunnel) => {
+          if (!editingDatabase.mysql) return;
+
+          setEditingDatabase({
+            ...editingDatabase,
+            mysql: { ...editingDatabase.mysql, sshTunnel },
+          });
+          setIsConnectionTested(false);
+        }}
+      />
 
       <div className="mb-3 flex w-full items-center">
         <div className="min-w-[150px]">Use HTTPS</div>

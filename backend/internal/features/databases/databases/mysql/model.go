@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
@@ -27,12 +29,16 @@ type MysqlDatabase struct {
 
 	Version tools.MysqlVersion `json:"version" gorm:"type:text;not null"`
 
-	Host                string   `json:"host"          gorm:"type:text;not null"`
-	Port                int      `json:"port"          gorm:"type:int;not null"`
-	Username            string   `json:"username"      gorm:"type:text;not null"`
-	Password            string   `json:"password"      gorm:"type:text;not null"`
-	Database            *string  `json:"database"      gorm:"type:text"`
-	IsHttps             bool     `json:"isHttps"       gorm:"type:boolean;default:false"`
+	Host     string  `json:"host"     gorm:"type:text;not null"`
+	Port     int     `json:"port"     gorm:"type:int;not null"`
+	Username string  `json:"username" gorm:"type:text;not null"`
+	Password string  `json:"password" gorm:"type:text;not null"`
+	Database *string `json:"database" gorm:"type:text"`
+	IsHttps  bool    `json:"isHttps"  gorm:"type:boolean;default:false"`
+
+	// When the tunnel is enabled, Host and Port above address the database as the bastion sees it.
+	SshTunnel sshtunnel.Config `json:"sshTunnel" gorm:"embedded;embeddedPrefix:ssh_"`
+
 	ExcludeTables       []string `json:"excludeTables" gorm:"-"`
 	ExcludeTablesString string   `json:"-"             gorm:"column:exclude_tables;type:text;not null;default:''"`
 	Privileges          string   `json:"privileges"    gorm:"column:privileges;type:text;not null;default:''"`
@@ -67,7 +73,8 @@ func (m *MysqlDatabase) Validate() error {
 	if m.Password == "" {
 		return errors.New("password is required")
 	}
-	return nil
+
+	return m.SshTunnel.Validate()
 }
 
 func (m *MysqlDatabase) TestConnection(
@@ -174,6 +181,7 @@ func (m *MysqlDatabase) HideSensitiveData() {
 		return
 	}
 	m.Password = ""
+	m.SshTunnel.HideSensitiveData()
 }
 
 func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
@@ -185,10 +193,28 @@ func (m *MysqlDatabase) Update(incoming *MysqlDatabase) {
 	m.IsHttps = incoming.IsHttps
 	m.ExcludeTables = incoming.ExcludeTables
 	m.Privileges = incoming.Privileges
+	m.SshTunnel.Update(&incoming.SshTunnel)
 
 	if incoming.Password != "" {
 		m.Password = incoming.Password
 	}
+}
+
+func (m *MysqlDatabase) CopyForNewDatabase() *MysqlDatabase {
+	if m == nil {
+		return nil
+	}
+
+	copiedDatabase := *m
+	copiedDatabase.ID = uuid.Nil
+	copiedDatabase.DatabaseID = nil
+	copiedDatabase.ExcludeTables = slices.Clone(m.ExcludeTables)
+
+	if m.Database != nil {
+		copiedDatabase.Database = new(*m.Database)
+	}
+
+	return &copiedDatabase
 }
 
 func (m *MysqlDatabase) EncryptSensitiveFields(
@@ -201,7 +227,8 @@ func (m *MysqlDatabase) EncryptSensitiveFields(
 		}
 		m.Password = encrypted
 	}
-	return nil
+
+	return m.SshTunnel.EncryptSensitiveFields(encryptor)
 }
 
 func (m *MysqlDatabase) PopulateDbData(

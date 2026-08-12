@@ -12,6 +12,7 @@ import (
 	"databasus-backend/internal/config"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
 	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
@@ -210,6 +211,20 @@ func GetTestMariadbConfig(host string, port int) *mariadb.MariadbDatabase {
 	testDbName := "testdb"
 	return &mariadb.MariadbDatabase{
 		Version:  tools.MariadbVersion1011,
+		Host:     host,
+		Port:     port,
+		Username: "testuser",
+		Password: "testpassword",
+		Database: &testDbName,
+	}
+}
+
+// The caller owns the container lifecycle (host/port come from a testcontainers endpoint),
+// which keeps this file free of the testcontainers dependency.
+func GetTestMysqlConfig(host string, port int) *mysql.MysqlDatabase {
+	testDbName := "testdb"
+	return &mysql.MysqlDatabase{
+		Version:  tools.MysqlVersion80,
 		Host:     host,
 		Port:     port,
 		Username: "testuser",

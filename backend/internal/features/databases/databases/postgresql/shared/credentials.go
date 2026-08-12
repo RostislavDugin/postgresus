@@ -7,13 +7,18 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
 )
 
 type CredentialSpec struct {
-	Host          string
+	Host string
+	// Named after the libpq parameter it maps to: when set, the connection is made to this address
+	// while Host is what the certificate and .pgpass are matched against. That split is what lets an
+	// SSH tunnel forward the traffic without breaking sslmode=verify-full.
+	HostAddr      string
 	Port          int
 	Username      string
 	SslMode       PostgresSslMode
@@ -80,7 +85,7 @@ func BuildConnString(
 ) string {
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s",
-		spec.Host,
+		getConnectHost(spec),
 		spec.Port,
 		spec.Username,
 		escapeConnStringValue(password),
@@ -113,6 +118,53 @@ func BuildPhysicalReplicationConnString(
 	)
 
 	return appendSslFilePaths(connStr, files)
+}
+
+// pgx has no hostaddr parameter, so through a tunnel the address goes in as the host and the real
+// name is restored on the TLS config, which is what sslmode=verify-full matches against.
+func BuildConnConfig(
+	spec CredentialSpec,
+	password, dbName string,
+	files *CredentialTempFiles,
+) (*pgx.ConnConfig, error) {
+	connConfig, err := pgx.ParseConfig(BuildConnString(spec, password, dbName, files))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the PostgreSQL connection string: %w", err)
+	}
+
+	if spec.HostAddr == "" {
+		return connConfig, nil
+	}
+
+	if connConfig.TLSConfig != nil {
+		connConfig.TLSConfig.ServerName = spec.Host
+	}
+
+	for _, fallback := range connConfig.Fallbacks {
+		if fallback.TLSConfig != nil {
+			fallback.TLSConfig.ServerName = spec.Host
+		}
+	}
+
+	return connConfig, nil
+}
+
+// libpq resolves and connects to hostaddr while still matching the certificate and .pgpass against
+// the host argument, so the CLI tools need no rewritten -h.
+func GetPgHostAddrEnv(spec CredentialSpec) []string {
+	if spec.HostAddr == "" {
+		return nil
+	}
+
+	return []string{"PGHOSTADDR=" + spec.HostAddr}
+}
+
+func getConnectHost(spec CredentialSpec) string {
+	if spec.HostAddr != "" {
+		return spec.HostAddr
+	}
+
+	return spec.Host
 }
 
 func sslModeOrDefault(spec CredentialSpec) PostgresSslMode {

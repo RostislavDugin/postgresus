@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/gorm"
 
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/namelist"
 	"databasus-backend/internal/util/tools"
@@ -27,16 +29,20 @@ type MongodbDatabase struct {
 
 	Version tools.MongodbVersion `json:"version" gorm:"type:text;not null"`
 
-	Host                     string   `json:"host"               gorm:"type:text;not null"`
-	Port                     *int     `json:"port"               gorm:"type:int"`
-	Username                 string   `json:"username"           gorm:"type:text;not null"`
-	Password                 string   `json:"password"           gorm:"type:text;not null"`
-	Database                 string   `json:"database"           gorm:"type:text;not null"`
-	AuthDatabase             string   `json:"authDatabase"       gorm:"type:text;not null;default:'admin'"`
-	IsHttps                  bool     `json:"isHttps"            gorm:"type:boolean;default:false"`
-	IsSrv                    bool     `json:"isSrv"              gorm:"column:is_srv;type:boolean;not null;default:false"`
-	IsDirectConnection       bool     `json:"isDirectConnection" gorm:"column:is_direct_connection;type:boolean;not null;default:false"`
-	CpuCount                 int      `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
+	Host               string `json:"host"               gorm:"type:text;not null"`
+	Port               *int   `json:"port"               gorm:"type:int"`
+	Username           string `json:"username"           gorm:"type:text;not null"`
+	Password           string `json:"password"           gorm:"type:text;not null"`
+	Database           string `json:"database"           gorm:"type:text;not null"`
+	AuthDatabase       string `json:"authDatabase"       gorm:"type:text;not null;default:'admin'"`
+	IsHttps            bool   `json:"isHttps"            gorm:"type:boolean;default:false"`
+	IsSrv              bool   `json:"isSrv"              gorm:"column:is_srv;type:boolean;not null;default:false"`
+	IsDirectConnection bool   `json:"isDirectConnection" gorm:"column:is_direct_connection;type:boolean;not null;default:false"`
+	CpuCount           int    `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
+
+	// When the tunnel is enabled, Host and Port above address the database as the bastion sees it.
+	SshTunnel sshtunnel.Config `json:"sshTunnel" gorm:"embedded;embeddedPrefix:ssh_"`
+
 	ExcludeCollections       []string `json:"excludeCollections" gorm:"-"`
 	ExcludeCollectionsString string   `json:"-"                  gorm:"column:exclude_collections;type:text;not null;default:''"`
 }
@@ -81,7 +87,16 @@ func (m *MongodbDatabase) Validate() error {
 		return errors.New("cpu count must be greater than 0")
 	}
 
-	return nil
+	// SRV resolves its own host list from DNS and never carries a port, so there is nothing for a
+	// local forward to stand in front of.
+	if m.SshTunnel.IsEnabled && m.IsSrv {
+		return errors.New(
+			"SSH tunnel cannot be used with an SRV connection: " +
+				"SRV resolves its own host list and bypasses the forwarded port",
+		)
+	}
+
+	return m.SshTunnel.Validate()
 }
 
 func (m *MongodbDatabase) TestConnection(
@@ -179,6 +194,7 @@ func (m *MongodbDatabase) HideSensitiveData() {
 		return
 	}
 	m.Password = ""
+	m.SshTunnel.HideSensitiveData()
 }
 
 func (m *MongodbDatabase) Update(incoming *MongodbDatabase) {
@@ -193,10 +209,28 @@ func (m *MongodbDatabase) Update(incoming *MongodbDatabase) {
 	m.IsDirectConnection = incoming.IsDirectConnection
 	m.CpuCount = incoming.CpuCount
 	m.ExcludeCollections = incoming.ExcludeCollections
+	m.SshTunnel.Update(&incoming.SshTunnel)
 
 	if incoming.Password != "" {
 		m.Password = incoming.Password
 	}
+}
+
+func (m *MongodbDatabase) CopyForNewDatabase() *MongodbDatabase {
+	if m == nil {
+		return nil
+	}
+
+	copiedDatabase := *m
+	copiedDatabase.ID = uuid.Nil
+	copiedDatabase.DatabaseID = nil
+	copiedDatabase.ExcludeCollections = slices.Clone(m.ExcludeCollections)
+
+	if m.Port != nil {
+		copiedDatabase.Port = new(*m.Port)
+	}
+
+	return &copiedDatabase
 }
 
 func (m *MongodbDatabase) EncryptSensitiveFields(
@@ -209,7 +243,8 @@ func (m *MongodbDatabase) EncryptSensitiveFields(
 		}
 		m.Password = encrypted
 	}
-	return nil
+
+	return m.SshTunnel.EncryptSensitiveFields(encryptor)
 }
 
 func (m *MongodbDatabase) PopulateDbData(

@@ -7,12 +7,15 @@ import {
   PostgresSslMode,
   type PostgresqlLogicalDatabase,
   databaseApi,
+  hasStoredSshTunnelSecrets,
+  isSshTunnelReadyToTest,
 } from '../../../../entity/databases';
 import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
 import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -366,10 +369,17 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
     if (!editingDatabase.id && !editingDatabase.postgresqlLogical?.password)
       isAllFieldsFilled = false;
     if (!editingDatabase.postgresqlLogical?.database) isAllFieldsFilled = false;
+    if (!isSshTunnelReadyToTest(editingDatabase.postgresqlLogical?.sshTunnel, hasStoredSshSecrets))
+      isAllFieldsFilled = false;
 
+    const isTunnelEnabled = !!editingDatabase.postgresqlLogical?.sshTunnel?.isEnabled;
+
+    // Behind a tunnel a loopback address means "on the bastion", which is the documented setup
+    // rather than the mistake this hint warns about.
     const isLocalhostDb =
-      editingDatabase.postgresqlLogical?.host?.includes('localhost') ||
-      editingDatabase.postgresqlLogical?.host?.includes('127.0.0.1');
+      !isTunnelEnabled &&
+      (editingDatabase.postgresqlLogical?.host?.includes('localhost') ||
+        editingDatabase.postgresqlLogical?.host?.includes('127.0.0.1'));
 
     const isSupabaseDb =
       editingDatabase.postgresqlLogical?.host?.includes('supabase') ||
@@ -556,6 +566,20 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
             />
           </div>
         )}
+
+        <EditSshTunnelComponent
+          sshTunnel={editingDatabase.postgresqlLogical?.sshTunnel}
+          hasStoredSecrets={hasStoredSshSecrets}
+          onChange={(sshTunnel) => {
+            if (!editingDatabase.postgresqlLogical) return;
+
+            setEditingDatabase({
+              ...editingDatabase,
+              postgresqlLogical: { ...editingDatabase.postgresqlLogical, sshTunnel },
+            });
+            setIsConnectionTested(false);
+          }}
+        />
 
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">SSL mode</div>
@@ -843,6 +867,11 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
       </>
     );
   };
+
+  const hasStoredSshSecrets = hasStoredSshTunnelSecrets(
+    database.postgresqlLogical?.sshTunnel,
+    database.id,
+  );
 
   return (
     <div>

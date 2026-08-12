@@ -1,0 +1,27 @@
+Port 22
+
+# The tunnel tests forward to this second port instead of 22. It is never published to the host,
+# so a forwarder that dialled the host loopback rather than going through the bastion cannot
+# accidentally reach a developer's or CI runner's own sshd and pass.
+Port 2222
+
+AddressFamily any
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+PermitRootLogin no
+PasswordAuthentication yes
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+PermitEmptyPasswords no
+UsePAM no
+
+AllowTcpForwarding yes
+GatewayPorts no
+X11Forwarding no
+AllowAgentForwarding no
+
+Subsystem sftp /usr/lib/ssh/sftp-server
+LogLevel INFO

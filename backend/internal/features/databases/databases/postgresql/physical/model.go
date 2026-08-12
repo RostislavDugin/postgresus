@@ -150,6 +150,26 @@ func (p *PostgresqlPhysicalDatabase) HideSensitiveData() {
 	p.SslClientKey = ""
 }
 
+// Copying the struct rather than listing fields is the point: a field added later travels with it
+// instead of being silently dropped. The three server-managed fields must not travel: BeforeCreate
+// only mints a replication slot name when the field is empty, so an inherited one would leave two
+// databases sharing a single slot on the source cluster, and the identifier and segment size are
+// read back from whichever cluster the copy is pointed at.
+func (p *PostgresqlPhysicalDatabase) CopyForNewDatabase() *PostgresqlPhysicalDatabase {
+	if p == nil {
+		return nil
+	}
+
+	copiedDatabase := *p
+	copiedDatabase.ID = uuid.Nil
+	copiedDatabase.DatabaseID = nil
+	copiedDatabase.ReplicationSlotName = ""
+	copiedDatabase.SystemIdentifier = nil
+	copiedDatabase.WalSegmentSizeBytes = nil
+
+	return &copiedDatabase
+}
+
 func (p *PostgresqlPhysicalDatabase) EncryptSensitiveFields(
 	encryptor encryption.FieldEncryptor,
 ) error {

@@ -116,14 +116,40 @@ func (r *Restorer) MakeRestore(restoreID uuid.UUID) {
 		Mongodb:           dbCache.MongodbDatabase,
 	}
 
-	if err := restoringToDB.PopulateDbData(r.logger, r.fieldEncryptor); err != nil {
+	// The restore target is the only endpoint this function connects to, so one tunnel covers
+	// version detection, the TimescaleDB hooks and pg_restore itself.
+	logger := r.logger.With("restore_id", restore.ID)
+
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
+		Database:  restoringToDB,
+		Logger:    logger,
+		Encryptor: r.fieldEncryptor,
+	})
+	if err != nil {
+		errMsg := fmt.Sprintf("failed to open the SSH tunnel to the restore target: %v", err)
+		restore.FailMessage = &errMsg
+		restore.Status = restores_core.RestoreStatusFailed
+		restore.RestoreDurationMs = time.Since(start).Milliseconds()
+
+		if err := r.restoreRepository.Save(restore); err != nil {
+			logger.Error("failed to save restore", "error", err)
+		}
+
+		return
+	}
+
+	defer tunneledDatabase.Close()
+
+	restoringToDBThroughTunnel := tunneledDatabase.GetDatabaseThroughTunnel()
+
+	if err := restoringToDBThroughTunnel.PopulateDbData(logger, r.fieldEncryptor); err != nil {
 		errMsg := fmt.Sprintf("failed to auto-detect database data: %v", err)
 		restore.FailMessage = &errMsg
 		restore.Status = restores_core.RestoreStatusFailed
 		restore.RestoreDurationMs = time.Since(start).Milliseconds()
 
 		if err := r.restoreRepository.Save(restore); err != nil {
-			r.logger.Error("Failed to save restore", "error", err)
+			logger.Error("failed to save restore", "error", err)
 		}
 
 		return
@@ -144,7 +170,7 @@ func (r *Restorer) MakeRestore(restoreID uuid.UUID) {
 		backupConfig,
 		*restore,
 		database,
-		restoringToDB,
+		restoringToDBThroughTunnel,
 		backup,
 		storage,
 		restoreOptions,
@@ -191,7 +217,7 @@ func (r *Restorer) MakeRestore(restoreID uuid.UUID) {
 		restore.RestoreDurationMs = time.Since(start).Milliseconds()
 
 		if err := r.restoreRepository.Save(restore); err != nil {
-			r.logger.Error("Failed to save restore", "error", err)
+			logger.Error("failed to save restore", "error", err)
 		}
 
 		return
@@ -201,7 +227,7 @@ func (r *Restorer) MakeRestore(restoreID uuid.UUID) {
 	restore.RestoreDurationMs = time.Since(start).Milliseconds()
 
 	if err := r.restoreRepository.Save(restore); err != nil {
-		r.logger.Error("Failed to save restore", "error", err)
+		logger.Error("failed to save restore", "error", err)
 		return
 	}
 

@@ -54,6 +54,17 @@ func StartMariadb(t *testing.T, image string) Endpoint {
 	return start(t, mariadbRequest(image), mariadbPort)
 }
 
+func StartMariadbOnNetwork(t *testing.T, spec OnNetworkSpec) Endpoint {
+	t.Helper()
+
+	req := mariadbRequest(spec.Image)
+	req.WaitingFor = mysqlFamilyReadyOnNetwork("mariadb-admin", MariadbRootPassword)
+
+	startUnpublished(t, req, spec.Placement)
+
+	return Endpoint{Host: spec.Placement.Alias, Port: getPortNumber(mariadbPort)}
+}
+
 // StartMariadbSSL boots a MariaDB server that rejects unencrypted connections. MariaDB
 // auto-generates its self-signed server certificates only from 11.4, so an older image leaves the
 // server unreachable and burns the full readiness timeout. The test connects with tlsInsecure and

@@ -1,4 +1,5 @@
 import { type Database, MariadbVersion } from '../../../../entity/databases';
+import { ShowSshTunnelComponent } from './ShowSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -55,6 +56,7 @@ export const ShowMariaDbSpecificDataComponent = ({ database }: Props) => {
         <div className="min-w-[150px]">Use HTTPS</div>
         <div>{database.mariadb?.isHttps ? 'Yes' : 'No'}</div>
       </div>
+      <ShowSshTunnelComponent sshTunnel={database.mariadb?.sshTunnel} />
 
       {database.mariadb?.isExcludeEvents && (
         <div className="mb-1 flex w-full items-center">
