@@ -169,10 +169,12 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	cmd := exec.CommandContext(ctx, mysqlBin, fullArgs...)
 	uc.logger.Info("Executing MySQL restore command", "command", cmd.String())
 
-	var inputReader io.Reader = backupReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
+
+	var inputReader io.Reader = storageReadFailureTracker
 
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		decryptReader, err := uc.setupDecryption(backupReader, backup)
+		decryptReader, err := uc.setupDecryption(storageReadFailureTracker, backup)
 		if err != nil {
 			return fmt.Errorf("failed to setup decryption: %w", err)
 		}
@@ -185,8 +187,8 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	}
 	defer zstdReader.Close()
 
-	backupStreamReader := io_utils.NewFailureTrackingReader(zstdReader)
-	cmd.Stdin = backupStreamReader
+	decodedStreamFailureTracker := io_utils.NewFailureTrackingReader(zstdReader)
+	cmd.Stdin = decodedStreamFailureTracker
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
@@ -226,7 +228,10 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 		return fmt.Errorf("restore cancelled due to shutdown")
 	}
 
-	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+	if streamErr := restores_core.GetBackupStreamFailure(restores_core.BackupStreamTrackers{
+		StorageRead:   storageReadFailureTracker,
+		DecodedStream: decodedStreamFailureTracker,
+	}); streamErr != nil {
 		return streamErr
 	}
 

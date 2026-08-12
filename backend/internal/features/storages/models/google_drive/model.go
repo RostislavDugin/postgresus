@@ -20,6 +20,7 @@ import (
 	"google.golang.org/api/option"
 
 	"databasus-backend/internal/util/encryption"
+	io_utils "databasus-backend/internal/util/io"
 )
 
 const (
@@ -151,10 +152,12 @@ func (r *backpressureReader) Read(p []byte) (n int, err error) {
 func (s *GoogleDriveStorage) GetFile(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
-	_ *slog.Logger,
+	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	var result io.ReadCloser
+	var driveFileID string
+	var totalBytes int64
+
 	err := s.withRetryOnAuth(
 		ctx,
 		encryptor,
@@ -164,22 +167,52 @@ func (s *GoogleDriveStorage) GetFile(
 				return fmt.Errorf("failed to find backups folder: %w", err)
 			}
 
-			fileIDGoogle, err := s.lookupFileID(driveService, fileName, folderID)
+			driveFileID, err = s.lookupFileID(driveService, fileName, folderID)
 			if err != nil {
 				return err
 			}
 
-			resp, err := driveService.Files.Get(fileIDGoogle).Context(ctx).Download() //nolint:bodyclose
+			metadata, err := driveService.Files.Get(driveFileID).Fields("size").Context(ctx).Do()
 			if err != nil {
-				return fmt.Errorf("failed to download file from Google Drive: %w", err)
+				return fmt.Errorf("failed to stat file in Google Drive: %w", err)
 			}
 
-			result = resp.Body
+			totalBytes = metadata.Size
+
 			return nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
 
-	return result, err
+	// Drive omits the size for files it did not store verbatim, and a zero would end the stream
+	// before its first byte.
+	if totalBytes <= 0 {
+		totalBytes = io_utils.UnknownTotalBytes
+	}
+
+	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+		StreamCtx:  ctx,
+		Logger:     logger,
+		FileName:   fileName,
+		TotalBytes: totalBytes,
+		OpenAtOffset: func(attemptCtx context.Context, offsetBytes int64) (io.ReadCloser, error) {
+			return s.downloadFileFromOffset(attemptCtx, encryptor, driveFileID, offsetBytes)
+		},
+		IsRetryableError: isRetryableGoogleDriveError,
+	}), nil
+}
+
+func isRetryableGoogleDriveError(err error) bool {
+	var apiError *googleapi.Error
+	if errors.As(err, &apiError) {
+		return apiError.Code == http.StatusRequestTimeout ||
+			apiError.Code == http.StatusTooManyRequests ||
+			apiError.Code >= http.StatusInternalServerError
+	}
+
+	return true
 }
 
 func (s *GoogleDriveStorage) DeleteFile(
@@ -688,4 +721,49 @@ func (s *GoogleDriveStorage) findBackupsFolder(driveService *drive.Service) (str
 	}
 
 	return results.Files[0].Id, nil
+}
+
+func (s *GoogleDriveStorage) downloadFileFromOffset(
+	attemptCtx context.Context,
+	encryptor encryption.FieldEncryptor,
+	driveFileID string,
+	offsetBytes int64,
+) (io.ReadCloser, error) {
+	var body io.ReadCloser
+
+	err := s.withRetryOnAuth(
+		attemptCtx,
+		encryptor,
+		func(driveService *drive.Service) error {
+			downloadCall := driveService.Files.Get(driveFileID).Context(attemptCtx)
+			if offsetBytes > 0 {
+				downloadCall.Header().Set("Range", fmt.Sprintf("bytes=%d-", offsetBytes))
+			}
+
+			response, err := downloadCall.Download() //nolint:bodyclose
+			if err != nil {
+				return fmt.Errorf("failed to download file from Google Drive: %w", err)
+			}
+
+			if offsetBytes > 0 {
+				if err := io_utils.VerifyContentRangeStart(
+					response.Header.Get("Content-Range"),
+					offsetBytes,
+				); err != nil {
+					_ = response.Body.Close()
+
+					return err
+				}
+			}
+
+			body = response.Body
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }

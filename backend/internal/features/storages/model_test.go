@@ -208,6 +208,40 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				assert.Equal(t, fileData, content, "File content should match the original")
 			})
 
+			// Reads run through a ResumingReader that stops at the size the backend declared, so a
+			// backend reporting the wrong length truncates the download. One inline byte of test
+			// data is too small to catch that.
+			t.Run("Test_SaveAndGetLargeFile_ReturnsCompleteContent", func(t *testing.T) {
+				largeFileData := generateFileContent(256 * 1024)
+				fileID := uuid.New()
+
+				err := tc.storage.SaveFile(
+					t.Context(),
+					encryptor,
+					logger.GetLogger(),
+					fileID.String(),
+					bytes.NewReader(largeFileData),
+				)
+				require.NoError(t, err, "SaveFile should succeed")
+
+				t.Cleanup(func() {
+					_ = tc.storage.DeleteFile(encryptor, fileID.String())
+				})
+
+				file, err := tc.storage.GetFile(
+					t.Context(),
+					encryptor,
+					logger.GetLogger(),
+					fileID.String(),
+				)
+				require.NoError(t, err, "GetFile should succeed")
+				defer file.Close()
+
+				content, err := io.ReadAll(file)
+				require.NoError(t, err, "Should be able to read file")
+				assert.Equal(t, largeFileData, content, "File content should match the original")
+			})
+
 			t.Run("Test_TestDeleteFile_RemovesFileFromDisk", func(t *testing.T) {
 				fileData, err := os.ReadFile(testFilePath)
 				require.NoError(t, err, "Should be able to read test file")
@@ -243,6 +277,15 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 
 func addressOf(endpoint containers.Endpoint) string {
 	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
+}
+
+func generateFileContent(size int) []byte {
+	generated := make([]byte, size)
+	for i := range generated {
+		generated[i] = byte(i % 251)
+	}
+
+	return generated
 }
 
 func setupTestFile() (string, error) {

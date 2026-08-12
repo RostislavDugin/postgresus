@@ -233,20 +233,19 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		}
 	}()
 
-	var backupReader io.Reader = rawReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(rawReader)
+
+	var backupReader io.Reader = storageReadFailureTracker
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			return fmt.Errorf("backup is encrypted but missing encryption metadata")
 		}
 
-		// Get master key
 		masterKey, err := uc.secretKeyService.GetSecretKey()
 		if err != nil {
 			return fmt.Errorf("failed to get master key for decryption: %w", err)
 		}
 
-		// Decode salt and IV from base64
 		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
 		if err != nil {
 			return fmt.Errorf("failed to decode encryption salt: %w", err)
@@ -257,9 +256,8 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 			return fmt.Errorf("failed to decode encryption IV: %w", err)
 		}
 
-		// Create decryption reader
 		decryptReader, err := encryption.NewDecryptionReader(
-			rawReader,
+			storageReadFailureTracker,
 			masterKey,
 			backup.ID,
 			salt,
@@ -312,11 +310,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
-	backupStreamReader := io_utils.NewFailureTrackingReader(backupReader)
+	decodedStreamFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
 
 	copyErrCh := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(stdinPipe, backupStreamReader)
+		_, copyErr := io.Copy(stdinPipe, decodedStreamFailureTracker)
 		// Close stdin pipe to signal EOF to pg_restore - critical for proper termination
 		closeErr := stdinPipe.Close()
 		switch {
@@ -348,7 +346,10 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("restore cancelled due to shutdown")
 	}
 
-	if streamErr := restores_core.GetBackupStreamFailure(backupStreamReader); streamErr != nil {
+	if streamErr := restores_core.GetBackupStreamFailure(restores_core.BackupStreamTrackers{
+		StorageRead:   storageReadFailureTracker,
+		DecodedStream: decodedStreamFailureTracker,
+	}); streamErr != nil {
 		return streamErr
 	}
 
@@ -572,23 +573,21 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		}
 	}()
 
-	// Create a reader that handles decryption if needed
-	var backupReader io.Reader = rawReader
+	storageReadFailureTracker := io_utils.NewFailureTrackingReader(rawReader)
+
+	var backupReader io.Reader = storageReadFailureTracker
 	if backup.Encryption == backups_core_enums.BackupEncryptionEncrypted {
-		// Validate encryption metadata
 		if backup.EncryptionSalt == nil || backup.EncryptionIV == nil {
 			cleanupFunc()
 			return "", nil, fmt.Errorf("backup is encrypted but missing encryption metadata")
 		}
 
-		// Get master key
 		masterKey, err := uc.secretKeyService.GetSecretKey()
 		if err != nil {
 			cleanupFunc()
 			return "", nil, fmt.Errorf("failed to get master key for decryption: %w", err)
 		}
 
-		// Decode salt and IV from base64
 		salt, err := base64.StdEncoding.DecodeString(*backup.EncryptionSalt)
 		if err != nil {
 			cleanupFunc()
@@ -601,9 +600,8 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 			return "", nil, fmt.Errorf("failed to decode encryption IV: %w", err)
 		}
 
-		// Create decryption reader
 		decryptReader, err := encryption.NewDecryptionReader(
-			rawReader,
+			storageReadFailureTracker,
 			masterKey,
 			backup.ID,
 			salt,
