@@ -10,6 +10,8 @@ import {
   PostgresSslMode,
   type PostgresqlPhysicalDatabase,
   databaseApi,
+  hasStoredSshTunnelSecrets,
+  isSshTunnelReadyToTest,
   physicalConnectionErrorContent,
 } from '../../../../entity/databases';
 import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
@@ -17,6 +19,7 @@ import { ApiError } from '../../../../shared/api';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -448,6 +451,8 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
     if (!editingDatabase.postgresqlPhysical?.username) isAllFieldsFilled = false;
     if (!editingDatabase.id && !editingDatabase.postgresqlPhysical?.password)
       isAllFieldsFilled = false;
+    if (!isSshTunnelReadyToTest(editingDatabase.postgresqlPhysical?.sshTunnel, hasStoredSshSecrets))
+      isAllFieldsFilled = false;
 
     return (
       <>
@@ -590,6 +595,20 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
           />
         </div>
 
+        <EditSshTunnelComponent
+          sshTunnel={editingDatabase.postgresqlPhysical?.sshTunnel}
+          hasStoredSecrets={hasStoredSshSecrets}
+          onChange={(sshTunnel) => {
+            if (!editingDatabase.postgresqlPhysical) return;
+
+            setEditingDatabase({
+              ...editingDatabase,
+              postgresqlPhysical: { ...editingDatabase.postgresqlPhysical, sshTunnel },
+            });
+            setIsConnectionTested(false);
+          }}
+        />
+
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">SSL mode</div>
           <Select
@@ -649,6 +668,11 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
       </>
     );
   };
+
+  const hasStoredSshSecrets = hasStoredSshTunnelSecrets(
+    database.postgresqlPhysical?.sshTunnel,
+    database.id,
+  );
 
   return (
     <div>

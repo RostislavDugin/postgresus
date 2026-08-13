@@ -465,13 +465,15 @@ func Test_SendFullBackupNotification_WhenEnabled_FansOutToAllNotifiers(t *testin
 	assert.Equal(t, notifier_models.NotificationTypeBackupSuccess, sender.sentNotifications[0].Notification.Type)
 }
 
-func Test_LoadBackupContext_WhenNotEncrypted_LeavesMasterKeyEmpty(t *testing.T) {
+func Test_OpenBackupContext_WhenNotEncrypted_LeavesMasterKeyEmpty(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	backuper := CreateTestPhysicalBackuper(nil)
 
-	backupCtx, ok := backuper.loadBackupContext(logger.GetLogger(), prereqs.DB.ID)
+	backupCtx, ok := backuper.openBackupContext(logger.GetLogger(), prereqs.DB.ID)
 	require.True(t, ok)
 	require.NotNil(t, backupCtx)
+
+	defer backupCtx.Close()
 
 	assert.Empty(t, backupCtx.MasterKey)
 	assert.NotNil(t, backupCtx.Config)
@@ -479,7 +481,7 @@ func Test_LoadBackupContext_WhenNotEncrypted_LeavesMasterKeyEmpty(t *testing.T) 
 	assert.NotNil(t, backupCtx.Storage)
 }
 
-func Test_LoadBackupContext_WhenEncrypted_PopulatesMasterKey(t *testing.T) {
+func Test_OpenBackupContext_WhenEncrypted_PopulatesMasterKey(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	backuper := CreateTestPhysicalBackuper(nil)
 
@@ -487,14 +489,16 @@ func Test_LoadBackupContext_WhenEncrypted_PopulatesMasterKey(t *testing.T) {
 	_, err := backups_config_physical.GetBackupConfigService().SaveBackupConfig(prereqs.Config)
 	require.NoError(t, err)
 
-	backupCtx, ok := backuper.loadBackupContext(logger.GetLogger(), prereqs.DB.ID)
+	backupCtx, ok := backuper.openBackupContext(logger.GetLogger(), prereqs.DB.ID)
 	require.True(t, ok)
 	require.NotNil(t, backupCtx)
+
+	defer backupCtx.Close()
 
 	assert.NotEmpty(t, backupCtx.MasterKey)
 }
 
-func Test_LoadBackupContext_WhenConfigHasNoStorageID_ReturnsNotOk(t *testing.T) {
+func Test_OpenBackupContext_WhenConfigHasNoStorageID_ReturnsNotOk(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	backuper := CreateTestPhysicalBackuper(nil)
 
@@ -504,7 +508,7 @@ func Test_LoadBackupContext_WhenConfigHasNoStorageID_ReturnsNotOk(t *testing.T) 
 	_, err := backups_config_physical.GetBackupConfigService().SaveBackupConfig(prereqs.Config)
 	require.NoError(t, err)
 
-	_, ok := backuper.loadBackupContext(logger.GetLogger(), prereqs.DB.ID)
+	_, ok := backuper.openBackupContext(logger.GetLogger(), prereqs.DB.ID)
 	assert.False(t, ok)
 }
 

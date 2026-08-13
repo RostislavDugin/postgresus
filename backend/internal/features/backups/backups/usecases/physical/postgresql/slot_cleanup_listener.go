@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/databases"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/util/encryption"
 )
 
@@ -64,27 +65,54 @@ func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUI
 	ctx, cancel := context.WithTimeout(context.Background(), slotCleanupDeadline)
 	defer cancel()
 
-	conn, err := database.PostgresqlPhysical.OpenInspectionConn(ctx, l.fieldEncryptor)
-	if err != nil {
-		logger.Warn("physical slot cleanup: source PG unreachable, leaving slots orphaned", "error", err)
-
-		return nil
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-
 	// The per-backup slot is keyed by the PostgresqlPhysical ID (see
 	// WithBackupSlot / RunStartupCleanup), NOT the parent Database ID — the two are
 	// distinct UUIDs. Using databaseID here would drop a name that never existed and
 	// leave the real slot orphaned forever (the DB row is about to be deleted, so
 	// RunStartupCleanup can never recover it).
 	slotName := SlotName(database.PostgresqlPhysical.ID)
+	walSlotName := database.PostgresqlPhysical.ReplicationSlotName
+
+	tunneledDatabase, err := postgresql_physical.OpenTunnel(ctx, postgresql_physical.OpenTunnelSpec{
+		Database:  database.PostgresqlPhysical,
+		Logger:    logger,
+		Encryptor: l.fieldEncryptor,
+	})
+	if err != nil {
+		// Both names go into the message: the row is about to disappear, and with it any record of
+		// which cluster to go looking on, so this line is the operator's only handle on them.
+		logger.Warn("physical slot cleanup: bastion unreachable, leaving slots orphaned",
+			"slot_name", slotName,
+			"wal_slot_name", walSlotName,
+			"error", err,
+		)
+
+		return nil
+	}
+
+	defer tunneledDatabase.Close()
+
+	sourceDatabase := tunneledDatabase.GetDatabaseThroughTunnel()
+
+	conn, err := sourceDatabase.OpenInspectionConn(ctx, l.fieldEncryptor)
+	if err != nil {
+		logger.Warn("physical slot cleanup: source PG unreachable, leaving slots orphaned",
+			"slot_name", slotName,
+			"wal_slot_name", walSlotName,
+			"error", err,
+		)
+
+		return nil
+	}
+	defer func() { _ = conn.Close(context.Background()) }()
+
 	if dropErr := dropBackupSlotIfExists(ctx, conn, slotName); dropErr != nil {
 		logger.Warn("physical slot cleanup: per-backup slot drop failed", "slot_name", slotName, "error", dropErr)
 	}
 
-	if dropErr := database.PostgresqlPhysical.DropWalSlotForRemoval(ctx, logger, l.fieldEncryptor); dropErr != nil {
+	if dropErr := sourceDatabase.DropWalSlotForRemoval(ctx, logger, l.fieldEncryptor); dropErr != nil {
 		logger.Warn("physical slot cleanup: WAL streamer slot drop failed",
-			"slot_name", database.PostgresqlPhysical.ReplicationSlotName,
+			"slot_name", walSlotName,
 			"error", dropErr,
 		)
 	}

@@ -79,3 +79,35 @@ func Test_IsResumeMismatchError_WhenTransientStderr_ReturnsFalse(t *testing.T) {
 		require.False(t, isResumeMismatchError([]byte(stderr)), stderr)
 	}
 }
+
+// The days-long process is the one the forwarder's fixed local port exists for, so its address has
+// to arrive the same way pg_basebackup's does: -h keeps the cluster name, PGHOSTADDR does the work.
+func Test_NewReceivewalCommand_WhenTunneled_SendsPgHostAddrAndKeepsTheRealHostFlag(t *testing.T) {
+	cmd, err := newReceivewalCommand(t.Context(), receivewalCommandSpec{
+		PgBin:    "sh",
+		SourceDB: tunneledSourceDatabase(),
+		Creds:    &postgresql_shared.CredentialTempFiles{PgpassPath: "/tmp/pgpass"},
+		WatchDir: t.TempDir(),
+		SlotName: "slot",
+	})
+	require.NoError(t, err)
+
+	require.Contains(t, cmd.Env, "PGHOSTADDR=127.0.0.1")
+	assertHostFlagIsTheRealCluster(t, cmd.Args)
+}
+
+func Test_NewReceivewalCommand_WithoutATunnel_SendsNoPgHostAddr(t *testing.T) {
+	sourceDB := tunneledSourceDatabase()
+	sourceDB.LocalTunnelEndpoint = nil
+
+	cmd, err := newReceivewalCommand(t.Context(), receivewalCommandSpec{
+		PgBin:    "sh",
+		SourceDB: sourceDB,
+		Creds:    &postgresql_shared.CredentialTempFiles{PgpassPath: "/tmp/pgpass"},
+		WatchDir: t.TempDir(),
+		SlotName: "slot",
+	})
+	require.NoError(t, err)
+
+	assertNoPgHostAddr(t, cmd.Env)
+}

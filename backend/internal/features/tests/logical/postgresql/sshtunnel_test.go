@@ -23,6 +23,7 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/testing/bastion"
 	"databasus-backend/internal/util/testing/containers"
 )
 
@@ -38,7 +39,7 @@ func bastionedPostgresConfig(
 		Password:  containers.PostgresPassword,
 		Database:  &databaseName,
 		CpuCount:  1,
-		SshTunnel: logicaltesting.BuildBastionTunnelConfig(topology),
+		SshTunnel: bastion.GetTunnelConfig(topology),
 	}
 }
 

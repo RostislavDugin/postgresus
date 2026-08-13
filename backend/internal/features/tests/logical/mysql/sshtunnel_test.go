@@ -23,6 +23,7 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/testing/bastion"
 	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
@@ -40,7 +41,7 @@ func bastionedMysqlConfig(
 		Password:  containers.MysqlRootPassword,
 		Database:  &databaseName,
 		Version:   tools.MysqlVersion84,
-		SshTunnel: logicaltesting.BuildBastionTunnelConfig(topology),
+		SshTunnel: bastion.GetTunnelConfig(topology),
 	}
 }
 

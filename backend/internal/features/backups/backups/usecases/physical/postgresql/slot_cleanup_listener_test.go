@@ -15,12 +15,11 @@ import (
 	"databasus-backend/internal/util/logger"
 )
 
-// Test_OnBeforeDatabaseRemove_DropsBothPerBackupAndStreamerSlots is the only
-// coverage for the database-removal drop site — the sole place the long-lived
-// streamer slot is removed. It also pins that the per-backup slot is keyed by the
-// PostgresqlPhysical ID (not the parent Database ID): the two are distinct UUIDs,
-// and computing the wrong one would silently orphan the slot forever, since the DB
-// row is deleted right after and RunStartupCleanup only scans existing rows.
+// The only coverage for the database-removal drop site — the sole place the long-lived streamer slot
+// is removed. It also pins that the per-backup slot is keyed by the PostgresqlPhysical ID (not the
+// parent Database ID): the two are distinct UUIDs, and computing the wrong one would silently orphan
+// the slot forever, since the DB row is deleted right after and RunStartupCleanup only scans
+// existing rows.
 func Test_OnBeforeDatabaseRemove_DropsBothPerBackupAndStreamerSlots(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
@@ -68,11 +67,51 @@ func Test_OnBeforeDatabaseRemove_DropsBothPerBackupAndStreamerSlots(t *testing.T
 		"WAL streamer slot must be dropped on DB removal")
 }
 
-// Test_OnBeforeDatabaseRemove_WhenSourceUnreachable_DoesNotBlockRemoval pins the
-// documented degraded path: an unreachable source must not fail the metadata
-// delete (the listener logs + returns nil). This is the known G5 limitation — the
-// slots stay orphaned on the unreachable source — captured so the behavior is
-// intentional, not accidental.
+// Removal is the only drop site with no second chance: the row goes away with it, and with it any
+// record of which cluster to go looking on. A listener that dialled the source directly would never
+// reach a bastioned one, and both slots would pin WAL on the customer's master forever.
+func Test_OnBeforeDatabaseRemove_WhenTheSourceIsBehindABastion_DropsBothPerBackupAndStreamerSlots(
+	t *testing.T,
+) {
+	fixture := postgresql_executor.SetupPhysicalDBForBackupBehindSshBastion(t)
+
+	adminConn := postgresql_executor.OpenAdminConn(t, fixture)
+
+	perBackupSlot := postgresql_executor.SlotName(fixture.DB.PostgresqlPhysical.ID)
+	streamerSlot := fixture.DB.PostgresqlPhysical.ReplicationSlotName
+	require.NotEmpty(t, streamerSlot, "streamer slot name should be populated by BeforeCreate")
+
+	for _, slotName := range []string{perBackupSlot, streamerSlot} {
+		_, err := adminConn.Exec(context.Background(),
+			"SELECT pg_create_physical_replication_slot($1, true)", slotName)
+		require.NoError(t, err, "pre-create slot %s", slotName)
+	}
+
+	// Defensive: if the listener fails to drop either slot, don't leak it into the
+	// cluster (max_replication_slots is finite).
+	t.Cleanup(func() {
+		_, _ = adminConn.Exec(context.Background(),
+			`SELECT pg_drop_replication_slot(slot_name)
+			   FROM pg_replication_slots WHERE slot_name = ANY($1)`,
+			[]string{perBackupSlot, streamerSlot})
+	})
+
+	listener := postgresql_executor.NewPhysicalSlotCleanupListener(
+		databases.GetDatabaseService(),
+		encryption.GetFieldEncryptor(),
+		logger.GetLogger(),
+	)
+
+	require.NoError(t, listener.OnBeforeDatabaseRemove(fixture.DB.ID))
+
+	assert.False(t, postgresql_executor.SlotExists(t, adminConn, perBackupSlot),
+		"per-backup slot must be dropped through the tunnel on DB removal")
+	assert.False(t, postgresql_executor.SlotExists(t, adminConn, streamerSlot),
+		"WAL streamer slot must be dropped through the tunnel on DB removal")
+}
+
+// The slots stay orphaned on a source we cannot reach — accepted so a dead source can never block
+// the metadata delete.
 func Test_OnBeforeDatabaseRemove_WhenSourceUnreachable_DoesNotBlockRemoval(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
@@ -89,10 +128,9 @@ func Test_OnBeforeDatabaseRemove_WhenSourceUnreachable_DoesNotBlockRemoval(t *te
 		"unreachable source must be logged + skipped, never block the metadata delete")
 }
 
-// Test_DropWalSlot_WhenStreamerSlotActive_RefusesAndKeepsSlot pins the safety
-// guard the removal listener relies on: DropWalSlot must refuse to drop a slot a
-// consumer (our pg_receivewal) still holds, rather than terminate the session —
-// dropping an active slot would crash the live streamer.
+// The safety guard the removal listener relies on: DropWalSlot must refuse to drop a slot a consumer
+// (our pg_receivewal) still holds, rather than terminate the session — dropping an active slot would
+// crash the live streamer.
 func Test_DropWalSlot_WhenStreamerSlotActive_RefusesAndKeepsSlot(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 

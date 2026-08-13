@@ -894,9 +894,21 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	username, password, err := usingDatabase.PostgresqlPhysical.CreateReplicationOnlyUser(
-		ctx, s.logger, s.fieldEncryptor,
-	)
+	logger := s.logger.With("database_id", usingDatabase.ID)
+
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
+		Database:  usingDatabase,
+		Logger:    logger,
+		Encryptor: s.fieldEncryptor,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	defer tunneledDatabase.Close()
+
+	username, password, err := tunneledDatabase.GetDatabaseThroughTunnel().
+		PostgresqlPhysical.CreateReplicationOnlyUser(ctx, logger, s.fieldEncryptor)
 	if err != nil {
 		return "", "", err
 	}

@@ -37,6 +37,7 @@ import (
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	"databasus-backend/internal/util/encryption"
 	test_utils "databasus-backend/internal/util/testing"
+	"databasus-backend/internal/util/testing/bastion"
 	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 	"databasus-backend/internal/util/walmath"
@@ -946,6 +947,10 @@ func assertSshTunnelSecretsAreHidden(t *testing.T, sshTunnel sshtunnel.Config) {
 }
 
 func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
+	// Started once and shared by the physical case's create and update: system_identifier is
+	// immutable, so pointing the update at a second cluster is refused as a cluster swap.
+	physicalSource := containers.StartPhysicalPostgres(t, "postgres:17")
+
 	testCases := []struct {
 		name                string
 		databaseType        DatabaseType
@@ -992,6 +997,46 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			verifyHiddenData: func(t *testing.T, database *Database) {
 				assert.Equal(t, "", database.PostgresqlLogical.Password)
 				assertSshTunnelSecretsAreHidden(t, database.PostgresqlLogical.SshTunnel)
+			},
+		},
+		{
+			name:         "PostgreSQL Physical Database",
+			databaseType: DatabaseTypePostgresPhysical,
+			createDatabase: func(_ *testing.T, workspaceID uuid.UUID) *Database {
+				physicalConfig := getTestPhysicalConfigForSource(physicalSource)
+				physicalConfig.SshTunnel = storedSshTunnelConfig()
+				return &Database{
+					WorkspaceID:        &workspaceID,
+					Name:               "Test PostgreSQL Physical Database",
+					Type:               DatabaseTypePostgresPhysical,
+					PostgresqlPhysical: physicalConfig,
+				}
+			},
+			updateDatabase: func(_ *testing.T, workspaceID, databaseID uuid.UUID) *Database {
+				physicalConfig := getTestPhysicalConfigForSource(physicalSource)
+				physicalConfig.Password = ""
+				physicalConfig.SshTunnel = submittedSshTunnelConfigWithoutSecrets()
+				return &Database{
+					ID:                 databaseID,
+					WorkspaceID:        &workspaceID,
+					Name:               "Updated PostgreSQL Physical Database",
+					Type:               DatabaseTypePostgresPhysical,
+					PostgresqlPhysical: physicalConfig,
+				}
+			},
+			verifySensitiveData: func(t *testing.T, database *Database) {
+				assert.True(t, strings.HasPrefix(database.PostgresqlPhysical.Password, "enc:"),
+					"Password should be encrypted in database")
+
+				encryptor := encryption.GetFieldEncryptor()
+				decrypted, err := encryptor.Decrypt(database.PostgresqlPhysical.Password)
+				assert.NoError(t, err)
+				assert.Equal(t, "testpassword", decrypted)
+				assertSshTunnelUpdateMovedTheHostAndKeptTheSecrets(t, database.PostgresqlPhysical.SshTunnel)
+			},
+			verifyHiddenData: func(t *testing.T, database *Database) {
+				assert.Equal(t, "", database.PostgresqlPhysical.Password)
+				assertSshTunnelSecretsAreHidden(t, database.PostgresqlPhysical.SshTunnel)
 			},
 		},
 		{
@@ -1472,6 +1517,12 @@ func getTestMysqlConfig(t *testing.T) *mysql.MysqlDatabase {
 	return GetTestMysqlConfig(endpoint.Host, endpoint.Port)
 }
 
+func getTestPhysicalConfigForSource(source containers.Endpoint) *postgresql_physical.PostgresqlPhysicalDatabase {
+	return GetTestPhysicalPostgresConfigWithType(
+		source.Host, source.Port, "17", postgresql_physical.BackupTypeFullOnly,
+	)
+}
+
 func getTestMongodbConfig(t *testing.T) *mongodb.MongodbDatabase {
 	endpoint := containers.StartMongodb(t, "mongo:7.0")
 
@@ -1803,4 +1854,88 @@ func Test_CreateMongodbDatabase_WhenSrvAndSshTunnelAreEnabled_ReturnsBadRequest(
 
 	assert.Equal(t, http.StatusBadRequest, response.Code)
 	assert.Contains(t, response.Body.String(), "SRV")
+}
+
+// The source cluster publishes no port, so a green result is proof the request went through the
+// bastion — this endpoint is the one physical-only path that had no tunnel around it.
+func Test_CreateReplicationOnlyUser_WhenTheDatabaseIsBehindABastion_ReachesTheClusterThroughTheTunnel(
+	t *testing.T,
+) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Bastioned Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+
+	topology := containers.StartPhysicalPostgresBehindSshBastion(t, "postgres:17")
+
+	physicalConfig := GetTestPhysicalPostgresConfigWithType(
+		topology.Database.Host, topology.Database.Port, "17", postgresql_physical.BackupTypeFullOnly,
+	)
+	physicalConfig.SshTunnel = bastion.GetTunnelConfig(topology)
+
+	request := Database{
+		Name:               "Bastioned Physical DB",
+		WorkspaceID:        &workspace.ID,
+		Type:               DatabaseTypePostgresPhysical,
+		PostgresqlPhysical: physicalConfig,
+	}
+
+	var response CreateReadOnlyUserResponse
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create-replication-only-user",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.NotEmpty(t, response.Username)
+	assert.NotEmpty(t, response.Password)
+}
+
+// Creating a physical database runs the replication-protocol probe, which is the one connection that
+// does not go through pgx and so needed its own hostaddr handling. The cluster publishes no port, so
+// reaching it at all proves the probe went through the bastion.
+func Test_CreateDatabase_WhenThePhysicalClusterIsBehindABastion_PassesTheReplicationConnectionTest(
+	t *testing.T,
+) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Bastioned Create", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+
+	topology := containers.StartPhysicalPostgresBehindSshBastion(t, "postgres:17")
+
+	physicalConfig := GetTestPhysicalPostgresConfigWithType(
+		topology.Database.Host, topology.Database.Port, "17", postgresql_physical.BackupTypeFullOnly,
+	)
+	physicalConfig.SshTunnel = bastion.GetTunnelConfig(topology)
+
+	request := Database{
+		Name:               "Bastioned Physical Create",
+		WorkspaceID:        &workspace.ID,
+		Type:               DatabaseTypePostgresPhysical,
+		PostgresqlPhysical: physicalConfig,
+	}
+
+	var response Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusCreated,
+		&response,
+	)
+	defer RemoveTestDatabase(&response)
+
+	require.NotNil(t, response.PostgresqlPhysical)
+	assert.NotEmpty(t, response.PostgresqlPhysical.Version,
+		"the version discovered through the tunnel must be carried back onto the stored row")
+	assert.NotNil(t, response.PostgresqlPhysical.SystemIdentifier,
+		"the cluster identity must be carried back too, or the manifest records a zero identifier")
+	assert.NotNil(t, response.PostgresqlPhysical.WalSegmentSizeBytes)
 }

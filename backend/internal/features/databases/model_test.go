@@ -141,6 +141,7 @@ func Test_PopulateVersion_WhenTheDatabaseCarriesAStaleEngineConfig_DispatchesOnT
 func Test_HideSensitiveData_ForEveryTunnelCapableType_ClearsTheTunnelSecrets(t *testing.T) {
 	for _, databaseType := range []DatabaseType{
 		DatabaseTypePostgresLogical,
+		DatabaseTypePostgresPhysical,
 		DatabaseTypeMysql,
 		DatabaseTypeMariadb,
 		DatabaseTypeMongodb,
@@ -163,6 +164,7 @@ func Test_HideSensitiveData_ForEveryTunnelCapableType_ClearsTheTunnelSecrets(t *
 func Test_ClearSshTunnelConfig_ForEveryTunnelCapableType_RemovesTheWholeBlock(t *testing.T) {
 	for _, databaseType := range []DatabaseType{
 		DatabaseTypePostgresLogical,
+		DatabaseTypePostgresPhysical,
 		DatabaseTypeMysql,
 		DatabaseTypeMariadb,
 		DatabaseTypeMongodb,
@@ -183,6 +185,8 @@ func getSshTunnelConfig(t *testing.T, database *Database) sshtunnel.Config {
 	switch database.Type {
 	case DatabaseTypePostgresLogical:
 		return database.PostgresqlLogical.SshTunnel
+	case DatabaseTypePostgresPhysical:
+		return database.PostgresqlPhysical.SshTunnel
 	case DatabaseTypeMysql:
 		return database.Mysql.SshTunnel
 	case DatabaseTypeMariadb:
@@ -273,6 +277,8 @@ func filledSourceDatabase(databaseType DatabaseType) *Database {
 			SslClientCert:       "clientcert",
 			SslClientKey:        "enc:clientkey",
 			SslRootCert:         "rootcert",
+			SshTunnel:           filledSshTunnel(),
+			LocalTunnelEndpoint: &sshtunnel.Endpoint{Host: "127.0.0.1", Port: 41000},
 			ReplicationSlotName: "databasus_slot_deadbeef",
 			SystemIdentifier:    &systemIdentifier,
 			WalSegmentSizeBytes: &walSegmentSizeBytes,
@@ -444,9 +450,22 @@ func Test_CopyForNewDatabase_WhenTheSourceIsPostgresqlPhysical_DoesNotInheritSer
 	sourceEngineWithoutIdentity.ReplicationSlotName = ""
 	sourceEngineWithoutIdentity.SystemIdentifier = nil
 	sourceEngineWithoutIdentity.WalSegmentSizeBytes = nil
+	sourceEngineWithoutIdentity.LocalTunnelEndpoint = nil
 
 	assert.Equal(t, sourceEngineWithoutIdentity, *copiedEngine)
 	assert.Equal(t, "databasus_slot_deadbeef", sourceDatabase.PostgresqlPhysical.ReplicationSlotName)
+}
+
+func Test_CopyForNewDatabase_WhenTheSourceIsPostgresqlPhysical_DropsTheLocalTunnelEndpoint(t *testing.T) {
+	sourceDatabase := filledSourceDatabase(DatabaseTypePostgresPhysical)
+	require.NotNil(t, sourceDatabase.PostgresqlPhysical.LocalTunnelEndpoint)
+
+	copiedEngine := sourceDatabase.CopyForNewDatabase().PostgresqlPhysical
+	require.NotNil(t, copiedEngine)
+
+	assert.Nil(t, copiedEngine.LocalTunnelEndpoint)
+	assert.Equal(t, filledSshTunnel(), copiedEngine.SshTunnel,
+		"a clone behind the same bastion still goes through it")
 }
 
 func Test_CopyForNewDatabase_DropsIdentityAndBackupHistory(t *testing.T) {

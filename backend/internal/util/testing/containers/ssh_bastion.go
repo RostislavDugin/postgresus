@@ -1,11 +1,17 @@
 package containers
 
 import (
+	"context"
+	"net"
+	"net/netip"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -28,14 +34,16 @@ func StartSshBastion(t *testing.T) Endpoint {
 }
 
 // Port 22 stays published so the test can dial the bastion; the network membership is what lets the
-// bastion in turn reach containers that publish nothing.
-func StartSshBastionOnNetwork(t *testing.T, networkName string) Endpoint {
+// bastion in turn reach containers that publish nothing. The container comes back too, so a test can
+// stop and restart the bastion under a running tunnel.
+func StartSshBastionContainerOnNetwork(t *testing.T, networkName string) ContainerHandle {
 	t.Helper()
 
 	req := sshBastionRequest(t)
 	req.Networks = []string{networkName}
+	pinBastionHostPort(t, &req)
 
-	return start(t, req, sshBastionPort)
+	return startContainer(t, req, sshBastionPort)
 }
 
 // Resolved from this file rather than the working directory: callers live in other packages, and
@@ -52,10 +60,12 @@ func GetSshBastionTestdataDir(t *testing.T) string {
 	return filepath.Join(filepath.Dir(thisFile), "testdata", "ssh_bastion")
 }
 
-// Database is the in-network address, reachable only through Bastion.
+// Database is the in-network address, reachable only through Bastion. BastionContainer is what lets
+// a test kill the transport mid-stream and bring it back.
 type BastionedDatabase struct {
-	Bastion  Endpoint
-	Database Endpoint
+	Bastion          Endpoint
+	BastionContainer testcontainers.Container
+	Database         Endpoint
 }
 
 // One alias per engine so a run that boots several topologies stays readable in docker inspect.
@@ -64,6 +74,8 @@ const (
 	bastionedMysqlAlias    = "mysql-behind-bastion"
 	bastionedMariadbAlias  = "mariadb-behind-bastion"
 	bastionedMongodbAlias  = "mongodb-behind-bastion"
+
+	bastionedPhysicalPostgresAlias = "physical-postgres-behind-bastion"
 )
 
 // The database publishes no ports and the bastion does, so a tunnel is the only way in. Tests
@@ -74,8 +86,11 @@ func StartPostgresBehindSshBastion(t *testing.T, image string) BastionedDatabase
 
 	networkName := StartNetwork(t)
 
+	bastion := StartSshBastionContainerOnNetwork(t, networkName)
+
 	return BastionedDatabase{
-		Bastion: StartSshBastionOnNetwork(t, networkName),
+		Bastion:          bastion.Endpoint,
+		BastionContainer: bastion.Container,
 		Database: StartPostgresOnNetwork(t, OnNetworkSpec{
 			Image: image,
 			Placement: NetworkPlacement{
@@ -91,8 +106,11 @@ func StartMysqlBehindSshBastion(t *testing.T, image string) BastionedDatabase {
 
 	networkName := StartNetwork(t)
 
+	bastion := StartSshBastionContainerOnNetwork(t, networkName)
+
 	return BastionedDatabase{
-		Bastion: StartSshBastionOnNetwork(t, networkName),
+		Bastion:          bastion.Endpoint,
+		BastionContainer: bastion.Container,
 		Database: StartMysqlOnNetwork(t, OnNetworkSpec{
 			Image: image,
 			Placement: NetworkPlacement{
@@ -108,8 +126,11 @@ func StartMariadbBehindSshBastion(t *testing.T, image string) BastionedDatabase 
 
 	networkName := StartNetwork(t)
 
+	bastion := StartSshBastionContainerOnNetwork(t, networkName)
+
 	return BastionedDatabase{
-		Bastion: StartSshBastionOnNetwork(t, networkName),
+		Bastion:          bastion.Endpoint,
+		BastionContainer: bastion.Container,
 		Database: StartMariadbOnNetwork(t, OnNetworkSpec{
 			Image: image,
 			Placement: NetworkPlacement{
@@ -125,8 +146,11 @@ func StartMongodbBehindSshBastion(t *testing.T, image string) BastionedDatabase 
 
 	networkName := StartNetwork(t)
 
+	bastion := StartSshBastionContainerOnNetwork(t, networkName)
+
 	return BastionedDatabase{
-		Bastion: StartSshBastionOnNetwork(t, networkName),
+		Bastion:          bastion.Endpoint,
+		BastionContainer: bastion.Container,
 		Database: StartMongodbOnNetwork(t, OnNetworkSpec{
 			Image: image,
 			Placement: NetworkPlacement{
@@ -134,6 +158,42 @@ func StartMongodbBehindSshBastion(t *testing.T, image string) BastionedDatabase 
 				Alias:       bastionedMongodbAlias,
 			},
 		}),
+	}
+}
+
+// Docker re-picks an ephemeral host port on every `start`, so a bastion published dynamically moves
+// out from under a tunnel the moment a test restarts it. Pinning the binding is what a real bastion
+// has anyway, and it is the only way a forwarder can find its way back after an outage.
+func pinBastionHostPort(t *testing.T, req *testcontainers.ContainerRequest) {
+	t.Helper()
+
+	var listenConfig net.ListenConfig
+
+	listener, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to reserve a host port for the ssh bastion: %v", err)
+	}
+
+	reservedPort, isTCPAddr := listener.Addr().(*net.TCPAddr)
+	if !isTCPAddr {
+		t.Fatalf("failed to read the reserved ssh bastion port from %s", listener.Addr())
+	}
+
+	if err := listener.Close(); err != nil {
+		t.Fatalf("failed to release the reserved ssh bastion port: %v", err)
+	}
+
+	bastionPort, err := network.ParsePort(sshBastionPort)
+	if err != nil {
+		t.Fatalf("failed to parse the ssh bastion port %q: %v", sshBastionPort, err)
+	}
+
+	req.HostConfigModifier = func(hostConfig *container.HostConfig) {
+		hostConfig.PortBindings = network.PortMap{
+			bastionPort: []network.PortBinding{
+				{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: strconv.Itoa(reservedPort.Port)},
+			},
+		}
 	}
 }
 

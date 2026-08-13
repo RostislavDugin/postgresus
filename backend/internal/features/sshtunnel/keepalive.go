@@ -28,7 +28,7 @@ func (f *Forwarder) runKeepalive() {
 				continue
 			}
 
-			if !isKeepaliveAnswered(client) {
+			if !f.isKeepaliveAnsweredWithin(keepaliveTimeout, client) {
 				f.logger.Warn("ssh tunnel keepalive went unanswered, reconnecting on next use")
 				f.discardClient(client)
 			}
@@ -36,10 +36,13 @@ func (f *Forwarder) runKeepalive() {
 	}
 }
 
+// The budget is a parameter because the reachability probe answers a caller with a far shorter
+// deadline than the keepalive loop's.
+//
 // ssh.SendRequest takes no timeout and blocks forever on a connection that died without a FIN -
 // the exact failure keepalive exists to detect - so it must never run on a goroutine that Close
 // waits for. The orphaned goroutine unblocks once discardClient closes the client.
-func isKeepaliveAnswered(client *ssh.Client) bool {
+func (f *Forwarder) isKeepaliveAnsweredWithin(budget time.Duration, client *ssh.Client) bool {
 	keepaliveAnswer := make(chan error, 1)
 
 	go func() {
@@ -47,10 +50,15 @@ func isKeepaliveAnswered(client *ssh.Client) bool {
 		keepaliveAnswer <- err
 	}()
 
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+
 	select {
 	case err := <-keepaliveAnswer:
 		return err == nil
-	case <-time.After(keepaliveTimeout):
+	case <-timer.C:
+		return false
+	case <-f.done:
 		return false
 	}
 }

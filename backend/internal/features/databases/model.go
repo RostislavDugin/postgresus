@@ -268,6 +268,10 @@ func (d *Database) ClearSshTunnelConfig() {
 		d.PostgresqlLogical.SshTunnel = sshtunnel.Config{}
 	}
 
+	if d.PostgresqlPhysical != nil {
+		d.PostgresqlPhysical.SshTunnel = sshtunnel.Config{}
+	}
+
 	if d.Mysql != nil {
 		d.Mysql.SshTunnel = sshtunnel.Config{}
 	}

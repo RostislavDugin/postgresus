@@ -139,7 +139,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		}
 
 		if isFatalReceivewalError(stderrText) {
-			logger.Error("pg_receivewal exited with a non-retryable error; marking streamer for reassignment",
+			logger.Error("pg_receivewal exited with a non-retryable error",
 				"error", waitErr, "stderr", truncateStderr(stderrText))
 
 			return receiverRunResult{
@@ -213,6 +213,8 @@ func newReceivewalCommand(ctx context.Context, spec receivewalCommandSpec) (*exe
 
 	cmd := exec.CommandContext(ctx, spec.PgBin, args...)
 
+	// -h above stays the real host so the certificate and .pgpass still match; PGHOSTADDR is what
+	// redirects libpq at the tunnel.
 	cmd.Env = append(os.Environ(),
 		"PGPASSFILE="+spec.Creds.PgpassPath,
 		"PGAPPNAME="+receivewalApplicationName(spec.SourceDB),
@@ -221,6 +223,7 @@ func newReceivewalCommand(ctx context.Context, spec receivewalCommandSpec) (*exe
 		"LC_ALL=C.UTF-8",
 		"LANG=C.UTF-8",
 	)
+	cmd.Env = append(cmd.Env, postgresql_shared.GetPgHostAddrEnv(spec.SourceDB.CredentialSpec())...)
 
 	sslMode := spec.SourceDB.SslMode
 	if sslMode == "" {

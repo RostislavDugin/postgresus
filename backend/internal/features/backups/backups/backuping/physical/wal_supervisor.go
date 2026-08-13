@@ -236,6 +236,23 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		return
 	}
 
+	// One SSH session for the whole streamer: pg_receivewal plus the slot-LSN, lag and rotation
+	// loops would otherwise handshake with the bastion several times a minute, forever.
+	tunnelCtx, cancelTunnelOpen := context.WithTimeout(context.Background(), bastionOpenTimeout)
+	defer cancelTunnelOpen()
+
+	tunneledDatabase, err := postgresql_physical.OpenTunnel(tunnelCtx, postgresql_physical.OpenTunnelSpec{
+		Database:  db.PostgresqlPhysical,
+		Logger:    logger,
+		Encryptor: s.fieldEncryptor,
+	})
+	if err != nil {
+		logger.Error("wal supervisor: failed to open ssh tunnel to the source cluster", "error", err)
+		s.releaseClaim(logger, backupConfig.DatabaseID)
+
+		return
+	}
+
 	// Derive from the supervisor's run ctx so a process shutdown cancels every
 	// streamer; the per-DB cancel (registered with TaskCancelManager + stored on
 	// runningStreamer) handles targeted teardown on disable / demote / db-remove.
@@ -254,7 +271,8 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 
 	supervisor := postgresql_executor.NewWalStreamSupervisor(postgresql_executor.WalStreamSpec{
 		DatabaseID:                db.ID,
-		SourceDB:                  db.PostgresqlPhysical,
+		SourceDB:                  tunneledDatabase.GetDatabaseThroughTunnel(),
+		IsBastionReachable:        tunneledDatabase.IsBastionReachable,
 		StorageID:                 storage.ID,
 		Storage:                   storage,
 		Encryption:                backupConfig.Encryption,
@@ -280,6 +298,7 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 
 	go func() {
 		defer close(done)
+		defer tunneledDatabase.Close()
 		defer s.taskCancelManager.UnregisterTask(db.ID)
 		defer s.removeWatchDirIfRequested(logger, streamer)
 

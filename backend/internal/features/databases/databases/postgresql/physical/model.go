@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
 )
@@ -38,6 +38,13 @@ type PostgresqlPhysicalDatabase struct {
 	SslClientCert string                            `json:"sslClientCert" gorm:"column:ssl_client_cert;type:text;not null;default:''"`
 	SslClientKey  string                            `json:"sslClientKey"  gorm:"column:ssl_client_key;type:text;not null;default:''"`
 	SslRootCert   string                            `json:"sslRootCert"   gorm:"column:ssl_root_cert;type:text;not null;default:''"`
+
+	// When the tunnel is enabled, Host and Port above address the cluster as the bastion sees it.
+	SshTunnel sshtunnel.Config `json:"sshTunnel" gorm:"embedded;embeddedPrefix:ssh_"`
+
+	// Set only on the copy handed out by OpenTunnel, so CredentialSpec can point libpq at the
+	// forwarded port while Host keeps the name that TLS and .pgpass are matched against.
+	LocalTunnelEndpoint *sshtunnel.Endpoint `json:"-" gorm:"-"`
 
 	ReplicationSlotName string  `json:"-"                gorm:"column:replication_slot_name;type:text;not null"`
 	SystemIdentifier    *string `json:"systemIdentifier" gorm:"column:system_identifier;type:text"`
@@ -77,6 +84,10 @@ func (p *PostgresqlPhysicalDatabase) Validate() error {
 		p.SslClientKey,
 		p.SslRootCert,
 	); err != nil {
+		return err
+	}
+
+	if err := p.SshTunnel.Validate(); err != nil {
 		return err
 	}
 
@@ -129,6 +140,7 @@ func (p *PostgresqlPhysicalDatabase) Update(incoming *PostgresqlPhysicalDatabase
 	p.SslClientCert = incoming.SslClientCert
 	p.SslRootCert = incoming.SslRootCert
 	p.BackupType = incoming.BackupType
+	p.SshTunnel.Update(&incoming.SshTunnel)
 
 	if incoming.Password != "" {
 		p.Password = incoming.Password
@@ -148,13 +160,15 @@ func (p *PostgresqlPhysicalDatabase) HideSensitiveData() {
 
 	p.Password = ""
 	p.SslClientKey = ""
+	p.SshTunnel.HideSensitiveData()
 }
 
 // Copying the struct rather than listing fields is the point: a field added later travels with it
 // instead of being silently dropped. The three server-managed fields must not travel: BeforeCreate
 // only mints a replication slot name when the field is empty, so an inherited one would leave two
 // databases sharing a single slot on the source cluster, and the identifier and segment size are
-// read back from whichever cluster the copy is pointed at.
+// read back from whichever cluster the copy is pointed at. LocalTunnelEndpoint belongs to the
+// operation that opened the tunnel, not to the configuration.
 func (p *PostgresqlPhysicalDatabase) CopyForNewDatabase() *PostgresqlPhysicalDatabase {
 	if p == nil {
 		return nil
@@ -166,6 +180,7 @@ func (p *PostgresqlPhysicalDatabase) CopyForNewDatabase() *PostgresqlPhysicalDat
 	copiedDatabase.ReplicationSlotName = ""
 	copiedDatabase.SystemIdentifier = nil
 	copiedDatabase.WalSegmentSizeBytes = nil
+	copiedDatabase.LocalTunnelEndpoint = nil
 
 	return &copiedDatabase
 }
@@ -191,7 +206,7 @@ func (p *PostgresqlPhysicalDatabase) EncryptSensitiveFields(
 		*field = encrypted
 	}
 
-	return nil
+	return p.SshTunnel.EncryptSensitiveFields(encryptor)
 }
 
 func (p *PostgresqlPhysicalDatabase) PopulateDbData(
@@ -1062,83 +1077,5 @@ func classifyReplicationConnectError(err error, username string) error {
 		return &postgresql_shared.ConnectionTestError{Code: postgresql_shared.ConnErrNoReplicationPrivilege}
 	default:
 		return &postgresql_shared.ConnectionTestError{Code: postgresql_shared.ConnErrConnectionFailed}
-	}
-}
-
-// openConn opens a regular pgx connection to the `postgres` database (always
-// exists; physical model has no per-DB selection), carrying the source's client
-// certificates the same way pg_basebackup does via the shared credential files.
-func openConn(
-	ctx context.Context,
-	p *PostgresqlPhysicalDatabase,
-	encryptor encryption.FieldEncryptor,
-) (*pgx.Conn, error) {
-	password, err := postgresql_shared.DecryptFieldIfNeeded(p.Password, encryptor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt password: %w", err)
-	}
-
-	files, err := postgresql_shared.WriteCredentialFilesToTempDir(p.CredentialSpec(), password, encryptor)
-	if err != nil {
-		return nil, err
-	}
-	defer files.Remove()
-
-	return pgx.Connect(ctx, postgresql_shared.BuildConnString(p.CredentialSpec(), password, "postgres", files))
-}
-
-// openPhysicalReplicationConn opens a PHYSICAL replication connection (replication=true) — the same
-// mode pg_basebackup / pg_receivewal use. This is what exercises the "host replication" pg_hba path
-// and the REPLICATION privilege at connect time; an ordinary "host all" rule does NOT cover it, so a
-// logical (replication=database) probe would wrongly accept a cluster that real backups cannot stream.
-// Uses the low-level pgconn because no ordinary SQL is allowed on a physical replication connection.
-func openPhysicalReplicationConn(
-	ctx context.Context,
-	p *PostgresqlPhysicalDatabase,
-	encryptor encryption.FieldEncryptor,
-) (*pgconn.PgConn, error) {
-	password, err := postgresql_shared.DecryptFieldIfNeeded(p.Password, encryptor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt password: %w", err)
-	}
-
-	files, err := postgresql_shared.WriteCredentialFilesToTempDir(p.CredentialSpec(), password, encryptor)
-	if err != nil {
-		return nil, err
-	}
-	defer files.Remove()
-
-	return pgconn.Connect(
-		ctx,
-		postgresql_shared.BuildPhysicalReplicationConnString(p.CredentialSpec(), password, "postgres", files),
-	)
-}
-
-func closeConnQuietly(ctx context.Context, conn *pgx.Conn, logger *slog.Logger) {
-	if err := conn.Close(ctx); err != nil {
-		logger.Warn("failed to close connection", "error", err)
-	}
-}
-
-var versionRegexp = regexp.MustCompile(`PostgreSQL (\d+)`)
-
-func detectVersion(ctx context.Context, conn *pgx.Conn) (tools.PostgresqlVersion, error) {
-	var versionStr string
-	if err := conn.QueryRow(ctx, "SELECT version()").Scan(&versionStr); err != nil {
-		return "", fmt.Errorf("failed to query version(): %w", err)
-	}
-
-	matches := versionRegexp.FindStringSubmatch(versionStr)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("could not parse version from: %s", versionStr)
-	}
-
-	switch matches[1] {
-	case "17":
-		return tools.PostgresqlVersion17, nil
-	case "18":
-		return tools.PostgresqlVersion18, nil
-	default:
-		return "", fmt.Errorf("physical backup requires PostgreSQL 17 or 18, detected %s", matches[1])
 	}
 }

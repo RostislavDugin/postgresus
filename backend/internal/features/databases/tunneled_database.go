@@ -8,6 +8,7 @@ import (
 	"databasus-backend/internal/features/databases/databases/mongodb"
 	"databasus-backend/internal/features/databases/databases/mysql"
 	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/util/encryption"
 )
 
@@ -45,6 +46,8 @@ func OpenTunnel(ctx context.Context, spec OpenTunnelSpec) (*TunneledDatabase, er
 	switch spec.Database.Type {
 	case DatabaseTypePostgresLogical:
 		err = tunneledDatabase.openPostgresqlLogicalTunnel(ctx, spec)
+	case DatabaseTypePostgresPhysical:
+		err = tunneledDatabase.openPostgresqlPhysicalTunnel(ctx, spec)
 	case DatabaseTypeMysql:
 		err = tunneledDatabase.openMysqlTunnel(ctx, spec)
 	case DatabaseTypeMariadb:
@@ -105,6 +108,26 @@ func (t *TunneledDatabase) openPostgresqlLogicalTunnel(ctx context.Context, spec
 
 	t.tunneledEngine = tunneledEngine
 	t.databaseThroughTunnel.PostgresqlLogical = tunneledEngine.GetDatabaseThroughTunnel()
+
+	return nil
+}
+
+func (t *TunneledDatabase) openPostgresqlPhysicalTunnel(ctx context.Context, spec OpenTunnelSpec) error {
+	if spec.Database.PostgresqlPhysical == nil || !spec.Database.PostgresqlPhysical.SshTunnel.IsEnabled {
+		return nil
+	}
+
+	tunneledEngine, err := postgresql_physical.OpenTunnel(ctx, postgresql_physical.OpenTunnelSpec{
+		Database:  spec.Database.PostgresqlPhysical,
+		Logger:    spec.Logger,
+		Encryptor: spec.Encryptor,
+	})
+	if err != nil {
+		return err
+	}
+
+	t.tunneledEngine = tunneledEngine
+	t.databaseThroughTunnel.PostgresqlPhysical = tunneledEngine.GetDatabaseThroughTunnel()
 
 	return nil
 }

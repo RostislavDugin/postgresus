@@ -357,3 +357,80 @@ func RunWalSlotWhenDatabaseDeletedWithStreamedWalSlotRemovedSoNoWalStuck(t *test
 
 	requireDatabaseSlotsGone(t, adminConn, fixture, 60*time.Second)
 }
+
+// The source publishes no port, so nothing on this path can silently fall back to a direct route.
+func RunOverSshTunnelRecoversToTarget(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("streams WAL through an SSH bastion and runs a real PITR recovery; skipped in -short")
+	}
+
+	router, fixture, topology := setupBastionedFixture(
+		t, version, image, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+	target := prepareRestoreTarget(t, image)
+
+	sourceConn := openSourceTestDBConnThroughBastion(t, topology)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	defer cancel()
+
+	targetTime, survivingPhases := seedChainAndStreamPastTarget(t, ctx, router, sourceConn, fixture)
+
+	bundle := downloadRestoreBundleViaAPI(t, router, fixture, &targetTime)
+	reconstructCluster(t, target, router, image, bundle, &targetTime)
+	startRestoredCluster(t, target, image)
+
+	restoredPhases := queryRestoredMarkerRows(t, target)
+	assert.ElementsMatch(t, survivingPhases, restoredPhases,
+		"a chain built entirely through the bastion must restore the same rows as a direct one")
+}
+
+// SSH failures are classified apart from receiver crashes, and this is why. Killing the bastion
+// makes every pg_receivewal spawn fail instantly, which unclassified reads as five rapid failures:
+// the streamer would be marked FAILED and a chain-broken alert sent, leaving nobody consuming the
+// slot until a later supervisor tick reclaims it — for a blip the forwarder heals on its own.
+func RunWhenBastionDiesMidStreamKeepsTheSlotAndResumes(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("stops and restarts a bastion container under a live WAL stream; skipped in -short")
+	}
+
+	router, fixture, topology := setupBastionedFixture(
+		t, version, image, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+
+	slotName := fixture.DB.PostgresqlPhysical.ReplicationSlotName
+	require.NotEmpty(t, slotName)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	defer cancel()
+
+	enablePhysicalBackupsViaAPI(t, router, fixture, true)
+	waitForChainBackups(t, router, fixture, 0, 5*time.Minute)
+
+	adminConn := postgresql_executor.OpenAdminConn(t, fixture)
+	waitForSlotPresent(t, adminConn, slotName, 60*time.Second)
+
+	fullBackupsBeforeOutage := len(waitForChainBackups(t, router, fixture, 0, time.Minute))
+
+	stopBastion(t, topology)
+
+	// Comfortably longer than the five rapid failures plus their 2/4/8/16s backoff would need to
+	// escalate, so a regression has every chance to tear the streamer down before we look.
+	time.Sleep(75 * time.Second)
+
+	requireStreamerNotFailed(t, fixture)
+
+	startBastion(t, topology)
+
+	resumedConn := postgresql_executor.OpenAdminConn(t, fixture)
+	require.True(t, postgresql_executor.SlotExists(t, resumedConn, slotName),
+		"the slot must survive the outage: rebuilding it opens a WAL gap and costs a fresh full backup")
+
+	segmentsBeforeResume := getCommittedWalSegmentCount(t, fixture)
+
+	_, err := postgresql_executor.GenerateWalActivity(ctx, resumedConn, 64*1024*1024)
+	require.NoError(t, err)
+
+	waitForCommittedWalSegmentsAbove(t, fixture, segmentsBeforeResume, 3*time.Minute)
+
+	assert.Len(t, waitForChainBackups(t, router, fixture, 0, time.Minute), fullBackupsBeforeOutage,
+		"a transport blip must not request an out-of-cadence full backup")
+}

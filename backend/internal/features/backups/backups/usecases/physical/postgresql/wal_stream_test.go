@@ -2,6 +2,7 @@ package usecases_physical_postgresql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
@@ -587,6 +589,122 @@ func Test_RecordMismatchAndDecideEscalation_AfterRebuild_StartsCountingFromScrat
 
 	require.Equal(t, resumeMismatchActionRetry, mismatchEscalator.recordMismatchAndDecideEscalation(),
 		"a rebuild is expensive, so the next one needs its own pair of mismatches")
+}
+
+const instantReceiverExit = 100 * time.Millisecond
+
+func fatalReceiverRun() receiverRunResult {
+	return receiverRunResult{
+		Exit:     receiverFatal,
+		RanFor:   instantReceiverExit,
+		FatalErr: errors.New("pg_receivewal fatal error: could not write 8192 bytes to WAL file"),
+	}
+}
+
+// Escalating on a verdict read off a receiver whose transport was already gone hands the streamer
+// back as FAILED and fires a chain-broken alert for a blip the forwarder heals by itself.
+func Test_DemoteFatalExitWhenBastionUnreachable_WhenTheBastionIsUnreachable_TurnsTheExitRetryable(
+	t *testing.T,
+) {
+	demotedRun := demoteFatalExitWhenBastionUnreachable(logger.GetLogger(), fatalReceiverRun(), false)
+
+	assert.Equal(t, receiverRetryable, demotedRun.Exit)
+}
+
+// The mirror: a fatal cause a respawn can never fix must still hand the streamer back for reclaim.
+func Test_DemoteFatalExitWhenBastionUnreachable_WhenTheBastionIsReachable_LeavesTheExitFatal(
+	t *testing.T,
+) {
+	fatalRun := fatalReceiverRun()
+	judgedRun := demoteFatalExitWhenBastionUnreachable(logger.GetLogger(), fatalRun, true)
+
+	assert.Equal(t, receiverFatal, judgedRun.Exit)
+	assert.Equal(t, fatalRun.FatalErr, judgedRun.FatalErr)
+}
+
+func Test_DemoteFatalExitWhenBastionUnreachable_WhenTheExitIsNotFatal_LeavesTheExitUnchanged(
+	t *testing.T,
+) {
+	for _, exit := range []receiverExit{receiverCtxCancelled, receiverRetryable, receiverInternalRestart} {
+		judgedRun := demoteFatalExitWhenBastionUnreachable(
+			logger.GetLogger(), receiverRunResult{Exit: exit}, false)
+
+		assert.Equal(t, exit, judgedRun.Exit)
+	}
+}
+
+// A restarted sshd refuses connections instantly, so every spawn dies well under the healthy-uptime
+// bar. Counting those would escalate to streamer-FAILED in about half a minute and fire a
+// chain-broken alert for a transport blip the forwarder heals on its own.
+func Test_RecordExitAndDecideRetry_WhenTheBastionIsUnreachable_DoesNotEscalate(t *testing.T) {
+	var failureEscalator rapidFailureEscalator
+
+	for range receivewalMaxRapidFailures * 2 {
+		require.False(t,
+			failureEscalator.recordExitAndDecideRetry(instantReceiverExit, false).isEscalationRequired)
+	}
+}
+
+// The mirror of the case above: without it the reachability check would silently swallow a real
+// crash loop and the streamer would never be handed back for reclaim.
+func Test_RecordExitAndDecideRetry_WhenTheBastionIsReachable_EscalatesAfterTheRapidFailureLimit(
+	t *testing.T,
+) {
+	var failureEscalator rapidFailureEscalator
+
+	for range receivewalMaxRapidFailures - 1 {
+		require.False(t,
+			failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true).isEscalationRequired)
+	}
+
+	require.True(t,
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true).isEscalationRequired)
+}
+
+func Test_RecordExitAndDecideRetry_WhenAHealthyRunFollowsRapidFailures_ClearsTheCount(t *testing.T) {
+	var failureEscalator rapidFailureEscalator
+
+	for range receivewalMaxRapidFailures - 1 {
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true)
+	}
+
+	require.False(t,
+		failureEscalator.recordExitAndDecideRetry(receivewalMinHealthyUptime, true).isEscalationRequired)
+	require.False(t,
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true).isEscalationRequired)
+}
+
+// A run that only looked healthy because it spent its whole life waiting on a dead bastion must not
+// reset the backoff, or the loop hammers the bastion while it is down.
+func Test_RecordExitAndDecideRetry_WhenTheBastionIsUnreachable_DoesNotResetTheBackoff(t *testing.T) {
+	var failureEscalator rapidFailureEscalator
+
+	require.False(t,
+		failureEscalator.recordExitAndDecideRetry(receivewalMinHealthyUptime, false).isBackoffResettable)
+	require.True(t,
+		failureEscalator.recordExitAndDecideRetry(receivewalMinHealthyUptime, true).isBackoffResettable)
+	require.False(t,
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true).isBackoffResettable)
+}
+
+// Growing without a low ceiling would leave half an hour of silence on a transport that healed
+// minutes ago: WAL piling up on the source and a staleness alert fired after the fact.
+func Test_RecordExitAndDecideRetry_WhenTheBastionIsUnreachable_CapsTheRespawnBackoff(t *testing.T) {
+	var failureEscalator rapidFailureEscalator
+
+	require.Equal(t, receivewalBastionDownMaxBackoff,
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, false).maxRespawnBackoff)
+	require.Less(t, receivewalBastionDownMaxBackoff, receivewalRespawnMaxBackoff,
+		"a cap that is not lower than the ordinary ceiling caps nothing")
+}
+
+func Test_RecordExitAndDecideRetry_WhenTheBastionIsReachable_KeepsTheOrdinaryBackoffCeiling(t *testing.T) {
+	var failureEscalator rapidFailureEscalator
+
+	require.Equal(t, receivewalRespawnMaxBackoff,
+		failureEscalator.recordExitAndDecideRetry(instantReceiverExit, true).maxRespawnBackoff)
+	require.Equal(t, receivewalRespawnMaxBackoff,
+		failureEscalator.recordExitAndDecideRetry(receivewalMinHealthyUptime, true).maxRespawnBackoff)
 }
 
 func Test_WalStream_WhenSourceIsIdle_KeepsReceiverAliveAndDoesNotRebuildSlot(t *testing.T) {
