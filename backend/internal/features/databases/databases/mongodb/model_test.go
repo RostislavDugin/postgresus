@@ -859,6 +859,7 @@ func Test_Validate_WhenSrvIsEnabledBehindAnSshTunnel_IsRejected(t *testing.T) {
 		Host:      "bastion.example.com",
 		Port:      22,
 		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePassword,
 		Password:  "tunnelpassword",
 	}
 

@@ -209,6 +209,7 @@ func filledSshTunnel() sshtunnel.Config {
 		Host:                 "bastion.example.com",
 		Port:                 2222,
 		Username:             "tunneluser",
+		AuthType:             sshtunnel.AuthTypePrivateKey,
 		Password:             "enc:tunnelpassword",
 		PrivateKey:           "enc:privatekey",
 		PrivateKeyPassphrase: "enc:passphrase",

@@ -16,6 +16,7 @@ func GetTunnelConfig(bastionedDatabase containers.BastionedDatabase) sshtunnel.C
 		Host:      bastionedDatabase.Bastion.Host,
 		Port:      bastionedDatabase.Bastion.Port,
 		Username:  containers.SshBastionUsername,
+		AuthType:  sshtunnel.AuthTypePassword,
 		Password:  containers.SshBastionPassword,
 	}
 }

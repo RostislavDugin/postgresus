@@ -1,4 +1,4 @@
-import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { CopyOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { App, Button, Checkbox, Input, InputNumber, Select, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
@@ -7,7 +7,7 @@ import {
   PostgresSslMode,
   type PostgresqlLogicalDatabase,
   databaseApi,
-  hasStoredSshTunnelSecrets,
+  hasStoredSshTunnelSecretsForAuthType,
   isSshTunnelReadyToTest,
 } from '../../../../entity/databases';
 import { ConnectionStringParser } from '../../../../entity/databases/model/postgresql/ConnectionStringParser';
@@ -15,6 +15,7 @@ import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../share
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { AdvancedSettingsToggleComponent } from './AdvancedSettingsToggleComponent';
 import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
@@ -88,6 +89,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
   const hasAdvancedValues =
     !!database.postgresqlLogical?.sslClientCert ||
     !!database.postgresqlLogical?.sslRootCert ||
+    !!database.postgresqlLogical?.sshTunnel?.isEnabled ||
     (isRestoreMode
       ? !!database.postgresqlLogical?.isExcludeExtensions ||
         !!database.postgresqlLogical?.isRestoreOwnership ||
@@ -567,20 +569,6 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
           </div>
         )}
 
-        <EditSshTunnelComponent
-          sshTunnel={editingDatabase.postgresqlLogical?.sshTunnel}
-          hasStoredSecrets={hasStoredSshSecrets}
-          onChange={(sshTunnel) => {
-            if (!editingDatabase.postgresqlLogical) return;
-
-            setEditingDatabase({
-              ...editingDatabase,
-              postgresqlLogical: { ...editingDatabase.postgresqlLogical, sshTunnel },
-            });
-            setIsConnectionTested(false);
-          }}
-        />
-
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">SSL mode</div>
           <Select
@@ -640,23 +628,27 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
           </div>
         )}
 
-        <div className="mt-4 mb-1 flex items-center">
-          <div
-            className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
-            onClick={() => setShowAdvanced(!isShowAdvanced)}
-          >
-            <span className="mr-2">Advanced settings</span>
-
-            {isShowAdvanced ? (
-              <UpOutlined style={{ fontSize: '12px' }} />
-            ) : (
-              <DownOutlined style={{ fontSize: '12px' }} />
-            )}
-          </div>
-        </div>
+        <AdvancedSettingsToggleComponent
+          isShowAdvanced={isShowAdvanced}
+          onToggle={() => setShowAdvanced(!isShowAdvanced)}
+        />
 
         {isShowAdvanced && (
           <>
+            <EditSshTunnelComponent
+              sshTunnel={editingDatabase.postgresqlLogical?.sshTunnel}
+              hasStoredSecrets={hasStoredSshSecrets}
+              onChange={(sshTunnel) => {
+                if (!editingDatabase.postgresqlLogical) return;
+
+                setEditingDatabase({
+                  ...editingDatabase,
+                  postgresqlLogical: { ...editingDatabase.postgresqlLogical, sshTunnel },
+                });
+                setIsConnectionTested(false);
+              }}
+            />
+
             {!isRestoreMode && (
               <div className="mb-1 flex w-full items-center">
                 <div className="min-w-[150px]">Include schemas</div>
@@ -868,8 +860,9 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
     );
   };
 
-  const hasStoredSshSecrets = hasStoredSshTunnelSecrets(
+  const hasStoredSshSecrets = hasStoredSshTunnelSecretsForAuthType(
     database.postgresqlLogical?.sshTunnel,
+    editingDatabase.postgresqlLogical?.sshTunnel?.authType,
     database.id,
   );
 

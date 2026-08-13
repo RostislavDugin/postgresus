@@ -1,3 +1,4 @@
+import { SshTunnelAuthType } from './SshTunnelAuthType';
 import type { SshTunnelConfig } from './SshTunnelConfig';
 
 /**
@@ -14,5 +15,9 @@ export function isSshTunnelReadyToTest(
   if (!sshTunnel.port) return false;
   if (!sshTunnel.username) return false;
 
-  return hasStoredSecrets || !!sshTunnel.password || !!sshTunnel.privateKey;
+  if (hasStoredSecrets) return true;
+
+  return sshTunnel.authType === SshTunnelAuthType.PASSWORD
+    ? !!sshTunnel.password
+    : !!sshTunnel.privateKey;
 }

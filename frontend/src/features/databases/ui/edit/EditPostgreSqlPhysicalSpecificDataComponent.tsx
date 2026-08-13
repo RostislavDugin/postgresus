@@ -10,7 +10,7 @@ import {
   PostgresSslMode,
   type PostgresqlPhysicalDatabase,
   databaseApi,
-  hasStoredSshTunnelSecrets,
+  hasStoredSshTunnelSecretsForAuthType,
   isSshTunnelReadyToTest,
   physicalConnectionErrorContent,
 } from '../../../../entity/databases';
@@ -19,6 +19,7 @@ import { ApiError } from '../../../../shared/api';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { AdvancedSettingsToggleComponent } from './AdvancedSettingsToggleComponent';
 import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
@@ -97,6 +98,10 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
 
   const [hasUserChosenSslMode, setHasUserChosenSslMode] = useState(!!database.id);
   const [isReplacingCerts, setIsReplacingCerts] = useState(false);
+
+  const [isShowAdvanced, setShowAdvanced] = useState(
+    !!database.postgresqlPhysical?.sshTunnel?.isEnabled,
+  );
 
   const [isShowPasteModal, setIsShowPasteModal] = useState(false);
 
@@ -595,20 +600,6 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
           />
         </div>
 
-        <EditSshTunnelComponent
-          sshTunnel={editingDatabase.postgresqlPhysical?.sshTunnel}
-          hasStoredSecrets={hasStoredSshSecrets}
-          onChange={(sshTunnel) => {
-            if (!editingDatabase.postgresqlPhysical) return;
-
-            setEditingDatabase({
-              ...editingDatabase,
-              postgresqlPhysical: { ...editingDatabase.postgresqlPhysical, sshTunnel },
-            });
-            setIsConnectionTested(false);
-          }}
-        />
-
         <div className="mb-1 flex w-full items-center">
           <div className="min-w-[150px]">SSL mode</div>
           <Select
@@ -635,6 +626,27 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
         </div>
 
         {renderSslCertSection()}
+
+        <AdvancedSettingsToggleComponent
+          isShowAdvanced={isShowAdvanced}
+          onToggle={() => setShowAdvanced(!isShowAdvanced)}
+        />
+
+        {isShowAdvanced && (
+          <EditSshTunnelComponent
+            sshTunnel={editingDatabase.postgresqlPhysical?.sshTunnel}
+            hasStoredSecrets={hasStoredSshSecrets}
+            onChange={(sshTunnel) => {
+              if (!editingDatabase.postgresqlPhysical) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                postgresqlPhysical: { ...editingDatabase.postgresqlPhysical, sshTunnel },
+              });
+              setIsConnectionTested(false);
+            }}
+          />
+        )}
 
         {renderConnectionError()}
 
@@ -669,8 +681,9 @@ export const EditPostgreSqlPhysicalSpecificDataComponent = ({
     );
   };
 
-  const hasStoredSshSecrets = hasStoredSshTunnelSecrets(
+  const hasStoredSshSecrets = hasStoredSshTunnelSecretsForAuthType(
     database.postgresqlPhysical?.sshTunnel,
+    editingDatabase.postgresqlPhysical?.sshTunnel?.authType,
     database.id,
   );
 

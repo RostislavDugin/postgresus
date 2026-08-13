@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { SshTunnelAuthType } from './SshTunnelAuthType';
 import type { SshTunnelConfig } from './SshTunnelConfig';
 import { createEmptySshTunnelConfig } from './createEmptySshTunnelConfig';
 import { isSshTunnelReadyToTest } from './isSshTunnelReadyToTest';
@@ -27,10 +28,33 @@ describe('isSshTunnelReadyToTest', () => {
     expect(isSshTunnelReadyToTest(enabledTunnel(), false)).toBe(true);
   });
 
-  it('accepts a private key instead of a password', () => {
+  it('accepts a private key when that is the chosen auth type', () => {
+    expect(
+      isSshTunnelReadyToTest(
+        {
+          ...enabledTunnel(),
+          authType: SshTunnelAuthType.PRIVATE_KEY,
+          password: '',
+          privateKey: 'key',
+        },
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a private key while the chosen auth type is a password', () => {
     expect(
       isSshTunnelReadyToTest({ ...enabledTunnel(), password: '', privateKey: 'key' }, false),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('rejects a password while the chosen auth type is a private key', () => {
+    expect(
+      isSshTunnelReadyToTest(
+        { ...enabledTunnel(), authType: SshTunnelAuthType.PRIVATE_KEY },
+        false,
+      ),
+    ).toBe(false);
   });
 
   it.each(['host', 'username'] as const)('rejects a missing %s', (field) => {

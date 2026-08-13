@@ -31,6 +31,7 @@ func enabledTunnelDatabase() *MysqlDatabase {
 			Host:      "bastion.example.com",
 			Port:      22,
 			Username:  "tunneluser",
+			AuthType:  sshtunnel.AuthTypePassword,
 			Password:  "tunnelpassword",
 		},
 	}

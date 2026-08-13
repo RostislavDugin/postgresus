@@ -282,6 +282,8 @@ func databasesForEveryEngine(isSshTunnelEnabled bool) []*databases.Database {
 		Host:      "bastion.internal",
 		Port:      22,
 		Username:  "backup",
+		AuthType:  sshtunnel.AuthTypePassword,
+		Password:  "tunnelpassword",
 	}
 
 	logicalPostgresDatabase := postgresDatabase("pg-logical", availableStatus())

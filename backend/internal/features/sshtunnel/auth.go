@@ -1,7 +1,6 @@
 package sshtunnel
 
 import (
-	"errors"
 	"fmt"
 
 	"golang.org/x/crypto/ssh"
@@ -10,31 +9,24 @@ import (
 )
 
 func buildAuthMethods(config Config, encryptor encryption.FieldEncryptor) ([]ssh.AuthMethod, error) {
-	var authMethods []ssh.AuthMethod
-
-	if config.Password != "" {
+	switch config.AuthType {
+	case AuthTypePassword:
 		password, err := decryptIfNeeded(config.Password, encryptor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt the SSH tunnel password: %w", err)
 		}
 
-		authMethods = append(authMethods, ssh.Password(password))
-	}
-
-	if config.PrivateKey != "" {
+		return []ssh.AuthMethod{ssh.Password(password)}, nil
+	case AuthTypePrivateKey:
 		signer, err := buildPrivateKeySigner(config, encryptor)
 		if err != nil {
 			return nil, err
 		}
 
-		authMethods = append(authMethods, ssh.PublicKeys(signer))
+		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
 	}
 
-	if len(authMethods) == 0 {
-		return nil, errors.New("SSH tunnel requires either a password or a private key")
-	}
-
-	return authMethods, nil
+	return nil, fmt.Errorf("invalid SSH tunnel auth type: %s", config.AuthType)
 }
 
 func buildPrivateKeySigner(config Config, encryptor encryption.FieldEncryptor) (ssh.Signer, error) {

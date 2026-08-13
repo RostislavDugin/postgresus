@@ -49,6 +49,7 @@ func bastionConfig(bastion containers.Endpoint) Config {
 		Host:      bastion.Host,
 		Port:      bastion.Port,
 		Username:  containers.SshBastionUsername,
+		AuthType:  AuthTypePassword,
 		Password:  containers.SshBastionPassword,
 	}
 }
@@ -128,6 +129,7 @@ func Test_Forwarder_WithPrivateKeyAuth_ForwardsBytesToTarget(t *testing.T) {
 	bastion := startTestBastion(t)
 
 	config := bastionConfig(bastion)
+	config.AuthType = AuthTypePrivateKey
 	config.Password = ""
 	config.PrivateKey = readTestKey(t, "test_key")
 
@@ -140,6 +142,7 @@ func Test_Forwarder_WithPassphraseProtectedPrivateKey_ForwardsBytesToTarget(t *t
 	bastion := startTestBastion(t)
 
 	config := bastionConfig(bastion)
+	config.AuthType = AuthTypePrivateKey
 	config.Password = ""
 	config.PrivateKey = readTestKey(t, "test_key_passphrase")
 	config.PrivateKeyPassphrase = "testpassphrase"
@@ -170,6 +173,7 @@ func Test_Open_WithEncryptedPrivateKeyAndPassphrase_DecryptsThemBeforeAuthentica
 	encryptor := prefixingEncryptor{}
 
 	config := bastionConfig(bastion)
+	config.AuthType = AuthTypePrivateKey
 	config.Password = ""
 	config.PrivateKey = readTestKey(t, "test_key_passphrase")
 	config.PrivateKeyPassphrase = "testpassphrase"
@@ -217,6 +221,7 @@ func Test_Open_WhenPassphraseIsWrong_ReturnsError(t *testing.T) {
 	bastion := startTestBastion(t)
 
 	config := bastionConfig(bastion)
+	config.AuthType = AuthTypePrivateKey
 	config.Password = ""
 	config.PrivateKey = readTestKey(t, "test_key_passphrase")
 	config.PrivateKeyPassphrase = "wrong-passphrase"
@@ -349,6 +354,7 @@ func Test_Open_WhenBastionAcceptsButNeverHandshakes_FailsInsteadOfHanging(t *tes
 				Host:      "127.0.0.1",
 				Port:      silentAddress.Port,
 				Username:  containers.SshBastionUsername,
+				AuthType:  AuthTypePassword,
 				Password:  containers.SshBastionPassword,
 			},
 			Target:           Endpoint{Host: "127.0.0.1", Port: bastionInternalPort},

@@ -897,18 +897,20 @@ func storedSshTunnelConfig() sshtunnel.Config {
 		Host:                 "bastion.example.com",
 		Port:                 2222,
 		Username:             "tunneluser",
-		Password:             "tunnelpassword",
+		AuthType:             sshtunnel.AuthTypePrivateKey,
 		PrivateKey:           "tunnelprivatekey",
 		PrivateKeyPassphrase: "tunnelpassphrase",
 	}
 }
 
 // The host moves as well, so an engine that stopped delegating to sshtunnel.Config.Update would
-// keep the stored secrets by doing nothing at all and still look correct.
+// keep the stored secrets by doing nothing at all and still look correct. The auth type is left out
+// alongside the secrets: blank means unchanged for it too, and overwriting it would take the stored
+// key down with it.
 func submittedSshTunnelConfigWithoutSecrets() sshtunnel.Config {
 	sshTunnel := storedSshTunnelConfig()
 	sshTunnel.Host = updatedSshTunnelHost
-	sshTunnel.Password = ""
+	sshTunnel.AuthType = ""
 	sshTunnel.PrivateKey = ""
 	sshTunnel.PrivateKeyPassphrase = ""
 
@@ -920,11 +922,12 @@ func assertSshTunnelUpdateMovedTheHostAndKeptTheSecrets(t *testing.T, sshTunnel 
 
 	assert.Equal(t, updatedSshTunnelHost, sshTunnel.Host,
 		"the address is always submitted, so the update must land")
+	assert.Equal(t, sshtunnel.AuthTypePrivateKey, sshTunnel.AuthType,
+		"a blank auth type must keep the stored one, or the secrets below are cleared with it")
 
 	encryptor := encryption.GetFieldEncryptor()
 
 	for submittedSecret, storedSecret := range map[string]string{
-		"tunnelpassword":   sshTunnel.Password,
 		"tunnelprivatekey": sshTunnel.PrivateKey,
 		"tunnelpassphrase": sshTunnel.PrivateKeyPassphrase,
 	} {
@@ -1658,9 +1661,19 @@ func bastionedPostgresConfig(
 			Host:      topology.Bastion.Host,
 			Port:      topology.Bastion.Port,
 			Username:  containers.SshBastionUsername,
+			AuthType:  sshtunnel.AuthTypePassword,
 			Password:  containers.SshBastionPassword,
 		},
 	}
+}
+
+func readBastionTestKey(t *testing.T) string {
+	t.Helper()
+
+	privateKey, err := os.ReadFile(filepath.Join(containers.GetSshBastionTestdataDir(t), "test_key"))
+	require.NoError(t, err)
+
+	return string(privateKey)
 }
 
 // Without this the tunnel tests would stay green if the tunnel silently stopped being used, because
@@ -1729,17 +1742,15 @@ func Test_CreateDatabase_OverSshTunnel_DetectsVersionAndHidesTunnelSecrets(t *te
 func Test_CreateDatabase_OverSshTunnelWithAPrivateKey_DatabaseCreated(t *testing.T) {
 	topology := containers.StartPostgresBehindSshBastion(t, "postgres:16")
 
-	privateKey, err := os.ReadFile(filepath.Join(containers.GetSshBastionTestdataDir(t), "test_key"))
-	require.NoError(t, err)
-
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
 	workspace := workspaces_testing.CreateTestWorkspace("SSH Tunnel Key", owner, router)
 	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
 
 	postgresConfig := bastionedPostgresConfig(topology)
+	postgresConfig.SshTunnel.AuthType = sshtunnel.AuthTypePrivateKey
 	postgresConfig.SshTunnel.Password = ""
-	postgresConfig.SshTunnel.PrivateKey = string(privateKey)
+	postgresConfig.SshTunnel.PrivateKey = readBastionTestKey(t)
 
 	var createdDatabase Database
 	test_utils.MakePostRequestAndUnmarshal(
@@ -1758,6 +1769,116 @@ func Test_CreateDatabase_OverSshTunnelWithAPrivateKey_DatabaseCreated(t *testing
 	assert.Equal(t, "16", string(createdDatabase.PostgresqlLogical.Version))
 }
 
+// The stored key would otherwise stay a working way into the bastion after the user replaced it
+// with a password.
+func Test_UpdateDatabase_WhenSshAuthTypeChangesToPassword_ClearsTheStoredPrivateKey(t *testing.T) {
+	topology := containers.StartPostgresBehindSshBastion(t, "postgres:16")
+
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("SSH Tunnel Auth Switch", owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+
+	postgresConfig := bastionedPostgresConfig(topology)
+	postgresConfig.SshTunnel.AuthType = sshtunnel.AuthTypePrivateKey
+	postgresConfig.SshTunnel.Password = ""
+	postgresConfig.SshTunnel.PrivateKey = readBastionTestKey(t)
+
+	var createdDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/databases/create", "Bearer "+owner.Token,
+		Database{
+			Name:              "Bastioned PG switching auth",
+			WorkspaceID:       &workspace.ID,
+			Type:              DatabaseTypePostgresLogical,
+			PostgresqlLogical: postgresConfig,
+		},
+		http.StatusCreated, &createdDatabase,
+	)
+	t.Cleanup(func() { RemoveTestDatabase(&createdDatabase) })
+
+	createdDatabase.PostgresqlLogical.SshTunnel.AuthType = sshtunnel.AuthTypePassword
+	createdDatabase.PostgresqlLogical.SshTunnel.Password = containers.SshBastionPassword
+
+	var updatedDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/databases/update", "Bearer "+owner.Token,
+		createdDatabase, http.StatusOK, &updatedDatabase,
+	)
+
+	persistedDatabase, err := databaseRepository.FindByID(createdDatabase.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persistedDatabase.PostgresqlLogical)
+
+	assert.Empty(t, persistedDatabase.PostgresqlLogical.SshTunnel.PrivateKey)
+	assert.NotEmpty(t, persistedDatabase.PostgresqlLogical.SshTunnel.Password)
+}
+
+func Test_CreateDatabase_WhenSshAuthTypeIsPrivateKeyButOnlyAPasswordIsSet_ReturnsBadRequest(
+	t *testing.T,
+) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("SSH Tunnel Auth Mismatch", owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+
+	postgresConfig := getTestPostgresConfig()
+	postgresConfig.SshTunnel = sshtunnel.Config{
+		IsEnabled: true,
+		Host:      "bastion.example.com",
+		Port:      22,
+		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePrivateKey,
+		Password:  "tunnelpassword",
+	}
+
+	response := workspaces_testing.MakeAPIRequest(
+		router, "POST", "/api/v1/databases/create", "Bearer "+owner.Token,
+		Database{
+			Name:              "Tunnel without a key",
+			WorkspaceID:       &workspace.ID,
+			Type:              DatabaseTypePostgresLogical,
+			PostgresqlLogical: postgresConfig,
+		},
+	)
+
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), "SSH tunnel private key is required")
+}
+
+// Storing the unused secret would leave a second, invisible way into the bastion behind: the edit
+// form only ever shows the chosen one, so nothing would surface it again.
+func Test_CreateDatabase_WhenTheSshTunnelCarriesBothSecrets_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("SSH Tunnel Both Secrets", owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+
+	postgresConfig := getTestPostgresConfig()
+	postgresConfig.SshTunnel = sshtunnel.Config{
+		IsEnabled:  true,
+		Host:       "bastion.example.com",
+		Port:       22,
+		Username:   "tunneluser",
+		AuthType:   sshtunnel.AuthTypePassword,
+		Password:   "tunnelpassword",
+		PrivateKey: "-----BEGIN OPENSSH PRIVATE KEY-----",
+	}
+
+	response := workspaces_testing.MakeAPIRequest(
+		router, "POST", "/api/v1/databases/create", "Bearer "+owner.Token,
+		Database{
+			Name:              "Tunnel with both secrets",
+			WorkspaceID:       &workspace.ID,
+			Type:              DatabaseTypePostgresLogical,
+			PostgresqlLogical: postgresConfig,
+		},
+	)
+
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), "must not carry a private key")
+}
+
 func Test_CreateDatabase_WhenSshTunnelIsEnabledWithoutAHost_ReturnsBadRequest(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
@@ -1769,6 +1890,7 @@ func Test_CreateDatabase_WhenSshTunnelIsEnabledWithoutAHost_ReturnsBadRequest(t 
 		IsEnabled: true,
 		Port:      22,
 		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePassword,
 		Password:  "tunnelpassword",
 	}
 
@@ -1846,6 +1968,7 @@ func Test_CreateMongodbDatabase_WhenSrvAndSshTunnelAreEnabled_ReturnsBadRequest(
 					Host:      "bastion.example.com",
 					Port:      22,
 					Username:  containers.SshBastionUsername,
+					AuthType:  sshtunnel.AuthTypePassword,
 					Password:  containers.SshBastionPassword,
 				},
 			},

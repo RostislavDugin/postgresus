@@ -2179,6 +2179,7 @@ func Test_Validate_WhenDatabasusOnLoopbackIsBehindARemoteBastion_IsAllowed(t *te
 		Host:      "bastion.example.com",
 		Port:      22,
 		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePassword,
 		Password:  "tunnelpassword",
 	}
 
@@ -2195,6 +2196,7 @@ func Test_Validate_WhenDatabasusOnLoopbackIsBehindALocalBastion_IsRejected(t *te
 			Host:      bastionHost,
 			Port:      22,
 			Username:  "tunneluser",
+			AuthType:  sshtunnel.AuthTypePassword,
 			Password:  "tunnelpassword",
 		}
 
