@@ -319,31 +319,53 @@ func buildDatabaseEntry(db *databases.Database) (DatabaseEntry, bool) {
 		if db.PostgresqlLogical == nil {
 			return DatabaseEntry{}, false
 		}
-		return DatabaseEntry{Type: string(db.Type), Version: string(db.PostgresqlLogical.Version)}, true
+
+		return DatabaseEntry{
+			Type:               string(db.Type),
+			Version:            string(db.PostgresqlLogical.Version),
+			IsSshTunnelEnabled: db.PostgresqlLogical.SshTunnel.IsEnabled,
+		}, true
 	case databases.DatabaseTypePostgresPhysical:
 		if db.PostgresqlPhysical == nil {
 			return DatabaseEntry{}, false
 		}
+
 		return DatabaseEntry{
-			Type:       string(db.Type),
-			Version:    string(db.PostgresqlPhysical.Version),
-			BackupType: string(db.PostgresqlPhysical.BackupType),
+			Type:               string(db.Type),
+			Version:            string(db.PostgresqlPhysical.Version),
+			BackupType:         string(db.PostgresqlPhysical.BackupType),
+			IsSshTunnelEnabled: db.PostgresqlPhysical.SshTunnel.IsEnabled,
 		}, true
 	case databases.DatabaseTypeMysql:
 		if db.Mysql == nil {
 			return DatabaseEntry{}, false
 		}
-		return DatabaseEntry{Type: string(db.Type), Version: string(db.Mysql.Version)}, true
+
+		return DatabaseEntry{
+			Type:               string(db.Type),
+			Version:            string(db.Mysql.Version),
+			IsSshTunnelEnabled: db.Mysql.SshTunnel.IsEnabled,
+		}, true
 	case databases.DatabaseTypeMariadb:
 		if db.Mariadb == nil {
 			return DatabaseEntry{}, false
 		}
-		return DatabaseEntry{Type: string(db.Type), Version: string(db.Mariadb.Version)}, true
+
+		return DatabaseEntry{
+			Type:               string(db.Type),
+			Version:            string(db.Mariadb.Version),
+			IsSshTunnelEnabled: db.Mariadb.SshTunnel.IsEnabled,
+		}, true
 	case databases.DatabaseTypeMongodb:
 		if db.Mongodb == nil {
 			return DatabaseEntry{}, false
 		}
-		return DatabaseEntry{Type: string(db.Type), Version: string(db.Mongodb.Version)}, true
+
+		return DatabaseEntry{
+			Type:               string(db.Type),
+			Version:            string(db.Mongodb.Version),
+			IsSshTunnelEnabled: db.Mongodb.SshTunnel.IsEnabled,
+		}, true
 	}
 
 	return DatabaseEntry{}, false
