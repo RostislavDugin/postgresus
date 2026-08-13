@@ -16,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
@@ -836,4 +837,37 @@ func Test_MapMongodbVersion_VersionMatrix_ReturnsExpected(t *testing.T) {
 			assert.Equal(t, tc.wantVersion, got)
 		})
 	}
+}
+
+func srvDatabase() *MongodbDatabase {
+	return &MongodbDatabase{
+		Host:         "cluster0.example.mongodb.net",
+		Port:         nil,
+		Username:     "testuser",
+		Password:     "testpass123",
+		Database:     "mydb",
+		AuthDatabase: "admin",
+		CpuCount:     1,
+		IsSrv:        true,
+	}
+}
+
+func Test_Validate_WhenSrvIsEnabledBehindAnSshTunnel_IsRejected(t *testing.T) {
+	model := srvDatabase()
+	model.SshTunnel = sshtunnel.Config{
+		IsEnabled: true,
+		Host:      "bastion.example.com",
+		Port:      22,
+		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePassword,
+		Password:  "tunnelpassword",
+	}
+
+	err := model.Validate()
+
+	assert.ErrorContains(t, err, "SRV")
+}
+
+func Test_Validate_WhenSrvIsEnabledWithoutAnSshTunnel_IsAccepted(t *testing.T) {
+	assert.NoError(t, srvDatabase().Validate())
 }

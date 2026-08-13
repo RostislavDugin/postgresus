@@ -49,6 +49,10 @@ const (
 	restoredPgUser     = "testuser"
 	restoredPgPassword = "testpassword"
 	restoredPgDatabase = "testdb"
+
+	// Replaying a PITR chain is disk-bound and runs while the test holds several containers, so this
+	// is sized for a loaded machine rather than for the few seconds it takes when idle.
+	recoveryCompletionTimeout = 3 * time.Minute
 )
 
 // setupReplicationOnlyFixture boots a throwaway replication-capable source for one PostgreSQL major,
@@ -935,6 +939,29 @@ func startRestoredCluster(t *testing.T, target containers.RestoreTarget, image s
 		target.ExecBestEffort("postgres",
 			"pg_ctl", "-D", clusterDir, "-m", "immediate", "stop")
 	})
+
+	waitForRecoveryToFinish(t, target)
+}
+
+// pg_ctl -w returns as soon as the cluster accepts connections, which during recovery means
+// read-only and mid-replay: a query issued then sees whichever prefix of the WAL has been applied so
+// far. Recovery with a target promotes when it reaches it, so leaving recovery is the real signal
+// that the restored data is complete.
+func waitForRecoveryToFinish(t *testing.T, target containers.RestoreTarget) {
+	t.Helper()
+
+	deadline := time.Now().UTC().Add(recoveryCompletionTimeout)
+	for time.Now().UTC().Before(deadline) {
+		recoveryState := target.ExecBestEffort("postgres",
+			"psql", "-U", restoredPgUser, "-d", restoredPgDatabase, "-tAc", "SELECT pg_is_in_recovery()")
+		if strings.TrimSpace(string(recoveryState)) == "f" {
+			return
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	t.Fatalf("the restored cluster was still replaying WAL after %s", recoveryCompletionTimeout)
 }
 
 func queryRestoredMarkerRows(t *testing.T, target containers.RestoreTarget) []string {

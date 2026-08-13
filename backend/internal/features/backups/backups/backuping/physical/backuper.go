@@ -83,13 +83,15 @@ func (b *PhysicalBackuper) runFullBackup(
 	fullBackup *physical_models.PhysicalFullBackup,
 	isCallNotifier bool,
 ) {
-	backupCtx, ok := b.loadBackupContext(logger, fullBackup.DatabaseID)
+	backupCtx, ok := b.openBackupContext(logger, fullBackup.DatabaseID)
 	if !ok {
 		b.finalizeFullAsError(fullBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed,
-			"failed to load backup context")
+			"failed to open backup context")
 
 		return
 	}
+
+	defer backupCtx.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	b.taskCancelManager.RegisterTask(fullBackup.ID, cancel)
@@ -150,13 +152,15 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 	incrBackup *physical_models.PhysicalIncrementalBackup,
 	isCallNotifier bool,
 ) {
-	backupCtx, ok := b.loadBackupContext(logger, incrBackup.DatabaseID)
+	backupCtx, ok := b.openBackupContext(logger, incrBackup.DatabaseID)
 	if !ok {
 		b.finalizeIncrAsError(incrBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed,
-			"failed to load backup context")
+			"failed to open backup context")
 
 		return
 	}
+
+	defer backupCtx.Close()
 
 	parentRef, err := b.resolveParentManifest(incrBackup)
 	if err != nil {
@@ -223,7 +227,7 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 	}
 }
 
-func (b *PhysicalBackuper) loadBackupContext(
+func (b *PhysicalBackuper) openBackupContext(
 	logger *slog.Logger,
 	databaseID uuid.UUID,
 ) (*backupContext, bool) {
@@ -272,7 +276,29 @@ func (b *PhysicalBackuper) loadBackupContext(
 		masterKey = key
 	}
 
-	return &backupContext{cfg, db, storage, masterKey}, true
+	// Opened last, because a bail-out after this point would strand a live SSH session and its
+	// listener: the caller only gets something to Close once the context is fully built.
+	tunnelCtx, cancelTunnelOpen := context.WithTimeout(context.Background(), bastionOpenTimeout)
+	defer cancelTunnelOpen()
+
+	tunneledDatabase, err := databases.OpenTunnel(tunnelCtx, databases.OpenTunnelSpec{
+		Database:  db,
+		Logger:    logger,
+		Encryptor: b.fieldEncryptor,
+	})
+	if err != nil {
+		logger.Error("failed to open ssh tunnel to the source cluster", "error", err)
+
+		return nil, false
+	}
+
+	return &backupContext{
+		Config:    cfg,
+		Database:  tunneledDatabase.GetDatabaseThroughTunnel(),
+		Storage:   storage,
+		MasterKey: masterKey,
+		tunnel:    tunneledDatabase,
+	}, true
 }
 
 func (b *PhysicalBackuper) resolveParentManifest(

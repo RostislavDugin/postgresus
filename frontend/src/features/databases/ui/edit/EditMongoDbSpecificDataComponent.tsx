@@ -1,13 +1,21 @@
-import { CopyOutlined, DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { CopyOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { App, Button, Input, InputNumber, Select, Switch, Tooltip } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { type Database, databaseApi } from '../../../../entity/databases';
+import {
+  type Database,
+  databaseApi,
+  disableSrvWhenTunneled,
+  hasStoredSshTunnelSecretsForAuthType,
+  isSshTunnelReadyToTest,
+} from '../../../../entity/databases';
 import { MongodbConnectionStringParser } from '../../../../entity/databases/model/mongodb/MongodbConnectionStringParser';
 import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
 import { ClipboardPasteModalComponent } from '../../../../shared/ui';
+import { AdvancedSettingsToggleComponent } from './AdvancedSettingsToggleComponent';
+import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -52,7 +60,8 @@ export const EditMongoDbSpecificDataComponent = ({
     !!database.mongodb?.authDatabase ||
     !!database.mongodb?.isSrv ||
     !!database.mongodb?.isDirectConnection ||
-    !!database.mongodb?.excludeCollections?.length;
+    !!database.mongodb?.excludeCollections?.length ||
+    !!database.mongodb?.sshTunnel?.isEnabled;
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
   const [isShowPasteModal, setIsShowPasteModal] = useState(false);
@@ -76,7 +85,7 @@ export const EditMongoDbSpecificDataComponent = ({
 
     const updatedDatabase: Database = {
       ...editingDatabase,
-      mongodb: {
+      mongodb: disableSrvWhenTunneled({
         ...editingDatabase.mongodb,
         host: result.host,
         port: result.port,
@@ -88,7 +97,7 @@ export const EditMongoDbSpecificDataComponent = ({
         isSrv: result.isSrv,
         isDirectConnection: result.isDirectConnection,
         cpuCount: 1,
-      },
+      }),
     };
 
     if (result.isSrv || result.isDirectConnection) {
@@ -186,6 +195,12 @@ export const EditMongoDbSpecificDataComponent = ({
 
   const isSrvConnection = editingDatabase.mongodb?.isSrv || false;
 
+  const hasStoredSshSecrets = hasStoredSshTunnelSecretsForAuthType(
+    database.mongodb?.sshTunnel,
+    editingDatabase.mongodb?.sshTunnel?.authType,
+    database.id,
+  );
+
   let isAllFieldsFilled = true;
   if (!editingDatabase.mongodb?.host) isAllFieldsFilled = false;
   if (!isSrvConnection && !editingDatabase.mongodb?.port) isAllFieldsFilled = false;
@@ -193,9 +208,16 @@ export const EditMongoDbSpecificDataComponent = ({
   if (!editingDatabase.id && !editingDatabase.mongodb?.password) isAllFieldsFilled = false;
   if (!editingDatabase.mongodb?.database) isAllFieldsFilled = false;
 
+  if (!isSshTunnelReadyToTest(editingDatabase.mongodb?.sshTunnel, hasStoredSshSecrets))
+    isAllFieldsFilled = false;
+
+  // Behind a bastion a loopback address names the database as the bastion sees it, so the hint
+  // about reaching a local database would be wrong.
+  const isTunnelEnabled = !!editingDatabase.mongodb?.sshTunnel?.isEnabled;
   const isLocalhostDb =
-    editingDatabase.mongodb?.host?.includes('localhost') ||
-    editingDatabase.mongodb?.host?.includes('127.0.0.1');
+    !isTunnelEnabled &&
+    (editingDatabase.mongodb?.host?.includes('localhost') ||
+      editingDatabase.mongodb?.host?.includes('127.0.0.1'));
 
   return (
     <div>
@@ -381,28 +403,33 @@ export const EditMongoDbSpecificDataComponent = ({
         </div>
       </div>
 
-      <div className="mt-4 mb-1 flex items-center">
-        <div
-          className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
-          onClick={() => setShowAdvanced(!isShowAdvanced)}
-        >
-          <span className="mr-2">Advanced settings</span>
-
-          {isShowAdvanced ? (
-            <UpOutlined style={{ fontSize: '12px' }} />
-          ) : (
-            <DownOutlined style={{ fontSize: '12px' }} />
-          )}
-        </div>
-      </div>
+      <AdvancedSettingsToggleComponent
+        isShowAdvanced={isShowAdvanced}
+        onToggle={() => setShowAdvanced(!isShowAdvanced)}
+      />
 
       {isShowAdvanced && (
         <>
+          <EditSshTunnelComponent
+            sshTunnel={editingDatabase.mongodb?.sshTunnel}
+            hasStoredSecrets={hasStoredSshSecrets}
+            onChange={(sshTunnel) => {
+              if (!editingDatabase.mongodb) return;
+
+              setEditingDatabase({
+                ...editingDatabase,
+                mongodb: disableSrvWhenTunneled({ ...editingDatabase.mongodb, sshTunnel }),
+              });
+              setIsConnectionTested(false);
+            }}
+          />
+
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Use SRV connection</div>
             <div className="flex items-center">
               <Switch
                 checked={editingDatabase.mongodb?.isSrv || false}
+                disabled={isTunnelEnabled}
                 onChange={(checked) => {
                   if (!editingDatabase.mongodb) return;
 
@@ -416,7 +443,11 @@ export const EditMongoDbSpecificDataComponent = ({
               />
               <Tooltip
                 className="cursor-pointer"
-                title="Enable for MongoDB Atlas SRV connections (mongodb+srv://). Port is not required for SRV connections."
+                title={
+                  isTunnelEnabled
+                    ? 'Not available over an SSH tunnel - SRV resolves its own host list and bypasses the forwarded port.'
+                    : 'Enable for MongoDB Atlas SRV connections (mongodb+srv://). Port is not required for SRV connections.'
+                }
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>
@@ -426,8 +457,11 @@ export const EditMongoDbSpecificDataComponent = ({
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px]">Direct connection</div>
             <div className="flex items-center">
+              {/* Shown as on but never written: the backend forces it per connection, so the
+                  stored value still applies once the tunnel is switched off. */}
               <Switch
-                checked={editingDatabase.mongodb?.isDirectConnection || false}
+                checked={isTunnelEnabled || editingDatabase.mongodb?.isDirectConnection || false}
+                disabled={isTunnelEnabled}
                 onChange={(checked) => {
                   if (!editingDatabase.mongodb) return;
 
@@ -441,7 +475,11 @@ export const EditMongoDbSpecificDataComponent = ({
               />
               <Tooltip
                 className="cursor-pointer"
-                title="Connect directly to a single server, skipping replica set discovery. Useful when the server is behind a load balancer, proxy or tunnel."
+                title={
+                  isTunnelEnabled
+                    ? 'Forced on while the SSH tunnel is enabled - a tunnel exposes a single address, so replica set discovery cannot be used.'
+                    : 'Connect directly to a single server, skipping replica set discovery. Useful when the server is behind a load balancer, proxy or tunnel.'
+                }
               >
                 <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
               </Tooltip>

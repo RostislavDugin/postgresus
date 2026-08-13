@@ -90,6 +90,8 @@ func newPgBasebackupCommand(
 
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 
+	// -h above stays the real host so the certificate and .pgpass still match; PGHOSTADDR is what
+	// redirects libpq at the tunnel.
 	cmd.Env = append(os.Environ(),
 		"PGPASSFILE="+creds.PgpassPath,
 		"PGCLIENTENCODING=UTF8",
@@ -97,6 +99,7 @@ func newPgBasebackupCommand(
 		"LC_ALL=C.UTF-8",
 		"LANG=C.UTF-8",
 	)
+	cmd.Env = append(cmd.Env, postgresql_shared.GetPgHostAddrEnv(sourceDB.CredentialSpec())...)
 
 	sslMode := sourceDB.SslMode
 	if sslMode == "" {

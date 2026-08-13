@@ -247,6 +247,31 @@ func Test_RunStartupCleanup_DropsOrphanSlots(t *testing.T) {
 		"RunStartupCleanup must drop the per-backup orphan slot")
 }
 
+// Boot cleanup gets one 5s budget per database, SSH handshake included, and a bastioned source that
+// misses it is skipped. What must not happen is missing it because the sweep never tried the tunnel
+// at all and dialled an address only the bastion can see.
+func Test_RunStartupCleanup_WhenTheSourceIsBehindABastion_DropsOrphanSlots(t *testing.T) {
+	fixture := postgresql_executor.SetupPhysicalDBForBackupBehindSshBastion(t)
+
+	slotName := postgresql_executor.SlotName(fixture.DB.PostgresqlPhysical.ID)
+	adminConn := postgresql_executor.OpenAdminConn(t, fixture)
+
+	_, err := adminConn.Exec(context.Background(),
+		"SELECT pg_create_physical_replication_slot($1, true)", slotName)
+	require.NoError(t, err, "pre-create orphan slot")
+
+	t.Cleanup(func() {
+		_, _ = adminConn.Exec(context.Background(),
+			`SELECT pg_drop_replication_slot(slot_name)
+			   FROM pg_replication_slots WHERE slot_name = $1`, slotName)
+	})
+
+	require.NoError(t, postgresql_executor.RunStartupCleanup(t.Context(), logger.GetLogger(), neverProtected))
+
+	assert.False(t, postgresql_executor.SlotExists(t, adminConn, slotName),
+		"the sweep must reach a bastioned source through the tunnel")
+}
+
 func Test_RunStartupCleanup_PreservesStreamerSlot(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
@@ -311,12 +336,10 @@ func Test_RunStartupCleanup_SkipsUnreachableSource_DoesNotFail(t *testing.T) {
 		"unreachable source must be logged + skipped, not surfaced as a failure")
 }
 
-// Test_RunStartupCleanup_RecoversOrphanWhenSourceBecomesReachable covers the
-// "source DB was down" path: WithBackupSlot's defer drop reuses the same connection,
-// so when the source went down mid-backup the drop could not run and the slot was
-// left behind. The first boot still cannot reach the source (skip, slot survives);
-// the next boot after the source returns must drop the orphan. Without this, a
-// transient source outage during a backup would orphan a slot until the next backup.
+// The "source DB was down" path, where even the deferred drop's retry on a fresh connection cannot
+// get through: the slot is left behind. The first boot still cannot reach the source (skip, slot
+// survives); the next boot after the source returns must drop the orphan. Without this, an outage
+// spanning the whole backup would orphan a slot until the next one runs.
 func Test_RunStartupCleanup_RecoversOrphanWhenSourceBecomesReachable(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
@@ -838,4 +861,35 @@ func Test_BackupSlot_DroppedAfterCancelledMidRun(t *testing.T) {
 
 	assert.False(t, postgresql_executor.SlotExists(t, adminConn, slotName),
 		"slot must be dropped after cancellation (defer uses context.Background() so it survives ctx cancel)")
+}
+
+// A bastion in front of the source makes a mid-backup connection loss routine, and the connection
+// that dies is the very one holding the slot open. Without a retry the slot survives until the next
+// backup runs, pinning WAL on the source for a whole full-backup cadence.
+func Test_WithBackupSlot_WhenTheHeldConnectionDied_DropsTheSlotOverAFreshConnection(t *testing.T) {
+	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
+
+	slotName := postgresql_executor.SlotName(fixture.DB.PostgresqlPhysical.ID)
+	adminConn := postgresql_executor.OpenAdminConn(t, fixture)
+
+	err := postgresql_executor.WithBackupSlot(
+		t.Context(),
+		fixture.DB.PostgresqlPhysical,
+		encryption.GetFieldEncryptor(),
+		logger.GetLogger(),
+		func() error {
+			require.True(t, postgresql_executor.SlotExists(t, adminConn, slotName),
+				"the slot must be held while the backup runs")
+
+			_, terminateErr := adminConn.Exec(context.Background(),
+				`SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+				 WHERE datname = 'postgres' AND pid <> pg_backend_pid()`)
+
+			return terminateErr
+		},
+	)
+	require.NoError(t, err)
+
+	assert.False(t, postgresql_executor.SlotExists(t, adminConn, slotName),
+		"the deferred drop must reopen a connection rather than give up on the dead one")
 }

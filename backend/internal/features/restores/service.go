@@ -1,6 +1,7 @@
 package restores
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -128,6 +129,10 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return err
 	}
 
+	if err := s.populateRestoreTargetVersionThroughTunnel(backupDatabase, requestDTO); err != nil {
+		return err
+	}
+
 	if err := s.validateVersionCompatibility(backupDatabase, requestDTO); err != nil {
 		return err
 	}
@@ -243,44 +248,6 @@ func (s *RestoreService) validateVersionCompatibility(
 	backupDatabase *databases.Database,
 	requestDTO restores_core.RestoreBackupRequest,
 ) error {
-	// populate version
-	if requestDTO.MariadbDatabase != nil {
-		err := requestDTO.MariadbDatabase.PopulateVersion(
-			s.logger,
-			s.fieldEncryptor,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	if requestDTO.MysqlDatabase != nil {
-		err := requestDTO.MysqlDatabase.PopulateVersion(
-			s.logger,
-			s.fieldEncryptor,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	if requestDTO.PostgresqlLogicalDatabase != nil {
-		err := requestDTO.PostgresqlLogicalDatabase.PopulateVersion(
-			s.logger,
-			s.fieldEncryptor,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	if requestDTO.MongodbDatabase != nil {
-		err := requestDTO.MongodbDatabase.PopulateVersion(
-			s.logger,
-			s.fieldEncryptor,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
 	switch backupDatabase.Type {
 	case databases.DatabaseTypePostgresLogical:
 		if requestDTO.PostgresqlLogicalDatabase == nil {
@@ -331,6 +298,43 @@ func (s *RestoreService) validateVersionCompatibility(
 				`For example, you can restore MongoDB 6.0 backup to MongoDB 6.0, 7.0 or higher. But cannot restore to 5.0`)
 		}
 	}
+
+	return nil
+}
+
+// The restore target arrives as bare engine models in the request DTO, so it is assembled into the
+// Database the generic tunnel dispatcher works from, the same way the restorer itself does.
+func (s *RestoreService) populateRestoreTargetVersionThroughTunnel(
+	backupDatabase *databases.Database,
+	requestDTO restores_core.RestoreBackupRequest,
+) error {
+	restoreTarget := &databases.Database{
+		Type:              backupDatabase.Type,
+		PostgresqlLogical: requestDTO.PostgresqlLogicalDatabase,
+		Mysql:             requestDTO.MysqlDatabase,
+		Mariadb:           requestDTO.MariadbDatabase,
+		Mongodb:           requestDTO.MongodbDatabase,
+	}
+
+	tunneledDatabase, err := databases.OpenTunnel(context.Background(), databases.OpenTunnelSpec{
+		Database:  restoreTarget,
+		Logger:    s.logger,
+		Encryptor: s.fieldEncryptor,
+	})
+	if err != nil {
+		return err
+	}
+
+	defer tunneledDatabase.Close()
+
+	if err := tunneledDatabase.GetDatabaseThroughTunnel().PopulateVersion(
+		s.logger,
+		s.fieldEncryptor,
+	); err != nil {
+		return err
+	}
+
+	tunneledDatabase.CopyDiscoveredMetadataToOriginal()
 
 	return nil
 }

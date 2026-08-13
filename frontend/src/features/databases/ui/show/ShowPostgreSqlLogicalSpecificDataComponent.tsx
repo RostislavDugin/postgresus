@@ -1,4 +1,5 @@
 import { type Database, PostgresSslMode, PostgresqlVersion } from '../../../../entity/databases';
+import { ShowSshTunnelComponent } from './ShowSshTunnelComponent';
 
 interface Props {
   database: Database;
@@ -70,6 +71,7 @@ export const ShowPostgreSqlLogicalSpecificDataComponent = ({ database }: Props) 
             <div>*************</div>
           </div>
         )}
+      <ShowSshTunnelComponent sshTunnel={database.postgresqlLogical?.sshTunnel} />
 
       {!!database.postgresqlLogical?.includeSchemas?.length && (
         <div className="mb-1 flex w-full items-center">

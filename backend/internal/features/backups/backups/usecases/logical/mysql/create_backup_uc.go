@@ -72,47 +72,54 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info(
-		"Creating MySQL backup via mysqldump",
-		"databaseId", db.ID,
-		"storageId", storage.ID,
-	)
+	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID)
 
-	my := db.Mysql
-	if my == nil {
+	logger.Info("creating mysql backup via mysqldump")
+
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
+		Database:  db,
+		Logger:    logger,
+		Encryptor: uc.fieldEncryptor,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer tunneledDatabase.Close()
+
+	mysqlDatabase := tunneledDatabase.GetDatabaseThroughTunnel().Mysql
+	if mysqlDatabase == nil {
 		return nil, fmt.Errorf("mysql database configuration is required")
 	}
 
-	if my.Database == nil || *my.Database == "" {
+	if mysqlDatabase.Database == nil || *mysqlDatabase.Database == "" {
 		return nil, fmt.Errorf("database name is required for mysqldump backups")
 	}
 
-	decryptedPassword, err := uc.fieldEncryptor.Decrypt(my.Password)
+	decryptedPassword, err := uc.fieldEncryptor.Decrypt(mysqlDatabase.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
-	rawSizeMB, err := my.GetRawDbSizeMb(ctx, uc.logger, uc.fieldEncryptor)
+	rawSizeMB, err := mysqlDatabase.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		uc.logger.Warn("failed to fetch raw db size before backup",
-			"database_id", db.ID,
-			"error", err)
+		logger.Warn("failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
 
-	args := uc.buildMysqldumpArgs(my)
+	args := uc.buildMysqldumpArgs(mysqlDatabase)
 
 	return uc.streamToStorage(
 		ctx,
 		backup,
 		backupConfig,
-		tools.GetMysqlExecutable(my.Version, tools.MysqlExecutableMysqldump),
+		tools.GetMysqlExecutable(mysqlDatabase.Version, tools.MysqlExecutableMysqldump),
 		args,
 		decryptedPassword,
 		storage,
 		backupProgressListener,
-		my,
+		mysqlDatabase,
 	)
 }
 

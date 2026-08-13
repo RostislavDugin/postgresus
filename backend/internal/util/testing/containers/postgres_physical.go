@@ -130,11 +130,46 @@ func physicalPostgresCmd(opts physicalPostgresOptions) []string {
 func StartPhysicalPostgres(t *testing.T, image string, opts ...PhysicalPostgresOption) Endpoint {
 	t.Helper()
 
+	return start(t, physicalPostgresRequest(image, resolvePhysicalPostgresOptions(opts)), postgresPort)
+}
+
+// The database publishes no ports and the bastion does, so a tunnel is the only way in — a direct
+// route would keep the tunnel tests green after the tunnel stopped being used.
+func StartPhysicalPostgresBehindSshBastion(
+	t *testing.T,
+	image string,
+	opts ...PhysicalPostgresOption,
+) BastionedDatabase {
+	t.Helper()
+
+	networkName := StartNetwork(t)
+	bastion := StartSshBastionContainerOnNetwork(t, networkName)
+
+	req := physicalPostgresRequest(image, resolvePhysicalPostgresOptions(opts))
+	// postgresReady resolves the published host port, and this container has none.
+	req.WaitingFor = wait.ForLog("database system is ready to accept connections").
+		WithOccurrence(2).WithStartupTimeout(postgresStartupTimeout)
+
+	placement := NetworkPlacement{NetworkName: networkName, Alias: bastionedPhysicalPostgresAlias}
+	startUnpublished(t, req, placement)
+
+	return BastionedDatabase{
+		Bastion:          bastion.Endpoint,
+		BastionContainer: bastion.Container,
+		Database:         Endpoint{Host: placement.Alias, Port: getPortNumber(postgresPort)},
+	}
+}
+
+func resolvePhysicalPostgresOptions(opts []PhysicalPostgresOption) physicalPostgresOptions {
 	options := physicalPostgresOptions{summarizeWal: true}
 	for _, apply := range opts {
 		apply(&options)
 	}
 
+	return options
+}
+
+func physicalPostgresRequest(image string, options physicalPostgresOptions) testcontainers.ContainerRequest {
 	var files []testcontainers.ContainerFile
 	if !options.omitReplicationHbaEntry {
 		files = append(files, allowReplicationInitScript())
@@ -143,7 +178,7 @@ func StartPhysicalPostgres(t *testing.T, image string, opts ...PhysicalPostgresO
 		files = append(files, createTablespaceInitScript())
 	}
 
-	req := testcontainers.ContainerRequest{
+	return testcontainers.ContainerRequest{
 		Image:        image,
 		ExposedPorts: []string{postgresPort},
 		Env:          postgresEnv(),
@@ -152,8 +187,6 @@ func StartPhysicalPostgres(t *testing.T, image string, opts ...PhysicalPostgresO
 		Tmpfs:        map[string]string{postgresDataDir(image): physicalDataDirTmpfsOptions},
 		WaitingFor:   postgresReady(),
 	}
-
-	return start(t, req, postgresPort)
 }
 
 // StartPhysicalPrimaryWithStandby boots a replication-capable primary and a streaming standby that
@@ -200,25 +233,9 @@ func startPhysicalPrimaryOnNetwork(
 ) Endpoint {
 	t.Helper()
 
-	var files []testcontainers.ContainerFile
-	if !options.omitReplicationHbaEntry {
-		files = append(files, allowReplicationInitScript())
-	}
-	if options.withTablespace {
-		files = append(files, createTablespaceInitScript())
-	}
-
-	req := testcontainers.ContainerRequest{
-		Image:          image,
-		ExposedPorts:   []string{postgresPort},
-		Env:            postgresEnv(),
-		Cmd:            physicalPostgresCmd(options),
-		Files:          files,
-		Tmpfs:          map[string]string{postgresDataDir(image): physicalDataDirTmpfsOptions},
-		Networks:       []string{networkName},
-		NetworkAliases: map[string][]string{networkName: {physicalPrimaryAlias}},
-		WaitingFor:     postgresReady(),
-	}
+	req := physicalPostgresRequest(image, options)
+	req.Networks = []string{networkName}
+	req.NetworkAliases = map[string][]string{networkName: {physicalPrimaryAlias}}
 
 	return start(t, req, postgresPort)
 }

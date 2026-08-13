@@ -1,3 +1,4 @@
+import type { SshTunnelConfig } from '../sshtunnel/SshTunnelConfig';
 import type { MysqlVersion } from './MysqlVersion';
 
 export interface MysqlDatabase {
@@ -10,5 +11,6 @@ export interface MysqlDatabase {
   password: string;
   database?: string;
   isHttps: boolean;
+  sshTunnel?: SshTunnelConfig;
   excludeTables?: string[];
 }

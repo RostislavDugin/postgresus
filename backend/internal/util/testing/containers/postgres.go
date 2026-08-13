@@ -100,6 +100,19 @@ func StartPostgres(t *testing.T, image string) Endpoint {
 	return start(t, postgresRequest(image), postgresPort)
 }
 
+func StartPostgresOnNetwork(t *testing.T, spec OnNetworkSpec) Endpoint {
+	t.Helper()
+
+	req := postgresRequest(spec.Image)
+	// wait.ForListeningPort resolves the published host port, and this container has none.
+	req.WaitingFor = wait.ForLog("database system is ready to accept connections").
+		WithOccurrence(2).WithStartupTimeout(postgresStartupTimeout)
+
+	startUnpublished(t, req, spec.Placement)
+
+	return Endpoint{Host: spec.Placement.Alias, Port: getPortNumber(postgresPort)}
+}
+
 // StartPostgresSSL boots an ssl=on PostgreSQL whose pg_hba.conf rejects non-TLS TCP. The image is
 // built from contextDir (Dockerfile, server cert/key, pg_hba.conf) because PostgreSQL refuses a key
 // file that is group/world-readable or not owned by postgres — the Dockerfile chowns+chmods it,

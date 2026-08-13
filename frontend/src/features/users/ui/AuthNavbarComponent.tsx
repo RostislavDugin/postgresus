@@ -1,3 +1,4 @@
+import { SponsorshipLinkComponent } from '../../../shared/ui';
 import { StarButtonComponent } from '../../../shared/ui/StarButtonComponent';
 import { ThemeToggleComponent } from '../../../shared/ui/ThemeToggleComponent';
 
@@ -39,6 +40,8 @@ export function AuthNavbarComponent() {
         >
           Community
         </a>
+
+        <SponsorshipLinkComponent className="!text-black hover:opacity-80 dark:!text-gray-200" />
 
         <div className="flex items-center gap-2">
           <StarButtonComponent />

@@ -12,10 +12,12 @@ import (
 	"databasus-backend/internal/config"
 	"databasus-backend/internal/features/databases/databases/mariadb"
 	"databasus-backend/internal/features/databases/databases/mongodb"
+	"databasus-backend/internal/features/databases/databases/mysql"
 	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
 	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/features/storages"
 	"databasus-backend/internal/util/tools"
 )
@@ -218,6 +220,20 @@ func GetTestMariadbConfig(host string, port int) *mariadb.MariadbDatabase {
 	}
 }
 
+// The caller owns the container lifecycle (host/port come from a testcontainers endpoint),
+// which keeps this file free of the testcontainers dependency.
+func GetTestMysqlConfig(host string, port int) *mysql.MysqlDatabase {
+	testDbName := "testdb"
+	return &mysql.MysqlDatabase{
+		Version:  tools.MysqlVersion80,
+		Host:     host,
+		Port:     port,
+		Username: "testuser",
+		Password: "testpassword",
+		Database: &testDbName,
+	}
+}
+
 // GetTestMongodbConfig builds a Mongo 7.0 database config pointing at host:port. The
 // caller owns the container lifecycle (host/port come from a testcontainers endpoint),
 // keeping this file free of the testcontainers dependency.
@@ -289,6 +305,44 @@ func CreateTestPhysicalPostgresDatabaseWithType(
 		Name:               "test-physical-pg " + uuid.New().String(),
 		Type:               DatabaseTypePostgresPhysical,
 		PostgresqlPhysical: GetTestPhysicalPostgresConfigWithType(host, port, versionTag, backupType),
+		Notifiers: []notifiers.Notifier{
+			*notifier,
+		},
+	}
+
+	database, err := databaseRepository.Save(database)
+	if err != nil {
+		panic(err)
+	}
+
+	return database
+}
+
+// Host and Port address a bastioned cluster from inside the bastion's network, so they are
+// unreachable from the host running the test: only the tunnel gets there.
+type PhysicalTestDatabaseSpec struct {
+	Host       string
+	Port       int
+	VersionTag string
+	BackupType postgresql_physical.BackupType
+	SshTunnel  sshtunnel.Config
+}
+
+func CreateTestPhysicalPostgresDatabaseWithTunnel(
+	spec PhysicalTestDatabaseSpec,
+	workspaceID uuid.UUID,
+	notifier *notifiers.Notifier,
+) *Database {
+	physicalConfig := GetTestPhysicalPostgresConfigWithType(
+		spec.Host, spec.Port, spec.VersionTag, spec.BackupType,
+	)
+	physicalConfig.SshTunnel = spec.SshTunnel
+
+	database := &Database{
+		WorkspaceID:        &workspaceID,
+		Name:               "test-physical-pg-bastioned " + uuid.New().String(),
+		Type:               DatabaseTypePostgresPhysical,
+		PostgresqlPhysical: physicalConfig,
 		Notifiers: []notifiers.Notifier{
 			*notifier,
 		},

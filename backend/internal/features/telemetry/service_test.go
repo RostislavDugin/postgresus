@@ -27,6 +27,7 @@ import (
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/features/intervals"
 	"databasus-backend/internal/features/notifiers"
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/features/storages"
 	verification_agents "databasus-backend/internal/features/verification/agents"
 	verification_config "databasus-backend/internal/features/verification/config"
@@ -273,6 +274,101 @@ func physicalDatabase(
 			BackupType: backupType,
 		},
 	}
+}
+
+func databasesForEveryEngine(isSshTunnelEnabled bool) []*databases.Database {
+	tunnel := sshtunnel.Config{
+		IsEnabled: isSshTunnelEnabled,
+		Host:      "bastion.internal",
+		Port:      22,
+		Username:  "backup",
+		AuthType:  sshtunnel.AuthTypePassword,
+		Password:  "tunnelpassword",
+	}
+
+	logicalPostgresDatabase := postgresDatabase("pg-logical", availableStatus())
+	logicalPostgresDatabase.PostgresqlLogical.SshTunnel = tunnel
+
+	physicalPostgresDatabase := physicalDatabase(
+		"pg-physical", postgresql_physical.BackupTypeFullOnly, availableStatus())
+	physicalPostgresDatabase.PostgresqlPhysical.SshTunnel = tunnel
+
+	return []*databases.Database{
+		logicalPostgresDatabase,
+		physicalPostgresDatabase,
+		{
+			ID:           uuid.New(),
+			Name:         "my",
+			Type:         databases.DatabaseTypeMysql,
+			HealthStatus: availableStatus(),
+			Mysql:        &mysql.MysqlDatabase{Version: tools.MysqlVersion("8.0"), SshTunnel: tunnel},
+		},
+		{
+			ID:           uuid.New(),
+			Name:         "maria",
+			Type:         databases.DatabaseTypeMariadb,
+			HealthStatus: availableStatus(),
+			Mariadb:      &mariadb.MariadbDatabase{Version: tools.MariadbVersion("10.6"), SshTunnel: tunnel},
+		},
+		{
+			ID:           uuid.New(),
+			Name:         "mongo",
+			Type:         databases.DatabaseTypeMongodb,
+			HealthStatus: availableStatus(),
+			Mongodb:      &mongodb.MongodbDatabase{Version: tools.MongodbVersion("6.0"), SshTunnel: tunnel},
+		},
+	}
+}
+
+func assertEveryEntrySerializesSshTunnelEnabled(
+	t *testing.T,
+	sender *fakeSender,
+	isSshTunnelEnabled bool,
+) {
+	t.Helper()
+
+	require.Len(t, sender.calls, 1)
+	require.Len(t, sender.calls[0].Databases, 5)
+
+	for _, databaseEntry := range sender.calls[0].Databases {
+		assert.Equal(t, isSshTunnelEnabled, databaseEntry.IsSshTunnelEnabled, databaseEntry.Type)
+
+		encodedEntry, err := json.Marshal(databaseEntry)
+		require.NoError(t, err)
+
+		var decodedEntry map[string]any
+		require.NoError(t, json.Unmarshal(encodedEntry, &decodedEntry))
+
+		assert.Equal(t, isSshTunnelEnabled, decodedEntry["isSshTunnelEnabled"], databaseEntry.Type)
+	}
+}
+
+func Test_BuildAndSend_WhenSshTunnelEnabled_EveryEngineSerializesIsSshTunnelEnabledAsTrue(
+	t *testing.T,
+) {
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: databasesForEveryEngine(true)},
+		sender:         sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(t.Context()))
+
+	assertEveryEntrySerializesSshTunnelEnabled(t, sender, true)
+}
+
+func Test_BuildAndSend_WhenSshTunnelDisabled_EveryEngineSerializesIsSshTunnelEnabledAsFalse(
+	t *testing.T,
+) {
+	sender := &fakeSender{}
+	service := newServiceUnderTest(t, serviceDependencies{
+		databaseLister: &fakeDatabaseLister{databases: databasesForEveryEngine(false)},
+		sender:         sender,
+	})
+
+	require.NoError(t, service.BuildAndSend(t.Context()))
+
+	assertEveryEntrySerializesSshTunnelEnabled(t, sender, false)
 }
 
 func Test_BuildAndSend_ProducesExpectedRequest(t *testing.T) {
@@ -1006,6 +1102,7 @@ func Test_BuildAndSend_WhenPayloadSerialized_ContainsDocumentedContractKeys(t *t
 		"type",
 		"version",
 		"backupType",
+		"isSshTunnelEnabled",
 		"rawSizeMb",
 		"backupSizeMb",
 	}, slices.Collect(maps.Keys(databaseEntry)))

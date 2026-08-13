@@ -14,8 +14,14 @@ import (
 // shared by every libpq path: the pgx connections here and pg_dump / pg_restore
 // in the backup and restore usecases.
 func (p *PostgresqlLogicalDatabase) CredentialSpec() postgresql_shared.CredentialSpec {
+	hostAddr := ""
+	if p.LocalTunnelEndpoint != nil {
+		hostAddr = p.LocalTunnelEndpoint.Host
+	}
+
 	return postgresql_shared.CredentialSpec{
 		Host:          p.Host,
+		HostAddr:      hostAddr,
 		Port:          p.Port,
 		Username:      p.Username,
 		SslMode:       p.SslMode,
@@ -44,5 +50,10 @@ func openPgConn(
 	}
 	defer files.Remove()
 
-	return pgx.Connect(ctx, postgresql_shared.BuildConnString(p.CredentialSpec(), password, dbName, files))
+	connConfig, err := postgresql_shared.BuildConnConfig(p.CredentialSpec(), password, dbName, files)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.ConnectConfig(ctx, connConfig)
 }

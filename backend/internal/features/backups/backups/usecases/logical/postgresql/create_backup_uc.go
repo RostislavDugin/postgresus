@@ -68,19 +68,27 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		completedMBs float64,
 	),
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info(
-		"Creating PostgreSQL backup via pg_dump custom format",
-		"databaseId",
-		db.ID,
-		"storageId",
-		storage.ID,
-	)
+	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID, "backup_id", backup.ID)
 
-	pg := db.PostgresqlLogical
+	logger.Info("creating postgresql backup via pg_dump custom format")
 
-	if pg == nil {
+	if db.PostgresqlLogical == nil {
 		return nil, fmt.Errorf("postgresql database configuration is required for pg_dump backups")
 	}
+
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
+		Database:  db,
+		Logger:    logger,
+		Encryptor: uc.fieldEncryptor,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer tunneledDatabase.Close()
+
+	databaseThroughTunnel := tunneledDatabase.GetDatabaseThroughTunnel()
+	pg := databaseThroughTunnel.PostgresqlLogical
 
 	if pg.Database == nil || *pg.Database == "" {
 		return nil, fmt.Errorf("database name is required for pg_dump backups")
@@ -93,20 +101,16 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
-	rawSizeMB, err := pg.GetRawDbSizeMb(ctx, uc.logger, uc.fieldEncryptor)
+	rawSizeMB, err := pg.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		uc.logger.Warn("failed to fetch raw db size before backup",
-			"database_id", db.ID,
-			"error", err)
+		logger.Warn("failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
 
 	timescaledbVersion, err := pg.GetTimescaleDBVersion(ctx, uc.fieldEncryptor)
 	if err != nil {
-		uc.logger.Warn("failed to detect timescaledb extension before backup",
-			"database_id", db.ID,
-			"error", err)
+		logger.Warn("failed to detect timescaledb extension before backup", "error", err)
 	} else {
 		backup.TimescaledbVersion = timescaledbVersion
 	}
@@ -119,7 +123,7 @@ func (uc *CreatePostgresqlBackupUsecase) Execute(
 		args,
 		decryptedPassword,
 		storage,
-		db,
+		databaseThroughTunnel,
 		backupProgressListener,
 	)
 }
@@ -154,7 +158,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	if err := uc.setupPgEnvironment(
 		cmd,
 		credentials,
-		db.PostgresqlLogical.SslMode,
+		db.PostgresqlLogical.CredentialSpec(),
 		password,
 		db.PostgresqlLogical.CpuCount,
 		pgBin,
@@ -435,13 +439,14 @@ func (uc *CreatePostgresqlBackupUsecase) createBackupContext(
 func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
 	cmd *exec.Cmd,
 	credentials *postgresql_shared.CredentialTempFiles,
-	sslMode postgresql_shared.PostgresSslMode,
+	credentialSpec postgresql_shared.CredentialSpec,
 	password string,
 	cpuCount int,
 	pgBin string,
 ) error {
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "PGPASSFILE="+credentials.PgpassPath)
+	cmd.Env = append(cmd.Env, postgresql_shared.GetPgHostAddrEnv(credentialSpec)...)
 
 	uc.logger.Info("Setting up PostgreSQL environment",
 		"passwordLength", len(password),
@@ -457,7 +462,7 @@ func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
 		"LANG=C.UTF-8",
 	)
 
-	resolvedSslMode := sslMode
+	resolvedSslMode := credentialSpec.SslMode
 	if resolvedSslMode == "" {
 		resolvedSslMode = postgresql_shared.PostgresSslModeDisable
 	}

@@ -50,3 +50,11 @@ func Test_PhysicalWalSlot_AppearsWhenBackupingStarts_RemovedWhenDatabaseDeleted(
 func Test_PhysicalWalSlot_WhenDatabaseDeletedWithStreamedWal_SlotRemovedSoNoWalStuck(t *testing.T) {
 	physicaltesting.RunWalSlotWhenDatabaseDeletedWithStreamedWalSlotRemovedSoNoWalStuck(t, pgVersion, pgImage)
 }
+
+func Test_PhysicalRestore_OverSshTunnel_RecoversToTarget(t *testing.T) {
+	physicaltesting.RunOverSshTunnelRecoversToTarget(t, pgVersion, pgImage)
+}
+
+func Test_PhysicalWalStream_WhenTheBastionDiesMidStream_KeepsTheSlotAndResumes(t *testing.T) {
+	physicaltesting.RunWhenBastionDiesMidStreamKeepsTheSlotAndResumes(t, pgVersion, pgImage)
+}

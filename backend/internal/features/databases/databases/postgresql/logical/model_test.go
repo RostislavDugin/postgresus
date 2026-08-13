@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
+	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
@@ -2152,4 +2153,53 @@ func extractPostgresVersion(versionStr string) tools.PostgresqlVersion {
 	}
 
 	return tools.GetPostgresqlVersionEnum("16")
+}
+
+func databasusOnLoopback() *PostgresqlLogicalDatabase {
+	databaseName := "databasus"
+
+	return &PostgresqlLogicalDatabase{
+		Host:     "127.0.0.1",
+		Port:     5432,
+		Username: "postgres",
+		Password: "password",
+		Database: &databaseName,
+		CpuCount: 1,
+	}
+}
+
+func Test_Validate_WhenPointedAtDatabasusOnLoopback_IsRejected(t *testing.T) {
+	assert.Error(t, databasusOnLoopback().Validate())
+}
+
+func Test_Validate_WhenDatabasusOnLoopbackIsBehindARemoteBastion_IsAllowed(t *testing.T) {
+	database := databasusOnLoopback()
+	database.SshTunnel = sshtunnel.Config{
+		IsEnabled: true,
+		Host:      "bastion.example.com",
+		Port:      22,
+		Username:  "tunneluser",
+		AuthType:  sshtunnel.AuthTypePassword,
+		Password:  "tunnelpassword",
+	}
+
+	assert.NoError(t, database.Validate())
+}
+
+// A bastion on this machine forwards straight back to the instance the guard protects, so enabling
+// a tunnel must not be a way around it.
+func Test_Validate_WhenDatabasusOnLoopbackIsBehindALocalBastion_IsRejected(t *testing.T) {
+	for _, bastionHost := range []string{"127.0.0.1", "localhost", "host.docker.internal", "127.5.5.5"} {
+		database := databasusOnLoopback()
+		database.SshTunnel = sshtunnel.Config{
+			IsEnabled: true,
+			Host:      bastionHost,
+			Port:      22,
+			Username:  "tunneluser",
+			AuthType:  sshtunnel.AuthTypePassword,
+			Password:  "tunnelpassword",
+		}
+
+		assert.Error(t, database.Validate(), "bastion host %q must not bypass the guard", bastionHost)
+	}
 }

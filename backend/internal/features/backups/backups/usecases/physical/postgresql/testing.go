@@ -36,6 +36,8 @@ import (
 	"databasus-backend/internal/storage"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
+	"databasus-backend/internal/util/testing/bastion"
+	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/walmath"
 )
 
@@ -170,6 +172,33 @@ func SetupPhysicalDBForScheduledBackupVersion(
 	})
 }
 
+func SetupPhysicalDBFixtureWithTunnel(
+	t *testing.T,
+	spec databases.PhysicalTestDatabaseSpec,
+) *PhysicalDBFixture {
+	t.Helper()
+
+	return wirePhysicalDBFixture(t, func(workspaceID uuid.UUID, notifier *notifiers.Notifier) *databases.Database {
+		return databases.CreateTestPhysicalPostgresDatabaseWithTunnel(spec, workspaceID, notifier)
+	})
+}
+
+// The source publishes no port, so every connection a test on this fixture makes has to go through
+// the bastion — a direct route would keep it green after the tunnel stopped being used.
+func SetupPhysicalDBForBackupBehindSshBastion(t *testing.T) *PhysicalDBFixture {
+	t.Helper()
+
+	topology := containers.StartPhysicalPostgresBehindSshBastion(t, "postgres:17")
+
+	return SetupPhysicalDBFixtureWithTunnel(t, databases.PhysicalTestDatabaseSpec{
+		Host:       topology.Database.Host,
+		Port:       topology.Database.Port,
+		VersionTag: "17",
+		BackupType: postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+		SshTunnel:  bastion.GetTunnelConfig(topology),
+	})
+}
+
 // wirePhysicalDBFixture provisions the scaffolding every physical fixture needs —
 // workspace, storage, notifier, the source DB (via createDB), populated data, and
 // the persisted system_identifier — returning it with backups still disabled and
@@ -205,7 +234,18 @@ func wirePhysicalDBFixture(
 	encryptor := encryption.GetFieldEncryptor()
 	log := logger.GetLogger()
 
-	require.NoError(t, db.PostgresqlPhysical.PopulateDbData(log, encryptor))
+	// Through the tunnel, exactly as the database service does it, so a bastioned fixture reaches its
+	// source and the discovered identity is carried back onto the row that gets persisted below.
+	tunneledDatabase, err := postgresql_physical.OpenTunnel(t.Context(), postgresql_physical.OpenTunnelSpec{
+		Database:  db.PostgresqlPhysical,
+		Logger:    log,
+		Encryptor: encryptor,
+	})
+	require.NoError(t, err)
+	t.Cleanup(tunneledDatabase.Close)
+
+	require.NoError(t, tunneledDatabase.GetDatabaseThroughTunnel().PopulateDbData(log, encryptor))
+	tunneledDatabase.CopyDiscoveredMetadataToOriginal()
 
 	// CreateTestPhysicalPostgresDatabase saved the row before PopulateDbData ran,
 	// so the captured system_identifier lives only on the in-memory object. The
@@ -287,12 +327,25 @@ func setupPhysicalFixture(
 	return fixture
 }
 
-// OpenAdminConn returns an inspection connection to the source PG with
-// automatic close on test cleanup.
+// Through the production opener rather than a hand-rolled dial: a bastioned source publishes no
+// port, so a test that reached it any other way would stay green after the tunnel stopped being
+// used. With no tunnel configured OpenTunnel hands back the original, so direct fixtures are
+// unaffected.
 func OpenAdminConn(t *testing.T, fixture *PhysicalDBFixture) *pgx.Conn {
 	t.Helper()
 
-	conn, err := fixture.DB.PostgresqlPhysical.OpenInspectionConn(context.Background(), encryption.GetFieldEncryptor())
+	encryptor := encryption.GetFieldEncryptor()
+
+	tunneledDatabase, err := postgresql_physical.OpenTunnel(t.Context(), postgresql_physical.OpenTunnelSpec{
+		Database:  fixture.DB.PostgresqlPhysical,
+		Logger:    logger.GetLogger(),
+		Encryptor: encryptor,
+	})
+	require.NoError(t, err)
+	t.Cleanup(tunneledDatabase.Close)
+
+	conn, err := tunneledDatabase.GetDatabaseThroughTunnel().
+		OpenInspectionConn(context.Background(), encryptor)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 

@@ -3,6 +3,11 @@ package backuping_physical
 import "time"
 
 const (
+	// Bounds only the first dial and handshake through the bastion — the forwarder then lives until
+	// Close, which for a WAL streamer is weeks. Generous because a backup that cannot start is worse
+	// than one that starts slowly, and because the alternative to waiting is a missed cadence.
+	bastionOpenTimeout = 30 * time.Second
+
 	// Scheduler tick and recovery sweep share this cadence. Each tick is a handful
 	// of cheap indexed queries per enabled DB, so a 1 s cadence keeps out-of-cadence
 	// backup triggers and crash recovery near-immediate without meaningful load

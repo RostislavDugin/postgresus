@@ -58,36 +58,43 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info(
-		"Creating MongoDB backup via mongodump",
-		"databaseId", db.ID,
-		"storageId", storage.ID,
-	)
+	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID)
 
-	mdb := db.Mongodb
-	if mdb == nil {
+	logger.Info("creating mongodb backup via mongodump")
+
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
+		Database:  db,
+		Logger:    logger,
+		Encryptor: uc.fieldEncryptor,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer tunneledDatabase.Close()
+
+	mongodbDatabase := tunneledDatabase.GetDatabaseThroughTunnel().Mongodb
+	if mongodbDatabase == nil {
 		return nil, fmt.Errorf("mongodb database configuration is required")
 	}
 
-	if mdb.Database == "" {
+	if mongodbDatabase.Database == "" {
 		return nil, fmt.Errorf("database name is required for mongodump backups")
 	}
 
-	decryptedPassword, err := uc.fieldEncryptor.Decrypt(mdb.Password)
+	decryptedPassword, err := uc.fieldEncryptor.Decrypt(mongodbDatabase.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt database password: %w", err)
 	}
 
-	rawSizeMB, err := mdb.GetRawDbSizeMb(ctx, uc.logger, uc.fieldEncryptor)
+	rawSizeMB, err := mongodbDatabase.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		uc.logger.Warn("failed to fetch raw db size before backup",
-			"database_id", db.ID,
-			"error", err)
+		logger.Warn("failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
 
-	args := uc.buildMongodumpArgs(mdb, decryptedPassword)
+	args := uc.buildMongodumpArgs(mongodbDatabase, decryptedPassword)
 
 	return uc.streamToStorage(
 		ctx,

@@ -4,12 +4,17 @@ import (
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
 )
 
-// CredentialSpec maps this database into the strategy-agnostic credential inputs
-// shared by every libpq path: the pgx inspection / replication connections here
-// and pg_basebackup in the backup usecase.
+// Every libpq path goes through here: the pgx inspection and replication connections, pg_basebackup
+// and pg_receivewal.
 func (p *PostgresqlPhysicalDatabase) CredentialSpec() postgresql_shared.CredentialSpec {
+	hostAddr := ""
+	if p.LocalTunnelEndpoint != nil {
+		hostAddr = p.LocalTunnelEndpoint.Host
+	}
+
 	return postgresql_shared.CredentialSpec{
 		Host:          p.Host,
+		HostAddr:      hostAddr,
 		Port:          p.Port,
 		Username:      p.Username,
 		SslMode:       p.SslMode,

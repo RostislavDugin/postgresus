@@ -29,9 +29,16 @@ const (
 
 	receivewalRespawnMaxBackoff = 30 * time.Minute
 
-	// A receiver that streamed at least this long before exiting counts as a
-	// transient blip (network drop, slot resend) and resets the crash-loop
-	// counter; a shorter run counts toward escalation.
+	// While the bastion is down the backoff must keep growing, or the loop hammers it at the floor
+	// interval — but not up to the ceiling above, which would leave half an hour of silence on an
+	// already healed transport, WAL piling up on the source and a staleness alert firing after the
+	// fact. Half a minute is neither hammering nor a wait anyone notices.
+	receivewalBastionDownMaxBackoff = 30 * time.Second
+
+	// A receiver that streamed at least this long before exiting counts as a transient blip (network
+	// drop, slot resend) and resets the crash-loop counter; a shorter run counts toward escalation.
+	// A run whose bastion was already gone when it exited is not weighed against this at all — see
+	// recordExitAndDecideRetry.
 	receivewalMinHealthyUptime = 15 * time.Second
 
 	// This many back-to-back sub-uptime exits escalate to a fatal supervisor
@@ -44,6 +51,10 @@ const (
 	// slot. A second mismatch means the slot itself no longer covers what the
 	// server retains — only a rebuild clears that.
 	receivewalMaxResumeMismatches = 2
+
+	// Sits between two receiver spawns, so it has to answer fast; a bastion that cannot say hello in
+	// this long is unreachable enough for the decision at hand.
+	bastionProbeTimeout = 3 * time.Second
 
 	pausePollInterval = 1 * time.Second
 )
@@ -73,6 +84,52 @@ func (e *resumeMismatchEscalator) recordMismatchAndDecideEscalation() resumeMism
 
 func (e *resumeMismatchEscalator) reset() {
 	e.mismatchCount = 0
+}
+
+type rapidFailureEscalator struct {
+	rapidFailureCount int
+}
+
+// All three hang on the same "was that run healthy" judgement, so they come out of one call;
+// deriving them separately lets them drift.
+type retryableExitDecision struct {
+	isEscalationRequired bool
+	isBackoffResettable  bool
+	maxRespawnBackoff    time.Duration
+}
+
+// A run whose bastion was already gone when it exited says nothing about the source, so it is no
+// evidence of a crash loop: counting it would let a restarted sshd mark the streamer FAILED in half
+// a minute, firing a chain-broken alert and leaving nobody consuming the slot until a later
+// supervisor tick reclaims it. It does not reset the backoff either, or the loop would hammer the
+// bastion for as long as it stays down.
+func (e *rapidFailureEscalator) recordExitAndDecideRetry(
+	ranFor time.Duration,
+	isBastionReachable bool,
+) retryableExitDecision {
+	if !isBastionReachable {
+		return retryableExitDecision{maxRespawnBackoff: receivewalBastionDownMaxBackoff}
+	}
+
+	if ranFor >= receivewalMinHealthyUptime {
+		e.rapidFailureCount = 0
+
+		return retryableExitDecision{
+			isBackoffResettable: true,
+			maxRespawnBackoff:   receivewalRespawnMaxBackoff,
+		}
+	}
+
+	e.rapidFailureCount++
+
+	return retryableExitDecision{
+		isEscalationRequired: e.rapidFailureCount >= receivewalMaxRapidFailures,
+		maxRespawnBackoff:    receivewalRespawnMaxBackoff,
+	}
+}
+
+func (e *rapidFailureEscalator) reset() {
+	e.rapidFailureCount = 0
 }
 
 type WalStreamSpec struct {
@@ -114,6 +171,11 @@ type WalStreamSpec struct {
 	// Fires while the chain is still intact but degrading (slot retention
 	// warnings, a wedged receiver); nil disables notification.
 	OnChainAtRisk func(report ChainRiskReport)
+
+	// Separates "the bastion went away" from "the receiver is crash-looping". Without it a restarted
+	// sshd looks like five rapid failures and tears the streamer down. Nil means no bastion, so
+	// every failure is the source's own.
+	IsBastionReachable func(ctx context.Context) bool
 
 	Logger *slog.Logger
 }
@@ -246,9 +308,11 @@ func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logger *slog.Logger) error {
 	pgBin := tools.GetPostgresqlExecutable(s.spec.SourceDB.Version, tools.PostgresqlExecutablePgReceivewal)
 	respawnBackoff := receivewalRespawnBackoff
-	rapidFailures := 0
 
-	var mismatchEscalator resumeMismatchEscalator
+	var (
+		mismatchEscalator resumeMismatchEscalator
+		failureEscalator  rapidFailureEscalator
+	)
 
 	for {
 		if ctx.Err() != nil {
@@ -271,6 +335,18 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 
 		receiverRun := s.spawnAndSupervise(ctx, logger, pgBin)
 
+		// One probe per iteration, shared by both dispositions that judge the source: asking twice
+		// lets a bastion that comes back in between answer "gone" to the demotion and "here" to the
+		// crash-loop counter, which is how a transport blip still ends up counted as a rapid failure.
+		// The dispositions that never read the answer do not pay for the round trip, and default to
+		// the same answer a database with no bastion in front of it gets.
+		isBastionReachable := true
+		if receiverRun.Exit == receiverFatal || receiverRun.Exit == receiverRetryable {
+			isBastionReachable = s.isBastionReachable(ctx)
+		}
+
+		receiverRun = demoteFatalExitWhenBastionUnreachable(logger, receiverRun, isBastionReachable)
+
 		switch receiverRun.Exit {
 		case receiverCtxCancelled:
 			return nil
@@ -282,8 +358,8 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 			// Our own SIGTERM (back pressure or slot stall): respawn promptly; the
 			// top-of-loop backlog/pause gates already throttle the cause.
 			respawnBackoff = receivewalRespawnBackoff
-			rapidFailures = 0
 
+			failureEscalator.reset()
 			mismatchEscalator.reset()
 
 			continue
@@ -304,28 +380,62 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 
 		mismatchEscalator.reset()
 
-		// receiverRetryable: a run that streamed for a healthy span is a transient
-		// blip (network) — reset the crash-loop counter; a string of sub-uptime
-		// exits is a crash loop a local respawn cannot fix, so escalate.
-		if receiverRun.RanFor >= receivewalMinHealthyUptime {
-			rapidFailures = 0
-			respawnBackoff = receivewalRespawnBackoff
-		} else {
-			rapidFailures++
+		if !isBastionReachable {
+			logger.Warn("wal receiver exited while the bastion was unreachable, waiting for the transport")
 		}
 
-		if rapidFailures >= receivewalMaxRapidFailures {
+		decision := failureEscalator.recordExitAndDecideRetry(receiverRun.RanFor, isBastionReachable)
+		if decision.isEscalationRequired {
 			return fmt.Errorf(
-				"pg_receivewal crash-looped: %d rapid failures, escalating for reassignment", rapidFailures,
+				"pg_receivewal crash-looped: %d rapid failures, escalating for reassignment",
+				receivewalMaxRapidFailures,
 			)
+		}
+
+		if decision.isBackoffResettable {
+			respawnBackoff = receivewalRespawnBackoff
 		}
 
 		if !sleepCtx(ctx, respawnBackoff) {
 			return nil
 		}
 
-		respawnBackoff = min(respawnBackoff*2, receivewalRespawnMaxBackoff)
+		respawnBackoff = min(respawnBackoff*2, decision.maxRespawnBackoff)
 	}
+}
+
+// A fatal verdict is read off the receiver's stderr, and a receiver whose transport was already gone
+// never got far enough to say anything about the source. The needles that classify a run as fatal
+// are broad ("could not write", "permission denied"), so a run dying with the bastion can match one
+// on the way down and hand the streamer back as FAILED over a blip the forwarder heals on its own.
+// While the bastion is unreachable that verdict is not evidence; once it is back, the next one is
+// read off trustworthy output and escalates if the cause was real.
+func demoteFatalExitWhenBastionUnreachable(
+	logger *slog.Logger,
+	receiverRun receiverRunResult,
+	isBastionReachable bool,
+) receiverRunResult {
+	if receiverRun.Exit != receiverFatal || isBastionReachable {
+		return receiverRun
+	}
+
+	logger.Warn("wal receiver reported a non-retryable error while the bastion was unreachable, retrying",
+		"error", receiverRun.FatalErr)
+
+	receiverRun.Exit = receiverRetryable
+
+	return receiverRun
+}
+
+func (s *WalStreamSupervisor) isBastionReachable(ctx context.Context) bool {
+	if s.spec.IsBastionReachable == nil {
+		return true
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, bastionProbeTimeout)
+	defer cancel()
+
+	return s.spec.IsBastionReachable(probeCtx)
 }
 
 func (s *WalStreamSupervisor) waitWhilePaused(ctx context.Context) bool {

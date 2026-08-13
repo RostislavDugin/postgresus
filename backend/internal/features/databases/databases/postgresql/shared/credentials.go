@@ -7,13 +7,19 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/tools"
 )
 
 type CredentialSpec struct {
-	Host          string
+	Host string
+	// Named after the libpq parameter it maps to: when set, the connection is made to this address
+	// while Host is what the certificate and .pgpass are matched against. That split is what lets an
+	// SSH tunnel forward the traffic without breaking sslmode=verify-full.
+	HostAddr      string
 	Port          int
 	Username      string
 	SslMode       PostgresSslMode
@@ -73,14 +79,14 @@ func (f *CredentialTempFiles) Remove() {
 	_ = os.RemoveAll(f.Dir)
 }
 
-func BuildConnString(
+func buildConnString(
 	spec CredentialSpec,
 	password, dbName string,
 	files *CredentialTempFiles,
 ) string {
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s",
-		spec.Host,
+		getConnectHost(spec),
 		spec.Port,
 		spec.Username,
 		escapeConnStringValue(password),
@@ -93,18 +99,17 @@ func BuildConnString(
 	return appendSslFilePaths(connStr, files)
 }
 
-// BuildPhysicalReplicationConnString builds a libpq conninfo for a PHYSICAL replication connection
-// (replication=true) — the mode pg_basebackup / pg_receivewal use, and the one pg_hba matches via
-// "host replication" rules rather than ordinary "host all" rules. It omits the pgx-only query-exec
-// params so the string is consumable by the low-level pgconn.Connect used for the connectivity probe.
-func BuildPhysicalReplicationConnString(
+// replication=true is the mode pg_basebackup / pg_receivewal use, and the one pg_hba matches via
+// "host replication" rules rather than ordinary "host all" rules. The pgx-only query-exec params are
+// omitted so the string stays consumable by the low-level pgconn used for the connectivity probe.
+func buildPhysicalReplicationConnString(
 	spec CredentialSpec,
 	password, dbName string,
 	files *CredentialTempFiles,
 ) string {
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s replication=true",
-		spec.Host,
+		getConnectHost(spec),
 		spec.Port,
 		spec.Username,
 		escapeConnStringValue(password),
@@ -113,6 +118,76 @@ func BuildPhysicalReplicationConnString(
 	)
 
 	return appendSslFilePaths(connStr, files)
+}
+
+// pgx has no hostaddr parameter, so through a tunnel the address goes in as the host and the real
+// name is restored on the TLS config, which is what sslmode=verify-full matches against.
+func BuildConnConfig(
+	spec CredentialSpec,
+	password, dbName string,
+	files *CredentialTempFiles,
+) (*pgx.ConnConfig, error) {
+	connConfig, err := pgx.ParseConfig(buildConnString(spec, password, dbName, files))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the PostgreSQL connection string: %w", err)
+	}
+
+	restoreServerNameForTunneledHost(&connConfig.Config, spec)
+
+	return connConfig, nil
+}
+
+// pgconn has no hostaddr either, and unlike the pgx path there is no ParseConfig step in the caller,
+// so the ServerName restoration has to happen here or verify-full would match the tunnel's loopback.
+func BuildPhysicalReplicationConnConfig(
+	spec CredentialSpec,
+	password, dbName string,
+	files *CredentialTempFiles,
+) (*pgconn.Config, error) {
+	connConfig, err := pgconn.ParseConfig(buildPhysicalReplicationConnString(spec, password, dbName, files))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the PostgreSQL replication connection string: %w", err)
+	}
+
+	restoreServerNameForTunneledHost(connConfig, spec)
+
+	return connConfig, nil
+}
+
+// pgx builds one fallback config per sslmode it may retry with, so skipping those would silently
+// verify against the tunnel address on the retry.
+func restoreServerNameForTunneledHost(config *pgconn.Config, spec CredentialSpec) {
+	if spec.HostAddr == "" {
+		return
+	}
+
+	if config.TLSConfig != nil {
+		config.TLSConfig.ServerName = spec.Host
+	}
+
+	for _, fallback := range config.Fallbacks {
+		if fallback.TLSConfig != nil {
+			fallback.TLSConfig.ServerName = spec.Host
+		}
+	}
+}
+
+// libpq resolves and connects to hostaddr while still matching the certificate and .pgpass against
+// the host argument, so the CLI tools need no rewritten -h.
+func GetPgHostAddrEnv(spec CredentialSpec) []string {
+	if spec.HostAddr == "" {
+		return nil
+	}
+
+	return []string{"PGHOSTADDR=" + spec.HostAddr}
+}
+
+func getConnectHost(spec CredentialSpec) string {
+	if spec.HostAddr != "" {
+		return spec.HostAddr
+	}
+
+	return spec.Host
 }
 
 func sslModeOrDefault(spec CredentialSpec) PostgresSslMode {

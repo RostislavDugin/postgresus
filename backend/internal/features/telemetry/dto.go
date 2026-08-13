@@ -15,12 +15,13 @@ import (
 )
 
 type DatabaseEntry struct {
-	Type         string                     `json:"type"`
-	Version      string                     `json:"version"`
-	BackupType   string                     `json:"backupType,omitzero"`
-	RawSizeMb    int64                      `json:"rawSizeMb,omitzero"`
-	BackupSizeMb int64                      `json:"backupSizeMb,omitzero"`
-	Verification *DatabaseVerificationEntry `json:"verification,omitempty"`
+	Type               string                     `json:"type"`
+	Version            string                     `json:"version"`
+	BackupType         string                     `json:"backupType,omitzero"`
+	IsSshTunnelEnabled bool                       `json:"isSshTunnelEnabled"`
+	RawSizeMb          int64                      `json:"rawSizeMb,omitzero"`
+	BackupSizeMb       int64                      `json:"backupSizeMb,omitzero"`
+	Verification       *DatabaseVerificationEntry `json:"verification,omitempty"`
 }
 
 type DatabaseVerificationEntry struct {
