@@ -24,6 +24,7 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/databases", c.GetDatabases)
 	router.POST("/databases/:id/test-connection", c.TestDatabaseConnection)
 	router.POST("/databases/test-connection-direct", c.TestDatabaseConnectionDirect)
+	router.POST("/databases/list-server-databases", c.ListServerDatabases)
 	router.POST("/databases/:id/copy", c.CopyDatabase)
 	router.GET("/databases/notifier/:id/is-using", c.IsNotifierUsing)
 	router.POST("/databases/is-readonly", c.IsUserReadOnly)
@@ -403,4 +404,38 @@ func (c *DatabaseController) CreateReadOnlyUser(ctx *gin.Context) {
 		Username: username,
 		Password: password,
 	})
+}
+
+// ListServerDatabases
+// @Summary List databases available on a PostgreSQL server
+// @Description Connect with the given credentials and return every database the user can connect to
+// @Tags databases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body Database true "Connection config; postgresql.database is the maintenance database"
+// @Success 200 {object} ListServerDatabasesResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /databases/list-server-databases [post]
+func (c *DatabaseController) ListServerDatabases(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var request Database
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	databases, err := c.databaseService.ListServerDatabases(user, &request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, ListServerDatabasesResponse{Databases: databases})
 }

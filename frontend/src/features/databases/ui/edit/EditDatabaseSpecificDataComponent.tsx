@@ -20,6 +20,8 @@ interface Props {
   onSaved: (database: Database) => void;
 
   isShowDbName?: boolean;
+  dbNameLabel?: string;
+  dbNameHint?: string;
 }
 
 export const EditDatabaseSpecificDataComponent = ({
@@ -35,6 +37,8 @@ export const EditDatabaseSpecificDataComponent = ({
   isSaveToApi,
   onSaved,
   isShowDbName = true,
+  dbNameLabel,
+  dbNameHint,
 }: Props) => {
   const { message } = App.useApp();
 
@@ -313,24 +317,38 @@ export const EditDatabaseSpecificDataComponent = ({
           </div>
 
           {isShowDbName && (
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[150px]">DB name</div>
-              <Input
-                value={editingDatabase.postgresql?.database}
-                onChange={(e) => {
-                  if (!editingDatabase.postgresql) return;
+            <>
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px]">{dbNameLabel || 'DB name'}</div>
+                <Input
+                  value={editingDatabase.postgresql?.database}
+                  onChange={(e) => {
+                    if (!editingDatabase.postgresql) return;
 
-                  setEditingDatabase({
-                    ...editingDatabase,
-                    postgresql: { ...editingDatabase.postgresql, database: e.target.value.trim() },
-                  });
-                  setIsConnectionTested(false);
-                }}
-                size="small"
-                className="max-w-[200px] grow"
-                placeholder="Enter PG database name (optional)"
-              />
-            </div>
+                    setEditingDatabase({
+                      ...editingDatabase,
+                      postgresql: {
+                        ...editingDatabase.postgresql,
+                        database: e.target.value.trim(),
+                      },
+                    });
+                    setIsConnectionTested(false);
+                  }}
+                  size="small"
+                  className="max-w-[200px] grow"
+                  placeholder="Enter PG database name (optional)"
+                />
+              </div>
+
+              {dbNameHint && (
+                <div className="mb-1 flex">
+                  <div className="min-w-[150px]" />
+                  <div className="max-w-[200px] text-xs text-gray-500 dark:text-gray-400">
+                    {dbNameHint}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div className="mb-3 flex w-full items-center">

@@ -91,6 +91,70 @@ func (p *PostgresqlDatabase) TestConnection(
 	return testSingleDatabaseConnection(logger, ctx, p, encryptor, databaseID)
 }
 
+// ListDatabases returns the names of all databases on the server that the
+// configured user is allowed to connect to. Template databases and databases
+// that reject connections are excluded, as are databases the user has no
+// CONNECT privilege on — offering those for backup would guarantee a failure
+// on the first run.
+func (p *PostgresqlDatabase) ListDatabases(
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+	databaseID uuid.UUID,
+) ([]string, error) {
+	if p.Database == nil || *p.Database == "" {
+		return nil, errors.New("maintenance database name is required to list databases")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	password, err := decryptPasswordIfNeeded(p.Password, encryptor, databaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	connStr := buildConnectionStringForDB(p, *p.Database, password)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database '%s': %w", *p.Database, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(ctx); closeErr != nil {
+			logger.Error("Failed to close connection", "error", closeErr)
+		}
+	}()
+
+	rows, err := conn.Query(ctx, `
+		SELECT datname
+		FROM pg_database
+		WHERE datistemplate = false
+		  AND datallowconn = true
+		  AND has_database_privilege(current_user, datname, 'CONNECT')
+		ORDER BY datname
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list databases: %w", err)
+	}
+	defer rows.Close()
+
+	databases := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("failed to scan database name: %w", err)
+		}
+
+		databases = append(databases, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating databases: %w", err)
+	}
+
+	return databases, nil
+}
+
 func (p *PostgresqlDatabase) HideSensitiveData() {
 	if p == nil {
 		return

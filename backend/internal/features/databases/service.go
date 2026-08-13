@@ -316,6 +316,37 @@ func (s *DatabaseService) TestDatabaseConnectionDirect(
 	return usingDatabase.TestConnection(s.logger, s.fieldEncryptor)
 }
 
+func (s *DatabaseService) ListServerDatabases(
+	user *users_models.User,
+	database *Database,
+) ([]string, error) {
+	if database.WorkspaceID == nil {
+		return nil, errors.New("workspaceId is required")
+	}
+
+	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage {
+		return nil, errors.New("insufficient permissions to list databases in this workspace")
+	}
+
+	if database.Type != DatabaseTypePostgres {
+		return nil, errors.New("listing server databases is only supported for PostgreSQL")
+	}
+
+	if database.Postgresql == nil {
+		return nil, errors.New("postgresql database is required")
+	}
+
+	if err := database.Postgresql.Validate(); err != nil {
+		return nil, err
+	}
+
+	return database.Postgresql.ListDatabases(s.logger, s.fieldEncryptor, database.ID)
+}
+
 func (s *DatabaseService) GetDatabaseByID(
 	id uuid.UUID,
 ) (*Database, error) {

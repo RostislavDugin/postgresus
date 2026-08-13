@@ -8,3 +8,7 @@ type CreateReadOnlyUserResponse struct {
 type IsReadOnlyResponse struct {
 	IsReadOnly bool `json:"isReadOnly"`
 }
+
+type ListServerDatabasesResponse struct {
+	Databases []string `json:"databases"`
+}

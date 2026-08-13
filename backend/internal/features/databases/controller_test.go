@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"postgresus-backend/internal/config"
 	"postgresus-backend/internal/features/databases/databases/postgresql"
 	users_enums "postgresus-backend/internal/features/users/enums"
 	users_testing "postgresus-backend/internal/features/users/testing"
@@ -1025,4 +1026,153 @@ func Test_DatabaseSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			workspaces_testing.RemoveTestWorkspace(workspace, router)
 		})
 	}
+}
+
+func Test_ListServerDatabases_WhenUserCanManageDBs_ReturnsServerDatabases(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	env := config.GetEnv()
+	host, port, err := test_utils.SplitAddr(env.TestPostgres16Addr)
+	require.NoError(t, err)
+
+	maintenanceDb := "testdb"
+	request := Database{
+		WorkspaceID: &workspace.ID,
+		Name:        "instance probe",
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Host:     host,
+			Port:     port,
+			Username: "testuser",
+			Password: "testpassword",
+			Database: &maintenanceDb,
+		},
+	}
+
+	var response ListServerDatabasesResponse
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/list-server-databases",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusOK,
+		&response,
+	)
+
+	assert.Contains(t, response.Databases, "testdb")
+}
+
+func Test_ListServerDatabases_WhenUserIsWorkspaceViewer_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	viewer := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspaces_testing.AddMemberToWorkspace(
+		workspace,
+		viewer,
+		users_enums.WorkspaceRoleViewer,
+		owner.Token,
+		router,
+	)
+
+	env := config.GetEnv()
+	host, port, err := test_utils.SplitAddr(env.TestPostgres16Addr)
+	require.NoError(t, err)
+
+	maintenanceDb := "testdb"
+	request := Database{
+		WorkspaceID: &workspace.ID,
+		Name:        "instance probe",
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Host:     host,
+			Port:     port,
+			Username: "testuser",
+			Password: "testpassword",
+			Database: &maintenanceDb,
+		},
+	}
+
+	resp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/list-server-databases",
+		"Bearer "+viewer.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(resp.Body), "insufficient permissions")
+}
+
+func Test_ListServerDatabases_WithoutWorkspaceId_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+
+	env := config.GetEnv()
+	host, port, err := test_utils.SplitAddr(env.TestPostgres16Addr)
+	require.NoError(t, err)
+
+	maintenanceDb := "testdb"
+	request := Database{
+		Name: "instance probe",
+		Type: DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Host:     host,
+			Port:     port,
+			Username: "testuser",
+			Password: "testpassword",
+			Database: &maintenanceDb,
+		},
+	}
+
+	resp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/list-server-databases",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(resp.Body), "workspaceId is required")
+}
+
+func Test_ListServerDatabases_WithWrongPassword_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+
+	env := config.GetEnv()
+	host, port, err := test_utils.SplitAddr(env.TestPostgres16Addr)
+	require.NoError(t, err)
+
+	maintenanceDb := "testdb"
+	request := Database{
+		WorkspaceID: &workspace.ID,
+		Name:        "instance probe",
+		Type:        DatabaseTypePostgres,
+		Postgresql: &postgresql.PostgresqlDatabase{
+			Host:     host,
+			Port:     port,
+			Username: "testuser",
+			Password: "definitely-wrong-password",
+			Database: &maintenanceDb,
+		},
+	}
+
+	resp := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/list-server-databases",
+		"Bearer "+owner.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(resp.Body), "failed to connect")
 }

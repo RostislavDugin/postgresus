@@ -1,13 +1,20 @@
 import { Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
-import { databaseApi } from '../../../entity/databases';
+import {
+  buildInstanceKey,
+  databaseApi,
+  filterInstancesBySearch,
+  groupDatabasesByInstance,
+  resolveInitialExpandedKeys,
+} from '../../../entity/databases';
 import type { Database } from '../../../entity/databases';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { useIsMobile } from '../../../shared/hooks';
 import { CreateDatabaseComponent } from './CreateDatabaseComponent';
-import { DatabaseCardComponent } from './DatabaseCardComponent';
+import { CreateInstanceComponent } from './CreateInstanceComponent';
 import { DatabaseComponent } from './DatabaseComponent';
+import { InstanceAccordionComponent } from './InstanceAccordionComponent';
 
 interface Props {
   contentHeight: number;
@@ -16,14 +23,21 @@ interface Props {
 }
 
 const SELECTED_DATABASE_STORAGE_KEY = 'selectedDatabaseId';
+const EXPANDED_INSTANCES_STORAGE_KEY = 'expandedInstances';
 
 export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }: Props) => {
   const isMobile = useIsMobile();
   const [isLoading, setIsLoading] = useState(true);
   const [databases, setDatabases] = useState<Database[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedKeys, setExpandedKeys] = useState<string[] | null>(null);
+  const [storedExpandedKeys] = useState<string[] | null>(() =>
+    readStoredExpandedKeys(workspace.id),
+  );
 
   const [isShowAddDatabase, setIsShowAddDatabase] = useState(false);
+  const [isShowAddInstance, setIsShowAddInstance] = useState(false);
+  const [isCreatingInstance, setIsCreatingInstance] = useState(false);
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | undefined>(undefined);
 
   const updateSelectedDatabaseId = (databaseId: string | undefined) => {
@@ -33,6 +47,26 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
     } else {
       localStorage.removeItem(`${SELECTED_DATABASE_STORAGE_KEY}_${workspace.id}`);
     }
+  };
+
+  const expandInstanceOfDatabase = (databaseList: Database[], databaseId: string) => {
+    const target = databaseList.find((database) => database.id === databaseId);
+    if (!target) return;
+
+    const key = buildInstanceKey(target.postgresql?.host, target.postgresql?.port);
+
+    setExpandedKeys((current) => {
+      const base = current ?? readStoredExpandedKeys(workspace.id) ?? [];
+      if (base.includes(key)) return base;
+
+      const next = [...base, key];
+      localStorage.setItem(
+        `${EXPANDED_INSTANCES_STORAGE_KEY}_${workspace.id}`,
+        JSON.stringify(next),
+      );
+
+      return next;
+    });
   };
 
   const loadDatabases = (isSilent = false, selectDatabaseId?: string) => {
@@ -46,6 +80,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
         setDatabases(databases);
         if (selectDatabaseId) {
           updateSelectedDatabaseId(selectDatabaseId);
+          expandInstanceOfDatabase(databases, selectDatabaseId);
         } else if (!selectedDatabaseId && !isSilent && !isMobile) {
           // On desktop, auto-select a database; on mobile, keep it unselected to show the list first
           const savedDatabaseId = localStorage.getItem(
@@ -80,15 +115,40 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
     );
   }
 
-  const addDatabaseButton = (
-    <Button type="primary" className="mb-2 w-full" onClick={() => setIsShowAddDatabase(true)}>
-      Add database
-    </Button>
+  const addButtons = (
+    <>
+      <Button type="primary" className="mb-1 w-full" onClick={() => setIsShowAddDatabase(true)}>
+        Add database
+      </Button>
+
+      <Button
+        type="primary"
+        ghost
+        className="mb-2 w-full"
+        onClick={() => setIsShowAddInstance(true)}
+      >
+        Add instance
+      </Button>
+    </>
   );
 
-  const filteredDatabases = databases.filter((database) =>
-    database.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const instances = groupDatabasesByInstance(databases);
+  const isSearching = searchQuery.trim().length > 0;
+  const visibleInstances = filterInstancesBySearch(instances, searchQuery);
+
+  const effectiveExpandedKeys =
+    expandedKeys ?? resolveInitialExpandedKeys(instances, selectedDatabaseId, storedExpandedKeys);
+
+  const toggleInstance = (key: string) => {
+    if (isSearching) return;
+
+    const next = effectiveExpandedKeys.includes(key)
+      ? effectiveExpandedKeys.filter((k) => k !== key)
+      : [...effectiveExpandedKeys, key];
+
+    localStorage.setItem(`${EXPANDED_INSTANCES_STORAGE_KEY}_${workspace.id}`, JSON.stringify(next));
+    setExpandedKeys(next);
+  };
 
   // On mobile, show either the list or the database details
   const showDatabaseList = !isMobile || !selectedDatabaseId;
@@ -104,7 +164,7 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
           >
             {databases.length >= 5 && (
               <>
-                {isCanManageDBs && addDatabaseButton}
+                {isCanManageDBs && addButtons}
 
                 <div className="mb-2">
                   <input
@@ -117,22 +177,24 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
               </>
             )}
 
-            {filteredDatabases.length > 0
-              ? filteredDatabases.map((database) => (
-                  <DatabaseCardComponent
-                    key={database.id}
-                    database={database}
+            {visibleInstances.length > 0
+              ? visibleInstances.map((instance) => (
+                  <InstanceAccordionComponent
+                    key={instance.key}
+                    instance={instance}
+                    isExpanded={isSearching || effectiveExpandedKeys.includes(instance.key)}
+                    onToggle={toggleInstance}
                     selectedDatabaseId={selectedDatabaseId}
                     setSelectedDatabaseId={updateSelectedDatabaseId}
                   />
                 ))
-              : searchQuery && (
+              : isSearching && (
                   <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     No databases found matching &quot;{searchQuery}&quot;
                   </div>
                 )}
 
-            {databases.length < 5 && isCanManageDBs && addDatabaseButton}
+            {databases.length < 5 && isCanManageDBs && addButtons}
 
             <div className="mx-3 text-center text-xs text-gray-500 dark:text-gray-400">
               Database - is a thing we are backing up
@@ -193,6 +255,46 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
           />
         </Modal>
       )}
+
+      {isShowAddInstance && (
+        <Modal
+          title="Add instance"
+          footer={<div />}
+          open={isShowAddInstance}
+          onCancel={() => {
+            if (isCreatingInstance) return;
+            setIsShowAddInstance(false);
+          }}
+          closable={!isCreatingInstance}
+          maskClosable={false}
+          keyboard={!isCreatingInstance}
+          width={520}
+        >
+          <div className="mt-5" />
+
+          <CreateInstanceComponent
+            workspaceId={workspace.id}
+            existingDatabases={databases}
+            onCreatingChanged={setIsCreatingInstance}
+            onCreated={(databaseId) => {
+              loadDatabases(false, databaseId);
+            }}
+            onClose={() => setIsShowAddInstance(false)}
+          />
+        </Modal>
+      )}
     </>
   );
 };
+
+function readStoredExpandedKeys(workspaceId: string): string[] | null {
+  const raw = localStorage.getItem(`${EXPANDED_INSTANCES_STORAGE_KEY}_${workspaceId}`);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}

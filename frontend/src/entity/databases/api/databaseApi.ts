@@ -4,6 +4,7 @@ import { apiHelper } from '../../../shared/api/apiHelper';
 import type { CreateReadOnlyUserResponse } from '../model/CreateReadOnlyUserResponse';
 import type { Database } from '../model/Database';
 import type { IsReadOnlyResponse } from '../model/IsReadOnlyResponse';
+import type { ServerDatabasesResponse } from '../model/ServerDatabasesResponse';
 
 export const databaseApi = {
   async createDatabase(database: Database) {
@@ -71,6 +72,15 @@ export const databaseApi = {
     requestOptions.setBody(JSON.stringify(database));
     return apiHelper.fetchPostJson(
       `${getApplicationServer()}/api/v1/databases/test-connection-direct`,
+      requestOptions,
+    );
+  },
+
+  async listServerDatabases(database: Database) {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(database));
+    return apiHelper.fetchPostJson<ServerDatabasesResponse>(
+      `${getApplicationServer()}/api/v1/databases/list-server-databases`,
       requestOptions,
     );
   },
