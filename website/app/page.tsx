@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import HeroStatsComponent from "./components/HeroStatsComponent";
 import InstallationComponent from "./components/InstallationComponent";
 import LiteYouTubeEmbed from "./components/LiteYouTubeEmbed";
 
@@ -214,7 +215,7 @@ export default function Index() {
                 name: "What backup types does Databasus support?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Databasus supports physical, full, incremental, WAL and logical backups. Physical backups are a file-level copy of the entire database cluster — faster to back up and restore for large datasets than logical dumps, and built on PostgreSQL 17's native backup mechanism, so we rely on PostgreSQL's own battle-tested tooling instead of re-inventing it. Full backups are a complete, self-contained copy of the cluster, the base every backup chain starts from. Incremental backups store only what changed since the previous backup, so backups stay small and fast. WAL streaming continuously captures the database write stream, enabling Point-in-time recovery (PITR) for disaster recovery and near-zero data loss. Logical backups are a native dump of the database in its engine-specific binary format, compressed and streamed directly to storage with no intermediate files. All of these backups can run over an SSH tunnel if you have a requirement for non-public connections, so the database never has to be exposed publicly.",
+                  text: "Databasus supports physical, full, incremental, WAL and logical backups. Physical backups are a file-level copy of the entire database cluster — faster to back up and restore for large datasets than logical dumps, and built on PostgreSQL 17's native backup mechanism, so we rely on PostgreSQL's own battle-tested tooling instead of re-inventing it. Full backups are a complete, self-contained copy of the cluster, the base every backup chain starts from. Incremental backups store only what changed since the previous backup, so backups stay small and fast. WAL streaming continuously captures the database write stream, enabling Point-in-time recovery (PITR) for disaster recovery and near-zero data loss. Logical backups are a native dump of the database in its engine-specific binary format, compressed and streamed directly to storage with no intermediate files. All of these backups can run over an SSH tunnel if you have a requirement for non-public connections, so the database never has to be exposed publicly. SSH tunneling is built in.",
                 },
               },
             ],
@@ -343,7 +344,7 @@ export default function Index() {
             </p>
 
             <div>
-              <div className="flex flex-col items-center justify-center gap-2 max-w-[370px] sm:max-w-[300px] mx-auto pb-0 sm:pb-[50px] lg:pb-0 lg:[0px]">
+              <div className="flex flex-col items-center justify-center gap-2 max-w-[370px] sm:max-w-[340px] mx-auto">
                 <a
                   href="#installation"
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-white rounded-lg text-black font-medium hover:opacity-70 transition-opacity order-1"
@@ -382,6 +383,10 @@ export default function Index() {
 
                   <span>GitHub</span>
                 </a>
+              </div>
+
+              <div className="mt-2 max-w-[370px] sm:max-w-[340px] mx-auto pb-0 sm:pb-[50px] lg:pb-0">
+                <HeroStatsComponent />
               </div>
             </div>
           </div>
@@ -1541,7 +1546,7 @@ export default function Index() {
                   <br />
                   All of these backups can run over an SSH tunnel if you have a
                   requirement for non-public connections, so the database never
-                  has to be exposed publicly.
+                  has to be exposed publicly. SSH tunneling is built in.
                 </>
               }
             />
@@ -1616,8 +1621,8 @@ export default function Index() {
                   Databasus has been developed and used since 2023, and open
                   source in widespread use since early 2025. It has been in real
                   production use for a while, so it is battle-tested across many
-                  edge cases. Crucially, Databasus does not invent custom ways
-                  to back up your data — it relies on PostgreSQL&apos;s native,
+                  edge cases. Crucially, Databasus does not invent custom ways to
+                  back up your data — it relies on PostgreSQL&apos;s native,
                   tested implementation instead of building its own workarounds
                   for edge cases.
                   <br />
