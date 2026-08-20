@@ -112,11 +112,16 @@ func createTestStorage(t *testing.T) *storages.Storage {
 		workspaces_controllers.GetWorkspaceController(),
 		workspaces_controllers.GetMembershipController(),
 	)
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Restore Stream Test "+uuid.NewString(), user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(
+		t.Context(),
+		"Restore Stream Test "+uuid.NewString(),
+		user,
+		router,
+	)
 
 	storage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(storage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), storage.ID) })
 
 	return storage
 }
@@ -134,7 +139,7 @@ func saveFile(
 	err := storage.SaveFile(ctx, encryptor, logger.GetLogger(), name, bytes.NewReader(body))
 	require.NoError(t, err)
 
-	t.Cleanup(func() { _ = storage.DeleteFile(encryptor, name) })
+	t.Cleanup(func() { _ = storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), name) })
 }
 
 func buildTarZst(t *testing.T, files map[string]string) []byte {

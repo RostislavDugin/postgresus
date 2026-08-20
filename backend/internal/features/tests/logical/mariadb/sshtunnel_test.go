@@ -1,6 +1,7 @@
 package mariadb_logical
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -67,12 +68,12 @@ func Test_MariadbBackupRestore_OverSshTunnel_RestoresData(t *testing.T) {
 	setupMariadbTestData(t, sourceConnection)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("MariaDB SSH Tunnel Workspace", user, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "MariaDB SSH Tunnel Workspace", user, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	storage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(storage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), storage.ID) })
 
 	database := logicaltesting.SubmitCreateDatabase(t, router, "MariaDB cycle over SSH tunnel",
 		databases.Database{

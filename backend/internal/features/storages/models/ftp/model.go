@@ -53,18 +53,19 @@ func (f *FTPStorage) SaveFile(
 	default:
 	}
 
-	logger.Info("Starting to save file to FTP storage", "fileName", fileName, "host", f.Host)
+	logger.InfoContext(ctx, "starting to save file to FTP storage", "file_name", fileName, "host", f.Host)
 
 	conn, err := f.connect(encryptor, ftpConnectTimeout)
 	if err != nil {
-		logger.Error("Failed to connect to FTP", "fileName", fileName, "error", err)
+		logger.ErrorContext(ctx, "failed to connect to FTP", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
 	defer func() {
 		if quitErr := conn.Quit(); quitErr != nil {
-			logger.Error(
-				"Failed to close FTP connection",
-				"fileName",
+			logger.ErrorContext(
+				ctx,
+				"failed to close FTP connection",
+				"file_name",
 				fileName,
 				"error",
 				quitErr,
@@ -74,9 +75,10 @@ func (f *FTPStorage) SaveFile(
 
 	if f.Path != "" {
 		if err := f.ensureDirectory(conn, f.Path); err != nil {
-			logger.Error(
-				"Failed to ensure directory",
-				"fileName",
+			logger.ErrorContext(
+				ctx,
+				"failed to ensure directory",
+				"file_name",
 				fileName,
 				"path",
 				f.Path,
@@ -88,7 +90,7 @@ func (f *FTPStorage) SaveFile(
 	}
 
 	filePath := f.getFilePath(fileName)
-	logger.Debug("Uploading file to FTP", "fileName", fileName, "filePath", filePath)
+	logger.DebugContext(ctx, "uploading file to FTP", "file_name", fileName, "file_path", filePath)
 
 	ctxReader := &contextReader{ctx: ctx, reader: file}
 
@@ -96,19 +98,20 @@ func (f *FTPStorage) SaveFile(
 	if err != nil {
 		select {
 		case <-ctx.Done():
-			logger.Info("FTP upload cancelled", "fileName", fileName)
+			logger.InfoContext(ctx, "FTP upload cancelled", "file_name", fileName)
 			return ctx.Err()
 		default:
-			logger.Error("Failed to upload file to FTP", "fileName", fileName, "error", err)
+			logger.ErrorContext(ctx, "failed to upload file to FTP", "file_name", fileName, "error", err)
 			return fmt.Errorf("failed to upload file to FTP: %w", err)
 		}
 	}
 
-	logger.Info(
-		"Successfully saved file to FTP storage",
-		"fileName",
+	logger.InfoContext(
+		ctx,
+		"successfully saved file to FTP storage",
+		"file_name",
 		fileName,
-		"filePath",
+		"file_path",
 		filePath,
 	)
 	return nil
@@ -138,13 +141,13 @@ func (f *FTPStorage) GetFile(
 			return nil, fmt.Errorf("failed to stat file on FTP: %w", err)
 		}
 
-		logger.Warn("storage does not support the FTP SIZE command", "file_name", fileName, "error", err)
+		logger.WarnContext(ctx, "storage does not support the FTP SIZE command", "file_name", fileName, "error", err)
 
 		totalBytes = io_utils.UnknownTotalBytes
 	}
 
 	if err := conn.Quit(); err != nil {
-		logger.Warn("failed to close the FTP connection used for stat", "error", err)
+		logger.WarnContext(ctx, "failed to close the FTP connection used for stat", "error", err)
 	}
 
 	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
@@ -158,11 +161,18 @@ func (f *FTPStorage) GetFile(
 	}), nil
 }
 
-func (f *FTPStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), ftpDeleteTimeout)
+func (f *FTPStorage) DeleteFile(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileName string,
+) error {
+	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
+	// operation carries its own deadline; the caller's ctx stays for log correlation only.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), ftpDeleteTimeout)
 	defer cancel()
 
-	conn, err := f.connectWithContext(ctx, encryptor, ftpDeleteTimeout)
+	conn, err := f.connectWithContext(deleteCtx, encryptor, ftpDeleteTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
@@ -181,6 +191,8 @@ func (f *FTPStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName st
 	if err != nil {
 		return fmt.Errorf("failed to delete file from FTP: %w", err)
 	}
+
+	logger.DebugContext(ctx, "deleted file from ftp storage", "file_name", fileName)
 
 	return nil
 }

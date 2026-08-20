@@ -1,6 +1,7 @@
 package workspaces_controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_models "databasus-backend/internal/features/users/models"
@@ -62,13 +64,13 @@ func Test_CreateWorkspace_PermissionsEnforced(t *testing.T) {
 			)
 
 			if tt.memberCreationEnabled {
-				users_testing.EnableMemberWorkspaceCreation()
+				users_testing.EnableMemberWorkspaceCreation(t.Context())
 			} else {
-				users_testing.DisableMemberWorkspaceCreation()
+				users_testing.DisableMemberWorkspaceCreation(t.Context())
 			}
-			defer users_testing.ResetSettingsToDefaults()
+			defer users_testing.ResetSettingsToDefaults(t.Context())
 
-			user := users_testing.CreateTestUser(tt.userRole)
+			user := users_testing.CreateTestUser(t.Context(), tt.userRole)
 
 			uniqueID := uuid.New().String()[:8]
 			workspaceName := tt.expectedWorkspaceName + " " + uniqueID
@@ -94,7 +96,7 @@ func Test_CreateWorkspace_PermissionsEnforced(t *testing.T) {
 
 				// Cleanup created workspace
 				workspace := &workspaces_models.Workspace{ID: response.ID}
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			} else {
 				resp := test_utils.MakePostRequest(
 					t,
@@ -119,7 +121,7 @@ func Test_CreateWorkspace_WithInvalidJSON_ReturnsBadRequest(t *testing.T) {
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	resp := test_utils.MakeRequest(t, router, test_utils.RequestOptions{
 		Method:         "POST",
@@ -157,21 +159,21 @@ func Test_GetUserWorkspaces_WhenUserHasWorkspaces_ReturnsWorkspacesList(t *testi
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-	workspace1, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace1, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		"Workspace 1",
 		user.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace1, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
 
-	workspace2, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace2, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		"Workspace 2",
 		user.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 
 	var response workspaces_dto.ListWorkspacesResponseDTO
 	test_utils.MakeGetRequestAndUnmarshal(
@@ -259,22 +261,22 @@ func Test_GetSingleWorkspace_PermissionsEnforced(t *testing.T) {
 				GetWorkspaceController(),
 				GetMembershipController(),
 			)
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 				"Test Workspace",
 				owner.Token,
 				router,
 			)
-			defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
 				testUserToken = owner.Token
 			} else if tt.workspaceRole != nil {
-				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					workspace,
 					member,
@@ -284,7 +286,7 @@ func Test_GetSingleWorkspace_PermissionsEnforced(t *testing.T) {
 				)
 				testUserToken = member.Token
 			} else {
-				nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				testUserToken = nonMember.Token
 			}
 
@@ -320,7 +322,7 @@ func Test_GetSingleWorkspace_WithInvalidWorkspaceID_ReturnsBadRequest(t *testing
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	resp := test_utils.MakeGetRequest(
 		t,
@@ -371,19 +373,19 @@ func Test_UpdateWorkspace_PermissionsEnforced(t *testing.T) {
 				GetWorkspaceController(),
 				GetMembershipController(),
 			)
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 				"Original Name",
 				owner.Token,
 				router,
 			)
-			defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 			var testUserToken string
 			if tt.workspaceRole == users_enums.WorkspaceRoleOwner {
 				testUserToken = owner.Token
 			} else {
-				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					workspace,
 					member,
@@ -475,25 +477,25 @@ func Test_DeleteWorkspace_PermissionsEnforced(t *testing.T) {
 				GetWorkspaceController(),
 				GetMembershipController(),
 			)
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 				"Test Workspace",
 				owner.Token,
 				router,
 			)
 			// Only cleanup if the test doesn't successfully delete the workspace
 			if !tt.expectSuccess {
-				defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+				defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
 				testUserToken = owner.Token
 			} else if tt.workspaceRole != nil {
-				member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					workspace,
 					member,
@@ -529,17 +531,17 @@ func Test_GetWorkspaceAuditLogs_WhenUserIsWorkspaceAdmin_ReturnsAuditLogs(t *tes
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspaceAdmin := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspaceAdmin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	uniqueID := uuid.New()
 	workspaceName := fmt.Sprintf("WorkspaceAdmin Test %s", uniqueID.String()[:8])
-	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		workspaceName,
 		owner.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	workspaces_testing.AddMemberToWorkspace(
 		workspace,
@@ -566,27 +568,27 @@ func Test_GetWorkspaceAuditLogs_WithMultipleWorkspaces_ReturnsOnlyWorkspaceSpeci
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner1 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	owner2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	uniqueID1 := uuid.New()
 	uniqueID2 := uuid.New()
 	workspaceName1 := fmt.Sprintf("Workspace Test %s", uniqueID1.String()[:8])
 	workspaceName2 := fmt.Sprintf("Workspace Test %s", uniqueID2.String()[:8])
 
-	workspace1, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace1, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		workspaceName1,
 		owner1.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace1, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
 
-	workspace2, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace2, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		workspaceName2,
 		owner2.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 
 	updateWorkspace1 := workspaces_models.Workspace{
 		Name: "Updated " + workspace1.Name,
@@ -661,19 +663,19 @@ func Test_GetWorkspaceAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrec
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	globalAdmin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	globalAdmin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	uniqueID := uuid.New()
 	workspaceName := fmt.Sprintf("Audit Test Workspace %s", uniqueID.String()[:8])
-	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		workspaceName,
 		owner.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	workspaces_testing.AddMemberToWorkspace(
 		workspace,
@@ -714,14 +716,14 @@ func Test_GetWorkspaceAuditLogs_WithoutAuthToken_ReturnsUnauthorized(t *testing.
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(
+	workspace, _ := workspaces_testing.CreateTestWorkspaceWithToken(t.Context(),
 		"Test Workspace",
 		owner.Token,
 		router,
 	)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	test_utils.MakeGetRequest(t, router,
 		"/api/v1/workspaces/"+workspace.ID.String()+"/audit-logs",
@@ -736,9 +738,9 @@ func extractAuditLogMessages(logs []*audit_logs.AuditLogDTO) []string {
 	return messages
 }
 
-func getUserFromSignInResponse(response *users_dto.SignInResponseDTO) *users_models.User {
+func getUserFromSignInResponse(ctx context.Context, response *users_dto.SignInResponseDTO) *users_models.User {
 	userService := users_services.GetUserService()
-	user, err := userService.GetUserByID(response.UserID)
+	user, err := userService.GetUserByID(ctx, response.UserID)
 	if err != nil {
 		panic(err)
 	}
@@ -747,9 +749,5 @@ func getUserFromSignInResponse(response *users_dto.SignInResponseDTO) *users_mod
 
 type AuditLogWriterStub struct{}
 
-func (a *AuditLogWriterStub) WriteAuditLog(
-	message string,
-	userID *uuid.UUID,
-	workspaceID *uuid.UUID,
-) {
+func (a *AuditLogWriterStub) WriteAuditLog(context.Context, audit_logs_models.AuditEntry) {
 }

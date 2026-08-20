@@ -192,7 +192,7 @@ func (t *WebhookNotifier) sendGET(webhookURL, heading, message string, logger *s
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send GET webhook: %w", err)
+		return fmt.Errorf("failed to send GET webhook: %w", notifier_models.ErrorWithoutWebhookURLCredentials(err))
 	}
 
 	defer func() {
@@ -239,7 +239,7 @@ func (t *WebhookNotifier) sendPOST(webhookURL, heading, message string, logger *
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send POST webhook: %w", err)
+		return fmt.Errorf("failed to send POST webhook: %w", notifier_models.ErrorWithoutWebhookURLCredentials(err))
 	}
 
 	defer func() {

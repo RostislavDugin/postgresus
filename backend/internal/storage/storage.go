@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"os"
 	"sync"
 
 	"gorm.io/driver/postgres"
@@ -30,20 +29,20 @@ func loadDbs() {
 func LoadMainDb() {
 	dbDsn := config.GetEnv().DatabaseDsn
 
-	log.Info("Connection to database...")
+	log.Info("connection to database")
 
 	database, err := gorm.Open(postgres.Open(dbDsn), &gorm.Config{
 		Logger: gormLogger.Default.LogMode(gormLogger.Silent),
 	})
 	if err != nil {
 		log.Error("error on connecting to database", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	sqlDB, err := database.DB()
 	if err != nil {
 		log.Error("error getting underlying sql.DB", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	sqlDB.SetMaxOpenConns(10)
@@ -51,5 +50,5 @@ func LoadMainDb() {
 
 	db = database
 
-	log.Info("Main database connected successfully!")
+	log.Info("main database connected successfully")
 }

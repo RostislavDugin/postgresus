@@ -1,6 +1,7 @@
 package backups_config_physical
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -50,10 +51,11 @@ func (s *BackupConfigService) GetStorageAttachedDatabasesIDs(
 }
 
 func (s *BackupConfigService) SaveBackupConfigWithAuth(
+	ctx context.Context,
 	user *users_models.User,
 	backupConfig *PhysicalBackupConfig,
 ) (*PhysicalBackupConfig, error) {
-	database, err := s.databaseService.GetDatabase(user, backupConfig.DatabaseID)
+	database, err := s.databaseService.GetDatabase(ctx, user, backupConfig.DatabaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +64,7 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 		return nil, errors.New("cannot save backup config for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 	}
 
 	if backupConfig.Storage != nil && backupConfig.Storage.ID != uuid.Nil {
-		storage, err := s.storageService.GetStorageByID(backupConfig.Storage.ID)
+		storage, err := s.storageService.GetStorageByID(ctx, backupConfig.Storage.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -92,10 +94,11 @@ func (s *BackupConfigService) SaveBackupConfigWithAuth(
 		}
 	}
 
-	return s.SaveBackupConfig(backupConfig)
+	return s.SaveBackupConfig(ctx, backupConfig)
 }
 
 func (s *BackupConfigService) SaveBackupConfig(
+	ctx context.Context,
 	backupConfig *PhysicalBackupConfig,
 ) (*PhysicalBackupConfig, error) {
 	if backupConfig.PostgresqlPhysical == nil {
@@ -126,7 +129,7 @@ func (s *BackupConfigService) SaveBackupConfig(
 		if s.dbStorageChangeListener != nil &&
 			backupConfig.Storage != nil &&
 			!storageIDsEqual(existingConfig.StorageID, &backupConfig.Storage.ID) {
-			if err := s.dbStorageChangeListener.OnBeforeBackupsStorageChange(
+			if err := s.dbStorageChangeListener.OnBeforeBackupsStorageChange(ctx,
 				backupConfig.DatabaseID,
 			); err != nil {
 				return nil, err
@@ -147,10 +150,11 @@ func (s *BackupConfigService) SaveBackupConfig(
 }
 
 func (s *BackupConfigService) GetBackupConfigByDbIdWithAuth(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 ) (*PhysicalBackupConfig, error) {
-	_, err := s.databaseService.GetDatabase(user, databaseID)
+	_, err := s.databaseService.GetDatabase(ctx, user, databaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,28 +181,30 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 	return config, nil
 }
 
-func (s *BackupConfigService) IsStorageUsing(
+func (s *BackupConfigService) IsStorageInUse(
+	ctx context.Context,
 	user *users_models.User,
 	storageID uuid.UUID,
 ) (bool, error) {
-	_, err := s.storageService.GetStorage(user, storageID)
+	_, err := s.storageService.GetStorage(ctx, user, storageID)
 	if err != nil {
 		return false, err
 	}
 
-	return s.storageService.IsStorageUsing(storageID)
+	return s.storageService.IsStorageInUse(ctx, storageID)
 }
 
 func (s *BackupConfigService) CountDatabasesForStorage(
+	ctx context.Context,
 	user *users_models.User,
 	storageID uuid.UUID,
 ) (int, error) {
-	_, err := s.storageService.GetStorage(user, storageID)
+	_, err := s.storageService.GetStorage(ctx, user, storageID)
 	if err != nil {
 		return 0, err
 	}
 
-	return s.storageService.CountDatabasesForStorage(storageID)
+	return s.storageService.CountDatabasesForStorage(ctx, storageID)
 }
 
 func (s *BackupConfigService) GetBackupConfigsWithEnabledBackups() (
@@ -224,7 +230,7 @@ func (s *BackupConfigService) ClearIncrementalBackupRequest(databaseID uuid.UUID
 	return s.backupConfigRepository.ClearIncrementalBackupRequest(databaseID, requestedAt)
 }
 
-func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID) {
+func (s *BackupConfigService) OnDatabaseCopied(ctx context.Context, originalDatabaseID, newDatabaseID uuid.UUID) {
 	originalConfig, err := s.backupConfigRepository.FindByDatabaseID(originalDatabaseID)
 	if err != nil || originalConfig == nil {
 		return
@@ -232,7 +238,7 @@ func (s *BackupConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID
 
 	newConfig := originalConfig.Copy(newDatabaseID)
 
-	_, _ = s.SaveBackupConfig(newConfig)
+	_, _ = s.SaveBackupConfig(ctx, newConfig)
 }
 
 func (s *BackupConfigService) CreateDisabledBackupConfig(databaseID uuid.UUID) error {
@@ -240,6 +246,7 @@ func (s *BackupConfigService) CreateDisabledBackupConfig(databaseID uuid.UUID) e
 }
 
 func (s *BackupConfigService) TransferDatabaseToWorkspace(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 	request *TransferDatabaseRequest,
@@ -253,7 +260,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		return ErrDatabaseHasNoWorkspace
 	}
 
-	canManageSource, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManageSource, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -261,7 +268,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		return ErrInsufficientPermissionsInSourceWorkspace
 	}
 
-	canManageTarget, err := s.workspaceService.CanUserManageDBs(request.TargetWorkspaceID, user)
+	canManageTarget, err := s.workspaceService.CanUserManageDBs(ctx, request.TargetWorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -269,7 +276,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		return ErrInsufficientPermissionsInTargetWorkspace
 	}
 
-	if err := s.validateTargetNotifiers(request); err != nil {
+	if err := s.validateTargetNotifiers(ctx, request); err != nil {
 		return err
 	}
 
@@ -279,7 +286,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 	}
 
 	if request.IsTransferWithNotifiers {
-		s.transferNotifiers(user, database, request.TargetWorkspaceID)
+		s.transferNotifiers(ctx, user, database, request.TargetWorkspaceID)
 	}
 
 	switch {
@@ -302,6 +309,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		}
 
 		err = s.storageService.TransferStorageToWorkspace(
+			ctx,
 			user,
 			*backupConfig.StorageID,
 			request.TargetWorkspaceID,
@@ -311,7 +319,7 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 			return err
 		}
 	case request.TargetStorageID != nil:
-		targetStorage, err := s.storageService.GetStorageByID(*request.TargetStorageID)
+		targetStorage, err := s.storageService.GetStorageByID(ctx, *request.TargetStorageID)
 		if err != nil {
 			return err
 		}
@@ -331,13 +339,13 @@ func (s *BackupConfigService) TransferDatabaseToWorkspace(
 		return ErrTargetStorageNotSpecified
 	}
 
-	err = s.databaseService.TransferDatabaseToWorkspace(databaseID, request.TargetWorkspaceID)
+	err = s.databaseService.TransferDatabaseToWorkspace(ctx, databaseID, request.TargetWorkspaceID)
 	if err != nil {
 		return err
 	}
 
 	if len(request.TargetNotifierIDs) > 0 {
-		if err := s.assignTargetNotifiers(databaseID, request.TargetNotifierIDs); err != nil {
+		if err := s.assignTargetNotifiers(ctx, databaseID, request.TargetNotifierIDs); err != nil {
 			return err
 		}
 	}
@@ -373,12 +381,14 @@ func (s *BackupConfigService) initializeDefaultConfig(databaseID uuid.UUID) erro
 }
 
 func (s *BackupConfigService) transferNotifiers(
+	ctx context.Context,
 	user *users_models.User,
 	database *databases.Database,
 	targetWorkspaceID uuid.UUID,
 ) {
 	for _, notifier := range database.Notifiers {
 		_ = s.notifierService.TransferNotifierToWorkspace(
+			ctx,
 			user,
 			notifier.ID,
 			targetWorkspaceID,
@@ -387,9 +397,9 @@ func (s *BackupConfigService) transferNotifiers(
 	}
 }
 
-func (s *BackupConfigService) validateTargetNotifiers(request *TransferDatabaseRequest) error {
+func (s *BackupConfigService) validateTargetNotifiers(ctx context.Context, request *TransferDatabaseRequest) error {
 	for _, notifierID := range request.TargetNotifierIDs {
-		notifier, err := s.notifierService.GetNotifierByID(notifierID)
+		notifier, err := s.notifierService.GetNotifierByID(ctx, notifierID)
 		if err != nil {
 			return err
 		}
@@ -403,13 +413,14 @@ func (s *BackupConfigService) validateTargetNotifiers(request *TransferDatabaseR
 }
 
 func (s *BackupConfigService) assignTargetNotifiers(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	notifierIDs []uuid.UUID,
 ) error {
 	targetNotifiers := make([]notifiers.Notifier, 0, len(notifierIDs))
 
 	for _, notifierID := range notifierIDs {
-		notifier, err := s.notifierService.GetNotifierByID(notifierID)
+		notifier, err := s.notifierService.GetNotifierByID(ctx, notifierID)
 		if err != nil {
 			return err
 		}

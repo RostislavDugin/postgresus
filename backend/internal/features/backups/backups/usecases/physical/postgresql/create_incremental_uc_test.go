@@ -25,13 +25,13 @@ func Test_CreateIncremental_WhenSummarizerOff_ChainBrokenNoArtifact(t *testing.T
 	source := containers.StartPhysicalPostgres(t, "postgres:17", containers.WithoutSummarizer())
 	fixture := postgresql_executor.SetupPhysicalDBForBackupNoSummary(t, source.Host, source.Port)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(fixture.BackupID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), fixture.BackupID, false)
 	postgresql_executor.WaitForBackupStatus(t, fixture.BackupID, physical_enums.PhysicalBackupTypeFull,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)
 
 	incrID := postgresql_executor.BuildAndClaimIncremental(t, fixture, nil)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(incrID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), incrID, false)
 
 	summarizerOff := physical_enums.PhysicalBackupErrorSummarizerOff
 	postgresql_executor.WaitForBackupStatus(t, incrID, physical_enums.PhysicalBackupTypeIncremental,
@@ -51,7 +51,7 @@ func Test_CreateIncremental_WhenSummarizerOff_ChainBrokenNoArtifact(t *testing.T
 func Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(fixture.BackupID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), fixture.BackupID, false)
 	postgresql_executor.WaitForBackupStatus(t, fixture.BackupID, physical_enums.PhysicalBackupTypeFull,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)
 
@@ -79,7 +79,7 @@ func Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental(t *testing.T) 
 
 	incrID := postgresql_executor.BuildAndClaimIncremental(t, fixture, nil)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(incrID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), incrID, false)
 	postgresql_executor.WaitForBackupStatus(t, incrID, physical_enums.PhysicalBackupTypeIncremental,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)
 
@@ -92,13 +92,13 @@ func Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental(t *testing.T) 
 func Test_CreateIncremental_WhenSummarizerBehindOnIdleDB_StillCompletes(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(fixture.BackupID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), fixture.BackupID, false)
 	postgresql_executor.WaitForBackupStatus(t, fixture.BackupID, physical_enums.PhysicalBackupTypeFull,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)
 
 	incrID := postgresql_executor.BuildAndClaimIncremental(t, fixture, nil)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(incrID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), incrID, false)
 	postgresql_executor.WaitForBackupStatus(t, incrID, physical_enums.PhysicalBackupTypeIncremental,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)
 

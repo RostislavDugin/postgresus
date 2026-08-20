@@ -1,6 +1,7 @@
 package backuping_physical
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ func (l *PhysicalBackupCancellationListener) OnBackupConfigChanged(
 
 // OnBeforeDatabaseRemove cancels any in-flight backup and removes the streamer
 // row before the database (and its cascade-deleted catalog rows) goes away.
-func (l *PhysicalBackupCancellationListener) OnBeforeDatabaseRemove(databaseID uuid.UUID) error {
+func (l *PhysicalBackupCancellationListener) OnBeforeDatabaseRemove(ctx context.Context, databaseID uuid.UUID) error {
 	logger := l.logger.With("database_id", databaseID)
 
 	l.canceller.CancelInFlightForDatabase(databaseID)

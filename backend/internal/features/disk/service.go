@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -11,7 +12,7 @@ import (
 
 type DiskService struct{}
 
-func (s *DiskService) GetDiskUsage() (*DiskUsage, error) {
+func (s *DiskService) GetDiskUsage(ctx context.Context) (*DiskUsage, error) {
 	cfg := config.GetEnv()
 	path := filepath.Dir(cfg.DataFolder) // Gets /databasus-data from /databasus-data/backups
 

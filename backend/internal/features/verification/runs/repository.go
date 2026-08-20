@@ -1,6 +1,7 @@
 package verification_runs
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"time"
@@ -23,10 +24,10 @@ func (r *VerificationRepository) Create(verification *RestoreVerification) error
 	return storage.GetDb().Create(verification).Error
 }
 
-func (r *VerificationRepository) FindByID(id uuid.UUID) (*RestoreVerification, error) {
+func (r *VerificationRepository) FindByID(ctx context.Context, id uuid.UUID) (*RestoreVerification, error) {
 	var verification RestoreVerification
 
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Preload("TableStats").
 		Where("id = ?", id).
 		First(&verification).Error

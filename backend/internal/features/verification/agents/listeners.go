@@ -1,7 +1,11 @@
 package verification_agents
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type AgentHeartbeatedListener interface {
-	OnAgentHeartbeated(agent *Agent, currentVerificationIDs []uuid.UUID) ([]uuid.UUID, error)
+	OnAgentHeartbeated(ctx context.Context, agent *Agent, currentVerificationIDs []uuid.UUID) ([]uuid.UUID, error)
 }

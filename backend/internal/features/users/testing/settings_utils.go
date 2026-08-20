@@ -1,36 +1,38 @@
 package users_testing
 
 import (
+	"context"
+
 	users_repositories "databasus-backend/internal/features/users/repositories"
 )
 
-func EnableMemberInvitations() {
-	updateUsersSetting("is_allow_member_invitations", true)
+func EnableMemberInvitations(ctx context.Context) {
+	updateUsersSetting(ctx, "is_allow_member_invitations", true)
 }
 
-func DisableMemberInvitations() {
-	updateUsersSetting("is_allow_member_invitations", false)
+func DisableMemberInvitations(ctx context.Context) {
+	updateUsersSetting(ctx, "is_allow_member_invitations", false)
 }
 
-func EnableExternalRegistrations() {
-	updateUsersSetting("is_allow_external_registrations", true)
+func EnableExternalRegistrations(ctx context.Context) {
+	updateUsersSetting(ctx, "is_allow_external_registrations", true)
 }
 
-func DisableExternalRegistrations() {
-	updateUsersSetting("is_allow_external_registrations", false)
+func DisableExternalRegistrations(ctx context.Context) {
+	updateUsersSetting(ctx, "is_allow_external_registrations", false)
 }
 
-func EnableMemberWorkspaceCreation() {
-	updateUsersSetting("is_member_allowed_to_create_workspaces", true)
+func EnableMemberWorkspaceCreation(ctx context.Context) {
+	updateUsersSetting(ctx, "is_member_allowed_to_create_workspaces", true)
 }
 
-func DisableMemberWorkspaceCreation() {
-	updateUsersSetting("is_member_allowed_to_create_workspaces", false)
+func DisableMemberWorkspaceCreation(ctx context.Context) {
+	updateUsersSetting(ctx, "is_member_allowed_to_create_workspaces", false)
 }
 
-func ResetSettingsToDefaults() {
+func ResetSettingsToDefaults(ctx context.Context) {
 	repository := &users_repositories.UsersSettingsRepository{}
-	settings, err := repository.GetSettings()
+	settings, err := repository.GetSettings(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -39,15 +41,15 @@ func ResetSettingsToDefaults() {
 	settings.IsAllowMemberInvitations = true
 	settings.IsMemberAllowedToCreateWorkspaces = true
 
-	err = repository.UpdateSettings(settings)
+	err = repository.UpdateSettings(ctx, settings)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func updateUsersSetting(column string, value bool) {
+func updateUsersSetting(ctx context.Context, column string, value bool) {
 	repository := &users_repositories.UsersSettingsRepository{}
-	settings, err := repository.GetSettings()
+	settings, err := repository.GetSettings(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +63,7 @@ func updateUsersSetting(column string, value bool) {
 		settings.IsMemberAllowedToCreateWorkspaces = value
 	}
 
-	err = repository.UpdateSettings(settings)
+	err = repository.UpdateSettings(ctx, settings)
 	if err != nil {
 		panic(err)
 	}

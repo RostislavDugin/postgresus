@@ -57,6 +57,7 @@ func (c *HealthcheckAttemptController) GetAttemptsByDatabase(ctx *gin.Context) {
 	}
 
 	attempts, err := c.healthcheckAttemptService.GetAttemptsByDatabase(
+		ctx.Request.Context(),
 		*user,
 		databaseID,
 		afterDate,

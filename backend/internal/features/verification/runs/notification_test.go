@@ -1,6 +1,7 @@
 package verification_runs
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"testing"
@@ -23,6 +24,7 @@ import (
 	verification_config "databasus-backend/internal/features/verification/config"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	"databasus-backend/internal/storage"
+	"databasus-backend/internal/util/logger"
 	test_utils "databasus-backend/internal/util/testing"
 )
 
@@ -42,6 +44,7 @@ func newRecordingNotificationSender() *recordingNotificationSender {
 }
 
 func (s *recordingNotificationSender) SendNotification(
+	_ context.Context,
 	notifier *notifiers.Notifier,
 	notification notifier_models.Notification,
 ) {
@@ -110,18 +113,18 @@ func enableFailureNotificationsViaAPI(
 
 func Test_SubmitReport_WhenBackupRejected_SendsFailureNotification(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	enableFailureNotificationsViaAPI(t, router, owner.Token, database.ID)
 
@@ -168,18 +171,18 @@ func Test_SubmitReport_WhenBackupRejected_SendsFailureNotification(t *testing.T)
 
 func Test_SubmitReport_WhenRestoredTooSmall_SendsFailureNotification(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	enableFailureNotificationsViaAPI(t, router, owner.Token, database.ID)
 
@@ -219,18 +222,18 @@ func Test_SubmitReport_WhenRestoredTooSmall_SendsFailureNotification(t *testing.
 
 func Test_SubmitReport_WhenAgentSetupFailedRepeatedly_SendsFailureNotificationOnlyAtTerminal(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	enableFailureNotificationsViaAPI(t, router, owner.Token, database.ID)
 
@@ -284,18 +287,18 @@ func Test_ReapStaleRuns_WhenAgentLostContact_SendsFailureNotificationOnlyAtTermi
 	shrinkThresholds(t, 1*time.Hour, 1*time.Millisecond)
 
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	enableFailureNotificationsViaAPI(t, router, owner.Token, database.ID)
 
@@ -323,7 +326,7 @@ func Test_ReapStaleRuns_WhenAgentLostContact_SendsFailureNotificationOnlyAtTermi
 			Where("id = ?", agent.Agent.ID).
 			Update("last_seen_at", time.Now().UTC().Add(-1*time.Hour)).Error)
 
-		require.NoError(t, GetVerificationScheduler().reapStaleRuns())
+		require.NoError(t, GetVerificationScheduler().reapStaleRuns(t.Context(), logger.GetLogger()))
 
 		if attempt < MaxAgentSideAttempts-1 {
 			time.Sleep(50 * time.Millisecond)
@@ -344,18 +347,18 @@ func Test_ReapStaleRuns_WhenAgentLostContact_SendsFailureNotificationOnlyAtTermi
 
 func Test_SubmitReport_WhenFailureNotificationsDisabled_DoesNotSend(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	// Default config has IsScheduledVerificationEnabled=false and no notification types.
 	// Do not call enableFailureNotificationsViaAPI — failure notification must NOT fire.

@@ -53,8 +53,8 @@ func Test_BackupAndRestorePostgresqlMtls_Succeeds(t *testing.T) {
 	assert.NoError(t, err)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Postgres mTLS Workspace", user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Postgres mTLS Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	dbName := "testdb"
@@ -99,8 +99,8 @@ func Test_BackupAndRestorePostgresqlMtls_Succeeds(t *testing.T) {
 		t, router, "/api/v1/databases/"+database.ID.String(),
 		"Bearer "+user.Token, http.StatusNoContent,
 	)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	storages.RemoveTestStorage(t.Context(), storage.ID)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_CreatePostgresqlMtls_WhenClientCertMissing_IsRejected(t *testing.T) {
@@ -114,9 +114,9 @@ func Test_CreatePostgresqlMtls_WhenClientCertMissing_IsRejected(t *testing.T) {
 	portInt := endpoint.Port
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Postgres mTLS Reject Workspace", user, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Postgres mTLS Reject Workspace", user, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	dbName := "testdb"
 	request := databases.Database{

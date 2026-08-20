@@ -242,7 +242,8 @@ func (p *PostgresqlPhysicalDatabase) PopulateDbData(
 	if p.WalSegmentSizeBytes == nil {
 		var sizeBytes int64
 
-		if err := conn.QueryRow(ctx,
+		if err := conn.QueryRow(
+			ctx,
 			"SELECT setting::bigint FROM pg_settings WHERE name = 'wal_segment_size'",
 		).Scan(&sizeBytes); err != nil {
 			return fmt.Errorf("failed to read wal_segment_size: %w", err)
@@ -319,7 +320,8 @@ func (p *PostgresqlPhysicalDatabase) VerifyWalSlot(
 	defer closeConnQuietly(ctx, conn, logger)
 
 	var slotType string
-	err = conn.QueryRow(ctx,
+	err = conn.QueryRow(
+		ctx,
 		"SELECT slot_type FROM pg_replication_slots WHERE slot_name = $1",
 		p.ReplicationSlotName,
 	).Scan(&slotType)
@@ -333,7 +335,7 @@ func (p *PostgresqlPhysicalDatabase) VerifyWalSlot(
 			)
 		}
 
-		logger.Debug("replication slot already exists", "slot_name", p.ReplicationSlotName)
+		logger.DebugContext(ctx, "replication slot already exists", "slot_name", p.ReplicationSlotName)
 
 		return nil
 
@@ -343,14 +345,15 @@ func (p *PostgresqlPhysicalDatabase) VerifyWalSlot(
 		return fmt.Errorf("query pg_replication_slots: %w", err)
 	}
 
-	_, err = conn.Exec(ctx,
+	_, err = conn.Exec(
+		ctx,
 		"SELECT pg_create_physical_replication_slot($1, true)",
 		p.ReplicationSlotName,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "42710" {
-			logger.Debug("replication slot created by concurrent verify",
+			logger.DebugContext(ctx, "replication slot created by concurrent verify",
 				"slot_name", p.ReplicationSlotName)
 
 			return nil
@@ -359,7 +362,7 @@ func (p *PostgresqlPhysicalDatabase) VerifyWalSlot(
 		return fmt.Errorf("create physical replication slot: %w", err)
 	}
 
-	logger.Info("replication slot created", "slot_name", p.ReplicationSlotName)
+	logger.InfoContext(ctx, "replication slot created", "slot_name", p.ReplicationSlotName)
 
 	return nil
 }
@@ -389,14 +392,15 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlot(
 
 	var slotType string
 	var isActive bool
-	err = conn.QueryRow(ctx,
+	err = conn.QueryRow(
+		ctx,
 		"SELECT slot_type, active FROM pg_replication_slots WHERE slot_name = $1",
 		p.ReplicationSlotName,
 	).Scan(&slotType, &isActive)
 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		logger.Debug("replication slot already absent", "slot_name", p.ReplicationSlotName)
+		logger.DebugContext(ctx, "replication slot already absent", "slot_name", p.ReplicationSlotName)
 
 		return nil
 
@@ -418,14 +422,15 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlot(
 		)
 	}
 
-	_, err = conn.Exec(ctx,
+	_, err = conn.Exec(
+		ctx,
 		"SELECT pg_drop_replication_slot($1)",
 		p.ReplicationSlotName,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "42704" {
-			logger.Debug("replication slot dropped by concurrent caller",
+			logger.DebugContext(ctx, "replication slot dropped by concurrent caller",
 				"slot_name", p.ReplicationSlotName)
 
 			return nil
@@ -434,7 +439,7 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlot(
 		return fmt.Errorf("drop replication slot: %w", err)
 	}
 
-	logger.Info("replication slot dropped", "slot_name", p.ReplicationSlotName)
+	logger.InfoContext(ctx, "replication slot dropped", "slot_name", p.ReplicationSlotName)
 
 	return nil
 }
@@ -467,14 +472,15 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlotForRemoval(
 		var slotType string
 		var isActive bool
 		var activePID *int
-		err = conn.QueryRow(ctx,
+		err = conn.QueryRow(
+			ctx,
 			"SELECT slot_type, active, active_pid FROM pg_replication_slots WHERE slot_name = $1",
 			p.ReplicationSlotName,
 		).Scan(&slotType, &isActive, &activePID)
 
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
-			logger.Debug("replication slot already absent", "slot_name", p.ReplicationSlotName)
+			logger.DebugContext(ctx, "replication slot already absent", "slot_name", p.ReplicationSlotName)
 
 			return nil
 
@@ -498,7 +504,7 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlotForRemoval(
 		// rather than assume the detach is instantaneous.
 		if activePID != nil {
 			if _, termErr := conn.Exec(ctx, "SELECT pg_terminate_backend($1)", *activePID); termErr != nil {
-				logger.Warn("failed to terminate replication slot consumer",
+				logger.WarnContext(ctx, "failed to terminate replication slot consumer",
 					"slot_name", p.ReplicationSlotName, "active_pid", *activePID, "error", termErr)
 			}
 		}
@@ -514,7 +520,9 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlotForRemoval(
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "42704" {
-			logger.Debug("replication slot dropped by concurrent caller", "slot_name", p.ReplicationSlotName)
+			logger.DebugContext(ctx, "replication slot dropped by concurrent caller",
+				"slot_name", p.ReplicationSlotName,
+			)
 
 			return nil
 		}
@@ -522,7 +530,7 @@ func (p *PostgresqlPhysicalDatabase) DropWalSlotForRemoval(
 		return fmt.Errorf("drop replication slot: %w", err)
 	}
 
-	logger.Info("replication slot dropped", "slot_name", p.ReplicationSlotName)
+	logger.InfoContext(ctx, "replication slot dropped", "slot_name", p.ReplicationSlotName)
 
 	return nil
 }
@@ -749,7 +757,7 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 		defer func() {
 			if !isCommitted {
 				if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-					logger.Warn("failed to rollback transaction", "error", rollbackErr)
+					logger.WarnContext(ctx, "failed to rollback transaction", "error", rollbackErr)
 				}
 			}
 		}()
@@ -783,7 +791,7 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 		}
 		isCommitted = true
 
-		logger.Info("replication-only user created", "username", baseUsername, "platform", platform)
+		logger.InfoContext(ctx, "replication-only user created", "username", baseUsername, "platform", platform)
 		return baseUsername, newPassword, nil
 	}
 

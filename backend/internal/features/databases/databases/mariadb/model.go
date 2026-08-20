@@ -103,7 +103,7 @@ func (m *MariadbDatabase) TestConnection(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close MariaDB connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the mariadb connection", "error", closeErr)
 		}
 	}()
 
@@ -112,6 +112,8 @@ func (m *MariadbDatabase) TestConnection(
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
+		logger.ErrorContext(ctx, "failed to ping the mariadb database", "database_name", *m.Database, "error", err)
+
 		return fmt.Errorf("failed to ping MariaDB database '%s': %w", *m.Database, err)
 	}
 
@@ -156,7 +158,7 @@ func (m *MariadbDatabase) GetRawDbSizeMb(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close MariaDB connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close MariaDB connection", "error", closeErr)
 		}
 	}()
 
@@ -259,7 +261,7 @@ func (m *MariadbDatabase) PopulateDbData(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the connection", "error", closeErr)
 		}
 	}()
 
@@ -302,7 +304,7 @@ func (m *MariadbDatabase) PopulateVersion(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the connection", "error", closeErr)
 		}
 	}()
 
@@ -333,7 +335,7 @@ func (m *MariadbDatabase) IsUserReadOnly(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -412,7 +414,7 @@ func (m *MariadbDatabase) CreateReadOnlyUser(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -431,7 +433,7 @@ func (m *MariadbDatabase) CreateReadOnlyUser(
 		defer func() {
 			if !success {
 				if rollbackErr := tx.Rollback(); rollbackErr != nil {
-					logger.Error("Failed to rollback transaction", "error", rollbackErr)
+					logger.ErrorContext(ctx, "failed to rollback transaction", "error", rollbackErr)
 				}
 			}
 		}()
@@ -475,8 +477,9 @@ func (m *MariadbDatabase) CreateReadOnlyUser(
 		}
 
 		success = true
-		logger.Info(
-			"Read-only MariaDB user created successfully",
+		logger.InfoContext(
+			ctx,
+			"read-only MariaDB user created successfully",
 			"username", newUsername,
 		)
 		return newUsername, newPassword, nil

@@ -9,7 +9,7 @@ import (
 )
 
 type NotificationSender interface {
-	SendNotification(notifier *notifiers.Notifier, notification notifier_models.Notification)
+	SendNotification(ctx context.Context, notifier *notifiers.Notifier, notification notifier_models.Notification)
 }
 
 type FullBackupExecutor interface {

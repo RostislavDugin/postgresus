@@ -1,6 +1,7 @@
 package verification_runs
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -35,19 +36,19 @@ func newReclaimFixture(
 	t.Helper()
 
 	router = createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(testStorage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), testStorage.ID) })
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	t.Cleanup(func() { notifiers.RemoveTestNotifier(notifier) })
 
 	database = databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	t.Cleanup(func() { databases.RemoveTestDatabase(database) })
+	t.Cleanup(func() { databases.RemoveTestDatabase(t.Context(), database) })
 
 	return router, owner.Token, database, testStorage.ID
 }
@@ -105,7 +106,7 @@ func Test_OnAgentHeartbeated_WhenLiveAgentDropsRunningJobPastGrace_Requeues(t *t
 	assignment := claimRunningJob(t, router, ownerToken, agent, backup.ID)
 	backdateStartedAt(t, assignment.VerificationID)
 
-	_, err := GetVerificationService().OnAgentHeartbeated(agent.Agent, nil)
+	_, err := GetVerificationService().OnAgentHeartbeated(t.Context(), agent.Agent, nil)
 	require.NoError(t, err)
 
 	requeued := GetVerificationByIDViaAPI(t, router, ownerToken, assignment.VerificationID)
@@ -125,7 +126,7 @@ func Test_OnAgentHeartbeated_WhenJobStillReportedByAgent_DoesNotRequeue(t *testi
 	assignment := claimRunningJob(t, router, ownerToken, agent, backup.ID)
 	backdateStartedAt(t, assignment.VerificationID)
 
-	_, err := GetVerificationService().OnAgentHeartbeated(
+	_, err := GetVerificationService().OnAgentHeartbeated(t.Context(),
 		agent.Agent, []uuid.UUID{assignment.VerificationID},
 	)
 	require.NoError(t, err)
@@ -147,7 +148,7 @@ func Test_OnAgentHeartbeated_WhenRunningJobWithinGrace_DoesNotRequeue(t *testing
 	backup := backuping_logical.SeedTestBackup(t, database.ID, storageID, 100)
 	assignment := claimRunningJob(t, router, ownerToken, agent, backup.ID)
 
-	_, err := GetVerificationService().OnAgentHeartbeated(agent.Agent, nil)
+	_, err := GetVerificationService().OnAgentHeartbeated(t.Context(), agent.Agent, nil)
 	require.NoError(t, err)
 
 	stillRunning := GetVerificationByIDViaAPI(t, router, ownerToken, assignment.VerificationID)
@@ -173,7 +174,7 @@ func Test_OnAgentHeartbeated_WhenDroppedJobAtMaxAttempts_MarksTerminal(t *testin
 			"started_at":    time.Now().UTC().Add(-1 * time.Hour),
 		}).Error)
 
-	_, err := GetVerificationService().OnAgentHeartbeated(agent.Agent, nil)
+	_, err := GetVerificationService().OnAgentHeartbeated(t.Context(), agent.Agent, nil)
 	require.NoError(t, err)
 
 	final := GetVerificationByIDViaAPI(t, router, ownerToken, assignment.VerificationID)
@@ -202,7 +203,7 @@ func Test_OnAgentHeartbeated_WhenJobAlreadyCompleted_DoesNotResurrect(t *testing
 			"started_at":  time.Now().UTC().Add(-1 * time.Hour),
 		}).Error)
 
-	_, err := GetVerificationService().OnAgentHeartbeated(agent.Agent, nil)
+	_, err := GetVerificationService().OnAgentHeartbeated(t.Context(), agent.Agent, nil)
 	require.NoError(t, err)
 
 	final := GetVerificationByIDViaAPI(t, router, ownerToken, assignment.VerificationID)
@@ -214,21 +215,21 @@ func Test_OnAgentHeartbeated_WhenAgentDropsOneStillRunsAnother_ReclaimsOnlyDropp
 	shrinkReclaimGrace(t, 1*time.Millisecond)
 
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	databaseKept := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(databaseKept)
+	defer databases.RemoveTestDatabase(t.Context(), databaseKept)
 
 	databaseDropped := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(databaseDropped)
+	defer databases.RemoveTestDatabase(t.Context(), databaseDropped)
 
 	agent := newReclaimAgent(t, router, owner.Token)
 
@@ -240,7 +241,7 @@ func Test_OnAgentHeartbeated_WhenAgentDropsOneStillRunsAnother_ReclaimsOnlyDropp
 	backdateStartedAt(t, kept.VerificationID)
 	backdateStartedAt(t, dropped.VerificationID)
 
-	aborts, err := GetVerificationService().OnAgentHeartbeated(
+	aborts, err := GetVerificationService().OnAgentHeartbeated(t.Context(),
 		agent.Agent, []uuid.UUID{kept.VerificationID},
 	)
 	require.NoError(t, err)
@@ -273,7 +274,7 @@ func Test_OnAgentHeartbeated_WhenAgentReportsNoLongerOwnedJob_ReturnsItInAbortLi
 			"finished_at": time.Now().UTC(),
 		}).Error)
 
-	aborts, err := GetVerificationService().OnAgentHeartbeated(
+	aborts, err := GetVerificationService().OnAgentHeartbeated(t.Context(),
 		agent.Agent, []uuid.UUID{assignment.VerificationID},
 	)
 	require.NoError(t, err)

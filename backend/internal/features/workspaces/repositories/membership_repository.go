@@ -1,6 +1,7 @@
 package workspaces_repositories
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -76,10 +77,11 @@ func (r *MembershipRepository) RemoveMember(userID, workspaceID uuid.UUID) error
 }
 
 func (r *MembershipRepository) GetUserWorkspaceRole(
+	ctx context.Context,
 	workspaceID, userID uuid.UUID,
 ) (*users_enums.WorkspaceRole, error) {
 	var membership workspaces_models.WorkspaceMembership
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
 		First(&membership).Error
 	if err != nil {
@@ -109,17 +111,18 @@ func (r *MembershipRepository) GetWorkspaceOwner(
 }
 
 func (r *MembershipRepository) GetWorkspacesWithRolesByUserID(
+	ctx context.Context,
 	userRole users_enums.UserRole,
 	userID uuid.UUID,
 ) ([]workspaces_dto.WorkspaceResponseDTO, error) {
 	results := make([]workspaces_dto.WorkspaceResponseDTO, 0)
 
 	if userRole == users_enums.UserRoleAdmin {
-		err := storage.GetDb().Table("workspaces").Order("name ASC").Scan(&results).Error
+		err := storage.GetDb().WithContext(ctx).Table("workspaces").Order("name ASC").Scan(&results).Error
 		return results, err
 	}
 
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Table("workspaces w").
 		Select("w.id, w.name, w.created_at, wm.role as user_role").
 		Joins("JOIN workspace_memberships wm ON w.id = wm.workspace_id").

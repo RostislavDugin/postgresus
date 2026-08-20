@@ -1,6 +1,7 @@
 package verification_config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/intervals"
 	users_models "databasus-backend/internal/features/users/models"
@@ -23,6 +25,7 @@ type VerificationConfigService struct {
 }
 
 func (s *VerificationConfigService) GetByDatabaseID(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 ) (*BackupVerificationConfig, error) {
@@ -35,7 +38,7 @@ func (s *VerificationConfigService) GetByDatabaseID(
 		return nil, errors.New("cannot access verification config for databases without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +66,7 @@ func (s *VerificationConfigService) GetByDatabaseID(
 }
 
 func (s *VerificationConfigService) Save(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 	req *SaveBackupVerificationConfigDTO,
@@ -76,7 +80,7 @@ func (s *VerificationConfigService) Save(
 		return nil, errors.New("cannot modify verification config for databases without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +117,11 @@ func (s *VerificationConfigService) Save(
 		return nil, err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Backup verification config updated for database '%s'", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Backup verification config updated for database '%s'", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return config, nil
 }
@@ -132,10 +136,11 @@ func (s *VerificationConfigService) ListEnabled() ([]*BackupVerificationConfig, 
 	return s.verificationConfigRepository.FindAllEnabled()
 }
 
-func (s *VerificationConfigService) OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID) {
+func (s *VerificationConfigService) OnDatabaseCopied(ctx context.Context, originalDatabaseID, newDatabaseID uuid.UUID) {
 	originalConfig, err := s.verificationConfigRepository.GetByDatabaseID(originalDatabaseID)
 	if err != nil {
-		s.logger.Error(
+		s.logger.ErrorContext(
+			ctx,
 			"failed to load source verification config on database copy",
 			"error", err,
 			"database_id", originalDatabaseID,
@@ -145,7 +150,8 @@ func (s *VerificationConfigService) OnDatabaseCopied(originalDatabaseID, newData
 
 	if originalConfig == nil {
 		if err := s.initializeDefaultConfig(newDatabaseID); err != nil {
-			s.logger.Error(
+			s.logger.ErrorContext(
+				ctx,
 				"failed to initialize default verification config on database copy",
 				"error", err,
 				"database_id", newDatabaseID,
@@ -157,7 +163,8 @@ func (s *VerificationConfigService) OnDatabaseCopied(originalDatabaseID, newData
 	newConfig := originalConfig.Copy(newDatabaseID)
 
 	if err := s.verificationConfigRepository.Save(newConfig); err != nil {
-		s.logger.Error(
+		s.logger.ErrorContext(
+			ctx,
 			"failed to save verification config on database copy",
 			"error", err,
 			"database_id", newDatabaseID,

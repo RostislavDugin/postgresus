@@ -230,7 +230,7 @@ func Test_NotifyChainBroken_WhenSameIncidentRepeats_SendsOneNotificationPerWindo
 	// A FAILED streamer is reclaimable on the next tick, so the same incident
 	// re-enters this path every cycle until the cause is fixed.
 	for range 3 {
-		supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+		supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, chainAlert{
 			Kind:    chainAlertStreamerFailed,
 			Heading: "WAL streaming stopped",
 			Message: "database_id=x",
@@ -251,7 +251,7 @@ func Test_NotifyChainBroken_WhenConfigDoesNotOptIn_SendsNoNotification(t *testin
 		backups_config_physical.NotificationBackupSuccess,
 	}
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, chainAlert{
 		Kind:    chainAlertStreamerFailed,
 		Heading: "WAL streaming stopped",
 		Message: "database_id=x",
@@ -270,12 +270,12 @@ func Test_NotifyChainBroken_WhenDifferentIncidentKinds_SendsEachOnce(t *testing.
 		backups_config_physical.NotificationChainBroken,
 	}
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, chainAlert{
 		Kind:    chainAlertChainAtRisk,
 		Heading: "chain at risk",
 		Message: "database_id=x",
 	})
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, chainAlert{
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, chainAlert{
 		Kind:    chainAlertSlotRebuilt,
 		Heading: "chain rebuilt",
 		Message: "database_id=x",
@@ -306,11 +306,11 @@ func Test_NotifyChainBroken_WhenThrottleWindowElapsed_SendsAgain(t *testing.T) {
 		Message: "database_id=x",
 	}
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, streamerFailed)
 
 	time.Sleep(5 * time.Millisecond)
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, streamerFailed)
 
 	require.Len(t, sender.sentNotifications, 2,
 		"the throttle must mute a burst, not the incident itself — an unfixed break has to keep reminding the operator")
@@ -332,7 +332,7 @@ func Test_StopStreamer_WhenStreamerStops_ForgetsChainAlertThrottle(t *testing.T)
 		Message: "database_id=x",
 	}
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, streamerFailed)
 
 	done := make(chan struct{})
 	close(done)
@@ -340,7 +340,7 @@ func Test_StopStreamer_WhenStreamerStops_ForgetsChainAlertThrottle(t *testing.T)
 	supervisor.running[prereqs.DB.ID] = &runningStreamer{cancel: func() {}, done: done}
 	supervisor.stopStreamer(prereqs.DB.ID, false)
 
-	supervisor.notifyChainBroken(prereqs.DB, prereqs.Config, streamerFailed)
+	supervisor.notifyChainBroken(t.Context(), prereqs.DB, prereqs.Config, streamerFailed)
 
 	require.Len(t, sender.sentNotifications, 2,
 		"a reclaimed database is a fresh incident, so the throttle from the previous streamer must not mute it")
@@ -356,7 +356,7 @@ func Test_ChainRiskNotifier_WhenReasonsDiffer_UsesSeparateThrottleKinds(t *testi
 		backups_config_physical.NotificationChainBroken,
 	}
 
-	notifyChainRisk := supervisor.chainRiskNotifier(prereqs.DB, prereqs.Config)
+	notifyChainRisk := supervisor.chainRiskNotifier(t.Context(), prereqs.DB, prereqs.Config)
 
 	lastArchivedWalAt := time.Now().UTC().Add(-2 * time.Hour)
 

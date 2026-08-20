@@ -1,12 +1,14 @@
 package notifiers
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	notifier_models "databasus-backend/internal/features/notifiers/models"
 	users_models "databasus-backend/internal/features/users/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -29,11 +31,12 @@ func (s *NotifierService) SetNotifierDatabaseCounter(
 }
 
 func (s *NotifierService) SaveNotifier(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 	notifier *Notifier,
 ) error {
-	canManage, err := s.workspaceService.CanUserManageDBs(workspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, workspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -44,7 +47,7 @@ func (s *NotifierService) SaveNotifier(
 	isUpdate := notifier.ID != uuid.Nil
 
 	if isUpdate {
-		existingNotifier, err := s.notifierRepository.FindByID(notifier.ID)
+		existingNotifier, err := s.notifierRepository.FindByID(ctx, notifier.ID)
 		if err != nil {
 			return err
 		}
@@ -71,21 +74,21 @@ func (s *NotifierService) SaveNotifier(
 		}
 
 		if oldName != existingNotifier.Name {
-			s.auditLogService.WriteAuditLog(
-				fmt.Sprintf(
+			s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message: fmt.Sprintf(
 					"Notifier updated and renamed from '%s' to '%s'",
 					oldName,
 					existingNotifier.Name,
 				),
-				&user.ID,
-				&workspaceID,
-			)
+				UserID:      &user.ID,
+				WorkspaceID: &workspaceID,
+			})
 		} else {
-			s.auditLogService.WriteAuditLog(
-				fmt.Sprintf("Notifier updated: %s", existingNotifier.Name),
-				&user.ID,
-				&workspaceID,
-			)
+			s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     fmt.Sprintf("Notifier updated: %s", existingNotifier.Name),
+				UserID:      &user.ID,
+				WorkspaceID: &workspaceID,
+			})
 		}
 	} else {
 		notifier.WorkspaceID = workspaceID
@@ -103,26 +106,27 @@ func (s *NotifierService) SaveNotifier(
 			return err
 		}
 
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf("Notifier created: %s", notifier.Name),
-			&user.ID,
-			&workspaceID,
-		)
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Notifier created: %s", notifier.Name),
+			UserID:      &user.ID,
+			WorkspaceID: &workspaceID,
+		})
 	}
 
 	return nil
 }
 
 func (s *NotifierService) DeleteNotifier(
+	ctx context.Context,
 	user *users_models.User,
 	notifierID uuid.UUID,
 ) error {
-	notifier, err := s.notifierRepository.FindByID(notifierID)
+	notifier, err := s.notifierRepository.FindByID(ctx, notifierID)
 	if err != nil {
 		return err
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(notifier.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, notifier.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -145,25 +149,26 @@ func (s *NotifierService) DeleteNotifier(
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Notifier deleted: %s", notifier.Name),
-		&user.ID,
-		&notifier.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Notifier deleted: %s", notifier.Name),
+		UserID:      &user.ID,
+		WorkspaceID: &notifier.WorkspaceID,
+	})
 
 	return nil
 }
 
 func (s *NotifierService) GetNotifier(
+	ctx context.Context,
 	user *users_models.User,
 	id uuid.UUID,
 ) (*Notifier, error) {
-	notifier, err := s.notifierRepository.FindByID(id)
+	notifier, err := s.notifierRepository.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(notifier.WorkspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, notifier.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +180,8 @@ func (s *NotifierService) GetNotifier(
 	return notifier, nil
 }
 
-func (s *NotifierService) GetNotifierByID(id uuid.UUID) (*Notifier, error) {
-	return s.notifierRepository.FindByID(id)
+func (s *NotifierService) GetNotifierByID(ctx context.Context, id uuid.UUID) (*Notifier, error) {
+	return s.notifierRepository.FindByID(ctx, id)
 }
 
 func (s *NotifierService) GetAllNotifiers() ([]*Notifier, error) {
@@ -184,10 +189,11 @@ func (s *NotifierService) GetAllNotifiers() ([]*Notifier, error) {
 }
 
 func (s *NotifierService) GetNotifiers(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 ) ([]*Notifier, error) {
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, workspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -208,15 +214,16 @@ func (s *NotifierService) GetNotifiers(
 }
 
 func (s *NotifierService) SendTestNotification(
+	ctx context.Context,
 	user *users_models.User,
 	notifierID uuid.UUID,
 ) error {
-	notifier, err := s.notifierRepository.FindByID(notifierID)
+	notifier, err := s.notifierRepository.FindByID(ctx, notifierID)
 	if err != nil {
 		return err
 	}
 
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(notifier.WorkspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, notifier.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -238,12 +245,13 @@ func (s *NotifierService) SendTestNotification(
 }
 
 func (s *NotifierService) SendTestNotificationToNotifier(
+	ctx context.Context,
 	notifier *Notifier,
 ) error {
 	var usingNotifier *Notifier
 
 	if notifier.ID != uuid.Nil {
-		existingNotifier, err := s.notifierRepository.FindByID(notifier.ID)
+		existingNotifier, err := s.notifierRepository.FindByID(ctx, notifier.ID)
 		if err != nil {
 			return err
 		}
@@ -283,6 +291,7 @@ func newTestNotification() notifier_models.Notification {
 }
 
 func (s *NotifierService) SendNotification(
+	ctx context.Context,
 	notifier *Notifier,
 	notification notifier_models.Notification,
 ) {
@@ -291,41 +300,52 @@ func (s *NotifierService) SendNotification(
 		notification.Message = string(messageRunes[:2000])
 	}
 
-	notifiedFromDb, err := s.notifierRepository.FindByID(notifier.ID)
+	notifiedFromDb, err := s.notifierRepository.FindByID(ctx, notifier.ID)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to load notifier before sending", "notifier_id", notifier.ID, "error", err)
+
 		return
 	}
 
 	err = notifiedFromDb.Send(s.fieldEncryptor, s.logger, notification)
 	if err != nil {
+		// The notifier keeps working from the user's point of view, so without this a silently
+		// broken destination is only visible by opening the notifier in the UI. Notifier backends
+		// strip the credential from their transport errors before returning them.
+		s.logger.ErrorContext(ctx, "failed to send notification",
+			"notifier_id", notifiedFromDb.ID, "notification_type", notification.Type, "error", err)
+
 		errMsg := err.Error()
 		notifiedFromDb.LastSendError = &errMsg
 
 		_, err = s.notifierRepository.Save(notifiedFromDb)
 		if err != nil {
-			s.logger.Error("Failed to save notifier", "error", err)
+			s.logger.ErrorContext(ctx, "failed to save notifier", "error", err)
 		}
+
+		return
 	}
 
 	notifiedFromDb.LastSendError = nil
 	_, err = s.notifierRepository.Save(notifiedFromDb)
 	if err != nil {
-		s.logger.Error("Failed to save notifier", "error", err)
+		s.logger.ErrorContext(ctx, "failed to save notifier", "error", err)
 	}
 }
 
 func (s *NotifierService) TransferNotifierToWorkspace(
+	ctx context.Context,
 	user *users_models.User,
 	notifierID uuid.UUID,
 	targetWorkspaceID uuid.UUID,
 	transferingWithDbID *uuid.UUID,
 ) error {
-	existingNotifier, err := s.notifierRepository.FindByID(notifierID)
+	existingNotifier, err := s.notifierRepository.FindByID(ctx, notifierID)
 	if err != nil {
 		return err
 	}
 
-	canManageSource, err := s.workspaceService.CanUserManageDBs(existingNotifier.WorkspaceID, user)
+	canManageSource, err := s.workspaceService.CanUserManageDBs(ctx, existingNotifier.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -333,7 +353,7 @@ func (s *NotifierService) TransferNotifierToWorkspace(
 		return ErrInsufficientPermissionsInSourceWorkspace
 	}
 
-	canManageTarget, err := s.workspaceService.CanUserManageDBs(targetWorkspaceID, user)
+	canManageTarget, err := s.workspaceService.CanUserManageDBs(ctx, targetWorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -376,12 +396,16 @@ func (s *NotifierService) TransferNotifierToWorkspace(
 		return fmt.Errorf("failed to get target workspace: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Notifier transferred: %s from workspace '%s' to workspace '%s'",
-			existingNotifier.Name, sourceWorkspace.Name, targetWorkspace.Name),
-		&user.ID,
-		&targetWorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message: fmt.Sprintf(
+			"Notifier transferred: %s from workspace '%s' to workspace '%s'",
+			existingNotifier.Name,
+			sourceWorkspace.Name,
+			targetWorkspace.Name,
+		),
+		UserID:      &user.ID,
+		WorkspaceID: &targetWorkspaceID,
+	})
 
 	return nil
 }

@@ -43,7 +43,7 @@ func (s *WalStreamSupervisor) waitForBacklogBelowLow(ctx context.Context, logger
 		return true
 	}
 
-	logger.Warn("wal backlog over high watermark; pausing pg_receivewal until it drains")
+	logger.WarnContext(ctx, "wal backlog over high watermark; pausing pg_receivewal until it drains")
 
 	ticker := time.NewTicker(backpressurePollInterval)
 	defer ticker.Stop()
@@ -55,7 +55,7 @@ func (s *WalStreamSupervisor) waitForBacklogBelowLow(ctx context.Context, logger
 
 		case <-ticker.C:
 			if s.backlogBytes() < s.lowWatermarkBytes {
-				logger.Info("wal backlog drained below low watermark; resuming pg_receivewal")
+				logger.InfoContext(ctx, "wal backlog drained below low watermark; resuming pg_receivewal")
 
 				return true
 			}

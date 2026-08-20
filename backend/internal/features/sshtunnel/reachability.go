@@ -20,6 +20,10 @@ func (f *Forwarder) IsBastionReachable(ctx context.Context) bool {
 
 	bastionConn, err := f.dialBastionConn(ctx, f.bastionAddress)
 	if err != nil {
+		// Supervision loops blame the bastion for a stream failure based on this, so the reason it
+		// was judged unreachable has to be somewhere.
+		f.logger.DebugContext(ctx, "ssh tunnel host is unreachable", "error", err)
+
 		return false
 	}
 

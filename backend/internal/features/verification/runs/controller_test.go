@@ -58,18 +58,18 @@ func createTestRouter() *gin.Engine {
 
 func Test_EnqueueManualVerification_AsOwner_CreatesPendingRow(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 500)
 
@@ -92,18 +92,18 @@ func Test_EnqueueManualVerification_AsOwner_CreatesPendingRow(t *testing.T) {
 
 func Test_EnqueueManualVerification_WhenManualPendingExists_Returns400(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	firstBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	secondBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 200)
@@ -132,18 +132,18 @@ func Test_EnqueueManualVerification_WhenManualPendingExists_Returns400(t *testin
 
 func Test_EnqueueManualVerification_WhenRunningExists_Returns400(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -166,18 +166,18 @@ func Test_EnqueueManualVerification_WhenRunningExists_Returns400(t *testing.T) {
 
 func Test_EnqueueManualVerification_WhenScheduledNonTerminalExists_DoesNotDisplaceIt(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -230,22 +230,22 @@ func Test_EnqueueManualVerification_WhenScheduledNonTerminalExists_DoesNotDispla
 
 func Test_EnqueueManualVerification_AsNonWorkspaceMember_ReturnsForbidden(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
-	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	resp := test_utils.MakePostRequest(
 		t, router, "/api/v1/verifications/enqueue", "Bearer "+outsider.Token,
@@ -257,18 +257,18 @@ func Test_EnqueueManualVerification_AsNonWorkspaceMember_ReturnsForbidden(t *tes
 
 func Test_GetVerificationByID_ReturnsTableStats_WhileListByDatabaseOmitsThem(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "stats-"+uuid.New().String())
@@ -317,18 +317,18 @@ func Test_GetVerificationByID_ReturnsTableStats_WhileListByDatabaseOmitsThem(t *
 
 func Test_ListVerificationsByDatabase_WithLimit_CapsRowsAndReturnsTotal(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -354,18 +354,18 @@ func Test_ListVerificationsByDatabase_WithLimit_CapsRowsAndReturnsTotal(t *testi
 
 func Test_CancelVerification_AsOwner_FlipsToCanceled(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -382,18 +382,18 @@ func Test_CancelVerification_AsOwner_FlipsToCanceled(t *testing.T) {
 
 func Test_CancelVerification_WhenAlreadyCompleted_Returns400(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	agent := verification_agents.CreateTestVerificationAgent(
@@ -433,23 +433,23 @@ func Test_CancelVerification_WhenAlreadyCompleted_Returns400(t *testing.T) {
 
 func Test_CancelVerification_AsNonWorkspaceMember_ReturnsForbidden(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	enqueued := EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)
 
-	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	resp := test_utils.MakePostRequest(
 		t, router,
@@ -466,18 +466,18 @@ func Test_CancelVerification_AsNonWorkspaceMember_ReturnsForbidden(t *testing.T)
 
 func Test_CancelVerification_WithAgentToken_Returns401(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	enqueued := EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)
@@ -501,12 +501,12 @@ func Test_CancelVerification_WithAgentToken_Returns401(t *testing.T) {
 
 func Test_DeleteDatabase_RemovesVerifications_ViaCascade(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
@@ -533,18 +533,18 @@ func Test_DeleteDatabase_RemovesVerifications_ViaCascade(t *testing.T) {
 
 func Test_DeleteBackup_RemovesVerifications_ViaCascade(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 	enqueued := EnqueueManualVerificationViaAPI(t, router, owner.Token, backup.ID)

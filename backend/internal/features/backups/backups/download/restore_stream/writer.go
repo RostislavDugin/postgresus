@@ -134,7 +134,7 @@ func (rw *Writer) writeBackupDir(
 		return fmt.Errorf("backup %s has no reconstructed manifest sidecar", artifact.RowID)
 	}
 
-	store, err := rw.resolveStorage(artifact.StorageID, storageCache)
+	store, err := rw.resolveStorage(ctx, artifact.StorageID, storageCache)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (rw *Writer) writeManifest(
 	storageCache map[uuid.UUID]*storages.Storage,
 	checksums *checksumLedger,
 ) error {
-	store, err := rw.resolveStorage(artifact.StorageID, storageCache)
+	store, err := rw.resolveStorage(ctx, artifact.StorageID, storageCache)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (rw *Writer) writeWalSegment(
 		return fmt.Errorf("wal segment %s has no stored file", segment.WalFilename)
 	}
 
-	store, err := rw.resolveStorage(segment.StorageID, storageCache)
+	store, err := rw.resolveStorage(ctx, segment.StorageID, storageCache)
 	if err != nil {
 		return err
 	}
@@ -263,7 +263,7 @@ func (rw *Writer) writeHistoryFile(
 	storageCache map[uuid.UUID]*storages.Storage,
 	checksums *checksumLedger,
 ) error {
-	store, err := rw.resolveStorage(history.StorageID, storageCache)
+	store, err := rw.resolveStorage(ctx, history.StorageID, storageCache)
 	if err != nil {
 		return err
 	}
@@ -306,6 +306,7 @@ func (rw *Writer) writeHistoryFile(
 }
 
 func (rw *Writer) resolveStorage(
+	ctx context.Context,
 	storageID uuid.UUID,
 	storageCache map[uuid.UUID]*storages.Storage,
 ) (*storages.Storage, error) {
@@ -313,7 +314,7 @@ func (rw *Writer) resolveStorage(
 		return cached, nil
 	}
 
-	store, err := rw.storageService.GetStorageByID(storageID)
+	store, err := rw.storageService.GetStorageByID(ctx, storageID)
 	if err != nil {
 		return nil, fmt.Errorf("load storage %s: %w", storageID, err)
 	}

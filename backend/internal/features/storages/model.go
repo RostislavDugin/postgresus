@@ -65,8 +65,13 @@ func (s *Storage) GetFile(
 	return s.getSpecificStorage().GetFile(ctx, encryptor, logger, fileName)
 }
 
-func (s *Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
-	return s.getSpecificStorage().DeleteFile(encryptor, fileName)
+func (s *Storage) DeleteFile(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileName string,
+) error {
+	return s.getSpecificStorage().DeleteFile(ctx, encryptor, logger, fileName)
 }
 
 func (s *Storage) Validate(encryptor encryption.FieldEncryptor) error {

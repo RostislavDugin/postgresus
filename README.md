@@ -111,6 +111,7 @@ Databasus performs a real restore to confirm backups are usable, not just intact
 - **Docker-based**: Easy deployment and management
 - **Privacy-first**: All your data stays on your infrastructure
 - **Open source**: Apache 2.0 licensed, inspect every line of code
+- **Build-in SSH**: Connect to your databasus via SSH tunnel
 
 ### 📦 Installation <a href="https://databasus.com/installation">(docs)</a>
 

@@ -116,15 +116,20 @@ func (m *MongodbDatabase) TestConnection(
 	clientOptions := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
+		// The URI carries the password, so only the database name goes into the log.
+		logger.ErrorContext(ctx, "failed to open the mongodb connection", "database_name", m.Database, "error", err)
+
 		return fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 	defer func() {
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Error("Failed to disconnect from MongoDB", "error", disconnectErr)
+			logger.ErrorContext(ctx, "failed to disconnect from mongodb", "error", disconnectErr)
 		}
 	}()
 
 	if err := client.Ping(ctx, nil); err != nil {
+		logger.ErrorContext(ctx, "failed to ping the mongodb database", "database_name", m.Database, "error", err)
+
 		return fmt.Errorf("failed to ping MongoDB database '%s': %w", m.Database, err)
 	}
 
@@ -172,7 +177,7 @@ func (m *MongodbDatabase) GetRawDbSizeMb(
 	}
 	defer func() {
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Error("Failed to disconnect from MongoDB", "error", disconnectErr)
+			logger.ErrorContext(ctx, "failed to disconnect from MongoDB", "error", disconnectErr)
 		}
 	}()
 
@@ -275,7 +280,7 @@ func (m *MongodbDatabase) PopulateVersion(
 	}
 	defer func() {
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Error("Failed to disconnect", "error", disconnectErr)
+			logger.Error("failed to disconnect", "error", disconnectErr)
 		}
 	}()
 
@@ -307,7 +312,7 @@ func (m *MongodbDatabase) IsUserReadOnly(
 	}
 	defer func() {
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Error("Failed to disconnect", "error", disconnectErr)
+			logger.ErrorContext(ctx, "failed to disconnect", "error", disconnectErr)
 		}
 	}()
 
@@ -493,7 +498,7 @@ func (m *MongodbDatabase) CreateReadOnlyUser(
 	}
 	defer func() {
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
-			logger.Error("Failed to disconnect", "error", disconnectErr)
+			logger.ErrorContext(ctx, "failed to disconnect", "error", disconnectErr)
 		}
 	}()
 
@@ -529,8 +534,9 @@ func (m *MongodbDatabase) CreateReadOnlyUser(
 			return "", "", fmt.Errorf("failed to create user: %w", err)
 		}
 
-		logger.Info(
-			"Read-only MongoDB user created successfully",
+		logger.InfoContext(
+			ctx,
+			"read-only MongoDB user created successfully",
 			"username", newUsername,
 		)
 		return newUsername, newPassword, nil

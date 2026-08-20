@@ -1,6 +1,7 @@
 package postgresql_logical
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -68,12 +69,12 @@ func Test_PostgresqlBackupRestore_OverSshTunnel_RestoresData(t *testing.T) {
 	require.NoError(t, err)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("SSH Tunnel Cycle Workspace", user, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "SSH Tunnel Cycle Workspace", user, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	storage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(storage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), storage.ID) })
 
 	database := logicaltesting.SubmitCreateDatabase(t, router, "Postgres cycle over SSH tunnel",
 		databases.Database{

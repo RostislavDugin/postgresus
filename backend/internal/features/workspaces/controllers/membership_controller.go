@@ -53,7 +53,7 @@ func (c *MembershipController) ListMembers(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.membershipService.GetMembers(workspaceID, user)
+	response, err := c.membershipService.GetMembers(ctx.Request.Context(), workspaceID, user)
 	if err != nil {
 		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToViewMembers) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -105,7 +105,7 @@ func (c *MembershipController) AddMember(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.membershipService.AddMember(workspaceID, &request, user)
+	response, err := c.membershipService.AddMember(ctx.Request.Context(), workspaceID, &request, user)
 	if err != nil {
 		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToManageMembers) ||
 			errors.Is(err, workspaces_errors.ErrOnlyOwnerCanAddManageAdmins) {
@@ -162,6 +162,7 @@ func (c *MembershipController) ChangeMemberRole(ctx *gin.Context) {
 	}
 
 	if err := c.membershipService.ChangeMemberRole(
+		ctx.Request.Context(),
 		workspaceID,
 		userID,
 		&request,
@@ -212,7 +213,7 @@ func (c *MembershipController) RemoveMember(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.membershipService.RemoveMember(workspaceID, userID, user); err != nil {
+	if err := c.membershipService.RemoveMember(ctx.Request.Context(), workspaceID, userID, user); err != nil {
 		if errors.Is(err, workspaces_errors.ErrInsufficientPermissionsToRemoveMembers) ||
 			errors.Is(err, workspaces_errors.ErrOnlyOwnerCanRemoveAdmins) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -259,7 +260,7 @@ func (c *MembershipController) TransferOwnership(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.membershipService.TransferOwnership(workspaceID, &request, user); err != nil {
+	if err := c.membershipService.TransferOwnership(ctx.Request.Context(), workspaceID, &request, user); err != nil {
 		if errors.Is(err, workspaces_errors.ErrOnlyOwnerOrAdminCanTransferOwnership) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return

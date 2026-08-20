@@ -73,7 +73,7 @@ func (r *BackupConfigRepository) GetWithEnabledBackups() ([]*LogicalBackupConfig
 	return backupConfigs, nil
 }
 
-func (r *BackupConfigRepository) IsStorageUsing(storageID uuid.UUID) (bool, error) {
+func (r *BackupConfigRepository) IsStorageInUse(storageID uuid.UUID) (bool, error) {
 	var count int64
 
 	if err := storage.

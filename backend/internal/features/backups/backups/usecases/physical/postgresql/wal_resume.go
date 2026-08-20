@@ -125,12 +125,13 @@ func (s *WalStreamSupervisor) realignResumePath(ctx context.Context, logger *slo
 
 	movedCount, err := movePendingUploadsOutOfResumePath(s.watchDir, slotSegmentNo, segmentSizeBytes)
 	if err != nil {
-		logger.Error("failed to realign wal resume point", "error", err)
+		logger.ErrorContext(ctx, "failed to realign wal resume point", "error", err)
 
 		return
 	}
 
-	logger.Warn(
+	logger.WarnContext(
+		ctx,
 		fmt.Sprintf("realigned wal resume point, moved %d segments out of the resume path", movedCount),
 		"slot_restart_lsn", state.RestartLSN.String(),
 		"resume_segment_no", uint64(resumeSegmentNo),

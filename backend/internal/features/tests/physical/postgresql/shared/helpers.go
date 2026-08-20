@@ -738,7 +738,8 @@ func createMarkerTable(t *testing.T, ctx context.Context, conn *pgx.Conn) {
 		_, _ = conn.Exec(context.Background(), `DROP TABLE IF EXISTS restore_marker`)
 	})
 
-	_, err = conn.Exec(ctx,
+	_, err = conn.Exec(
+		ctx,
 		`CREATE TABLE restore_marker (phase TEXT PRIMARY KEY, payload TEXT NOT NULL)`)
 	require.NoError(t, err)
 }
@@ -746,7 +747,8 @@ func createMarkerTable(t *testing.T, ctx context.Context, conn *pgx.Conn) {
 func insertMarker(t *testing.T, ctx context.Context, conn *pgx.Conn, phase, payload string) {
 	t.Helper()
 
-	_, err := conn.Exec(ctx,
+	_, err := conn.Exec(
+		ctx,
 		`INSERT INTO restore_marker (phase, payload) VALUES ($1, $2)`, phase, payload)
 	require.NoError(t, err)
 }
@@ -1034,7 +1036,8 @@ func waitForMarkerOnStandby(
 	deadline := time.Now().UTC().Add(timeout)
 	for time.Now().UTC().Before(deadline) {
 		var exists bool
-		if err := standbyConn.QueryRow(ctx,
+		if err := standbyConn.QueryRow(
+			ctx,
 			`SELECT EXISTS(SELECT 1 FROM restore_marker WHERE phase = $1)`, phase,
 		).Scan(&exists); err == nil && exists {
 			return
@@ -1054,7 +1057,8 @@ func PromoteStandby(t *testing.T, ctx context.Context, standbyConn *pgx.Conn) {
 	t.Helper()
 
 	var promoted bool
-	require.NoError(t, standbyConn.QueryRow(ctx,
+	require.NoError(t, standbyConn.QueryRow(
+		ctx,
 		`SELECT pg_promote(wait => true, wait_seconds => 60)`).Scan(&promoted))
 	require.True(t, promoted, "pg_promote must finish promotion within its wait window")
 

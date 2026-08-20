@@ -49,41 +49,42 @@ type PhysicalBackuper struct {
 	incrExecutor        IncrementalBackupExecutor
 }
 
-func (b *PhysicalBackuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
+func (b *PhysicalBackuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNotifier bool) {
 	logger := b.logger.With("backup_id", backupID)
 
 	fullBackup, err := b.fullRepo.FindByID(backupID)
 	if err != nil {
-		logger.Error("failed to look up full backup row", "error", err)
+		logger.ErrorContext(ctx, "failed to look up full backup row", "error", err)
 		return
 	}
 
 	if fullBackup != nil {
-		b.runFullBackup(logger, fullBackup, isCallNotifier)
+		b.runFullBackup(ctx, logger, fullBackup, isCallNotifier)
 		return
 	}
 
 	incrBackup, err := b.incrRepo.FindByID(backupID)
 	if err != nil {
-		logger.Error("failed to look up incremental backup row", "error", err)
+		logger.ErrorContext(ctx, "failed to look up incremental backup row", "error", err)
 
 		return
 	}
 
 	if incrBackup != nil {
-		b.runIncrementalBackup(logger, incrBackup, isCallNotifier)
+		b.runIncrementalBackup(ctx, logger, incrBackup, isCallNotifier)
 		return
 	}
 
-	logger.Warn("backup not found in either typed table; ignoring assignment")
+	logger.WarnContext(ctx, "backup not found in either typed table; ignoring assignment")
 }
 
 func (b *PhysicalBackuper) runFullBackup(
+	ctx context.Context,
 	logger *slog.Logger,
 	fullBackup *physical_models.PhysicalFullBackup,
 	isCallNotifier bool,
 ) {
-	backupCtx, ok := b.openBackupContext(logger, fullBackup.DatabaseID)
+	backupCtx, ok := b.openBackupContext(ctx, logger, fullBackup.DatabaseID)
 	if !ok {
 		b.finalizeFullAsError(fullBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed,
 			"failed to open backup context")
@@ -93,11 +94,13 @@ func (b *PhysicalBackuper) runFullBackup(
 
 	defer backupCtx.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Detached from the caller so a finished HTTP request cannot cancel a running backup; the
+	// caller's ctx stays in use for logging, which is what carries request_id and user_id.
+	executionCtx, cancel := context.WithCancel(context.Background())
 	b.taskCancelManager.RegisterTask(fullBackup.ID, cancel)
 	defer b.taskCancelManager.UnregisterTask(fullBackup.ID)
 
-	rawSizeMb := b.getSourceClusterSizeMb(ctx, logger, backupCtx.Database)
+	rawSizeMb := b.getSourceClusterSizeMb(executionCtx, logger, backupCtx.Database)
 
 	fullBackupSpec := postgresql_executor.FullBackupSpec{
 		CommonBackupSpec: postgresql_executor.CommonBackupSpec{
@@ -113,16 +116,27 @@ func (b *PhysicalBackuper) runFullBackup(
 			Logger:         logger,
 			ProgressListener: func(completedMb float64, elapsedMs int64) {
 				if err := b.fullRepo.UpdateProgress(fullBackup.ID, completedMb, elapsedMs); err != nil {
-					logger.Error("failed to update full backup progress", "error", err)
+					logger.ErrorContext(ctx, "failed to update full backup progress", "error", err)
 				}
 			},
 		},
 		Backup: fullBackup,
 	}
 
-	backupResult, err := b.fullExecutor.Execute(ctx, fullBackupSpec)
+	// The source-size probe is best effort (it warns and returns nil when the cluster is unreachable),
+	// so the started line must not depend on it.
+	sourceSize := "unknown"
+	if rawSizeMb != nil {
+		sourceSize = fmt.Sprintf("%.1f MB", *rawSizeMb)
+	}
+
+	logger.InfoContext(ctx, fmt.Sprintf("physical full backup started: database %q, %s source",
+		backupCtx.Database.Name, sourceSize),
+		"storage_id", backupCtx.Storage.ID, "encryption", backupCtx.Config.Encryption)
+
+	backupResult, err := b.fullExecutor.Execute(executionCtx, fullBackupSpec)
 	if err != nil {
-		logger.Error("full executor returned error", "error", err)
+		logger.ErrorContext(ctx, "full executor returned error", "error", err)
 
 		b.finalizeFullAsError(fullBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed, err.Error())
 
@@ -130,29 +144,35 @@ func (b *PhysicalBackuper) runFullBackup(
 	}
 
 	if backupResult.Status != physical_enums.PhysicalBackupStatusCompleted {
-		logger.Warn("full executor returned non-COMPLETED result",
+		logger.WarnContext(ctx, "full executor returned non-COMPLETED result",
 			"status", backupResult.Status,
 			"reason", reasonOrEmpty(backupResult.ErrorReason),
 			"message", backupResult.ErrorMessage)
 	}
 
 	if err := b.persistFullResult(fullBackup, backupResult, rawSizeMb); err != nil {
-		logger.Error("failed to persist full result", "error", err)
+		logger.ErrorContext(ctx, "failed to persist full result", "error", err)
 
 		return
 	}
 
+	logger.InfoContext(ctx, fmt.Sprintf(
+		"physical full backup finished: %s, %.1f MB in %d ms, timeline %d, lsn %s -> %s",
+		backupResult.Status, backupResult.BackupSizeMb, backupResult.BackupDurationMs,
+		backupResult.TimelineID, backupResult.StartLSN, backupResult.StopLSN))
+
 	if isCallNotifier {
-		b.sendFullBackupNotification(backupCtx.Config, backupCtx.Database, fullBackup, backupResult)
+		b.sendFullBackupNotification(ctx, backupCtx.Config, backupCtx.Database, fullBackup, backupResult)
 	}
 }
 
 func (b *PhysicalBackuper) runIncrementalBackup(
+	ctx context.Context,
 	logger *slog.Logger,
 	incrBackup *physical_models.PhysicalIncrementalBackup,
 	isCallNotifier bool,
 ) {
-	backupCtx, ok := b.openBackupContext(logger, incrBackup.DatabaseID)
+	backupCtx, ok := b.openBackupContext(ctx, logger, incrBackup.DatabaseID)
 	if !ok {
 		b.finalizeIncrAsError(incrBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed,
 			"failed to open backup context")
@@ -164,7 +184,7 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 
 	parentRef, err := b.resolveParentManifest(incrBackup)
 	if err != nil {
-		logger.Error("failed to resolve parent manifest", "error", err)
+		logger.ErrorContext(ctx, "failed to resolve parent manifest", "error", err)
 
 		b.finalizeIncrAsChainBroken(incrBackup,
 			physical_enums.PhysicalBackupErrorParentManifestMissing, err.Error())
@@ -172,7 +192,7 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	executionCtx, cancel := context.WithCancel(context.Background())
 	b.taskCancelManager.RegisterTask(incrBackup.ID, cancel)
 	defer b.taskCancelManager.UnregisterTask(incrBackup.ID)
 
@@ -190,7 +210,7 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 			Logger:         logger,
 			ProgressListener: func(completedMb float64, elapsedMs int64) {
 				if err := b.incrRepo.UpdateProgress(incrBackup.ID, completedMb, elapsedMs); err != nil {
-					logger.Error("failed to update incremental backup progress", "error", err)
+					logger.ErrorContext(ctx, "failed to update incremental backup progress", "error", err)
 				}
 			},
 		},
@@ -200,9 +220,13 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 		IncrementalCadence: backupCtx.Config.IncrementalBackupInterval.ApproxPeriod(),
 	}
 
-	backupResult, err := b.incrExecutor.Execute(ctx, incrBackupSpec)
+	logger.InfoContext(ctx, fmt.Sprintf("physical incremental backup started: database %q, parent lsn %s",
+		backupCtx.Database.Name, parentRef.StopLSN),
+		"parent_backup_id", parentRef.BackupID, "storage_id", backupCtx.Storage.ID)
+
+	backupResult, err := b.incrExecutor.Execute(executionCtx, incrBackupSpec)
 	if err != nil {
-		logger.Error("incremental executor returned error", "error", err)
+		logger.ErrorContext(ctx, "incremental executor returned error", "error", err)
 
 		b.finalizeIncrAsError(incrBackup, physical_enums.PhysicalBackupErrorPgBasebackupFailed, err.Error())
 
@@ -210,56 +234,64 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 	}
 
 	if backupResult.Status != physical_enums.PhysicalBackupStatusCompleted {
-		logger.Warn("incremental executor returned non-COMPLETED result",
+		logger.WarnContext(ctx, "incremental executor returned non-COMPLETED result",
 			"status", backupResult.Status,
 			"reason", reasonOrEmpty(backupResult.ErrorReason),
 			"message", backupResult.ErrorMessage)
 	}
 
 	if err := b.persistIncrResult(incrBackup, backupResult); err != nil {
-		logger.Error("failed to persist incremental result", "error", err)
+		logger.ErrorContext(ctx, "failed to persist incremental result", "error", err)
 
 		return
 	}
 
+	logger.InfoContext(ctx, fmt.Sprintf(
+		"physical incremental backup finished: %s, %.1f MB in %d ms, timeline %d, lsn %s -> %s",
+		backupResult.Status, backupResult.BackupSizeMb, backupResult.BackupDurationMs,
+		backupResult.TimelineID, backupResult.StartLSN, backupResult.StopLSN))
+
 	if isCallNotifier {
-		b.sendIncrBackupNotification(backupCtx.Config, backupCtx.Database, incrBackup, backupResult)
+		b.sendIncrBackupNotification(ctx, backupCtx.Config, backupCtx.Database, incrBackup, backupResult)
 	}
 }
 
 func (b *PhysicalBackuper) openBackupContext(
+	ctx context.Context,
 	logger *slog.Logger,
 	databaseID uuid.UUID,
 ) (*backupContext, bool) {
+	logger = logger.With("database_id", databaseID)
+
 	cfg, err := b.backupConfigService.GetBackupConfigByDbId(databaseID)
 	if err != nil {
-		logger.Error("failed to fetch physical backup config", "error", err)
+		logger.ErrorContext(ctx, "failed to fetch physical backup config", "error", err)
 
 		return nil, false
 	}
 
 	if cfg.StorageID == nil {
-		logger.Error("physical backup config has no storage id")
+		logger.ErrorContext(ctx, "physical backup config has no storage id")
 
 		return nil, false
 	}
 
 	db, err := b.databaseService.GetDatabaseByID(databaseID)
 	if err != nil {
-		logger.Error("failed to fetch database by id", "error", err)
+		logger.ErrorContext(ctx, "failed to fetch database by id", "error", err)
 
 		return nil, false
 	}
 
 	if db.PostgresqlPhysical == nil {
-		logger.Error("database is not a physical postgres database")
+		logger.ErrorContext(ctx, "database is not a physical postgres database")
 
 		return nil, false
 	}
 
-	storage, err := b.storageService.GetStorageByID(*cfg.StorageID)
+	storage, err := b.storageService.GetStorageByID(ctx, *cfg.StorageID)
 	if err != nil {
-		logger.Error("failed to fetch storage", "error", err)
+		logger.ErrorContext(ctx, "failed to fetch storage", "error", err)
 
 		return nil, false
 	}
@@ -268,7 +300,7 @@ func (b *PhysicalBackuper) openBackupContext(
 	if cfg.Encryption == backups_core_enums.BackupEncryptionEncrypted {
 		key, secretErr := b.secretKeyService.GetSecretKey()
 		if secretErr != nil {
-			logger.Error("failed to fetch master key", "error", secretErr)
+			logger.ErrorContext(ctx, "failed to fetch master key", "error", secretErr)
 
 			return nil, false
 		}
@@ -287,7 +319,7 @@ func (b *PhysicalBackuper) openBackupContext(
 		Encryptor: b.fieldEncryptor,
 	})
 	if err != nil {
-		logger.Error("failed to open ssh tunnel to the source cluster", "error", err)
+		logger.ErrorContext(ctx, "failed to open ssh tunnel to the source cluster", "error", err)
 
 		return nil, false
 	}
@@ -364,7 +396,7 @@ func (b *PhysicalBackuper) getSourceClusterSizeMb(
 		b.fieldEncryptor,
 	)
 	if err != nil {
-		logger.Warn("failed to measure source cluster size", "error", err)
+		logger.WarnContext(ctx, "failed to measure source cluster size", "error", err)
 
 		return nil
 	}
@@ -534,11 +566,19 @@ func (b *PhysicalBackuper) finalizeFullAsError(
 	fullBackup.ErrorReason = &r
 	fullBackup.FailMessage = nilOrPtr(message)
 
+	logger := b.logger.With("backup_id", fullBackup.ID, "database_id", fullBackup.DatabaseID)
+
 	if err := b.fullRepo.Save(fullBackup); err != nil {
-		b.logger.Error("failed to flip full row to ERROR", "backup_id", fullBackup.ID, "error", err)
+		logger.Error("failed to flip full row to ERROR", "error", err)
 	}
 
-	_ = b.inFlightRepo.ReleaseOwned(fullBackup.DatabaseID, fullBackup.ID)
+	logger.Error(fmt.Sprintf("physical full backup failed: %s, %s", reason, message))
+
+	// A claim that is not released leaves the database's single in-flight slot occupied, so the
+	// scheduler will never start another backup for it.
+	if err := b.inFlightRepo.ReleaseOwned(fullBackup.DatabaseID, fullBackup.ID); err != nil {
+		logger.Error("failed to release the in-flight claim", "error", err)
+	}
 }
 
 func (b *PhysicalBackuper) finalizeIncrAsError(
@@ -574,15 +614,27 @@ func (b *PhysicalBackuper) finalizeIncrWithStatus(
 	incrBackup.ErrorReason = &r
 	incrBackup.FailMessage = nilOrPtr(message)
 
+	logger := b.logger.With("backup_id", incrBackup.ID, "database_id", incrBackup.DatabaseID)
+
 	if err := b.incrRepo.Save(incrBackup); err != nil {
-		b.logger.Error("failed to flip incr row to terminal status",
-			"status", status, "backup_id", incrBackup.ID, "error", err)
+		logger.Error("failed to flip incr row to terminal status", "status", status, "error", err)
 	}
 
-	_ = b.inFlightRepo.ReleaseOwned(incrBackup.DatabaseID, incrBackup.ID)
+	// CHAIN_BROKEN is not a retry: it forces the next tick to open a fresh FULL, so it changes what
+	// the scheduler does next and an operator needs to see why.
+	if status == physical_enums.PhysicalBackupStatusChainBroken {
+		logger.Warn(fmt.Sprintf("physical backup chain broken: %s, %s", reason, message))
+	} else {
+		logger.Error(fmt.Sprintf("physical incremental backup failed: %s, %s", reason, message))
+	}
+
+	if err := b.inFlightRepo.ReleaseOwned(incrBackup.DatabaseID, incrBackup.ID); err != nil {
+		logger.Error("failed to release the in-flight claim", "error", err)
+	}
 }
 
 func (b *PhysicalBackuper) sendFullBackupNotification(
+	ctx context.Context,
 	cfg *backups_config_physical.PhysicalBackupConfig,
 	db *databases.Database,
 	fullBackup *physical_models.PhysicalFullBackup,
@@ -604,11 +656,12 @@ func (b *PhysicalBackuper) sendFullBackupNotification(
 	}
 
 	for _, notifier := range db.Notifiers {
-		b.notificationSender.SendNotification(&notifier, notification)
+		b.notificationSender.SendNotification(ctx, &notifier, notification)
 	}
 }
 
 func (b *PhysicalBackuper) sendIncrBackupNotification(
+	ctx context.Context,
 	cfg *backups_config_physical.PhysicalBackupConfig,
 	db *databases.Database,
 	incrBackup *physical_models.PhysicalIncrementalBackup,
@@ -630,7 +683,7 @@ func (b *PhysicalBackuper) sendIncrBackupNotification(
 	}
 
 	for _, notifier := range db.Notifiers {
-		b.notificationSender.SendNotification(&notifier, notification)
+		b.notificationSender.SendNotification(ctx, &notifier, notification)
 	}
 }
 

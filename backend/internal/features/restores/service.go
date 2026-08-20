@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
 	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
@@ -63,6 +64,7 @@ func (s *RestoreService) OnBeforeBackupRemove(backup *backups_core_logical.Logic
 }
 
 func (s *RestoreService) GetRestores(
+	ctx context.Context,
 	user *users_models.User,
 	backupID uuid.UUID,
 ) ([]*restores_core.Restore, error) {
@@ -81,6 +83,7 @@ func (s *RestoreService) GetRestores(
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+		ctx,
 		*database.WorkspaceID,
 		user,
 	)
@@ -95,6 +98,7 @@ func (s *RestoreService) GetRestores(
 }
 
 func (s *RestoreService) RestoreBackupWithAuth(
+	ctx context.Context,
 	user *users_models.User,
 	backupID uuid.UUID,
 	requestDTO restores_core.RestoreBackupRequest,
@@ -114,6 +118,7 @@ func (s *RestoreService) RestoreBackupWithAuth(
 	}
 
 	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+		ctx,
 		*database.WorkspaceID,
 		user,
 	)
@@ -124,12 +129,12 @@ func (s *RestoreService) RestoreBackupWithAuth(
 		return errors.New("insufficient permissions to restore this backup")
 	}
 
-	backupDatabase, err := s.databaseService.GetDatabase(user, backup.DatabaseID)
+	backupDatabase, err := s.databaseService.GetDatabase(ctx, user, backup.DatabaseID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.populateRestoreTargetVersionThroughTunnel(backupDatabase, requestDTO); err != nil {
+	if err := s.populateRestoreTargetVersionThroughTunnel(ctx, backupDatabase, requestDTO); err != nil {
 		return err
 	}
 
@@ -138,7 +143,7 @@ func (s *RestoreService) RestoreBackupWithAuth(
 	}
 
 	// Validate disk space before starting restore
-	if err := s.validateDiskSpace(backup, requestDTO); err != nil {
+	if err := s.validateDiskSpace(ctx, backup, requestDTO); err != nil {
 		return err
 	}
 
@@ -176,27 +181,28 @@ func (s *RestoreService) RestoreBackupWithAuth(
 
 	// Trigger restore via scheduler
 	scheduler := restoring.GetRestoresScheduler()
-	if err := scheduler.StartRestore(restore.ID, dbCache); err != nil {
+	if err := scheduler.StartRestore(ctx, restore.ID, dbCache); err != nil {
 		// Mark restore as failed if we can't schedule it
 		failMsg := fmt.Sprintf("Failed to schedule restore: %v", err)
 		restore.FailMessage = &failMsg
 		restore.Status = restores_core.RestoreStatusFailed
 		if saveErr := s.restoreRepository.Save(&restore); saveErr != nil {
-			s.logger.Error("Failed to save restore after scheduling error", "error", saveErr)
+			s.logger.ErrorContext(ctx, "failed to save restore after scheduling error", "error", saveErr)
 		}
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database restored for database: %s", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Database restored for database: %s", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return nil
 }
 
 func (s *RestoreService) CancelRestore(
+	ctx context.Context,
 	user *users_models.User,
 	restoreID uuid.UUID,
 ) error {
@@ -219,7 +225,7 @@ func (s *RestoreService) CancelRestore(
 		return errors.New("cannot cancel restore for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -235,11 +241,11 @@ func (s *RestoreService) CancelRestore(
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Restore cancelled for database: %s", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Restore cancelled for database: %s", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return nil
 }
@@ -305,6 +311,7 @@ func (s *RestoreService) validateVersionCompatibility(
 // The restore target arrives as bare engine models in the request DTO, so it is assembled into the
 // Database the generic tunnel dispatcher works from, the same way the restorer itself does.
 func (s *RestoreService) populateRestoreTargetVersionThroughTunnel(
+	ctx context.Context,
 	backupDatabase *databases.Database,
 	requestDTO restores_core.RestoreBackupRequest,
 ) error {
@@ -316,7 +323,7 @@ func (s *RestoreService) populateRestoreTargetVersionThroughTunnel(
 		Mongodb:           requestDTO.MongodbDatabase,
 	}
 
-	tunneledDatabase, err := databases.OpenTunnel(context.Background(), databases.OpenTunnelSpec{
+	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
 		Database:  restoreTarget,
 		Logger:    s.logger,
 		Encryptor: s.fieldEncryptor,
@@ -340,6 +347,7 @@ func (s *RestoreService) populateRestoreTargetVersionThroughTunnel(
 }
 
 func (s *RestoreService) validateDiskSpace(
+	ctx context.Context,
 	backup *backups_core_logical.LogicalBackup,
 	requestDTO restores_core.RestoreBackupRequest,
 ) error {
@@ -357,7 +365,7 @@ func (s *RestoreService) validateDiskSpace(
 		return nil
 	}
 
-	diskUsage, err := s.diskService.GetDiskUsage()
+	diskUsage, err := s.diskService.GetDiskUsage(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check disk space: %w", err)
 	}

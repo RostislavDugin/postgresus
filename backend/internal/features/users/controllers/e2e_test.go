@@ -1,6 +1,7 @@
 package users_controllers
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_middleware "databasus-backend/internal/features/users/middleware"
@@ -19,7 +21,7 @@ import (
 func Test_AdminLifecycleE2E_CompletesSuccessfully(t *testing.T) {
 	router := createE2ETestRouter()
 
-	users_testing.RecreateInitialAdmin()
+	users_testing.RecreateInitialAdmin(t.Context())
 
 	// 1. Set initial admin password
 	adminPasswordRequest := users_dto.SetAdminPasswordRequestDTO{
@@ -117,7 +119,7 @@ func Test_AdminLifecycleE2E_CompletesSuccessfully(t *testing.T) {
 
 func Test_UserLifecycleE2E_CompletesSuccessfully(t *testing.T) {
 	router := createE2ETestRouter()
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 
 	// 1. User registers
 	userEmail := "testuser" + uuid.New().String() + "@example.com"
@@ -252,10 +254,5 @@ func createE2ETestRouter() *gin.Engine {
 
 type AuditLogWriterStub struct{}
 
-func (a *AuditLogWriterStub) WriteAuditLog(
-	message string,
-	userID *uuid.UUID,
-	workspaceID *uuid.UUID,
-) {
-	// do nothing
+func (a *AuditLogWriterStub) WriteAuditLog(context.Context, audit_logs_models.AuditEntry) {
 }

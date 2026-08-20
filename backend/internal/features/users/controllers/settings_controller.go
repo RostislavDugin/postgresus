@@ -36,8 +36,10 @@ func (c *SettingsController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /users/settings [get]
 func (c *SettingsController) GetUsersSettings(ctx *gin.Context) {
-	settings, err := c.settingsService.GetSettings()
+	settings, err := c.settingsService.GetSettings(ctx.Request.Context())
 	if err != nil {
+		_ = ctx.Error(err)
+
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get settings"})
 		return
 	}
@@ -71,7 +73,7 @@ func (c *SettingsController) UpdateUsersSettings(ctx *gin.Context) {
 		return
 	}
 
-	settings, err := c.settingsService.UpdateSettings(request, user)
+	settings, err := c.settingsService.UpdateSettings(ctx.Request.Context(), request, user)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	user_enums "databasus-backend/internal/features/users/enums"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	users_services "databasus-backend/internal/features/users/services"
@@ -18,8 +19,8 @@ import (
 )
 
 func Test_GetGlobalAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly(t *testing.T) {
-	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
-	memberUser := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	adminUser := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleAdmin)
+	memberUser := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
 	router := createRouter()
 	service := GetAuditLogService()
 	workspaceID := uuid.New()
@@ -30,11 +31,22 @@ func Test_GetGlobalAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly
 	workspaceLogMessage := fmt.Sprintf("Test log with workspace %s", testID)
 	standaloneLogMessage := fmt.Sprintf("Test log standalone %s", testID)
 
-	createAuditLog(service, userLogMessage, &adminUser.UserID, nil)
-	createAuditLog(service, workspaceLogMessage, nil, &workspaceID)
-	createAuditLog(service, standaloneLogMessage, nil, nil)
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     userLogMessage,
+		UserID:      &adminUser.UserID,
+		WorkspaceID: nil,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     workspaceLogMessage,
+		UserID:      nil,
+		WorkspaceID: &workspaceID,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     standaloneLogMessage,
+		UserID:      nil,
+		WorkspaceID: nil,
+	})
 
-	// Test ADMIN can access global logs
 	var response GetAuditLogsResponse
 	test_utils.MakeGetRequestAndUnmarshal(t, router,
 		"/api/v1/audit-logs/global?limit=100", "Bearer "+adminUser.Token, http.StatusOK, &response)
@@ -52,9 +64,9 @@ func Test_GetGlobalAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly
 }
 
 func Test_GetUserAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly(t *testing.T) {
-	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
-	user1 := users_testing.CreateTestUser(user_enums.UserRoleMember)
-	user2 := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	adminUser := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleAdmin)
+	user1 := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
+	user2 := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
 	router := createRouter()
 	service := GetAuditLogService()
 	workspaceID := uuid.New()
@@ -67,11 +79,31 @@ func Test_GetUserAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly(t
 	user2SecondMessage := fmt.Sprintf("Test log user2 second %s", testID)
 	workspaceLogMessage := fmt.Sprintf("Test workspace log %s", testID)
 
-	createAuditLog(service, user1FirstMessage, &user1.UserID, nil)
-	createAuditLog(service, user1SecondMessage, &user1.UserID, &workspaceID)
-	createAuditLog(service, user2FirstMessage, &user2.UserID, nil)
-	createAuditLog(service, user2SecondMessage, &user2.UserID, &workspaceID)
-	createAuditLog(service, workspaceLogMessage, nil, &workspaceID)
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     user1FirstMessage,
+		UserID:      &user1.UserID,
+		WorkspaceID: nil,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     user1SecondMessage,
+		UserID:      &user1.UserID,
+		WorkspaceID: &workspaceID,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     user2FirstMessage,
+		UserID:      &user2.UserID,
+		WorkspaceID: nil,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     user2SecondMessage,
+		UserID:      &user2.UserID,
+		WorkspaceID: &workspaceID,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     workspaceLogMessage,
+		UserID:      nil,
+		WorkspaceID: &workspaceID,
+	})
 
 	// Test ADMIN can view any user's logs
 	var user1Response GetAuditLogsResponse
@@ -113,7 +145,7 @@ func Test_GetUserAuditLogs_WithDifferentUserRoles_EnforcesPermissionsCorrectly(t
 }
 
 func Test_GetGlobalAuditLogs_WithBeforeDateFilter_ReturnsFilteredLogs(t *testing.T) {
-	adminUser := users_testing.CreateTestUser(user_enums.UserRoleAdmin)
+	adminUser := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleAdmin)
 	router := createRouter()
 	baseTime := time.Now().UTC()
 

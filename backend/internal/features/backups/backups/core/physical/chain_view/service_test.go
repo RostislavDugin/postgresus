@@ -38,17 +38,17 @@ func createChainViewTestPrereqs(t *testing.T) *chainViewTestPrereqs {
 	t.Helper()
 
 	router := newChainViewTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Chain View Test "+uuid.NewString(), user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Chain View Test "+uuid.NewString(), user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
 
 	t.Cleanup(func() {
 		physical_testing.DeleteAllPhysicalCatalogForDatabase(t, database.ID)
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 	})
 
 	return &chainViewTestPrereqs{

@@ -1,7 +1,11 @@
 package backups_config_logical
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type BackupConfigStorageChangeListener interface {
-	OnBeforeBackupsStorageChange(dbID uuid.UUID) error
+	OnBeforeBackupsStorageChange(ctx context.Context, dbID uuid.UUID) error
 }

@@ -281,7 +281,7 @@ func Test_ReapAbandonedWalClaims_WhenClaimOlderThanGrace_DeletesIt(t *testing.T)
 	require.NoError(t, physical_repositories.GetWalSegmentRepository().Insert(abandoned))
 
 	cleaner := CreateTestPhysicalCleaner()
-	cleaner.reapAbandonedWalClaims(logger.GetLogger(), prereqs.DB.ID)
+	cleaner.reapAbandonedWalClaims(t.Context(), logger.GetLogger(), prereqs.DB.ID)
 
 	assert.False(
 		t,
@@ -308,7 +308,7 @@ func Test_ReapAbandonedWalClaims_WhenClaimWithinGrace_KeepsIt(t *testing.T) {
 	require.NoError(t, physical_repositories.GetWalSegmentRepository().Insert(freshClaim))
 
 	cleaner := CreateTestPhysicalCleaner()
-	cleaner.reapAbandonedWalClaims(logger.GetLogger(), prereqs.DB.ID)
+	cleaner.reapAbandonedWalClaims(t.Context(), logger.GetLogger(), prereqs.DB.ID)
 
 	assert.True(t, walExists(t, freshClaim.ID), "a live in-flight claim within grace must survive")
 }

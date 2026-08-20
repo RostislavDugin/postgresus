@@ -71,7 +71,7 @@ func openPhysicalReplicationConn(
 
 func closeConnQuietly(ctx context.Context, conn *pgx.Conn, logger *slog.Logger) {
 	if err := conn.Close(ctx); err != nil {
-		logger.Warn("failed to close connection", "error", err)
+		logger.WarnContext(ctx, "failed to close connection", "error", err)
 	}
 }
 

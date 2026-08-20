@@ -83,7 +83,8 @@ func (uc *CreateMysqlBackupUsecase) probeNetworkCompressionArgs(
 		}
 	}
 
-	uc.logger.Info(
+	uc.logger.InfoContext(
+		ctx,
 		fmt.Sprintf("negotiated MySQL network compression: %s",
 			getNetworkCompressionLabel(chosenCompressionArgs)),
 		"database_id", probe.DatabaseID,
@@ -121,7 +122,8 @@ func (uc *CreateMysqlBackupUsecase) isNetworkCompressionAccepted(
 	)
 
 	if err := cmd.Run(); err != nil && isCompressionRejection(probeStderr.String()) {
-		uc.logger.Debug(
+		uc.logger.DebugContext(
+			ctx,
 			fmt.Sprintf("MySQL rejected network compression: %s",
 				getNetworkCompressionLabel(candidate)),
 			"database_id", probe.DatabaseID,

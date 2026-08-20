@@ -45,8 +45,9 @@ func (c *AgentFacingController) Heartbeat(ctx *gin.Context) {
 		return
 	}
 
-	seenAt, abortVerificationIDs, err := c.agentService.Heartbeat(agent, &request)
+	seenAt, abortVerificationIDs, err := c.agentService.Heartbeat(ctx.Request.Context(), agent, &request)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

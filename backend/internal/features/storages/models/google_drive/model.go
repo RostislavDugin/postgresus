@@ -87,7 +87,8 @@ func (s *GoogleDriveStorage) SaveFile(
 			return fmt.Errorf("failed to upload file to Google Drive: %w", err)
 		}
 
-		logger.Info(
+		logger.InfoContext(
+			ctx,
 			"file uploaded to Google Drive",
 			"name",
 			fileName,
@@ -216,20 +217,32 @@ func isRetryableGoogleDriveError(err error) bool {
 }
 
 func (s *GoogleDriveStorage) DeleteFile(
+	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
 	fileName string,
 ) error {
-	ctx, cancel := context.WithTimeout(context.Background(), gdDeleteTimeout)
+	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
+	// operation carries its own deadline; the caller's ctx stays for log correlation only.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), gdDeleteTimeout)
 	defer cancel()
 
-	return s.withRetryOnAuth(ctx, encryptor, func(driveService *drive.Service) error {
+	if err := s.withRetryOnAuth(deleteCtx, encryptor, func(driveService *drive.Service) error {
 		folderID, err := s.findBackupsFolder(driveService)
 		if err != nil {
 			return fmt.Errorf("failed to find backups folder: %w", err)
 		}
 
-		return s.deleteByName(ctx, driveService, fileName, folderID)
-	})
+		return s.deleteByName(deleteCtx, driveService, fileName, folderID)
+	}); err != nil {
+		logger.WarnContext(ctx, "failed to delete file from google drive", "file_name", fileName, "error", err)
+
+		return err
+	}
+
+	logger.DebugContext(ctx, "deleted file from google drive", "file_name", fileName)
+
+	return nil
 }
 
 func (s *GoogleDriveStorage) Validate(encryptor encryption.FieldEncryptor) error {

@@ -65,7 +65,8 @@ func (uc *CreateMariadbBackupUsecase) probeNetworkCompressionArgs(
 		}
 	}
 
-	uc.logger.Info(
+	uc.logger.InfoContext(
+		ctx,
 		fmt.Sprintf("negotiated MariaDB network compression: %s",
 			getNetworkCompressionLabel(chosenCompressionArgs)),
 		"database_id", probe.DatabaseID,
@@ -108,7 +109,8 @@ func (uc *CreateMariadbBackupUsecase) isNetworkCompressionAccepted(
 	)
 
 	if err := cmd.Run(); err != nil && isCompressionRejection(probeStderr.String()) {
-		uc.logger.Debug(
+		uc.logger.DebugContext(
+			ctx,
 			fmt.Sprintf("MariaDB rejected network compression: %s",
 				getNetworkCompressionLabel(candidate)),
 			"database_id", probe.DatabaseID,

@@ -137,6 +137,8 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 				continue
 			}
 
+			s.reportArchivingProgress(ctx, logger, state)
+
 			s.reportArchiveStalenessIfDue(logger, &stalenessTracker, state)
 
 			reason, action := classifier.recordSampleAndClassifyBreak(slotBreakSample{
@@ -154,14 +156,37 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 				s.reportChainAtRisk(logger, reason, state)
 
 			case slotBreakActionRebuild:
-				logger.Warn("wal_stream_break_observed", "reason", string(reason), "slot", s.slotName)
+				logger.WarnContext(ctx, "wal stream break observed", "reason", string(reason),
+					"lag_bytes", state.LagBytes, "wal_status", state.WalStatus)
 
 				if err := s.rebuildSlot(ctx, logger, reason); err != nil {
-					logger.Error("slot rebuild failed", "reason", string(reason), "error", err)
+					logger.ErrorContext(ctx, "slot rebuild failed", "reason", string(reason), "error", err)
 				}
 			}
 		}
 	}
+}
+
+// Archiving throughput and lag are only visible today once something has already broken, which
+// leaves no history to read after an incident. This rides the existing poll rather than adding a
+// ticker, and stays at INFO only when segments actually moved.
+func (s *WalStreamSupervisor) reportArchivingProgress(
+	ctx context.Context,
+	logger *slog.Logger,
+	state *SlotState,
+) {
+	archivedSegments, archivedBytes := s.uploader.TakeArchivedSinceLastReport()
+
+	if archivedSegments == 0 {
+		logger.DebugContext(ctx, fmt.Sprintf("no wal archived since the last report, %d bytes behind",
+			state.LagBytes), "wal_status", state.WalStatus)
+
+		return
+	}
+
+	logger.InfoContext(ctx, fmt.Sprintf("archived %d wal segments (%.1f MB), %d bytes behind",
+		archivedSegments, float64(archivedBytes)/(1024*1024), state.LagBytes),
+		"wal_status", state.WalStatus)
 }
 
 // The slot's restart_lsn plus its lag is where the source currently is, so the
@@ -186,7 +211,8 @@ func (s *WalStreamSupervisor) reportArchiveStalenessIfDue(
 
 	logger.Warn("wal archiving fell behind the source; the recovery point is no longer advancing",
 		"reason", ChainRiskReasonArchiveStale,
-		"slot", s.slotName,
+		"lag_bytes", state.LagBytes,
+		"wal_status", state.WalStatus,
 	)
 
 	if s.spec.OnChainAtRisk == nil {
@@ -213,7 +239,6 @@ func (s *WalStreamSupervisor) reportChainAtRisk(logger *slog.Logger, reason walB
 	logger.Warn(
 		fmt.Sprintf("wal chain at risk: slot wal_status=%s, %d bytes behind", report.SlotWalStatus, report.LagBytes),
 		"reason", string(reason),
-		"slot", s.slotName,
 	)
 
 	if s.spec.OnChainAtRisk == nil {

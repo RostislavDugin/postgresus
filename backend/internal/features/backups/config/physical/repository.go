@@ -118,7 +118,7 @@ func (r *BackupConfigRepository) ClearIncrementalBackupRequest(databaseID uuid.U
 	return query.Update("force_incremental_requested_at", nil).Error
 }
 
-func (r *BackupConfigRepository) IsStorageUsing(storageID uuid.UUID) (bool, error) {
+func (r *BackupConfigRepository) IsStorageInUse(storageID uuid.UUID) (bool, error) {
 	var count int64
 
 	if err := storage.

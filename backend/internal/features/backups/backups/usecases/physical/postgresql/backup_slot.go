@@ -66,18 +66,21 @@ func WithBackupSlot(
 		return fmt.Errorf("pre-create drop of backup slot %q: %w", slotName, err)
 	}
 
-	if _, err := conn.Exec(ctx,
+	if _, err := conn.Exec(
+		ctx,
 		"SELECT pg_create_physical_replication_slot($1, true)",
 		slotName,
 	); err != nil {
 		return fmt.Errorf("create backup slot %q: %w", slotName, err)
 	}
 
-	logger.Debug("per-backup slot created", "slot_name", slotName)
+	logger.InfoContext(ctx, "per-backup replication slot created", "slot_name", slotName)
 
 	defer func() {
 		// Background context so defer runs even when ctx is cancelled.
 		if dropErr := dropBackupSlotIfExists(context.Background(), conn, slotName); dropErr == nil {
+			logger.InfoContext(ctx, "per-backup replication slot dropped", "slot_name", slotName)
+
 			return
 		}
 
@@ -85,7 +88,8 @@ func WithBackupSlot(
 		// source makes those routine. Leaving the slot pins WAL on the source until the next backup
 		// runs, which on a weekly full is a week of retained segments.
 		if retryErr := dropBackupSlotOverFreshConn(sourceDB, encryptor, slotName); retryErr != nil {
-			logger.Warn(
+			logger.WarnContext(
+				ctx,
 				"post-backup slot drop failed; will be recovered by next backup or startup cleanup",
 				"slot_name", slotName,
 				"error", retryErr,
@@ -114,7 +118,8 @@ func dropBackupSlotOverFreshConn(
 }
 
 func dropBackupSlotIfExists(ctx context.Context, conn *pgx.Conn, slotName string) error {
-	_, err := conn.Exec(ctx,
+	_, err := conn.Exec(
+		ctx,
 		`SELECT pg_drop_replication_slot(slot_name)
 		   FROM pg_replication_slots WHERE slot_name = $1`,
 		slotName,
@@ -230,7 +235,7 @@ func RunStartupCleanup(
 	skippedCount.Range(func(_, _ any) bool { skipped++; return true })
 	failureCount.Range(func(_, _ any) bool { failed++; return true })
 
-	logger.Info(fmt.Sprintf(
+	logger.InfoContext(ctx, fmt.Sprintf(
 		"startup physical backup slot cleanup complete: %d dropped, %d skipped (unreachable), %d failed",
 		dropped, skipped, failed,
 	))

@@ -95,7 +95,7 @@ func Test_OnBeforeDatabaseRemove_CancelsInFlightAndDeletesStreamer(t *testing.T)
 	seedClaimAndStreamer(t, prereqs.DB.ID)
 	listener := newTestCancellationListener()
 
-	require.NoError(t, listener.OnBeforeDatabaseRemove(prereqs.DB.ID))
+	require.NoError(t, listener.OnBeforeDatabaseRemove(t.Context(), prereqs.DB.ID))
 
 	claim, _ := physical_repositories.GetInFlightBackupRepository().FindByDatabaseID(prereqs.DB.ID)
 	assert.Nil(t, claim)

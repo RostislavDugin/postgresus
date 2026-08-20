@@ -6,7 +6,11 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+const jobName = "audit_log_cleanup"
 
 type AuditLogBackgroundService struct {
 	auditLogService *AuditLogService
@@ -20,7 +24,9 @@ func (s *AuditLogBackgroundService) Run(ctx context.Context) {
 		panic(fmt.Sprintf("%T.Run() called multiple times", s))
 	}
 
-	s.logger.Info("Starting audit log cleanup background service")
+	lifecycleLogger := s.logger.With("job_name", jobName)
+
+	lifecycleLogger.InfoContext(ctx, "audit log cleanup started")
 
 	if ctx.Err() != nil {
 		return
@@ -32,15 +38,12 @@ func (s *AuditLogBackgroundService) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			lifecycleLogger.InfoContext(ctx, "audit log cleanup stopped")
+
 			return
 		case <-ticker.C:
-			if err := s.cleanOldAuditLogs(); err != nil {
-				s.logger.Error("Failed to clean old audit logs", "error", err)
-			}
+			logger := s.logger.With("job_id", uuid.New(), "job_name", jobName)
+			_ = s.auditLogService.CleanOldAuditLogs(ctx, logger)
 		}
 	}
-}
-
-func (s *AuditLogBackgroundService) cleanOldAuditLogs() error {
-	return s.auditLogService.CleanOldAuditLogs()
 }

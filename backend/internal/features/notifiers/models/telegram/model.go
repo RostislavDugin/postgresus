@@ -97,7 +97,7 @@ func (t *TelegramNotifier) Send(
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send telegram message: %w", err)
+		return fmt.Errorf("failed to send telegram message: %w", notifier_models.ErrorWithoutWebhookURLCredentials(err))
 	}
 	defer func() {
 		_ = resp.Body.Close()

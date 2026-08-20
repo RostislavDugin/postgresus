@@ -47,7 +47,7 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 
 	requestDTO.StorageID = nil
 
-	savedConfig, err := c.backupConfigService.SaveBackupConfigWithAuth(user, &requestDTO)
+	savedConfig, err := c.backupConfigService.SaveBackupConfigWithAuth(ctx.Request.Context(), user, &requestDTO)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,7 +80,7 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 		return
 	}
 
-	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(user, id)
+	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(ctx.Request.Context(), user, id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
 		return
@@ -126,7 +126,7 @@ func (c *BackupConfigController) TransferDatabase(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.backupConfigService.TransferDatabaseToWorkspace(user, id, &request); err != nil {
+	if err := c.backupConfigService.TransferDatabaseToWorkspace(ctx.Request.Context(), user, id, &request); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsInSourceWorkspace) ||
 			errors.Is(err, ErrInsufficientPermissionsInTargetWorkspace) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

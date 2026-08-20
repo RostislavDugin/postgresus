@@ -20,11 +20,11 @@ func Test_WorkspaceLifecycleE2E_CompletesSuccessfully(t *testing.T) {
 		GetWorkspaceController(),
 		GetMembershipController(),
 	)
-	users_testing.EnableMemberWorkspaceCreation()
-	defer users_testing.ResetSettingsToDefaults()
+	users_testing.EnableMemberWorkspaceCreation(t.Context())
+	defer users_testing.ResetSettingsToDefaults(t.Context())
 
 	// 1. Create workspace owner
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	// 2. Owner creates workspace
 	createRequest := workspaces_dto.CreateWorkspaceRequestDTO{
@@ -66,7 +66,7 @@ func Test_WorkspaceLifecycleE2E_CompletesSuccessfully(t *testing.T) {
 	assert.True(t, inviteResponse.Status == workspaces_dto.AddStatusInvited)
 
 	// 4. Add existing user to workspace
-	existingMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	existingMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	addMemberRequest := workspaces_dto.AddMemberRequestDTO{
 		Email: existingMember.Email,
 		Role:  users_enums.WorkspaceRoleViewer,
@@ -185,12 +185,12 @@ func Test_AdminWorkspaceManagementE2E_CompletesSuccessfully(t *testing.T) {
 	)
 
 	// 1. Create admin and regular user
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	regularUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	regularUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	// 2. Regular user creates workspace (with member creation disabled)
-	users_testing.DisableMemberWorkspaceCreation()
-	defer users_testing.ResetSettingsToDefaults()
+	users_testing.DisableMemberWorkspaceCreation(t.Context())
+	defer users_testing.ResetSettingsToDefaults(t.Context())
 
 	// Regular user cannot create workspace
 	createRequest := workspaces_dto.CreateWorkspaceRequestDTO{
@@ -226,8 +226,8 @@ func Test_AdminWorkspaceManagementE2E_CompletesSuccessfully(t *testing.T) {
 	adminWorkspaceID := adminWorkspaceResponse.ID
 
 	// 4. Admin can view any workspace (even not a member)
-	regularUser2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	users_testing.EnableMemberWorkspaceCreation()
+	regularUser2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	users_testing.EnableMemberWorkspaceCreation(t.Context())
 
 	regularUserCreateRequest := workspaces_dto.CreateWorkspaceRequestDTO{
 		Name: "Regular User Workspace 2",

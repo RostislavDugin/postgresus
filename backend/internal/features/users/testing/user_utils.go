@@ -1,6 +1,7 @@
 package users_testing
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -14,7 +15,7 @@ import (
 	users_services "databasus-backend/internal/features/users/services"
 )
 
-func CreateTestUser(role users_enums.UserRole) *users_dto.SignInResponseDTO {
+func CreateTestUser(ctx context.Context, role users_enums.UserRole) *users_dto.SignInResponseDTO {
 	userID := uuid.New()
 	email := fmt.Sprintf("%s-%s@test.com", strings.ToLower(string(role)), userID.String()[:8])
 
@@ -36,7 +37,7 @@ func CreateTestUser(role users_enums.UserRole) *users_dto.SignInResponseDTO {
 		panic(err)
 	}
 
-	response, err := users_services.GetUserService().GenerateAccessToken(user)
+	response, err := users_services.GetUserService().GenerateAccessToken(ctx, user)
 	if err != nil {
 		panic(err)
 	}
@@ -46,16 +47,16 @@ func CreateTestUser(role users_enums.UserRole) *users_dto.SignInResponseDTO {
 	return response
 }
 
-func ReacreateInitAdminAndGetAccess() *users_dto.SignInResponseDTO {
-	RecreateInitialAdmin()
+func RecreateInitAdminAndGetAccess(ctx context.Context) *users_dto.SignInResponseDTO {
+	RecreateInitialAdmin(ctx)
 
 	userRepository := &users_repositories.UserRepository{}
-	user, err := userRepository.GetUserByEmail("admin")
+	user, err := userRepository.GetUserByEmail(ctx, "admin")
 	if err != nil {
 		panic(err)
 	}
 
-	response, err := users_services.GetUserService().GenerateAccessToken(user)
+	response, err := users_services.GetUserService().GenerateAccessToken(ctx, user)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +64,7 @@ func ReacreateInitAdminAndGetAccess() *users_dto.SignInResponseDTO {
 	return response
 }
 
-func RecreateInitialAdmin() {
+func RecreateInitialAdmin(ctx context.Context) {
 	userRepository := &users_repositories.UserRepository{}
 	err := userRepository.RenameUserEmailForTests("admin", "admin-"+uuid.New().String())
 	if err != nil {
@@ -71,7 +72,7 @@ func RecreateInitialAdmin() {
 	}
 
 	userService := users_services.GetUserService()
-	err = userService.CreateInitialAdmin()
+	err = userService.CreateInitialAdmin(ctx)
 	if err != nil {
 		panic(err)
 	}

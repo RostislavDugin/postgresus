@@ -1,11 +1,13 @@
 package users_interfaces
 
 import (
-	"github.com/google/uuid"
+	"context"
+
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 )
 
 type AuditLogWriter interface {
-	WriteAuditLog(message string, userID, workspaceID *uuid.UUID)
+	WriteAuditLog(ctx context.Context, entry audit_logs_models.AuditEntry)
 }
 
 type EmailSender interface {

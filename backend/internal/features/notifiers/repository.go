@@ -1,6 +1,8 @@
 package notifiers
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -135,11 +137,12 @@ func (r *NotifierRepository) Save(notifier *Notifier) (*Notifier, error) {
 	return notifier, nil
 }
 
-func (r *NotifierRepository) FindByID(id uuid.UUID) (*Notifier, error) {
+func (r *NotifierRepository) FindByID(ctx context.Context, id uuid.UUID) (*Notifier, error) {
 	var notifier Notifier
 
 	if err := storage.
 		GetDb().
+		WithContext(ctx).
 		Preload("TelegramNotifier").
 		Preload("EmailNotifier").
 		Preload("WebhookNotifier").

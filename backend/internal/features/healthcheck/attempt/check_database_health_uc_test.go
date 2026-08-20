@@ -18,6 +18,7 @@ import (
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/logger"
 )
 
 func unavailableNotification(databaseName string) notifier_models.Notification {
@@ -61,7 +62,7 @@ func newTestHealthcheckConfig(databaseID uuid.UUID) *healthcheck_config.Healthch
 }
 
 func Test_CheckDatabaseHealthUseCase(t *testing.T) {
-	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	// Create workspace directly via service
 	workspace, err := workspaces_testing.CreateTestWorkspaceDirect("Test Workspace", user.UserID)
@@ -73,14 +74,14 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	defer func() {
-		storages.RemoveTestStorage(storage.ID)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 		notifiers.RemoveTestNotifier(notifier)
 		workspaces_testing.RemoveTestWorkspaceDirect(workspace.ID)
 	}()
 
 	t.Run("Test_DbAttemptFailed_DbMarkedAsUnavailable", func(t *testing.T) {
 		database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-		defer databases.RemoveTestDatabase(database)
+		defer databases.RemoveTestDatabase(t.Context(), database)
 
 		// Setup mock notifier sender
 		mockSender := &MockHealthcheckAttemptSender{}
@@ -110,7 +111,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 		useCase := newTestUseCase(mockSender, mockDatabaseService)
 
 		// Execute healthcheck
-		err := useCase.Execute(time.Now().UTC(), healthcheckConfig)
+		err := useCase.Execute(t.Context(), logger.GetLogger(), time.Now().UTC(), healthcheckConfig)
 		assert.NoError(t, err)
 
 		// Verify attempt was created and marked as unavailable
@@ -143,7 +144,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 		"Test_DbShouldBeConsideredAsDownOnThirdFailedAttempt_DbNotMarkerdAsDownAfterFirstAttempt",
 		func(t *testing.T) {
 			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-			defer databases.RemoveTestDatabase(database)
+			defer databases.RemoveTestDatabase(t.Context(), database)
 
 			// Setup mock notifier sender
 			mockSender := &MockHealthcheckAttemptSender{}
@@ -169,7 +170,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			useCase := newTestUseCase(mockSender, mockDatabaseService)
 
 			// Execute first healthcheck
-			err := useCase.Execute(time.Now().UTC(), healthcheckConfig)
+			err := useCase.Execute(t.Context(), logger.GetLogger(), time.Now().UTC(), healthcheckConfig)
 			assert.NoError(t, err)
 
 			// Verify attempt was created and marked as unavailable
@@ -204,7 +205,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 		"Test_DbShouldBeConsideredAsDownOnThirdFailedAttempt_DbMarkerdAsDownAfterThirdFailedAttempt",
 		func(t *testing.T) {
 			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-			defer databases.RemoveTestDatabase(database)
+			defer databases.RemoveTestDatabase(t.Context(), database)
 
 			// Make sure DB is available
 			available := databases.HealthStatusAvailable
@@ -243,7 +244,12 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			// Execute three failed healthchecks
 			now := time.Now().UTC()
 			for i := range 3 {
-				err := useCase.Execute(now.Add(time.Duration(i)*time.Minute), healthcheckConfig)
+				err := useCase.Execute(
+					t.Context(),
+					logger.GetLogger(),
+					now.Add(time.Duration(i)*time.Minute),
+					healthcheckConfig,
+				)
 				assert.NoError(t, err)
 
 				// Verify attempt was created
@@ -276,7 +282,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 	t.Run("Test_UnavailableDbAttemptSucceed_DbMarkedAsAvailable", func(t *testing.T) {
 		database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-		defer databases.RemoveTestDatabase(database)
+		defer databases.RemoveTestDatabase(t.Context(), database)
 
 		// Make sure DB is unavailable
 		unavailable := databases.HealthStatusUnavailable
@@ -312,7 +318,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 		useCase := newTestUseCase(mockSender, mockDatabaseService)
 
 		// Execute healthcheck (should succeed)
-		err = useCase.Execute(time.Now().UTC(), healthcheckConfig)
+		err = useCase.Execute(t.Context(), logger.GetLogger(), time.Now().UTC(), healthcheckConfig)
 		assert.NoError(t, err)
 
 		// Verify attempt was created and marked as available
@@ -345,7 +351,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 		"Test_DbHealthcheckExecutedFast_HealthcheckNotExecutedFasterThanInterval",
 		func(t *testing.T) {
 			database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-			defer databases.RemoveTestDatabase(database)
+			defer databases.RemoveTestDatabase(t.Context(), database)
 
 			// Setup mock notifier sender
 			mockSender := &MockHealthcheckAttemptSender{}
@@ -375,7 +381,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 			// Execute first healthcheck
 			now := time.Now().UTC()
-			err := useCase.Execute(now, healthcheckConfig)
+			err := useCase.Execute(t.Context(), logger.GetLogger(), now, healthcheckConfig)
 			assert.NoError(t, err)
 
 			// Verify first attempt was created
@@ -388,7 +394,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			assert.Equal(t, databases.HealthStatusAvailable, attempts[0].Status)
 
 			// Try to execute second healthcheck immediately (should be skipped)
-			err = useCase.Execute(now.Add(1*time.Second), healthcheckConfig)
+			err = useCase.Execute(t.Context(), logger.GetLogger(), now.Add(1*time.Second), healthcheckConfig)
 			assert.NoError(t, err)
 
 			// Verify no new attempt was created (still only 1 attempt)
@@ -405,7 +411,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			)
 
 			// Try to execute third healthcheck after 4 minutes (still too early)
-			err = useCase.Execute(now.Add(4*time.Minute), healthcheckConfig)
+			err = useCase.Execute(t.Context(), logger.GetLogger(), now.Add(4*time.Minute), healthcheckConfig)
 			assert.NoError(t, err)
 
 			// Verify still only 1 attempt
@@ -422,7 +428,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			)
 
 			// Execute fourth healthcheck after 5 minutes (should be executed)
-			err = useCase.Execute(now.Add(5*time.Minute), healthcheckConfig)
+			err = useCase.Execute(t.Context(), logger.GetLogger(), now.Add(5*time.Minute), healthcheckConfig)
 			assert.NoError(t, err)
 
 			// Verify new attempt was created (now should be 2 attempts)
@@ -452,14 +458,19 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 						notifier,
 						physicalVersionTag,
 					)
-					defer databases.RemoveTestDatabase(database)
+					defer databases.RemoveTestDatabase(t.Context(), database)
 
 					mockSender := &MockHealthcheckAttemptSender{}
 					mockSender.On("SendNotification", mock.Anything, mock.Anything).Return()
 
 					useCase := newTestUseCase(mockSender, databases.GetDatabaseService())
 
-					err := useCase.Execute(time.Now().UTC(), newTestHealthcheckConfig(database.ID))
+					err := useCase.Execute(
+						t.Context(),
+						logger.GetLogger(),
+						time.Now().UTC(),
+						newTestHealthcheckConfig(database.ID),
+					)
 					assert.NoError(t, err)
 
 					attempts, err := useCase.healthcheckAttemptRepository.FindByDatabaseIDWithLimit(
@@ -493,7 +504,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 				notifier,
 				anyPhysicalVersionTag,
 			)
-			defer databases.RemoveTestDatabase(database)
+			defer databases.RemoveTestDatabase(t.Context(), database)
 
 			mockSender := &MockHealthcheckAttemptSender{}
 			mockSender.On("SendNotification", mock.Anything, mock.Anything).Return()
@@ -507,7 +518,12 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 			useCase := newTestUseCase(mockSender, mockDatabaseService)
 
-			err := useCase.Execute(time.Now().UTC(), newTestHealthcheckConfig(database.ID))
+			err := useCase.Execute(
+				t.Context(),
+				logger.GetLogger(),
+				time.Now().UTC(),
+				newTestHealthcheckConfig(database.ID),
+			)
 			assert.NoError(t, err)
 
 			attempts, err := useCase.healthcheckAttemptRepository.FindByDatabaseIDWithLimit(

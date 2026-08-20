@@ -12,6 +12,7 @@ var (
 	auditLogService    = &AuditLogService{
 		auditLogRepository,
 		logger.GetLogger(),
+		logger.GetAuditLogger(),
 	}
 )
 

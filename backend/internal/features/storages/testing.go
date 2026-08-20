@@ -1,6 +1,8 @@
 package storages
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 
 	local_storage "databasus-backend/internal/features/storages/models/local"
@@ -62,8 +64,12 @@ func CreateTestFlakyS3Storage(workspaceID uuid.UUID, endpoint string) *Storage {
 	return saved
 }
 
-func RemoveTestStorage(id uuid.UUID) {
-	storage, err := storageRepository.FindByID(id)
+// The context is stripped of cancellation because callers pass t.Context() from a t.Cleanup, and
+// the test context is already cancelled by the time cleanup runs.
+func RemoveTestStorage(ctx context.Context, id uuid.UUID) {
+	ctx = context.WithoutCancel(ctx)
+
+	storage, err := storageRepository.FindByID(ctx, id)
 	if err != nil {
 		panic(err)
 	}

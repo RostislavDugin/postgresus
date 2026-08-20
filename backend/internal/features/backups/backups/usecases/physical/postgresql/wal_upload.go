@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,6 +64,9 @@ type WalUploader struct {
 	// The uploader loop retries every second, so a torn segment that never gets
 	// re-streamed would otherwise warn once per second forever.
 	warnedIncompleteSegments map[string]struct{}
+
+	archivedSegments atomic.Int64
+	archivedBytes    atomic.Int64
 }
 
 func NewWalUploader(deps WalUploadDeps) *WalUploader {
@@ -174,11 +178,18 @@ func (u *WalUploader) RecoverSegment(ctx context.Context, localPath, walFilename
 	return u.uploadAndCommit(ctx, localPath, existing)
 }
 
+// One rollup line per interval, so the counters are consumed rather than read.
+func (u *WalUploader) TakeArchivedSinceLastReport() (int64, int64) {
+	return u.archivedSegments.Swap(0), u.archivedBytes.Swap(0)
+}
+
 // handleClaimConflict resolves a lost ClaimInsert race by probing the existing
 // row: a durably-completed segment (file_name NOT NULL) means our local copy is
 // redundant; an in-flight claim (file_name NULL) means a live or
 // not-yet-reaped owner holds it, so we leave the local file untouched.
 func (u *WalUploader) handleClaimConflict(localPath string, claim *physical_models.PhysicalWalSegment) error {
+	logger := u.deps.Logger.With("wal_filename", claim.WalFilename, "wal_segment_id", claim.ID)
+
 	existing, err := u.deps.WalSegmentRepo.FindByChainKey(claim.DatabaseID, claim.TimelineID, claim.StartLSN)
 	if err != nil {
 		return fmt.Errorf("probe existing wal claim: %w", err)
@@ -187,17 +198,24 @@ func (u *WalUploader) handleClaimConflict(localPath string, claim *physical_mode
 	if existing == nil {
 		// Row vanished between the conflict and the probe — leave the local file;
 		// the next uploader tick re-claims.
+		logger.Debug("wal claim row vanished before the probe, re-claiming on the next tick")
+
 		return nil
 	}
 
 	if existing.FileName != nil {
+		logger.Debug("wal segment already durable, dropping the local copy")
+
 		u.removeLocal(localPath, claim.WalFilename)
 
 		return nil
 	}
 
 	// In-flight claim: do not touch storage, leave the local file for a later tick
-	// (the cleaner reaps the stale NULL claim after its grace period).
+	// (the cleaner reaps the stale NULL claim after its grace period). Until that happens this
+	// segment cannot be archived by anyone, so it is worth more than a debug line.
+	logger.Warn("wal segment is held by another in-flight claim, leaving it queued locally")
+
 	return nil
 }
 
@@ -257,6 +275,10 @@ func (u *WalUploader) uploadAndCommit(
 	if !committed {
 		// DeleteFull cascade caught the claim mid-upload: the bytes are an orphan
 		// the cleaner can no longer see (its row is gone), so delete them here.
+		u.deps.Logger.DebugContext(ctx,
+			"discarding an uploaded wal segment, its chain was deleted mid-upload",
+			"wal_filename", claim.WalFilename, "wal_segment_id", claim.ID)
+
 		u.deleteObject(objectName)
 		u.deleteObject(objectName + metadataSuffix)
 		u.removeLocal(localPath, claim.WalFilename)
@@ -264,10 +286,25 @@ func (u *WalUploader) uploadAndCommit(
 		return nil
 	}
 
+	u.recordArchived(compressedSizeBytes)
+
+	// Per segment rather than per archive: a busy cluster finalizes one every few seconds, which
+	// would swamp INFO. The periodic rollup carries the same information at a readable rate.
+	u.deps.Logger.DebugContext(ctx, fmt.Sprintf("archived wal segment %s (%.2f MB)",
+		claim.WalFilename, float64(compressedSizeBytes)/(1024*1024)),
+		"wal_segment_id", claim.ID, "timeline_id", claim.TimelineID)
+
 	u.probeChainGap(claim)
 	u.removeLocal(localPath, claim.WalFilename)
 
 	return nil
+}
+
+// recordArchived accumulates what the periodic rollup reports, so that INFO can answer "is WAL
+// reaching storage" without a line per segment.
+func (u *WalUploader) recordArchived(compressedSizeBytes int64) {
+	u.archivedSegments.Add(1)
+	u.archivedBytes.Add(compressedSizeBytes)
 }
 
 // probeChainGap emits one notification when the just-committed segment is not
@@ -352,7 +389,12 @@ func (u *WalUploader) releaseClaim(id uuid.UUID) {
 }
 
 func (u *WalUploader) deleteObject(objectName string) {
-	if err := u.deps.Storage.DeleteFile(u.deps.FieldEncryptor, objectName); err != nil {
+	if err := u.deps.Storage.DeleteFile(
+		context.Background(),
+		u.deps.FieldEncryptor,
+		u.deps.Logger,
+		objectName,
+	); err != nil {
 		u.deps.Logger.Warn("failed to delete orphaned wal storage object", "file_name", objectName, "error", err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	verification_config "databasus-backend/internal/features/verification/config"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/logger"
 )
 
 func enableAfterBackupVerificationViaAPI(
@@ -37,25 +38,25 @@ func enableAfterBackupVerificationViaAPI(
 
 func Test_CreateScheduledRuns_WhenScheduleTypeAfterBackup_DoesNotCreateTimeBasedRun(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
 	scheduler := GetVerificationScheduler()
-	require.NoError(t, scheduler.createScheduledRuns())
+	require.NoError(t, scheduler.createScheduledRuns(t.Context(), logger.GetLogger()))
 
 	rows := ListVerificationsByDatabaseViaAPI(t, router, owner.Token, database.ID)
 	assert.Empty(t, rows, "after-backup config must never get a time-based scheduled run")
@@ -63,18 +64,18 @@ func Test_CreateScheduledRuns_WhenScheduleTypeAfterBackup_DoesNotCreateTimeBased
 
 func Test_OnBackupCompleted_WhenScheduleTypeAfterBackup_EnqueuesPendingRun(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -91,18 +92,18 @@ func Test_OnBackupCompleted_WhenScheduleTypeAfterBackup_EnqueuesPendingRun(t *te
 
 func Test_OnBackupCompleted_WhenPendingAfterBackupExists_CancelsOldAndEnqueuesNew(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	firstBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -142,18 +143,18 @@ func Test_OnBackupCompleted_WhenManualVerificationPending_LeavesItAndStillEnqueu
 	t *testing.T,
 ) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -187,18 +188,18 @@ func Test_OnBackupCompleted_WhenManualVerificationPending_LeavesItAndStillEnqueu
 
 func Test_OnBackupCompleted_WhenScheduleTypeInterval_DoesNothing(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -212,18 +213,18 @@ func Test_OnBackupCompleted_WhenScheduleTypeInterval_DoesNothing(t *testing.T) {
 
 func Test_OnBackupCompleted_WhenDisabled_DoesNothing(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	backup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 100)
 
@@ -243,20 +244,20 @@ func Test_MakeBackup_WhenAfterBackupConfigured_SchedulesAndReplacesPendingVerifi
 	t *testing.T,
 ) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
-	backups_config_logical.EnableBackupsForTestDatabase(database.ID, testStorage)
+	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), database.ID, testStorage)
 	enableAfterBackupVerificationViaAPI(t, router, owner.Token, database.ID)
 
 	// Start the real backups scheduler singleton so it subscribes to the
@@ -272,7 +273,7 @@ func Test_MakeBackup_WhenAfterBackupConfigured_SchedulesAndReplacesPendingVerifi
 	// the registered listeners — the seam the verification listener is wired onto.
 	completeBackup := func() uuid.UUID {
 		backup := backuping_logical.SeedInProgressTestBackup(t, database.ID, testStorage.ID)
-		backuper.MakeBackup(backup.ID, false)
+		backuper.MakeBackup(t.Context(), backup.ID, false)
 		backuping_logical.TriggerBackupCompletedForTest(backup.ID)
 
 		return backup.ID

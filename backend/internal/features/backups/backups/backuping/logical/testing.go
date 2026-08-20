@@ -15,10 +15,13 @@ import (
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	"databasus-backend/internal/storage"
+	cache_utils "databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 )
@@ -72,6 +75,48 @@ func SeedInProgressTestBackup(
 		Status:     backups_core_logical.BackupStatusInProgress,
 		CreatedAt:  time.Now().UTC(),
 	})
+}
+
+type BackupTestFixture struct {
+	Storage  *storages.Storage
+	Notifier *notifiers.Notifier
+	Database *databases.Database
+}
+
+func CreateBackupTestFixture(t *testing.T, workspaceName string) *BackupTestFixture {
+	t.Helper()
+
+	if err := cache_utils.ClearAllCache(); err != nil {
+		t.Fatalf("clear cache before backup fixture: %v", err)
+	}
+
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	router := CreateTestRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), workspaceName, user, router)
+	createdStorage := storages.CreateTestStorage(workspace.ID)
+	createdNotifier := notifiers.CreateTestNotifier(workspace.ID)
+	createdDatabase := databases.CreateTestDatabase(workspace.ID, createdStorage, createdNotifier)
+
+	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), createdDatabase.ID, createdStorage)
+
+	t.Cleanup(func() {
+		backups, _ := backupRepository.FindByDatabaseID(createdDatabase.ID)
+		for _, backup := range backups {
+			if err := backupRepository.DeleteByID(backup.ID); err != nil {
+				t.Errorf("clean up backup %s: %v", backup.ID, err)
+			}
+		}
+
+		databases.RemoveTestDatabase(t.Context(), createdDatabase)
+		// The database delete cascades; removing its storage and notifier before that lands leaves
+		// the rows behind.
+		time.Sleep(50 * time.Millisecond)
+		notifiers.RemoveTestNotifier(createdNotifier)
+		storages.RemoveTestStorage(t.Context(), createdStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	})
+
+	return &BackupTestFixture{createdStorage, createdNotifier, createdDatabase}
 }
 
 func CreateTestRouter() *gin.Engine {

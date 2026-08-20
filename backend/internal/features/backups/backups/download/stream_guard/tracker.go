@@ -1,6 +1,7 @@
 package stream_guard
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,13 +45,13 @@ func (t *Tracker) AcquireDownloadLock(userID uuid.UUID) error {
 	return nil
 }
 
-func (t *Tracker) RefreshDownloadLock(userID uuid.UUID) {
+func (t *Tracker) RefreshDownloadLock(ctx context.Context, userID uuid.UUID) {
 	key := userID.String()
 	value := downloadLockValue
 	t.cache.SetWithExpiration(key, &value, downloadLockTTL)
 }
 
-func (t *Tracker) ReleaseDownloadLock(userID uuid.UUID) {
+func (t *Tracker) ReleaseDownloadLock(ctx context.Context, userID uuid.UUID) {
 	key := userID.String()
 	t.cache.Invalidate(key)
 }

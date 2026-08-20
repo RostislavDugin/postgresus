@@ -57,7 +57,7 @@ func (c *NotifierController) SaveNotifier(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.notifierService.SaveNotifier(user, request.WorkspaceID, &request); err != nil {
+	if err := c.notifierService.SaveNotifier(ctx.Request.Context(), user, request.WorkspaceID, &request); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToManageNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
@@ -94,7 +94,7 @@ func (c *NotifierController) GetNotifier(ctx *gin.Context) {
 		return
 	}
 
-	notifier, err := c.notifierService.GetNotifier(user, id)
+	notifier, err := c.notifierService.GetNotifier(ctx.Request.Context(), user, id)
 	if err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToViewNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -138,7 +138,7 @@ func (c *NotifierController) GetNotifiers(ctx *gin.Context) {
 		return
 	}
 
-	notifiers, err := c.notifierService.GetNotifiers(user, workspaceID)
+	notifiers, err := c.notifierService.GetNotifiers(ctx.Request.Context(), user, workspaceID)
 	if err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToViewNotifiers) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -176,7 +176,7 @@ func (c *NotifierController) DeleteNotifier(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.notifierService.DeleteNotifier(user, id); err != nil {
+	if err := c.notifierService.DeleteNotifier(ctx.Request.Context(), user, id); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToManageNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
@@ -213,7 +213,7 @@ func (c *NotifierController) SendTestNotification(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.notifierService.SendTestNotification(user, id); err != nil {
+	if err := c.notifierService.SendTestNotification(ctx.Request.Context(), user, id); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToTestNotifier) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
@@ -264,6 +264,7 @@ func (c *NotifierController) TransferNotifierToWorkspace(ctx *gin.Context) {
 	}
 
 	if err := c.notifierService.TransferNotifierToWorkspace(
+		ctx.Request.Context(),
 		user,
 		id,
 		request.TargetWorkspaceID,
@@ -312,7 +313,7 @@ func (c *NotifierController) SendTestNotificationDirect(ctx *gin.Context) {
 		return
 	}
 
-	canView, _, err := c.workspaceService.CanUserAccessWorkspace(request.WorkspaceID, user)
+	canView, _, err := c.workspaceService.CanUserAccessWorkspace(ctx.Request.Context(), request.WorkspaceID, user)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -325,7 +326,7 @@ func (c *NotifierController) SendTestNotificationDirect(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.notifierService.SendTestNotificationToNotifier(&request); err != nil {
+	if err := c.notifierService.SendTestNotificationToNotifier(ctx.Request.Context(), &request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

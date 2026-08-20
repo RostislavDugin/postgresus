@@ -1,17 +1,19 @@
 package databases
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 )
 
 type DatabaseCreationListener interface {
-	OnDatabaseCreated(databaseID uuid.UUID)
+	OnDatabaseCreated(ctx context.Context, databaseID uuid.UUID)
 }
 
 type DatabaseRemoveListener interface {
-	OnBeforeDatabaseRemove(databaseID uuid.UUID) error
+	OnBeforeDatabaseRemove(ctx context.Context, databaseID uuid.UUID) error
 }
 
 type DatabaseCopyListener interface {
-	OnDatabaseCopied(originalDatabaseID, newDatabaseID uuid.UUID)
+	OnDatabaseCopied(ctx context.Context, originalDatabaseID, newDatabaseID uuid.UUID)
 }

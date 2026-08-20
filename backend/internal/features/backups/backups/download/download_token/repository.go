@@ -1,6 +1,7 @@
 package download_token
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -22,10 +23,10 @@ func (r *Repository) Create(token *Token) error {
 	return storage.GetDb().Create(token).Error
 }
 
-func (r *Repository) FindByToken(token string) (*Token, error) {
+func (r *Repository) FindByToken(ctx context.Context, token string) (*Token, error) {
 	var downloadToken Token
 
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Where("token = ?", token).
 		First(&downloadToken).Error
 	if err != nil {
@@ -42,8 +43,11 @@ func (r *Repository) Update(token *Token) error {
 	return storage.GetDb().Save(token).Error
 }
 
-func (r *Repository) DeleteExpired(before time.Time) error {
-	return storage.GetDb().
+func (r *Repository) DeleteExpired(ctx context.Context, before time.Time) (int64, error) {
+	result := storage.GetDb().
+		WithContext(ctx).
 		Where("expires_at < ?", before).
-		Delete(&Token{}).Error
+		Delete(&Token{})
+
+	return result.RowsAffected, result.Error
 }

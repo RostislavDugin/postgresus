@@ -191,13 +191,13 @@ func removeUploadedArtifactsAfterChainBroken(
 ) {
 	manifestName := fileName + manifestSuffix
 
-	if err := storage.DeleteFile(encryptor, manifestName); err != nil {
+	if err := storage.DeleteFile(context.Background(), encryptor, logger, manifestName); err != nil {
 		logger.Warn("failed to remove manifest after CHAIN_BROKEN",
 			"file_name", manifestName,
 			"error", err)
 	}
 
-	if err := storage.DeleteFile(encryptor, fileName); err != nil {
+	if err := storage.DeleteFile(context.Background(), encryptor, logger, fileName); err != nil {
 		logger.Warn("failed to remove artifact after CHAIN_BROKEN",
 			"file_name", fileName,
 			"error", err)

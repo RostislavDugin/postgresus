@@ -60,17 +60,17 @@ func createPhysicalControllerPrereqs(t *testing.T) *physicalControllerPrereqs {
 	t.Helper()
 
 	router := newPhysicalControllerRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Physical Ctrl "+uuid.NewString(), user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Physical Ctrl "+uuid.NewString(), user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
 
 	t.Cleanup(func() {
 		physical_testing.DeleteAllPhysicalCatalogForDatabase(t, database.ID)
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 	})
 
 	return &physicalControllerPrereqs{
@@ -237,7 +237,7 @@ func Test_GetBackups_Paginated_ReturnsRequestedPage(t *testing.T) {
 func Test_GetBackups_WhenNonMember_ReturnsError(t *testing.T) {
 	prereqs := createPhysicalControllerPrereqs(t)
 
-	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	test_utils.MakeGetRequest(t, prereqs.router,
 		"/api/v1/backups/physical/database/"+prereqs.database.ID.String()+"/backups",
@@ -1041,13 +1041,13 @@ func runRolePermissionMatrix(
 ) {
 	t.Helper()
 
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	workspaces_testing.AddMemberToWorkspace(
 		prereqs.workspace, member, users_enums.WorkspaceRoleMember, prereqs.user.Token, prereqs.router)
 
 	viewer := addWorkspaceViewer(t, prereqs)
-	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	viewerCode := successCode
 	if managersOnly {
@@ -1074,14 +1074,14 @@ func occupyUserStreamSlot(t *testing.T, userID uuid.UUID) {
 	}
 
 	t.Cleanup(func() {
-		restoreTokenService.ReleaseDownloadLock(userID)
+		restoreTokenService.ReleaseDownloadLock(t.Context(), userID)
 	})
 }
 
 func addWorkspaceViewer(t *testing.T, prereqs *physicalControllerPrereqs) *users_dto.SignInResponseDTO {
 	t.Helper()
 
-	viewer := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	viewer := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	workspaces_testing.AddMemberToWorkspace(
 		prereqs.workspace, viewer, users_enums.WorkspaceRoleViewer, prereqs.user.Token, prereqs.router)
 
@@ -1131,7 +1131,7 @@ func createSecondPhysicalDatabase(t *testing.T, prereqs *physicalControllerPrere
 	database := databases.CreateTestPhysicalPostgresDatabase(prereqs.workspace.ID, prereqs.notifier, "17")
 	t.Cleanup(func() {
 		physical_testing.DeleteAllPhysicalCatalogForDatabase(t, database.ID)
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 	})
 
 	return database
@@ -1140,7 +1140,7 @@ func createSecondPhysicalDatabase(t *testing.T, prereqs *physicalControllerPrere
 func assertAuditLogContains(t *testing.T, workspaceID uuid.UUID, messageFragment, databaseName string) {
 	t.Helper()
 
-	logs, err := audit_logs.GetAuditLogService().GetWorkspaceAuditLogs(
+	logs, err := audit_logs.GetAuditLogService().GetWorkspaceAuditLogs(t.Context(),
 		workspaceID, &audit_logs.GetAuditLogsRequest{Limit: 100, Offset: 0})
 	require.NoError(t, err)
 
@@ -1189,7 +1189,7 @@ func saveStorageObject(t *testing.T, storage *storages.Storage, name string, bod
 		t.Fatalf("save storage object %s: %v", name, err)
 	}
 
-	t.Cleanup(func() { _ = storage.DeleteFile(encryptor, name) })
+	t.Cleanup(func() { _ = storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), name) })
 }
 
 func zstdTar(t *testing.T, files map[string]string) []byte {

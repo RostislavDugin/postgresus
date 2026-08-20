@@ -96,7 +96,7 @@ func (m *PubSubManager) Publish(ctx context.Context, channel, message string) er
 	result := m.client.Do(ctx, cmd)
 
 	if err := result.Error(); err != nil {
-		m.logger.Error("Failed to publish message to Redis", "channel", channel, "error", err)
+		m.logger.ErrorContext(ctx, "failed to publish message to Redis", "channel", channel, "error", err)
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
@@ -122,11 +122,11 @@ func (m *PubSubManager) subscriptionLoop(
 ) {
 	defer func() {
 		if r := recover(); r != nil {
-			m.logger.Error("Panic in subscription handler", "channel", channel, "panic", r)
+			m.logger.ErrorContext(ctx, "panic in subscription handler", "channel", channel, "panic", r)
 		}
 	}()
 
-	m.logger.Info("Starting subscription", "channel", channel)
+	m.logger.InfoContext(ctx, "starting subscription", "channel", channel)
 
 	err := m.client.Receive(
 		ctx,
@@ -134,7 +134,7 @@ func (m *PubSubManager) subscriptionLoop(
 		func(msg valkey.PubSubMessage) {
 			defer func() {
 				if r := recover(); r != nil {
-					m.logger.Error("Panic in message handler", "channel", channel, "panic", r)
+					m.logger.ErrorContext(ctx, "panic in message handler", "channel", channel, "panic", r)
 				}
 			}()
 
@@ -143,9 +143,9 @@ func (m *PubSubManager) subscriptionLoop(
 	)
 
 	if err != nil && ctx.Err() == nil {
-		m.logger.Error("Subscription error", "channel", channel, "error", err)
+		m.logger.ErrorContext(ctx, "subscription error", "channel", channel, "error", err)
 	} else if ctx.Err() != nil {
-		m.logger.Info("Subscription cancelled", "channel", channel)
+		m.logger.InfoContext(ctx, "subscription cancelled", "channel", channel)
 	}
 
 	m.mu.Lock()

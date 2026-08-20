@@ -108,7 +108,7 @@ func (s *SlackNotifier) Send(
 
 		defer func() {
 			if err := resp.Body.Close(); err != nil {
-				logger.Warn("Failed to close response body", "error", err)
+				logger.Warn("failed to close response body", "error", err)
 			}
 		}()
 
@@ -124,7 +124,7 @@ func (s *SlackNotifier) Send(
 				return fmt.Errorf("rate-limited after %d attempts, giving up", attempts)
 			}
 
-			logger.Warn("Slack rate-limited, retrying", "after", retryAfter, "attempt", attempts)
+			logger.Warn("slack rate-limited, retrying", "after", retryAfter, "attempt", attempts)
 			time.Sleep(retryAfter)
 			backoff = time.Duration(float64(backoff) * backoffMultiplier)
 
@@ -146,7 +146,7 @@ func (s *SlackNotifier) Send(
 			return fmt.Errorf("slack API error: %s", respBody.Error)
 		}
 
-		logger.Info("Slack message sent", "channel", s.TargetChatID, "attempts", attempts)
+		logger.Info("slack message sent", "channel", s.TargetChatID, "attempts", attempts)
 
 		return nil
 	}

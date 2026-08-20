@@ -50,7 +50,7 @@ func NewPhysicalSlotCleanupListener(
 	}
 }
 
-func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUID) error {
+func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(ctx context.Context, databaseID uuid.UUID) error {
 	database, err := l.databaseService.GetDatabaseByID(databaseID)
 	if err != nil {
 		return nil
@@ -62,7 +62,9 @@ func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUI
 
 	logger := l.logger.With("database_id", databaseID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), slotCleanupDeadline)
+	// The database row is being deleted, so the slot drop must finish even if the caller goes
+	// away: RunStartupCleanup can never recover a slot whose database row is gone.
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), slotCleanupDeadline)
 	defer cancel()
 
 	// The per-backup slot is keyed by the PostgresqlPhysical ID (see
@@ -73,7 +75,7 @@ func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUI
 	slotName := SlotName(database.PostgresqlPhysical.ID)
 	walSlotName := database.PostgresqlPhysical.ReplicationSlotName
 
-	tunneledDatabase, err := postgresql_physical.OpenTunnel(ctx, postgresql_physical.OpenTunnelSpec{
+	tunneledDatabase, err := postgresql_physical.OpenTunnel(cleanupCtx, postgresql_physical.OpenTunnelSpec{
 		Database:  database.PostgresqlPhysical,
 		Logger:    logger,
 		Encryptor: l.fieldEncryptor,
@@ -94,7 +96,7 @@ func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUI
 
 	sourceDatabase := tunneledDatabase.GetDatabaseThroughTunnel()
 
-	conn, err := sourceDatabase.OpenInspectionConn(ctx, l.fieldEncryptor)
+	conn, err := sourceDatabase.OpenInspectionConn(cleanupCtx, l.fieldEncryptor)
 	if err != nil {
 		logger.Warn("physical slot cleanup: source PG unreachable, leaving slots orphaned",
 			"slot_name", slotName,
@@ -106,11 +108,11 @@ func (l *PhysicalSlotCleanupListener) OnBeforeDatabaseRemove(databaseID uuid.UUI
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
 
-	if dropErr := dropBackupSlotIfExists(ctx, conn, slotName); dropErr != nil {
+	if dropErr := dropBackupSlotIfExists(cleanupCtx, conn, slotName); dropErr != nil {
 		logger.Warn("physical slot cleanup: per-backup slot drop failed", "slot_name", slotName, "error", dropErr)
 	}
 
-	if dropErr := sourceDatabase.DropWalSlotForRemoval(ctx, logger, l.fieldEncryptor); dropErr != nil {
+	if dropErr := sourceDatabase.DropWalSlotForRemoval(cleanupCtx, logger, l.fieldEncryptor); dropErr != nil {
 		logger.Warn("physical slot cleanup: WAL streamer slot drop failed",
 			"slot_name", walSlotName,
 			"error", dropErr,

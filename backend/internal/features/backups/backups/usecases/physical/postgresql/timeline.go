@@ -184,7 +184,7 @@ func UploadHistoryFile(
 	}
 
 	if existing != nil {
-		logger.Debug("history file already in catalog",
+		logger.DebugContext(ctx, "history file already in catalog",
 			"database_id", databaseID,
 			"timeline_id", timelineID)
 
@@ -239,8 +239,8 @@ func UploadHistoryFile(
 		// Sidecar upload failed: remove the artifact to preserve the
 		// "no artifact without sidecar" invariant. DeleteFile is
 		// idempotent on not-found.
-		if delErr := storage.DeleteFile(fieldEncryptor, storageObjectName); delErr != nil {
-			logger.Warn("failed to remove orphan history artifact after sidecar failure",
+		if delErr := storage.DeleteFile(ctx, fieldEncryptor, logger, storageObjectName); delErr != nil {
+			logger.WarnContext(ctx, "failed to remove orphan history artifact after sidecar failure",
 				"file_name", storageObjectName,
 				"error", delErr)
 		}
@@ -261,7 +261,7 @@ func UploadHistoryFile(
 
 	if err := historyRepo.Insert(row); err != nil {
 		if isUniqueViolation(err) {
-			logger.Debug("history row inserted by concurrent caller",
+			logger.DebugContext(ctx, "history row inserted by concurrent caller",
 				"database_id", databaseID,
 				"timeline_id", timelineID)
 
@@ -344,7 +344,8 @@ func historyIsGapped(rows []*physical_models.PhysicalWalHistoryFile, timelineID 
 func readHistoryFromCluster(ctx context.Context, conn *pgx.Conn, historyFilename string) ([]byte, error) {
 	var body []byte
 
-	err := conn.QueryRow(ctx,
+	err := conn.QueryRow(
+		ctx,
 		`SELECT pg_read_binary_file('pg_wal/' || $1)`,
 		historyFilename,
 	).Scan(&body)

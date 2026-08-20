@@ -42,29 +42,35 @@ func (s *VerificationScheduler) Run(ctx context.Context) {
 	ticker := time.NewTicker(schedulerTickInterval)
 	defer ticker.Stop()
 
+	lifecycleLogger := s.logger.With("job_name", jobName)
+
+	lifecycleLogger.InfoContext(ctx, "verification scheduler started")
+
 	for {
 		select {
 		case <-ctx.Done():
+			lifecycleLogger.InfoContext(ctx, "verification scheduler stopped")
+
 			return
 		case <-ticker.C:
 			tickLogger := s.logger.With("job_id", uuid.New(), "job_name", jobName)
 
-			if err := s.createScheduledRuns(); err != nil {
-				tickLogger.Error("createScheduledRuns failed", "error", err)
+			if err := s.createScheduledRuns(ctx, tickLogger); err != nil {
+				tickLogger.ErrorContext(ctx, "failed to create scheduled verification runs", "error", err)
 			}
 
-			if err := s.reapStaleRuns(); err != nil {
-				tickLogger.Error("reapStaleRuns failed", "error", err)
+			if err := s.reapStaleRuns(ctx, tickLogger); err != nil {
+				tickLogger.ErrorContext(ctx, "failed to reap stale verification runs", "error", err)
 			}
 
-			if err := s.sweepCanceledByDisabledConfig(); err != nil {
-				tickLogger.Error("sweepCanceledByDisabledConfig failed", "error", err)
+			if err := s.sweepCanceledByDisabledConfig(ctx, tickLogger); err != nil {
+				tickLogger.ErrorContext(ctx, "failed to cancel verifications for disabled configs", "error", err)
 			}
 		}
 	}
 }
 
-func (s *VerificationScheduler) createScheduledRuns() error {
+func (s *VerificationScheduler) createScheduledRuns(ctx context.Context, logger *slog.Logger) error {
 	configsWithEnabledVerifications, err := s.verificaionConfigService.ListEnabled()
 	if err != nil {
 		return err
@@ -73,8 +79,8 @@ func (s *VerificationScheduler) createScheduledRuns() error {
 	now := time.Now().UTC()
 
 	for _, config := range configsWithEnabledVerifications {
-		if err := s.createScheduledRunForConfig(config, now); err != nil {
-			s.logger.Error(
+		if err := s.createScheduledRunForConfig(ctx, logger, config, now); err != nil {
+			logger.ErrorContext(ctx,
 				"failed to evaluate scheduled run for database",
 				"error", err,
 				"database_id", config.DatabaseID,
@@ -86,6 +92,8 @@ func (s *VerificationScheduler) createScheduledRuns() error {
 }
 
 func (s *VerificationScheduler) createScheduledRunForConfig(
+	ctx context.Context,
+	logger *slog.Logger,
 	config *verification_config.BackupVerificationConfig,
 	now time.Time,
 ) error {
@@ -124,10 +132,8 @@ func (s *VerificationScheduler) createScheduledRunForConfig(
 	}
 
 	if backup == nil {
-		s.logger.Info(
-			"skipping scheduled verification: no verifiable backup yet",
-			"database_id", config.DatabaseID,
-		)
+		logger.DebugContext(ctx, "skipping scheduled verification: no verifiable backup yet",
+			"database_id", config.DatabaseID)
 
 		return nil
 	}
@@ -138,11 +144,8 @@ func (s *VerificationScheduler) createScheduledRunForConfig(
 	}
 
 	if err := validateDatabaseIsVerifiable(database); err != nil {
-		s.logger.Warn(
-			"skipping scheduled verification: database not verifiable",
-			"database_id", config.DatabaseID,
-			"error", err,
-		)
+		logger.DebugContext(ctx, "skipping scheduled verification: database not verifiable",
+			"database_id", config.DatabaseID, "error", err)
 
 		return nil
 	}
@@ -160,7 +163,7 @@ func (s *VerificationScheduler) createScheduledRunForConfig(
 	return s.repo.Create(verification)
 }
 
-func (s *VerificationScheduler) reapStaleRuns() error {
+func (s *VerificationScheduler) reapStaleRuns(ctx context.Context, logger *slog.Logger) error {
 	runningRows, err := s.repo.FindAllRunning()
 	if err != nil {
 		return err
@@ -176,7 +179,7 @@ func (s *VerificationScheduler) reapStaleRuns() error {
 
 		agent, lookupErr := s.agentService.GetAgentByID(*row.AgentID)
 		if lookupErr != nil {
-			s.logger.Error(
+			logger.ErrorContext(ctx,
 				"failed to load agent during reap",
 				"error", lookupErr,
 				"verification_id", row.ID,
@@ -190,8 +193,8 @@ func (s *VerificationScheduler) reapStaleRuns() error {
 			// The owning agent is gone, but Requeue clears agent_id so a
 			// different agent can pick the run up. If none does, the stale
 			// PENDING reaper retires it after maxPendingDuration.
-			if failErr := s.service.RequeueOrFail(row, FailureReasonAgentRemoved, nil); failErr != nil {
-				s.logger.Error(
+			if failErr := s.service.RequeueOrFail(ctx, row, FailureReasonAgentRemoved, nil); failErr != nil {
+				logger.ErrorContext(ctx,
 					"failed to requeue or fail RUNNING verification for removed agent",
 					"error", failErr,
 					"verification_id", row.ID,
@@ -202,8 +205,8 @@ func (s *VerificationScheduler) reapStaleRuns() error {
 		}
 
 		if agent.LastSeenAt == nil || agent.LastSeenAt.Before(staleBefore) {
-			if failErr := s.service.RequeueOrFail(row, FailureReasonAgentLostContact, nil); failErr != nil {
-				s.logger.Error(
+			if failErr := s.service.RequeueOrFail(ctx, row, FailureReasonAgentLostContact, nil); failErr != nil {
+				logger.ErrorContext(ctx,
 					"failed to requeue or fail stale RUNNING verification",
 					"error", failErr,
 					"verification_id", row.ID,
@@ -220,8 +223,8 @@ func (s *VerificationScheduler) reapStaleRuns() error {
 	}
 
 	for _, row := range stalePending {
-		if failErr := s.service.RequeueOrFail(row, FailureReasonUnclaimedTooLong, nil); failErr != nil {
-			s.logger.Error(
+		if failErr := s.service.RequeueOrFail(ctx, row, FailureReasonUnclaimedTooLong, nil); failErr != nil {
+			logger.ErrorContext(ctx,
 				"failed to fail stale PENDING verification",
 				"error", failErr,
 				"verification_id", row.ID,
@@ -234,17 +237,22 @@ func (s *VerificationScheduler) reapStaleRuns() error {
 
 // sweepCanceledByDisabledConfig sends no notification
 // — disable is user-initiated, not a failure.
-func (s *VerificationScheduler) sweepCanceledByDisabledConfig() error {
+func (s *VerificationScheduler) sweepCanceledByDisabledConfig(ctx context.Context, logger *slog.Logger) error {
 	rows, err := s.repo.FindNonTerminalForDisabledConfigs()
 	if err != nil {
 		return err
+	}
+
+	if len(rows) > 0 {
+		logger.InfoContext(ctx, fmt.Sprintf(
+			"cancelling %d verifications whose config was disabled", len(rows)))
 	}
 
 	for _, row := range rows {
 		if cancelErr := s.repo.MarkTerminal(nil, row.ID, VerificationStatusCanceled, map[string]any{
 			"fail_message": cancelMessageScheduleDisabled,
 		}); cancelErr != nil {
-			s.logger.Error(
+			logger.Error(
 				"failed to mark verification CANCELED",
 				"error", cancelErr,
 				"verification_id", row.ID,

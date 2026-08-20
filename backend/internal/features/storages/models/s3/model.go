@@ -98,11 +98,18 @@ func (s *S3Storage) SaveFile(
 
 	client, err := s.getClient(encryptor)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to build the s3 client", "bucket", s.S3Bucket, "error", err)
+
 		return err
 	}
 
 	baseKey := s.buildObjectKey(fileName)
 	innerPartSize := s.innerPartSize()
+
+	startedAt := time.Now().UTC()
+
+	logger.DebugContext(ctx, "saving file to s3", "file_name", fileName,
+		"bucket", s.S3Bucket, "object_key", baseKey)
 
 	// Look ahead by one inner part to choose the layout. A stream that fits in a single inner part
 	// (WAL segments, .metadata/.manifest sidecars, small dumps, empty files) is written as one
@@ -115,7 +122,20 @@ func (s *S3Storage) SaveFile(
 	}
 
 	if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
-		return s.uploadSingleObject(ctx, client, baseKey, firstPart[:firstPartLen])
+		if err := s.uploadSingleObject(ctx, client, baseKey, firstPart[:firstPartLen]); err != nil {
+			logger.ErrorContext(ctx, "failed to save file to s3", "file_name", fileName,
+				"object_key", baseKey, "error", err)
+
+			return err
+		}
+
+		reportSaveToS3(
+			ctx,
+			logger,
+			savedObject{FileName: fileName, ObjectKey: baseKey, SizeBytes: int64(firstPartLen), StartedAt: startedAt},
+		)
+
+		return nil
 	}
 
 	// The first part filled exactly: peek one more byte to tell "stream is exactly one inner part"
@@ -127,17 +147,58 @@ func (s *S3Storage) SaveFile(
 	}
 
 	if peekLen == 0 {
-		return s.uploadSingleObject(ctx, client, baseKey, firstPart)
+		if err := s.uploadSingleObject(ctx, client, baseKey, firstPart); err != nil {
+			logger.ErrorContext(ctx, "failed to save file to s3", "file_name", fileName,
+				"object_key", baseKey, "error", err)
+
+			return err
+		}
+
+		reportSaveToS3(
+			ctx,
+			logger,
+			savedObject{FileName: fileName, ObjectKey: baseKey, SizeBytes: int64(len(firstPart)), StartedAt: startedAt},
+		)
+
+		return nil
 	}
 
 	coreClient, err := s.getCoreClient(encryptor)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to build the s3 core client", "bucket", s.S3Bucket, "error", err)
+
 		return err
 	}
 
 	source := io.MultiReader(bytes.NewReader(firstPart), bytes.NewReader(peek[:peekLen]), file)
 
-	return s.uploadChunked(ctx, coreClient, client, baseKey, source)
+	logger.DebugContext(ctx, "stream exceeds one part, saving to s3 as a chunked object",
+		"file_name", fileName, "object_key", baseKey)
+
+	if err := s.uploadChunked(ctx, coreClient, client, baseKey, source); err != nil {
+		logger.ErrorContext(ctx, "failed to save chunked file to s3", "file_name", fileName,
+			"object_key", baseKey, "error", err)
+
+		return err
+	}
+
+	logger.DebugContext(ctx, fmt.Sprintf("saved chunked file to s3 in %s", time.Since(startedAt)),
+		"file_name", fileName, "object_key", baseKey)
+
+	return nil
+}
+
+type savedObject struct {
+	FileName  string
+	ObjectKey string
+	SizeBytes int64
+	StartedAt time.Time
+}
+
+func reportSaveToS3(ctx context.Context, logger *slog.Logger, saved savedObject) {
+	logger.DebugContext(ctx, fmt.Sprintf("saved file to s3: %.2f MB in %s",
+		float64(saved.SizeBytes)/(1024*1024), time.Since(saved.StartedAt)),
+		"file_name", saved.FileName, "object_key", saved.ObjectKey)
 }
 
 func (s *S3Storage) GetFile(
@@ -148,10 +209,14 @@ func (s *S3Storage) GetFile(
 ) (io.ReadCloser, error) {
 	coreClient, err := s.getCoreClient(encryptor)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to build the s3 core client", "bucket", s.S3Bucket, "error", err)
+
 		return nil, err
 	}
 
 	baseKey := s.buildObjectKey(fileName)
+
+	logger.DebugContext(ctx, "reading file from s3", "file_name", fileName, "object_key", baseKey)
 
 	manifest, hasManifest, err := s.readManifest(ctx, coreClient.Client, baseKey)
 	if err != nil {
@@ -187,7 +252,12 @@ func (s *S3Storage) GetFile(
 	}), nil
 }
 
-func (s *S3Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
+func (s *S3Storage) DeleteFile(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileName string,
+) error {
 	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
@@ -195,10 +265,12 @@ func (s *S3Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName str
 
 	baseKey := s.buildObjectKey(fileName)
 
-	ctx, cancel := context.WithTimeout(context.Background(), s3DeleteTimeout)
+	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
+	// operation carries its own deadline; the caller's ctx stays for log correlation only.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), s3DeleteTimeout)
 	defer cancel()
 
-	manifest, hasManifest, err := s.readManifest(ctx, client, baseKey)
+	manifest, hasManifest, err := s.readManifest(deleteCtx, client, baseKey)
 	if err != nil {
 		return err
 	}
@@ -210,22 +282,33 @@ func (s *S3Storage) DeleteFile(encryptor encryption.FieldEncryptor, fileName str
 		}
 		keys = append(keys, manifestObjectKey(baseKey))
 
-		if err := s.removeObjects(ctx, client, keys); err != nil {
+		if err := s.removeObjects(deleteCtx, client, keys); err != nil {
+			logger.WarnContext(ctx, "failed to delete chunked file from s3",
+				"file_name", fileName, "object_key", baseKey, "error", err)
+
 			return fmt.Errorf("failed to delete chunked backup from S3: %w", err)
 		}
+
+		logger.DebugContext(ctx, fmt.Sprintf("deleted chunked file from s3 (%d parts)", len(manifest.Parts)),
+			"file_name", fileName, "object_key", baseKey)
 
 		return nil
 	}
 
 	err = client.RemoveObject(
-		ctx,
+		deleteCtx,
 		s.S3Bucket,
 		baseKey,
 		minio.RemoveObjectOptions{},
 	)
 	if err != nil {
+		logger.WarnContext(ctx, "failed to delete file from s3",
+			"file_name", fileName, "object_key", baseKey, "error", err)
+
 		return fmt.Errorf("failed to delete file from S3: %w", err)
 	}
+
+	logger.DebugContext(ctx, "deleted file from s3", "file_name", fileName, "object_key", baseKey)
 
 	return nil
 }

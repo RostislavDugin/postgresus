@@ -1,6 +1,7 @@
 package verification_agents
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -20,10 +21,10 @@ func (r *AgentRepository) Create(agent *Agent) error {
 	return storage.GetDb().Create(agent).Error
 }
 
-func (r *AgentRepository) FindAll() ([]*Agent, error) {
+func (r *AgentRepository) FindAll(ctx context.Context) ([]*Agent, error) {
 	agents := make([]*Agent, 0)
 
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Where("deleted_at IS NULL").
 		Order("created_at DESC").
 		Find(&agents).Error
@@ -31,10 +32,10 @@ func (r *AgentRepository) FindAll() ([]*Agent, error) {
 	return agents, err
 }
 
-func (r *AgentRepository) CountLive() (int64, error) {
+func (r *AgentRepository) CountLive(ctx context.Context) (int64, error) {
 	var count int64
 
-	err := storage.GetDb().
+	err := storage.GetDb().WithContext(ctx).
 		Model(&Agent{}).
 		Where("deleted_at IS NULL").
 		Count(&count).Error

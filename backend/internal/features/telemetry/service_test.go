@@ -152,7 +152,7 @@ type fakeVerificationAgentLister struct {
 	err    error
 }
 
-func (f *fakeVerificationAgentLister) ListAgents() ([]*verification_agents.Agent, error) {
+func (f *fakeVerificationAgentLister) ListAgents(context.Context) ([]*verification_agents.Agent, error) {
 	return f.agents, f.err
 }
 

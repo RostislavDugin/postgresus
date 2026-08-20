@@ -1,6 +1,7 @@
 package workspaces_services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -8,6 +9,7 @@ import (
 
 	"databasus-backend/internal/config"
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_models "databasus-backend/internal/features/users/models"
@@ -31,10 +33,11 @@ type MembershipService struct {
 }
 
 func (s *MembershipService) GetMembers(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	user *users_models.User,
 ) (*workspaces_dto.GetMembersResponseDTO, error) {
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, workspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -58,22 +61,23 @@ func (s *MembershipService) GetMembers(
 }
 
 func (s *MembershipService) AddMember(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	request *workspaces_dto.AddMemberRequestDTO,
 	addedBy *users_models.User,
 ) (*workspaces_dto.AddMemberResponseDTO, error) {
-	if err := s.validateCanManageMembership(workspaceID, addedBy, request.Role); err != nil {
+	if err := s.validateCanManageMembership(ctx, workspaceID, addedBy, request.Role); err != nil {
 		return nil, err
 	}
 
-	targetUser, err := s.userService.GetUserByEmail(request.Email)
+	targetUser, err := s.userService.GetUserByEmail(ctx, request.Email)
 	if err != nil {
 		return nil, err
 	}
 
 	if targetUser == nil {
 		// User doesn't exist, invite them
-		settings, err := s.settingsService.GetSettings()
+		settings, err := s.settingsService.GetSettings(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get settings: %w", err)
 		}
@@ -94,7 +98,7 @@ func (s *MembershipService) AddMember(
 			IntendedWorkspaceRole: &request.Role,
 		}
 
-		inviteResponse, err := s.userService.InviteUser(inviteRequest, addedBy)
+		inviteResponse, err := s.userService.InviteUser(ctx, inviteRequest, addedBy)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +108,7 @@ func (s *MembershipService) AddMember(
 		body := s.buildInvitationEmailHTML(workspace.Name, addedBy.Name, string(request.Role))
 
 		if err := s.emailSender.SendEmail(request.Email, subject, body); err != nil {
-			s.logger.Error("Failed to send invitation email", "email", request.Email, "error", err)
+			s.logger.ErrorContext(ctx, "failed to send invitation email", "email", request.Email, "error", err)
 		}
 
 		membership := &workspaces_models.WorkspaceMembership{
@@ -117,15 +121,11 @@ func (s *MembershipService) AddMember(
 			return nil, fmt.Errorf("failed to add member: %w", err)
 		}
 
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf(
-				"User invited to workspace: %s and added as %s",
-				request.Email,
-				request.Role,
-			),
-			&addedBy.ID,
-			&workspaceID,
-		)
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("User invited to workspace: %s and added as %s", request.Email, request.Role),
+			UserID:      &addedBy.ID,
+			WorkspaceID: &workspaceID,
+		})
 
 		return &workspaces_dto.AddMemberResponseDTO{
 			Status: workspaces_dto.AddStatusInvited,
@@ -150,11 +150,11 @@ func (s *MembershipService) AddMember(
 		return nil, fmt.Errorf("failed to add member: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("User added to workspace: %s as %s", targetUser.Email, request.Role),
-		&addedBy.ID,
-		&workspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("User added to workspace: %s as %s", targetUser.Email, request.Role),
+		UserID:      &addedBy.ID,
+		WorkspaceID: &workspaceID,
+	})
 
 	return &workspaces_dto.AddMemberResponseDTO{
 		Status: workspaces_dto.AddStatusAdded,
@@ -162,12 +162,13 @@ func (s *MembershipService) AddMember(
 }
 
 func (s *MembershipService) ChangeMemberRole(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	memberUserID uuid.UUID,
 	request *workspaces_dto.ChangeMemberRoleRequestDTO,
 	changedBy *users_models.User,
 ) error {
-	if err := s.validateCanManageMembership(workspaceID, changedBy, request.Role); err != nil {
+	if err := s.validateCanManageMembership(ctx, workspaceID, changedBy, request.Role); err != nil {
 		return err
 	}
 
@@ -187,7 +188,7 @@ func (s *MembershipService) ChangeMemberRole(
 		return workspaces_errors.ErrCannotChangeOwnerRole
 	}
 
-	targetUser, err := s.userService.GetUserByID(memberUserID)
+	targetUser, err := s.userService.GetUserByID(ctx, memberUserID)
 	if err != nil {
 		return workspaces_errors.ErrUserNotFound
 	}
@@ -200,26 +201,27 @@ func (s *MembershipService) ChangeMemberRole(
 		return fmt.Errorf("failed to update member role: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf(
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message: fmt.Sprintf(
 			"Member role changed: %s from %s to %s",
 			targetUser.Email,
 			existingMembership.Role,
 			request.Role,
 		),
-		&changedBy.ID,
-		&workspaceID,
-	)
+		UserID:      &changedBy.ID,
+		WorkspaceID: &workspaceID,
+	})
 
 	return nil
 }
 
 func (s *MembershipService) RemoveMember(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	memberUserID uuid.UUID,
 	removedBy *users_models.User,
 ) error {
-	canManage, err := s.workspaceService.CanUserManageMembership(workspaceID, removedBy)
+	canManage, err := s.workspaceService.CanUserManageMembership(ctx, workspaceID, removedBy)
 	if err != nil {
 		return err
 	}
@@ -241,7 +243,7 @@ func (s *MembershipService) RemoveMember(
 	}
 
 	if existingMembership.Role == users_enums.WorkspaceRoleAdmin {
-		canManageAdmins, err := s.workspaceService.CanUserManageAdmins(workspaceID, removedBy)
+		canManageAdmins, err := s.workspaceService.CanUserManageAdmins(ctx, workspaceID, removedBy)
 		if err != nil {
 			return err
 		}
@@ -250,7 +252,7 @@ func (s *MembershipService) RemoveMember(
 		}
 	}
 
-	targetUser, err := s.userService.GetUserByID(memberUserID)
+	targetUser, err := s.userService.GetUserByID(ctx, memberUserID)
 	if err != nil {
 		return workspaces_errors.ErrUserNotFound
 	}
@@ -259,21 +261,22 @@ func (s *MembershipService) RemoveMember(
 		return fmt.Errorf("failed to remove member: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Member removed from workspace: %s", targetUser.Email),
-		&removedBy.ID,
-		&workspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Member removed from workspace: %s", targetUser.Email),
+		UserID:      &removedBy.ID,
+		WorkspaceID: &workspaceID,
+	})
 
 	return nil
 }
 
 func (s *MembershipService) TransferOwnership(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	request *workspaces_dto.TransferOwnershipRequestDTO,
 	user *users_models.User,
 ) error {
-	currentRole, err := s.membershipRepository.GetUserWorkspaceRole(workspaceID, user.ID)
+	currentRole, err := s.membershipRepository.GetUserWorkspaceRole(ctx, workspaceID, user.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get current user role: %w", err)
 	}
@@ -283,7 +286,7 @@ func (s *MembershipService) TransferOwnership(
 		return workspaces_errors.ErrOnlyOwnerOrAdminCanTransferOwnership
 	}
 
-	newOwner, err := s.userService.GetUserByEmail(request.NewOwnerEmail)
+	newOwner, err := s.userService.GetUserByEmail(ctx, request.NewOwnerEmail)
 	if err != nil {
 		return workspaces_errors.ErrNewOwnerNotFound
 	}
@@ -322,22 +325,23 @@ func (s *MembershipService) TransferOwnership(
 		return fmt.Errorf("failed to update previous owner role: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Workspace ownership transferred to: %s", newOwner.Email),
-		&user.ID,
-		&workspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Workspace ownership transferred to: %s", newOwner.Email),
+		UserID:      &user.ID,
+		WorkspaceID: &workspaceID,
+	})
 
 	return nil
 }
 
 func (s *MembershipService) validateCanManageMembership(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	user *users_models.User,
 	changesRoleTo users_enums.WorkspaceRole,
 ) error {
 	if changesRoleTo == users_enums.WorkspaceRoleAdmin {
-		canManageAdmins, err := s.workspaceService.CanUserManageAdmins(workspaceID, user)
+		canManageAdmins, err := s.workspaceService.CanUserManageAdmins(ctx, workspaceID, user)
 		if err != nil {
 			return err
 		}
@@ -347,7 +351,7 @@ func (s *MembershipService) validateCanManageMembership(
 		return nil
 	}
 
-	canManageMembership, err := s.workspaceService.CanUserManageMembership(workspaceID, user)
+	canManageMembership, err := s.workspaceService.CanUserManageMembership(ctx, workspaceID, user)
 	if err != nil {
 		return err
 	}

@@ -316,12 +316,7 @@ func (r mattermostRequest) withoutSecretURL(err error) error {
 		return err
 	}
 
-	var urlError *url.Error
-	if errors.As(err, &urlError) {
-		return urlError.Err
-	}
-
-	return err
+	return notifier_models.ErrorWithoutWebhookURLCredentials(err)
 }
 
 func isHTTPURL(candidate string) bool {

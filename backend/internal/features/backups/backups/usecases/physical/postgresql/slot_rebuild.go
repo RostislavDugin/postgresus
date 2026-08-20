@@ -15,12 +15,18 @@ func (s *WalStreamSupervisor) rebuildSlot(ctx context.Context, logger *slog.Logg
 	defer s.rebuildMu.Unlock()
 
 	if !s.recordRebuildAttemptWithinCap() {
+		// Repeated rebuilds each open a WAL gap, so hitting the cap means the chain is degrading and
+		// the cause is upstream of this streamer.
+		logger.ErrorContext(ctx, fmt.Sprintf(
+			"rebuild loop-protection tripped: more than %d rebuilds in the last hour",
+			slotRebuildMaxAttemptsPerHour), "reason", string(reason))
+
 		return fmt.Errorf(
 			"rebuild loop-protection tripped: more than %d rebuilds in the last hour", slotRebuildMaxAttemptsPerHour,
 		)
 	}
 
-	logger.Info("starting slot rebuild", "reason", string(reason))
+	logger.InfoContext(ctx, "starting slot rebuild", "reason", string(reason))
 
 	s.isPaused.Store(true)
 	defer s.isPaused.Store(false)
@@ -39,6 +45,9 @@ func (s *WalStreamSupervisor) rebuildSlot(ctx context.Context, logger *slog.Logg
 		}
 
 		if !terminated {
+			logger.WarnContext(ctx,
+				"refusing to rebuild: the slot is held by a consumer that is not ours")
+
 			return errors.New(
 				"slot still active after stopping our receiver; refusing to drop a slot held by another consumer",
 			)
@@ -73,7 +82,7 @@ func (s *WalStreamSupervisor) rebuildSlot(ctx context.Context, logger *slog.Logg
 		}
 	}
 
-	logger.Info("slot rebuild complete; resuming pg_receivewal on fresh slot")
+	logger.InfoContext(ctx, "slot rebuild complete; resuming pg_receivewal on fresh slot")
 
 	return nil
 }
@@ -109,7 +118,7 @@ func (s *WalStreamSupervisor) terminateOwnedSlotBackend(ctx context.Context, log
 		return false, err
 	}
 
-	logger.Warn("terminated Databasus-owned wal receiver backend", "active_pid", *state.ActivePID)
+	logger.WarnContext(ctx, "terminated Databasus-owned wal receiver backend", "active_pid", *state.ActivePID)
 
 	return terminated, nil
 }
@@ -136,7 +145,7 @@ func (s *WalStreamSupervisor) waitForSlotReleased(ctx context.Context, logger *s
 func (s *WalStreamSupervisor) isSlotActive(ctx context.Context, logger *slog.Logger) (active, ok bool) {
 	conn, err := s.spec.SourceDB.OpenInspectionConn(ctx, s.spec.FieldEncryptor)
 	if err != nil {
-		logger.Debug("rebuild: source unreachable while waiting for slot release", "error", err)
+		logger.DebugContext(ctx, "rebuild: source unreachable while waiting for slot release", "error", err)
 
 		return false, false
 	}

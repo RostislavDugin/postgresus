@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	cleanerTickerInterval   = 3 * time.Second
+	cleanerTickerInterval = 3 * time.Second
+
+	cleanerJobName          = "logical_backup_retention_cleanup"
 	recentBackupGracePeriod = 60 * time.Minute
 )
 
@@ -42,46 +44,58 @@ func (c *BackupCleaner) Run(ctx context.Context) {
 		return
 	}
 
-	retentionLog := c.logger.With("task_name", "clean_by_retention_policy")
-
 	ticker := time.NewTicker(cleanerTickerInterval)
 	defer ticker.Stop()
+
+	lifecycleLogger := c.logger.With("job_name", cleanerJobName)
+
+	lifecycleLogger.InfoContext(ctx, "logical backup retention cleaner started")
 
 	for {
 		select {
 		case <-ctx.Done():
+			lifecycleLogger.InfoContext(ctx, "logical backup retention cleaner stopped")
+
 			return
 		case <-ticker.C:
-			if err := c.cleanByRetentionPolicy(retentionLog); err != nil {
-				retentionLog.Error("failed to clean backups by retention policy", "error", err)
+			retentionLog := c.logger.With(
+				"job_id", uuid.New(),
+				"job_name", cleanerJobName,
+				"task_name", "clean_by_retention_policy",
+			)
+
+			if err := c.cleanByRetentionPolicy(ctx, retentionLog); err != nil {
+				retentionLog.ErrorContext(ctx, "failed to clean backups by retention policy", "error", err)
 			}
 		}
 	}
 }
 
-func (c *BackupCleaner) DeleteBackup(backup *backups_core_logical.LogicalBackup) error {
+func (c *BackupCleaner) DeleteBackup(ctx context.Context, backup *backups_core_logical.LogicalBackup) error {
+	logger := c.logger.With("backup_id", backup.ID, "database_id", backup.DatabaseID)
+
 	for _, listener := range c.backupRemoveListeners {
 		if err := listener.OnBeforeBackupRemove(backup); err != nil {
 			return err
 		}
 	}
 
-	storage, err := c.storageService.GetStorageByID(backup.StorageID)
+	storage, err := c.storageService.GetStorageByID(ctx, backup.StorageID)
 	if err != nil {
 		return err
 	}
 
-	if err := storage.DeleteFile(c.fieldEncryptor, backup.FileName); err != nil {
+	if err := storage.DeleteFile(ctx, c.fieldEncryptor, logger, backup.FileName); err != nil {
 		// we do not return error here, because sometimes clean up performed
 		// before unavailable storage removal or change - therefore we should
 		// proceed even in case of error. It's possible that some S3 or
 		// storage is not available yet, it should not block us
-		c.logger.Error("Failed to delete backup file", "error", err)
+		logger.WarnContext(ctx, "failed to delete backup file", "error", err)
 	}
 
 	metadataFileName := backup.FileName + ".metadata"
-	if err := storage.DeleteFile(c.fieldEncryptor, metadataFileName); err != nil {
-		c.logger.Error("Failed to delete backup metadata file", "error", err)
+	if err := storage.DeleteFile(ctx, c.fieldEncryptor, logger, metadataFileName); err != nil {
+		logger.WarnContext(ctx, "failed to delete backup metadata file", "error", err)
 	}
 
 	return c.backupRepository.DeleteByID(backup.ID)
@@ -91,7 +105,7 @@ func (c *BackupCleaner) AddBackupRemoveListener(listener backups_core_logical.Ba
 	c.backupRemoveListeners = append(c.backupRemoveListeners, listener)
 }
 
-func (c *BackupCleaner) cleanByRetentionPolicy(logger *slog.Logger) error {
+func (c *BackupCleaner) cleanByRetentionPolicy(ctx context.Context, logger *slog.Logger) error {
 	enabledBackupConfigs, err := c.backupConfigService.GetBackupConfigsWithEnabledBackups()
 	if err != nil {
 		return err
@@ -104,15 +118,15 @@ func (c *BackupCleaner) cleanByRetentionPolicy(logger *slog.Logger) error {
 
 		switch backupConfig.RetentionPolicyType {
 		case backups_config_logical.RetentionPolicyTypeCount:
-			cleanErr = c.cleanByCount(dbLog, backupConfig)
+			cleanErr = c.cleanByCount(ctx, dbLog, backupConfig)
 		case backups_config_logical.RetentionPolicyTypeGFS:
-			cleanErr = c.cleanByGFS(dbLog, backupConfig)
+			cleanErr = c.cleanByGFS(ctx, dbLog, backupConfig)
 		default:
-			cleanErr = c.cleanByTimePeriod(dbLog, backupConfig)
+			cleanErr = c.cleanByTimePeriod(ctx, dbLog, backupConfig)
 		}
 
 		if cleanErr != nil {
-			dbLog.Error("failed to clean backups by retention policy", "error", cleanErr)
+			dbLog.ErrorContext(ctx, "failed to clean backups by retention policy", "error", cleanErr)
 		}
 	}
 
@@ -120,14 +134,13 @@ func (c *BackupCleaner) cleanByRetentionPolicy(logger *slog.Logger) error {
 }
 
 func (c *BackupCleaner) cleanByTimePeriod(
+	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_logical.LogicalBackupConfig,
 ) error {
-	if backupConfig.RetentionTimePeriod == "" {
-		return nil
-	}
+	if backupConfig.RetentionTimePeriod == "" || backupConfig.RetentionTimePeriod == period.PeriodForever {
+		logger.DebugContext(ctx, "time-period retention keeps everything, nothing to evaluate")
 
-	if backupConfig.RetentionTimePeriod == period.PeriodForever {
 		return nil
 	}
 
@@ -138,27 +151,52 @@ func (c *BackupCleaner) cleanByTimePeriod(
 		return fmt.Errorf("failed to find old backups for database %s: %w", backupConfig.DatabaseID, err)
 	}
 
+	deletedCount, withinGraceCount := 0, 0
+
 	for _, backup := range oldBackups {
 		if isRecentBackup(backup) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, fmt.Sprintf("keeping backup, still within the %s grace period",
+				recentBackupGracePeriod), "backup_id", backup.ID)
+
 			continue
 		}
 
-		if err := c.DeleteBackup(backup); err != nil {
-			logger.Error("failed to delete backup", "backup_id", backup.ID, "error", err)
+		if err := c.DeleteBackup(ctx, backup); err != nil {
+			logger.ErrorContext(ctx, "failed to delete backup", "backup_id", backup.ID, "error", err)
+
 			continue
 		}
 
-		logger.Info("deleted old backup", "backup_id", backup.ID)
+		deletedCount++
+
+		logger.InfoContext(ctx, fmt.Sprintf("deleted backup older than %s (%.1f MB)",
+			backupConfig.RetentionTimePeriod, backup.BackupSizeMb), "backup_id", backup.ID)
+	}
+
+	summary := fmt.Sprintf("time-period retention: %d backups past the %s cutoff, %d deleted, %d within grace",
+		len(oldBackups), backupConfig.RetentionTimePeriod, deletedCount, withinGraceCount)
+
+	// The cleaner ticks every few seconds, so a summary of a run that changed nothing belongs at
+	// debug; only an actual deletion is a state change.
+	if deletedCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
 }
 
 func (c *BackupCleaner) cleanByCount(
+	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_logical.LogicalBackupConfig,
 ) error {
 	if backupConfig.RetentionCount <= 0 {
+		logger.DebugContext(ctx, "count retention is not configured, nothing to evaluate")
+
 		return nil
 	}
 
@@ -168,33 +206,60 @@ func (c *BackupCleaner) cleanByCount(
 	}
 
 	if len(completedBackups) <= backupConfig.RetentionCount {
+		logger.DebugContext(ctx, fmt.Sprintf("count retention: keeping all %d backups, limit is %d",
+			len(completedBackups), backupConfig.RetentionCount))
+
 		return nil
 	}
 
-	successMsg := fmt.Sprintf("deleted backup by count policy: retention count is %d", backupConfig.RetentionCount)
+	deletedCount, withinGraceCount := 0, 0
+
 	for _, backup := range completedBackups[backupConfig.RetentionCount:] {
 		if isRecentBackup(backup) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, fmt.Sprintf("keeping backup, still within the %s grace period",
+				recentBackupGracePeriod), "backup_id", backup.ID)
+
 			continue
 		}
 
-		if err := c.DeleteBackup(backup); err != nil {
-			logger.Error("failed to delete backup", "backup_id", backup.ID, "error", err)
+		if err := c.DeleteBackup(ctx, backup); err != nil {
+			logger.ErrorContext(ctx, "failed to delete backup", "backup_id", backup.ID, "error", err)
+
 			continue
 		}
 
-		logger.Info(successMsg, "backup_id", backup.ID)
+		deletedCount++
+
+		logger.InfoContext(ctx, fmt.Sprintf("deleted backup past the retention count of %d (%.1f MB)",
+			backupConfig.RetentionCount, backup.BackupSizeMb), "backup_id", backup.ID)
+	}
+
+	summary := fmt.Sprintf("count retention: %d completed backups, %d kept by limit, %d deleted, %d within grace",
+		len(completedBackups), backupConfig.RetentionCount, deletedCount, withinGraceCount)
+
+	if deletedCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
 }
 
 func (c *BackupCleaner) cleanByGFS(
+	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_logical.LogicalBackupConfig,
 ) error {
 	if backupConfig.RetentionGfsHours <= 0 && backupConfig.RetentionGfsDays <= 0 &&
 		backupConfig.RetentionGfsWeeks <= 0 && backupConfig.RetentionGfsMonths <= 0 &&
 		backupConfig.RetentionGfsYears <= 0 {
+		// Every tier is zero, so GFS retains nothing and would delete every backup if it ran. Debug
+		// rather than Warn: an empty config is a deliberate state, and this runs on every tick.
+		logger.DebugContext(ctx, "gfs retention has no tier configured, keeping everything")
+
 		return nil
 	}
 
@@ -203,7 +268,7 @@ func (c *BackupCleaner) cleanByGFS(
 		return err
 	}
 
-	keepSet := buildGFSKeepSet(
+	retainedTiersByBackupID := buildRetainedTiersByBackupID(
 		completedBackups,
 		backupConfig.RetentionGfsHours,
 		backupConfig.RetentionGfsDays,
@@ -212,21 +277,47 @@ func (c *BackupCleaner) cleanByGFS(
 		backupConfig.RetentionGfsYears,
 	)
 
+	deletedCount, withinGraceCount := 0, 0
+
 	for _, backup := range completedBackups {
-		if keepSet[backup.ID] {
+		if tiers := retainedTiersByBackupID[backup.ID]; len(tiers) > 0 {
+			logger.DebugContext(ctx, fmt.Sprintf("keeping backup, retained as %s", gfs.FormatTiers(tiers)),
+				"backup_id", backup.ID)
+
 			continue
 		}
 
 		if isRecentBackup(backup) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, fmt.Sprintf("keeping backup, still within the %s grace period",
+				recentBackupGracePeriod), "backup_id", backup.ID)
+
 			continue
 		}
 
-		if err := c.DeleteBackup(backup); err != nil {
-			logger.Error("failed to delete backup", "backup_id", backup.ID, "error", err)
+		if err := c.DeleteBackup(ctx, backup); err != nil {
+			logger.ErrorContext(ctx, "failed to delete backup", "backup_id", backup.ID, "error", err)
+
 			continue
 		}
 
-		logger.Info("deleted backup by GFS policy", "backup_id", backup.ID)
+		deletedCount++
+
+		logger.InfoContext(ctx, fmt.Sprintf("deleted backup not retained by any gfs tier (%.1f MB)",
+			backup.BackupSizeMb), "backup_id", backup.ID)
+	}
+
+	summary := fmt.Sprintf(
+		"gfs retention (%dh/%dd/%dw/%dm/%dy): %d completed backups, %d kept by tier, %d deleted, %d within grace",
+		backupConfig.RetentionGfsHours, backupConfig.RetentionGfsDays, backupConfig.RetentionGfsWeeks,
+		backupConfig.RetentionGfsMonths, backupConfig.RetentionGfsYears,
+		len(completedBackups), len(retainedTiersByBackupID), deletedCount, withinGraceCount)
+
+	if deletedCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
@@ -248,12 +339,10 @@ func isRecentBackup(backup *backups_core_logical.LogicalBackup) bool {
 	return time.Since(backup.CreatedAt) < recentBackupGracePeriod
 }
 
-// buildGFSKeepSet projects logical backups onto the shared GFS keep-set
-// algorithm. Backups must be sorted newest-first.
-func buildGFSKeepSet(
+func buildRetainedTiersByBackupID(
 	backups []*backups_core_logical.LogicalBackup,
 	hours, days, weeks, months, years int,
-) map[uuid.UUID]bool {
+) map[uuid.UUID][]gfs.Tier {
 	items := make([]gfs.Item, len(backups))
 	for i, backup := range backups {
 		items[i] = gfs.Item{ID: backup.ID, CreatedAt: backup.CreatedAt}

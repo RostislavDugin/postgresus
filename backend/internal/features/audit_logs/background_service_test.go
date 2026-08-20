@@ -9,14 +9,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	user_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	"databasus-backend/internal/storage"
+	"databasus-backend/internal/util/logger"
 )
 
 func Test_CleanOldAuditLogs_DeletesLogsOlderThanOneYear(t *testing.T) {
 	service := GetAuditLogService()
-	user := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	user := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
 	db := storage.GetDb()
 	baseTime := time.Now().UTC()
 
@@ -24,12 +26,18 @@ func Test_CleanOldAuditLogs_DeletesLogsOlderThanOneYear(t *testing.T) {
 	createTimedAuditLog(db, &user.UserID, "Old log 1", baseTime.Add(-400*24*time.Hour))
 	createTimedAuditLog(db, &user.UserID, "Old log 2", baseTime.Add(-370*24*time.Hour))
 
-	// Create recent logs (less than 1 year old)
-	createAuditLog(service, "Recent log 1", &user.UserID, nil)
-	createAuditLog(service, "Recent log 2", &user.UserID, nil)
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     "Recent log 1",
+		UserID:      &user.UserID,
+		WorkspaceID: nil,
+	})
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     "Recent log 2",
+		UserID:      &user.UserID,
+		WorkspaceID: nil,
+	})
 
-	// Run cleanup
-	err := service.CleanOldAuditLogs()
+	err := service.CleanOldAuditLogs(t.Context(), logger.GetLogger())
 	assert.NoError(t, err)
 
 	// Verify old logs were deleted
@@ -46,7 +54,7 @@ func Test_CleanOldAuditLogs_DeletesLogsOlderThanOneYear(t *testing.T) {
 
 func Test_CleanOldAuditLogs_PreservesLogsNewerThanOneYear(t *testing.T) {
 	service := GetAuditLogService()
-	user := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	user := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
 	db := storage.GetDb()
 	baseTime := time.Now().UTC()
 
@@ -57,14 +65,17 @@ func Test_CleanOldAuditLogs_PreservesLogsNewerThanOneYear(t *testing.T) {
 	// Create recent logs
 	createTimedAuditLog(db, &user.UserID, "Recent log 1", baseTime.Add(-364*24*time.Hour))
 	createTimedAuditLog(db, &user.UserID, "Recent log 2", baseTime.Add(-100*24*time.Hour))
-	createAuditLog(service, "Current log", &user.UserID, nil)
+	createAuditLog(t, service, audit_logs_models.AuditEntry{
+		Message:     "Current log",
+		UserID:      &user.UserID,
+		WorkspaceID: nil,
+	})
 
 	// Get count before cleanup
 	var countBefore int64
 	db.Model(&AuditLog{}).Count(&countBefore)
 
-	// Run cleanup
-	err := service.CleanOldAuditLogs()
+	err := service.CleanOldAuditLogs(t.Context(), logger.GetLogger())
 	assert.NoError(t, err)
 
 	// Get count after cleanup
@@ -90,13 +101,13 @@ func Test_CleanOldAuditLogs_HandlesEmptyDatabase(t *testing.T) {
 	service := GetAuditLogService()
 
 	// Run cleanup on database that may have no old logs
-	err := service.CleanOldAuditLogs()
+	err := service.CleanOldAuditLogs(t.Context(), logger.GetLogger())
 	assert.NoError(t, err)
 }
 
 func Test_CleanOldAuditLogs_DeletesMultipleOldLogs(t *testing.T) {
 	service := GetAuditLogService()
-	user := users_testing.CreateTestUser(user_enums.UserRoleMember)
+	user := users_testing.CreateTestUser(t.Context(), user_enums.UserRoleMember)
 	db := storage.GetDb()
 	baseTime := time.Now().UTC()
 
@@ -120,8 +131,7 @@ func Test_CleanOldAuditLogs_DeletesMultipleOldLogs(t *testing.T) {
 	db.Where("id IN ?", testLogIDs).Find(&logsBeforeCleanup)
 	assert.Equal(t, 5, len(logsBeforeCleanup), "All test logs should exist before cleanup")
 
-	// Run cleanup
-	err := service.CleanOldAuditLogs()
+	err := service.CleanOldAuditLogs(t.Context(), logger.GetLogger())
 	assert.NoError(t, err)
 
 	// Verify test logs were deleted
