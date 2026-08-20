@@ -1,6 +1,7 @@
 package restore_token
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -32,6 +33,7 @@ func NewService(guard *stream_guard.Guard, client valkey.Client, logger *slog.Lo
 // GenerateRestoreToken issues a single-use, short-TTL token authorizing a
 // physical restore stream of databaseID to targetTime (nil ⇒ latest).
 func (s *Service) GenerateRestoreToken(
+	ctx context.Context,
 	databaseID, userID uuid.UUID,
 	targetTime *time.Time,
 ) (string, error) {
@@ -47,7 +49,7 @@ func (s *Service) GenerateRestoreToken(
 		TargetTime: targetTime,
 	})
 
-	s.logger.Info("generated restore token", "database_id", databaseID, "user_id", userID)
+	s.logger.InfoContext(ctx, "generated restore token", "database_id", databaseID, "user_id", userID)
 
 	return token, nil
 }
@@ -56,6 +58,7 @@ func (s *Service) GenerateRestoreToken(
 // per-backup restore stream (the FULL plus its incremental ancestors, no WAL)
 // of backupID within databaseID.
 func (s *Service) GenerateBackupRestoreToken(
+	ctx context.Context,
 	databaseID, userID, backupID uuid.UUID,
 ) (string, error) {
 	if s.IsDownloadInProgress(userID) {
@@ -70,7 +73,7 @@ func (s *Service) GenerateBackupRestoreToken(
 		BackupID:   &backupID,
 	})
 
-	s.logger.Info("generated backup restore token",
+	s.logger.InfoContext(ctx, "generated backup restore token",
 		"database_id", databaseID, "user_id", userID, "backup_id", backupID)
 
 	return token, nil
@@ -87,6 +90,7 @@ func (s *Service) GenerateBackupRestoreToken(
 // and burning the token beats a validate-then-consume window that two requests
 // could both pass.
 func (s *Service) ValidateAndConsumeRestoreToken(
+	ctx context.Context,
 	token string,
 ) (*Token, error) {
 	restoreToken := s.store.consume(token)
@@ -98,7 +102,7 @@ func (s *Service) ValidateAndConsumeRestoreToken(
 		return nil, err
 	}
 
-	s.logger.Info("restore token validated and consumed",
+	s.logger.InfoContext(ctx, "restore token validated and consumed",
 		"database_id", restoreToken.DatabaseID, "user_id", restoreToken.UserID)
 
 	return restoreToken, nil

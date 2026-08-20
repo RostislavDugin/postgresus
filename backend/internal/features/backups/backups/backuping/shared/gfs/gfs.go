@@ -17,8 +17,8 @@ type Item struct {
 func GetItemsToRetain(
 	items []Item,
 	hours, days, weeks, months, years int,
-) map[uuid.UUID]bool {
-	keep := make(map[uuid.UUID]bool)
+) map[uuid.UUID][]Tier {
+	keep := make(map[uuid.UUID][]Tier)
 
 	if len(items) == 0 {
 		return keep
@@ -93,31 +93,31 @@ func GetItemsToRetain(
 		yearKey := t.Format("2006")
 
 		if hours > 0 && hoursKept < hours && !hoursSeen[hourKey] && t.After(hourlyCutoff) {
-			keep[item.ID] = true
+			keep[item.ID] = append(keep[item.ID], TierHourly)
 			hoursSeen[hourKey] = true
 			hoursKept++
 		}
 
 		if days > 0 && daysKept < days && !daysSeen[dayKey] && t.After(dailyCutoff) {
-			keep[item.ID] = true
+			keep[item.ID] = append(keep[item.ID], TierDaily)
 			daysSeen[dayKey] = true
 			daysKept++
 		}
 
 		if weeks > 0 && weeksKept < weeks && !weeksSeen[weekKey] && t.After(weeklyCutoff) {
-			keep[item.ID] = true
+			keep[item.ID] = append(keep[item.ID], TierWeekly)
 			weeksSeen[weekKey] = true
 			weeksKept++
 		}
 
 		if months > 0 && monthsKept < months && !monthsSeen[monthKey] && t.After(monthlyCutoff) {
-			keep[item.ID] = true
+			keep[item.ID] = append(keep[item.ID], TierMonthly)
 			monthsSeen[monthKey] = true
 			monthsKept++
 		}
 
 		if years > 0 && yearsKept < years && !yearsSeen[yearKey] && t.After(yearlyCutoff) {
-			keep[item.ID] = true
+			keep[item.ID] = append(keep[item.ID], TierYearly)
 			yearsSeen[yearKey] = true
 			yearsKept++
 		}

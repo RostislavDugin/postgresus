@@ -48,7 +48,7 @@ func (l *LocalStorage) SaveFile(
 	default:
 	}
 
-	logger.Info("Starting to save file to local storage", "fileName", fileName)
+	logger.InfoContext(ctx, "starting to save file to local storage", "file_name", fileName)
 
 	tempFilePath := filepath.Join(config.GetEnv().TempFolder, fileName)
 
@@ -59,15 +59,16 @@ func (l *LocalStorage) SaveFile(
 	if err != nil {
 		return fmt.Errorf("failed to ensure directories: %w", err)
 	}
-	logger.Debug("Creating temp file", "fileName", fileName, "tempPath", tempFilePath)
+	logger.DebugContext(ctx, "creating temp file", "file_name", fileName, "temp_path", tempFilePath)
 
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
-		logger.Error(
-			"Failed to create temp file",
-			"fileName",
+		logger.ErrorContext(
+			ctx,
+			"failed to create temp file",
+			"file_name",
 			fileName,
-			"tempPath",
+			"temp_path",
 			tempFilePath,
 			"error",
 			err,
@@ -78,30 +79,31 @@ func (l *LocalStorage) SaveFile(
 		_ = tempFile.Close()
 	}()
 
-	logger.Debug("Copying file data to temp file", "fileName", fileName)
+	logger.DebugContext(ctx, "copying file data to temp file", "file_name", fileName)
 	_, err = copyWithContext(ctx, tempFile, file)
 	if err != nil {
-		logger.Error("Failed to write to temp file", "fileName", fileName, "error", err)
+		logger.ErrorContext(ctx, "failed to write to temp file", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to write to temp file: %w", err)
 	}
 
 	if err = tempFile.Sync(); err != nil {
-		logger.Error("Failed to sync temp file", "fileName", fileName, "error", err)
+		logger.ErrorContext(ctx, "failed to sync temp file", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
 	// Close the temp file explicitly before moving it (required on Windows)
 	if err = tempFile.Close(); err != nil {
-		logger.Error("Failed to close temp file", "fileName", fileName, "error", err)
+		logger.ErrorContext(ctx, "failed to close temp file", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
 	finalPath := filepath.Join(config.GetEnv().DataFolder, fileName)
-	logger.Debug(
-		"Moving file from temp to final location",
-		"fileName",
+	logger.DebugContext(
+		ctx,
+		"moving file from temp to final location",
+		"file_name",
 		fileName,
-		"finalPath",
+		"final_path",
 		finalPath,
 	)
 
@@ -111,13 +113,14 @@ func (l *LocalStorage) SaveFile(
 
 	// Move the file from temp to backups directory
 	if err = moveFile(tempFilePath, finalPath); err != nil {
-		logger.Error(
-			"Failed to move file from temp to backups",
-			"fileName",
+		logger.ErrorContext(
+			ctx,
+			"failed to move file from temp to backups",
+			"file_name",
 			fileName,
-			"tempPath",
+			"temp_path",
 			tempFilePath,
-			"finalPath",
+			"final_path",
 			finalPath,
 			"error",
 			err,
@@ -125,11 +128,12 @@ func (l *LocalStorage) SaveFile(
 		return fmt.Errorf("failed to move file from temp to backups: %w", err)
 	}
 
-	logger.Info(
-		"Successfully saved file to local storage",
-		"fileName",
+	logger.InfoContext(
+		ctx,
+		"successfully saved file to local storage",
+		"file_name",
 		fileName,
-		"finalPath",
+		"final_path",
 		finalPath,
 	)
 
@@ -156,7 +160,12 @@ func (l *LocalStorage) GetFile(
 	return file, nil
 }
 
-func (l *LocalStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
+func (l *LocalStorage) DeleteFile(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileName string,
+) error {
 	filePath := filepath.Join(config.GetEnv().DataFolder, fileName)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -166,6 +175,8 @@ func (l *LocalStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName 
 	if err := os.Remove(filePath); err != nil {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
+
+	logger.DebugContext(ctx, "deleted file from local storage", "file_name", fileName)
 
 	return nil
 }

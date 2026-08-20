@@ -22,18 +22,18 @@ import (
 // notifier secrets must be empty when the JobAssignment leaves the server.
 func Test_ClaimVerification_AssignmentDatabase_StripsSensitiveData(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	defer storages.RemoveTestStorage(testStorage.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	defer notifiers.RemoveTestNotifier(notifier)
 
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
-	defer databases.RemoveTestDatabase(database)
+	defer databases.RemoveTestDatabase(t.Context(), database)
 
 	require.NotNil(t, database.PostgresqlLogical)
 	require.NotEmpty(t, database.PostgresqlLogical.Password,

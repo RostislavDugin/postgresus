@@ -44,21 +44,21 @@ func createCrossStrategyRouter() *gin.Engine {
 
 func Test_StorageDeletion_WithPhysicalOnlyAttachment_BlocksDeletion(t *testing.T) {
 	router := createCrossStrategyRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	physicalDatabase := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(physicalDatabase)
-		storages.RemoveTestStorage(storage.ID)
+		databases.RemoveTestDatabase(t.Context(), physicalDatabase)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
-	backups_config_physical.EnableBackupsForPhysicalTestDatabase(physicalDatabase.ID, storage)
+	backups_config_physical.EnableBackupsForPhysicalTestDatabase(t.Context(), physicalDatabase.ID, storage)
 
 	testResp := test_utils.MakeDeleteRequest(
 		t, router,
@@ -72,21 +72,21 @@ func Test_StorageDeletion_WithPhysicalOnlyAttachment_BlocksDeletion(t *testing.T
 
 func Test_StorageDeletion_WithLogicalOnlyAttachment_BlocksDeletion(t *testing.T) {
 	router := createCrossStrategyRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	storage := storages.CreateTestStorage(workspace.ID)
 	logicalDatabase := databases.CreateTestDatabase(workspace.ID, storage, notifier)
 
 	defer func() {
-		databases.RemoveTestDatabase(logicalDatabase)
-		storages.RemoveTestStorage(storage.ID)
+		databases.RemoveTestDatabase(t.Context(), logicalDatabase)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
-	backups_config_logical.EnableBackupsForTestDatabase(logicalDatabase.ID, storage)
+	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), logicalDatabase.ID, storage)
 
 	testResp := test_utils.MakeDeleteRequest(
 		t, router,
@@ -100,21 +100,21 @@ func Test_StorageDeletion_WithLogicalOnlyAttachment_BlocksDeletion(t *testing.T)
 
 func Test_StorageIsUsing_WithPhysicalOnlyAttachment_ReportsTrue(t *testing.T) {
 	router := createCrossStrategyRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	physicalDatabase := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(physicalDatabase)
-		storages.RemoveTestStorage(storage.ID)
+		databases.RemoveTestDatabase(t.Context(), physicalDatabase)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
-	backups_config_physical.EnableBackupsForPhysicalTestDatabase(physicalDatabase.ID, storage)
+	backups_config_physical.EnableBackupsForPhysicalTestDatabase(t.Context(), physicalDatabase.ID, storage)
 
 	var response map[string]bool
 	test_utils.MakeGetRequestAndUnmarshal(
@@ -130,13 +130,13 @@ func Test_StorageIsUsing_WithPhysicalOnlyAttachment_ReportsTrue(t *testing.T) {
 
 func Test_StorageDeletion_WithNoAttachment_Succeeds(t *testing.T) {
 	router := createCrossStrategyRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	defer func() {
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	test_utils.MakeDeleteRequest(

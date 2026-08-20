@@ -38,8 +38,9 @@ func (c *AgentController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 401 {object} map[string]string
 // @Router /verification/agents/availability [get]
 func (c *AgentController) GetAvailability(ctx *gin.Context) {
-	count, err := c.agentService.CountLiveAgents()
+	count, err := c.agentService.CountLiveAgents(ctx.Request.Context())
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -76,8 +77,9 @@ func (c *AgentController) CreateAgent(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.agentService.CreateAgent(user, &request)
+	response, err := c.agentService.CreateAgent(ctx.Request.Context(), user, &request)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -96,8 +98,9 @@ func (c *AgentController) CreateAgent(ctx *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Router /verification/agents [get]
 func (c *AgentController) ListAgents(ctx *gin.Context) {
-	agents, err := c.agentService.ListAgents()
+	agents, err := c.agentService.ListAgents(ctx.Request.Context())
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -131,13 +134,14 @@ func (c *AgentController) RotateToken(ctx *gin.Context) {
 		return
 	}
 
-	token, err := c.agentService.RotateToken(user, agentID)
+	token, err := c.agentService.RotateToken(ctx.Request.Context(), user, agentID)
 	if err != nil {
 		if errors.Is(err, ErrAgentNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -171,12 +175,13 @@ func (c *AgentController) DeleteAgent(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.agentService.DeleteAgent(user, agentID); err != nil {
+	if err := c.agentService.DeleteAgent(ctx.Request.Context(), user, agentID); err != nil {
 		if errors.Is(err, ErrAgentNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

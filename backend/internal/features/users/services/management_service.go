@@ -1,12 +1,14 @@
 package users_services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	user_enums "databasus-backend/internal/features/users/enums"
 	user_interfaces "databasus-backend/internal/features/users/interfaces"
 	user_models "databasus-backend/internal/features/users/models"
@@ -23,6 +25,7 @@ func (s *UserManagementService) SetAuditLogWriter(writer user_interfaces.AuditLo
 }
 
 func (s *UserManagementService) GetUsers(
+	ctx context.Context,
 	currentUser *user_models.User,
 	limit, offset int,
 	beforeCreatedAt *time.Time,
@@ -32,10 +35,11 @@ func (s *UserManagementService) GetUsers(
 		return nil, 0, errors.New("insufficient permissions to list users")
 	}
 
-	return s.userRepository.GetUsers(limit, offset, beforeCreatedAt, query)
+	return s.userRepository.GetUsers(ctx, limit, offset, beforeCreatedAt, query)
 }
 
 func (s *UserManagementService) GetUserProfile(
+	ctx context.Context,
 	userID uuid.UUID,
 	requestedBy *user_models.User,
 ) (*user_models.User, error) {
@@ -44,10 +48,11 @@ func (s *UserManagementService) GetUserProfile(
 		return nil, errors.New("insufficient permissions to view user profile")
 	}
 
-	return s.userRepository.GetUserByID(userID)
+	return s.userRepository.GetUserByID(ctx, userID)
 }
 
 func (s *UserManagementService) DeactivateUser(
+	ctx context.Context,
 	userID uuid.UUID,
 	deactivatedBy *user_models.User,
 ) error {
@@ -60,7 +65,7 @@ func (s *UserManagementService) DeactivateUser(
 		return errors.New("cannot deactivate your own account")
 	}
 
-	user, err := s.userRepository.GetUserByID(userID)
+	user, err := s.userRepository.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -75,17 +80,18 @@ func (s *UserManagementService) DeactivateUser(
 	}
 
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("User deactivated: %s", user.Email),
-			&deactivatedBy.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("User deactivated: %s", user.Email),
+			UserID:      &deactivatedBy.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
 func (s *UserManagementService) ActivateUser(
+	ctx context.Context,
 	userID uuid.UUID,
 	activatedBy *user_models.User,
 ) error {
@@ -93,7 +99,7 @@ func (s *UserManagementService) ActivateUser(
 		return errors.New("insufficient permissions to activate users")
 	}
 
-	user, err := s.userRepository.GetUserByID(userID)
+	user, err := s.userRepository.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -108,17 +114,18 @@ func (s *UserManagementService) ActivateUser(
 	}
 
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("User activated: %s", user.Email),
-			&activatedBy.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("User activated: %s", user.Email),
+			UserID:      &activatedBy.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
 func (s *UserManagementService) ChangeUserRole(
+	ctx context.Context,
 	userID uuid.UUID,
 	newRole user_enums.UserRole,
 	changedBy *user_models.User,
@@ -137,7 +144,7 @@ func (s *UserManagementService) ChangeUserRole(
 		return errors.New("cannot change your own role")
 	}
 
-	user, err := s.userRepository.GetUserByID(userID)
+	user, err := s.userRepository.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -155,11 +162,11 @@ func (s *UserManagementService) ChangeUserRole(
 	}
 
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("User role changed: %s from %s to %s", user.Email, user.Role, newRole),
-			&changedBy.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("User role changed: %s from %s to %s", user.Email, user.Role, newRole),
+			UserID:      &changedBy.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil

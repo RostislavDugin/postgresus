@@ -1,6 +1,7 @@
 package users_repositories
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -28,10 +29,10 @@ func (r *UserRepository) CreateUser(user *users_models.User) error {
 	return storage.GetDb().Create(user).Error
 }
 
-func (r *UserRepository) GetUserByEmail(email string) (*users_models.User, error) {
+func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*users_models.User, error) {
 	var user users_models.User
 
-	if err := storage.GetDb().Where("email = ?", email).First(&user).Error; err != nil {
+	if err := storage.GetDb().WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -42,10 +43,10 @@ func (r *UserRepository) GetUserByEmail(email string) (*users_models.User, error
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByID(userID uuid.UUID) (*users_models.User, error) {
+func (r *UserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*users_models.User, error) {
 	var user users_models.User
 
-	if err := storage.GetDb().Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := storage.GetDb().WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, err
 	}
 
@@ -61,8 +62,8 @@ func (r *UserRepository) UpdateUserPassword(userID uuid.UUID, hashedPassword str
 		}).Error
 }
 
-func (r *UserRepository) CreateInitialAdmin() error {
-	admin, err := r.GetUserByEmail("admin")
+func (r *UserRepository) CreateInitialAdmin(ctx context.Context) error {
+	admin, err := r.GetUserByEmail(ctx, "admin")
 	if err != nil {
 		return fmt.Errorf("failed to get admin user: %w", err)
 	}
@@ -86,6 +87,7 @@ func (r *UserRepository) CreateInitialAdmin() error {
 }
 
 func (r *UserRepository) GetUsers(
+	ctx context.Context,
 	limit, offset int,
 	beforeCreatedAt *time.Time,
 	query string,
@@ -93,7 +95,7 @@ func (r *UserRepository) GetUsers(
 	var users []*users_models.User
 	var total int64
 
-	countQuery := storage.GetDb().Model(&users_models.User{})
+	countQuery := storage.GetDb().WithContext(ctx).Model(&users_models.User{})
 	if beforeCreatedAt != nil {
 		countQuery = countQuery.Where("created_at < ?", *beforeCreatedAt)
 	}
@@ -106,7 +108,7 @@ func (r *UserRepository) GetUsers(
 		return nil, 0, err
 	}
 
-	dataQuery := storage.GetDb().
+	dataQuery := storage.GetDb().WithContext(ctx).
 		Limit(limit).
 		Offset(offset).
 		Order("created_at DESC")

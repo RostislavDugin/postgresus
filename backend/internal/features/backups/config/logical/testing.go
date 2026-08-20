@@ -1,6 +1,8 @@
 package backups_config_logical
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/intervals"
@@ -9,6 +11,7 @@ import (
 )
 
 func EnableBackupsForTestDatabase(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	storage *storages.Storage,
 ) *LogicalBackupConfig {
@@ -31,7 +34,7 @@ func EnableBackupsForTestDatabase(
 		},
 	}
 
-	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)
+	backupConfig, err := GetBackupConfigService().SaveBackupConfig(ctx, backupConfig)
 	if err != nil {
 		panic(err)
 	}

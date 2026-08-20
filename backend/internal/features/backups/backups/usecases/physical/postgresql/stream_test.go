@@ -110,7 +110,9 @@ func (f *fakeStorageFileSaver) has(fileName string) bool {
 	return ok
 }
 
-func (f *fakeStorageFileSaver) DeleteFile(encryption.FieldEncryptor, string) error   { return nil }
+func (f *fakeStorageFileSaver) DeleteFile(context.Context, encryption.FieldEncryptor, *slog.Logger, string) error {
+	return nil
+}
 func (f *fakeStorageFileSaver) Validate(encryption.FieldEncryptor) error             { return nil }
 func (f *fakeStorageFileSaver) TestConnection(encryption.FieldEncryptor) error       { return nil }
 func (f *fakeStorageFileSaver) HideSensitiveData()                                   {}

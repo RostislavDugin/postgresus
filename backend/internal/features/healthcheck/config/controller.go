@@ -43,7 +43,7 @@ func (c *HealthcheckConfigController) SaveHealthcheckConfig(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.healthcheckConfigService.Save(*user, configDTO); err != nil {
+	if err := c.healthcheckConfigService.Save(ctx.Request.Context(), *user, configDTO); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -77,7 +77,7 @@ func (c *HealthcheckConfigController) GetHealthcheckConfig(ctx *gin.Context) {
 		return
 	}
 
-	config, err := c.healthcheckConfigService.GetByDatabaseID(*user, databaseID)
+	config, err := c.healthcheckConfigService.GetByDatabaseID(ctx.Request.Context(), *user, databaseID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

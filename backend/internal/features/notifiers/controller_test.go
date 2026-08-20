@@ -27,9 +27,9 @@ import (
 )
 
 func Test_SaveNewNotifier_NotifierReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	notifier := createNewNotifier(workspace.ID)
 
@@ -74,13 +74,13 @@ func Test_SaveNewNotifier_NotifierReturnedViaGet(t *testing.T) {
 	assert.Len(t, notifiers, 1)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_UpdateExistingNotifier_UpdatedNotifierReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	notifier := createNewNotifier(workspace.ID)
 
@@ -113,13 +113,13 @@ func Test_UpdateExistingNotifier_UpdatedNotifierReturnedViaGet(t *testing.T) {
 	assert.Equal(t, savedNotifier.ID, updatedNotifier.ID)
 
 	deleteNotifier(t, router, updatedNotifier.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_DeleteNotifier_NotifierNotReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	notifier := createNewNotifier(workspace.ID)
 
@@ -151,13 +151,13 @@ func Test_DeleteNotifier_NotifierNotReturnedViaGet(t *testing.T) {
 	)
 
 	assert.Contains(t, string(response.Body), "error")
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_SendTestNotificationDirect_NotificationSent(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	GetWebhookStub().ResetCalls()
 	notifier := createWebhookNotifier(workspace.ID)
@@ -169,13 +169,13 @@ func Test_SendTestNotificationDirect_NotificationSent(t *testing.T) {
 	assert.Contains(t, string(response.Body), "successful")
 	assert.Greater(t, GetWebhookStub().CallCount(), 0)
 
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	GetWebhookStub().ResetCalls()
 	notifier := createWebhookNotifier(workspace.ID)
@@ -204,7 +204,7 @@ func Test_SendTestNotificationExisting_NotificationSent(t *testing.T) {
 	assert.Greater(t, GetWebhookStub().CallCount(), 0)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_WorkspaceRolePermissions_Notifiers(t *testing.T) {
@@ -263,17 +263,17 @@ func Test_WorkspaceRolePermissions_Notifiers(t *testing.T) {
 			router := createRouter()
 			GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
 
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
 				testUserToken = owner.Token
 			} else if tt.workspaceRole != nil {
-				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					workspace,
 					testUser,
@@ -359,16 +359,16 @@ func Test_WorkspaceRolePermissions_Notifiers(t *testing.T) {
 			if !tt.canDelete {
 				deleteNotifier(t, router, ownerNotifier.ID, workspace.ID, owner.Token)
 			}
-			workspaces_testing.RemoveTestWorkspace(workspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 		})
 	}
 }
 
 func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	notifier := createNewNotifier(workspace.ID)
 
@@ -417,15 +417,15 @@ func Test_UserNotInWorkspace_CannotAccessNotifiers(t *testing.T) {
 	)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_CrossWorkspaceSecurity_CannotAccessNotifierFromAnotherWorkspace(t *testing.T) {
-	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner1 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	owner2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", owner1, router)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", owner2, router)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", owner1, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", owner2, router)
 
 	notifier1 := createNewNotifier(workspace1.ID)
 
@@ -451,8 +451,8 @@ func Test_CrossWorkspaceSecurity_CannotAccessNotifierFromAnotherWorkspace(t *tes
 	assert.Contains(t, string(response.Body), "insufficient permissions")
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace1.ID, owner1.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace1, router)
-	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 }
 
 func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
@@ -841,9 +841,9 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 			router := createRouter()
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			// Phase 1: Create notifier with sensitive data
 			initialNotifier := tc.createNotifier(workspace.ID)
@@ -890,7 +890,7 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 
 			// Phase 4: Retrieve directly from repository to verify sensitive data preservation
 			repository := &NotifierRepository{}
-			notifierFromDB, err := repository.FindByID(createdNotifier.ID)
+			notifierFromDB, err := repository.FindByID(t.Context(), createdNotifier.ID)
 			assert.NoError(t, err)
 
 			// Verify original sensitive data is still present in DB
@@ -912,7 +912,7 @@ func Test_NotifierSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			tc.verifyHiddenData(t, &finalRetrieved)
 
 			deleteNotifier(t, router, createdNotifier.ID, workspace.ID, owner.Token)
-			workspaces_testing.RemoveTestWorkspace(workspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 		})
 	}
 }
@@ -1163,9 +1163,9 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 			router := createRouter()
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			// Create notifier via API (plaintext credentials)
 			var createdNotifier Notifier
@@ -1181,7 +1181,7 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 
 			// Read from DB directly (bypass service layer)
 			repository := &NotifierRepository{}
-			notifierFromDB, err := repository.FindByID(createdNotifier.ID)
+			notifierFromDB, err := repository.FindByID(t.Context(), createdNotifier.ID)
 			assert.NoError(t, err)
 
 			// Verify encryption
@@ -1189,7 +1189,7 @@ func Test_CreateNotifier_AllSensitiveFieldsEncryptedInDB(t *testing.T) {
 
 			// Cleanup
 			deleteNotifier(t, router, createdNotifier.ID, workspace.ID, owner.Token)
-			workspaces_testing.RemoveTestWorkspace(workspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 		})
 	}
 }
@@ -1250,15 +1250,15 @@ func Test_TransferNotifier_PermissionsEnforced(t *testing.T) {
 			router := createRouter()
 			GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
 
-			sourceOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			targetOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			sourceOwner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			targetOwner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-			sourceWorkspace := workspaces_testing.CreateTestWorkspace(
+			sourceWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(),
 				"Source Workspace",
 				sourceOwner,
 				router,
 			)
-			targetWorkspace := workspaces_testing.CreateTestWorkspace(
+			targetWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(),
 				"Target Workspace",
 				targetOwner,
 				router,
@@ -1278,10 +1278,10 @@ func Test_TransferNotifier_PermissionsEnforced(t *testing.T) {
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.sourceRole != nil {
-				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					sourceWorkspace,
 					testUser,
@@ -1332,8 +1332,8 @@ func Test_TransferNotifier_PermissionsEnforced(t *testing.T) {
 				deleteNotifier(t, router, savedNotifier.ID, sourceWorkspace.ID, sourceOwner.Token)
 			}
 
-			workspaces_testing.RemoveTestWorkspace(sourceWorkspace, router)
-			workspaces_testing.RemoveTestWorkspace(targetWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), sourceWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), targetWorkspace, router)
 		})
 	}
 }
@@ -1342,11 +1342,11 @@ func Test_TransferNotifierNotManagableWorkspace_TransferFailed(t *testing.T) {
 	router := createRouter()
 	GetNotifierService().SetNotifierDatabaseCounter(&mockNotifierDatabaseCounter{})
 
-	userA := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	userB := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	userA := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	userB := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", userA, router)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", userB, router)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", userA, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", userB, router)
 
 	notifier := createNewNotifier(workspace1.ID)
 	var savedNotifier Notifier
@@ -1380,8 +1380,8 @@ func Test_TransferNotifierNotManagableWorkspace_TransferFailed(t *testing.T) {
 	)
 
 	deleteNotifier(t, router, savedNotifier.ID, workspace1.ID, userA.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace1, router)
-	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 }
 
 type mockNotifierDatabaseCounter struct{}

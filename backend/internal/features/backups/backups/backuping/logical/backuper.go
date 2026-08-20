@@ -23,6 +23,8 @@ import (
 	util_encryption "databasus-backend/internal/util/encryption"
 )
 
+const partialBackupCleanupTimeout = 30 * time.Second
+
 type Backuper struct {
 	databaseService     *databases.DatabaseService
 	fieldEncryptor      util_encryption.FieldEncryptor
@@ -36,43 +38,45 @@ type Backuper struct {
 	createBackupUseCase backups_core_logical.CreateBackupUsecase
 }
 
-func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
+func (b *Backuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNotifier bool) {
 	backup, err := b.backupRepository.FindByID(backupID)
 	if err != nil {
-		b.logger.Error("Failed to get backup by ID", "backupId", backupID, "error", err)
+		b.logger.ErrorContext(ctx, "failed to get backup by ID", "backup_id", backupID, "error", err)
 		return
 	}
 
 	databaseID := backup.DatabaseID
+	logger := b.logger.With("backup_id", backupID, "database_id", databaseID)
 
 	database, err := b.databaseService.GetDatabaseByID(databaseID)
 	if err != nil {
-		b.logger.Error("Failed to get database by ID", "databaseId", databaseID, "error", err)
+		logger.ErrorContext(ctx, "failed to get database by ID", "error", err)
 		return
 	}
 
 	backupConfig, err := b.backupConfigService.GetBackupConfigByDbId(databaseID)
 	if err != nil {
-		b.logger.Error("Failed to get backup config by database ID", "error", err)
+		logger.ErrorContext(ctx, "failed to get backup config by database ID", "error", err)
 		return
 	}
 
 	if backupConfig.StorageID == nil {
-		b.logger.Error("Backup config storage ID is not defined")
+		logger.ErrorContext(ctx, "backup config storage ID is not defined")
 		return
 	}
 
-	storage, err := b.storageService.GetStorageByID(*backupConfig.StorageID)
+	// Detached from the caller so a finished HTTP request cannot cancel a running backup.
+	executionCtx, cancel := context.WithCancel(context.Background())
+	b.backupCancelManager.RegisterTask(backup.ID, cancel)
+	defer b.backupCancelManager.UnregisterTask(backup.ID)
+
+	storage, err := b.storageService.GetStorageByID(executionCtx, *backupConfig.StorageID)
 	if err != nil {
-		b.logger.Error("Failed to get storage by ID", "error", err)
+		logger.ErrorContext(ctx, "failed to get storage by ID", "error", err)
 		return
 	}
 
 	start := time.Now().UTC()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	b.backupCancelManager.RegisterTask(backup.ID, cancel)
-	defer b.backupCancelManager.UnregisterTask(backup.ID)
 
 	backupProgressListener := func(
 		completedMBs float64,
@@ -81,12 +85,12 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		backup.BackupDurationMs = time.Since(start).Milliseconds()
 
 		if err := b.backupRepository.Save(backup); err != nil {
-			b.logger.Error("Failed to update backup progress", "error", err)
+			logger.ErrorContext(ctx, "failed to update backup progress", "error", err)
 		}
 	}
 
 	backupMetadata, err := b.createBackupUseCase.Execute(
-		ctx,
+		executionCtx,
 		backup,
 		backupConfig,
 		database,
@@ -98,16 +102,16 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		// If so, skip error handling to avoid overwriting the status
 		currentBackup, fetchErr := b.backupRepository.FindByID(backup.ID)
 		if fetchErr == nil && currentBackup.Status == backups_core_logical.BackupStatusFailed {
-			b.logger.Warn(
-				"Backup already marked as failed by progress listener, skipping error handling",
-				"backupId",
+			logger.WarnContext(ctx,
+				"backup already marked as failed by progress listener, skipping error handling",
+				"backup_id",
 				backup.ID,
-				"failMessage",
+				"fail_message",
 				*currentBackup.FailMessage,
 			)
 
 			// Still call notification for size limit failures
-			b.SendBackupNotification(
+			b.SendBackupNotification(ctx,
 				backupConfig,
 				currentBackup,
 				backups_config_logical.NotificationBackupFailed,
@@ -120,14 +124,13 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		errMsg := err.Error()
 
 		// Log detailed error information for debugging
-		b.logger.Error("Backup execution failed",
-			"backupId", backup.ID,
-			"databaseId", databaseID,
-			"databaseType", database.Type,
-			"storageId", storage.ID,
-			"storageType", storage.Type,
+		logger.ErrorContext(ctx, "backup execution failed",
+			"backup_id", backup.ID,
+			"database_id", databaseID,
+			"database_type", database.Type,
+			"storage_id", storage.ID,
+			"storage_type", storage.Type,
 			"error", err,
-			"errorMessage", errMsg,
 		)
 
 		// Check if backup was cancelled (not due to shutdown)
@@ -137,10 +140,10 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		isShutdown := strings.Contains(errMsg, "shutdown")
 
 		if isCancelled && !isShutdown {
-			b.logger.Warn("Backup was cancelled by user or system",
-				"backupId", backup.ID,
-				"isCancelled", isCancelled,
-				"isShutdown", isShutdown,
+			logger.WarnContext(ctx, "backup was cancelled by user or system",
+				"backup_id", backup.ID,
+				"is_cancelled", isCancelled,
+				"is_shutdown", isShutdown,
 			)
 
 			backup.Status = backups_core_logical.BackupStatusCanceled
@@ -148,16 +151,25 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 			backup.BackupSizeMb = 0
 
 			if err := b.backupRepository.Save(backup); err != nil {
-				b.logger.Error("Failed to save cancelled backup", "error", err)
+				logger.ErrorContext(ctx, "failed to save cancelled backup", "error", err)
 			}
 
-			// Delete partial backup from storage
-			storage, storageErr := b.storageService.GetStorageByID(backup.StorageID)
+			// This branch is reached because executionCtx was cancelled, so the cleanup needs a live
+			// context of its own or the partial file is never deleted.
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), partialBackupCleanupTimeout)
+			defer cancelCleanup()
+
+			partialBackupStorage, storageErr := b.storageService.GetStorageByID(cleanupCtx, backup.StorageID)
 			if storageErr == nil {
-				if deleteErr := storage.DeleteFile(b.fieldEncryptor, backup.FileName); deleteErr != nil {
-					b.logger.Error(
-						"Failed to delete partial backup file",
-						"backupId",
+				if deleteErr := partialBackupStorage.DeleteFile(
+					cleanupCtx,
+					b.fieldEncryptor,
+					logger,
+					backup.FileName,
+				); deleteErr != nil {
+					logger.ErrorContext(ctx,
+						"failed to delete partial backup file",
+						"backup_id",
 						backup.ID,
 						"error",
 						deleteErr,
@@ -174,20 +186,21 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		backup.BackupSizeMb = 0
 
 		if updateErr := b.databaseService.SetBackupError(databaseID, errMsg); updateErr != nil {
-			b.logger.Error(
-				"Failed to update database last backup time",
-				"databaseId",
-				databaseID,
+			logger.ErrorContext(ctx,
+				"failed to update database last backup time",
 				"error",
 				updateErr,
 			)
 		}
 
 		if err := b.backupRepository.Save(backup); err != nil {
-			b.logger.Error("Failed to save backup", "error", err)
+			logger.ErrorContext(ctx, "failed to save backup", "error", err)
 		}
 
-		b.SendBackupNotification(
+		logger.ErrorContext(ctx, fmt.Sprintf("logical backup failed after %d ms: %s",
+			backup.BackupDurationMs, errMsg))
+
+		b.SendBackupNotification(ctx,
 			backupConfig,
 			backup,
 			backups_config_logical.NotificationBackupFailed,
@@ -204,7 +217,7 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		backupMetadata.BackupID = backup.ID
 
 		if err := backupMetadata.Validate(); err != nil {
-			b.logger.Error("Failed to validate backup metadata", "error", err)
+			logger.ErrorContext(ctx, "failed to validate backup metadata", "error", err)
 			return
 		}
 
@@ -216,31 +229,30 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 	if backupMetadata != nil {
 		metadataJSON, err := json.Marshal(backupMetadata)
 		if err != nil {
-			b.logger.Error("Failed to marshal backup metadata to JSON",
-				"backupId", backup.ID,
+			logger.ErrorContext(ctx, "failed to marshal backup metadata to JSON",
+				"backup_id", backup.ID,
 				"error", err,
 			)
 		} else {
 			metadataReader := bytes.NewReader(metadataJSON)
 			metadataFileName := backup.FileName + ".metadata"
 
+			// Not executionCtx: the dump itself already succeeded, and a cancel landing here would
+			// leave a completed backup whose encryption metadata is missing, making it unrestorable.
 			if err := storage.SaveFile(
 				context.Background(),
 				b.fieldEncryptor,
-				b.logger,
+				logger,
 				metadataFileName,
 				metadataReader,
 			); err != nil {
-				b.logger.Error("Failed to save backup metadata file to storage",
-					"backupId", backup.ID,
-					"fileName", metadataFileName,
+				logger.ErrorContext(ctx, "failed to save backup metadata file to storage",
+					"backup_id", backup.ID,
+					"file_name", metadataFileName,
 					"error", err,
 				)
 			} else {
-				b.logger.Info("Backup metadata file saved successfully",
-					"backupId", backup.ID,
-					"fileName", metadataFileName,
-				)
+				logger.DebugContext(ctx, "backup metadata file saved", "file_name", metadataFileName)
 			}
 		}
 	}
@@ -248,17 +260,18 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 	backup.Status = backups_core_logical.BackupStatusCompleted
 
 	if err := b.backupRepository.Save(backup); err != nil {
-		b.logger.Error("Failed to save backup", "error", err)
+		logger.ErrorContext(ctx, "failed to save backup", "error", err)
 		return
 	}
+
+	logger.InfoContext(ctx, fmt.Sprintf("logical backup finished: %.1f MB in %d ms",
+		backup.BackupSizeMb, backup.BackupDurationMs), "file_name", backup.FileName)
 
 	// Update database last backup time
 	now := time.Now().UTC()
 	if updateErr := b.databaseService.SetLastBackupTime(databaseID, now); updateErr != nil {
-		b.logger.Error(
-			"Failed to update database last backup time",
-			"databaseId",
-			databaseID,
+		logger.ErrorContext(ctx,
+			"failed to update database last backup time",
 			"error",
 			updateErr,
 		)
@@ -268,7 +281,7 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 		return
 	}
 
-	b.SendBackupNotification(
+	b.SendBackupNotification(ctx,
 		backupConfig,
 		backup,
 		backups_config_logical.NotificationBackupSuccess,
@@ -277,18 +290,25 @@ func (b *Backuper) MakeBackup(backupID uuid.UUID, isCallNotifier bool) {
 }
 
 func (b *Backuper) SendBackupNotification(
+	ctx context.Context,
 	backupConfig *backups_config_logical.LogicalBackupConfig,
 	backup *backups_core_logical.LogicalBackup,
 	notificationType backups_config_logical.BackupNotificationType,
 	errorMessage *string,
 ) {
+	logger := b.logger.With("backup_id", backup.ID, "database_id", backupConfig.DatabaseID)
+
 	database, err := b.databaseService.GetDatabaseByID(backupConfig.DatabaseID)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to get database for the backup notification", "error", err)
+
 		return
 	}
 
 	workspace, err := b.workspaceService.GetWorkspaceByID(*database.WorkspaceID)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to get workspace for the backup notification", "error", err)
+
 		return
 	}
 
@@ -297,6 +317,9 @@ func (b *Backuper) SendBackupNotification(
 			backupConfig.SendNotificationsOn,
 			notificationType,
 		) {
+			logger.DebugContext(ctx, fmt.Sprintf("skipping %s notification, not in the configured set",
+				notificationType), "notifier_id", notifier.ID)
+
 			continue
 		}
 
@@ -345,7 +368,7 @@ func (b *Backuper) SendBackupNotification(
 			)
 		}
 
-		b.notificationSender.SendNotification(
+		b.notificationSender.SendNotification(ctx,
 			&notifier,
 			notifier_models.Notification{
 				Type:    sentNotificationType,

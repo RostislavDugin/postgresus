@@ -1,11 +1,13 @@
 package storages
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_models "databasus-backend/internal/features/users/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -50,7 +52,7 @@ func (s *StorageService) GetStorageAttachedDatabasesIDs(
 	return merged, nil
 }
 
-func (s *StorageService) IsStorageUsing(storageID uuid.UUID) (bool, error) {
+func (s *StorageService) IsStorageInUse(ctx context.Context, storageID uuid.UUID) (bool, error) {
 	ids, err := s.GetStorageAttachedDatabasesIDs(storageID)
 	if err != nil {
 		return false, err
@@ -59,7 +61,7 @@ func (s *StorageService) IsStorageUsing(storageID uuid.UUID) (bool, error) {
 	return len(ids) > 0, nil
 }
 
-func (s *StorageService) CountDatabasesForStorage(storageID uuid.UUID) (int, error) {
+func (s *StorageService) CountDatabasesForStorage(ctx context.Context, storageID uuid.UUID) (int, error) {
 	ids, err := s.GetStorageAttachedDatabasesIDs(storageID)
 	if err != nil {
 		return 0, err
@@ -84,11 +86,12 @@ func (s *StorageService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error 
 }
 
 func (s *StorageService) SaveStorage(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 	storage *Storage,
 ) error {
-	canManage, err := s.workspaceService.CanUserManageDBs(workspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, workspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -103,7 +106,7 @@ func (s *StorageService) SaveStorage(
 	isUpdate := storage.ID != uuid.Nil
 
 	if isUpdate {
-		existingStorage, err := s.storageRepository.FindByID(storage.ID)
+		existingStorage, err := s.storageRepository.FindByID(ctx, storage.ID)
 		if err != nil {
 			return err
 		}
@@ -130,17 +133,17 @@ func (s *StorageService) SaveStorage(
 		}
 
 		if oldName != existingStorage.Name {
-			s.auditLogService.WriteAuditLog(
-				fmt.Sprintf("Storage renamed from '%s' to '%s'", oldName, existingStorage.Name),
-				&user.ID,
-				&workspaceID,
-			)
+			s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     fmt.Sprintf("Storage renamed from '%s' to '%s'", oldName, existingStorage.Name),
+				UserID:      &user.ID,
+				WorkspaceID: &workspaceID,
+			})
 		} else {
-			s.auditLogService.WriteAuditLog(
-				fmt.Sprintf("Storage updated: %s", existingStorage.Name),
-				&user.ID,
-				&workspaceID,
-			)
+			s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     fmt.Sprintf("Storage updated: %s", existingStorage.Name),
+				UserID:      &user.ID,
+				WorkspaceID: &workspaceID,
+			})
 		}
 	} else {
 		storage.WorkspaceID = workspaceID
@@ -158,26 +161,27 @@ func (s *StorageService) SaveStorage(
 			return err
 		}
 
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf("Storage created: %s", storage.Name),
-			&user.ID,
-			&workspaceID,
-		)
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Storage created: %s", storage.Name),
+			UserID:      &user.ID,
+			WorkspaceID: &workspaceID,
+		})
 	}
 
 	return nil
 }
 
 func (s *StorageService) DeleteStorage(
+	ctx context.Context,
 	user *users_models.User,
 	storageID uuid.UUID,
 ) error {
-	storage, err := s.storageRepository.FindByID(storageID)
+	storage, err := s.storageRepository.FindByID(ctx, storageID)
 	if err != nil {
 		return err
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(storage.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, storage.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -198,25 +202,26 @@ func (s *StorageService) DeleteStorage(
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Storage deleted: %s", storage.Name),
-		&user.ID,
-		&storage.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Storage deleted: %s", storage.Name),
+		UserID:      &user.ID,
+		WorkspaceID: &storage.WorkspaceID,
+	})
 
 	return nil
 }
 
 func (s *StorageService) GetStorage(
+	ctx context.Context,
 	user *users_models.User,
 	id uuid.UUID,
 ) (*Storage, error) {
-	storage, err := s.storageRepository.FindByID(id)
+	storage, err := s.storageRepository.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(storage.WorkspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, storage.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +235,11 @@ func (s *StorageService) GetStorage(
 }
 
 func (s *StorageService) GetStorages(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 ) ([]*Storage, error) {
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, workspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -254,15 +260,16 @@ func (s *StorageService) GetStorages(
 }
 
 func (s *StorageService) TestStorageConnection(
+	ctx context.Context,
 	user *users_models.User,
 	storageID uuid.UUID,
 ) error {
-	storage, err := s.storageRepository.FindByID(storageID)
+	storage, err := s.storageRepository.FindByID(ctx, storageID)
 	if err != nil {
 		return err
 	}
 
-	canView, _, err := s.workspaceService.CanUserAccessWorkspace(storage.WorkspaceID, user)
+	canView, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, storage.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -287,6 +294,7 @@ func (s *StorageService) TestStorageConnection(
 }
 
 func (s *StorageService) TestStorageConnectionDirect(
+	ctx context.Context,
 	user *users_models.User,
 	storage *Storage,
 ) error {
@@ -297,7 +305,7 @@ func (s *StorageService) TestStorageConnectionDirect(
 	var usingStorage *Storage
 
 	if storage.ID != uuid.Nil {
-		existingStorage, err := s.storageRepository.FindByID(storage.ID)
+		existingStorage, err := s.storageRepository.FindByID(ctx, storage.ID)
 		if err != nil {
 			return err
 		}
@@ -321,9 +329,10 @@ func (s *StorageService) TestStorageConnectionDirect(
 }
 
 func (s *StorageService) GetStorageByID(
+	ctx context.Context,
 	id uuid.UUID,
 ) (*Storage, error) {
-	return s.storageRepository.FindByID(id)
+	return s.storageRepository.FindByID(ctx, id)
 }
 
 func (s *StorageService) GetAllStorages() ([]*Storage, error) {
@@ -331,17 +340,18 @@ func (s *StorageService) GetAllStorages() ([]*Storage, error) {
 }
 
 func (s *StorageService) TransferStorageToWorkspace(
+	ctx context.Context,
 	user *users_models.User,
 	storageID uuid.UUID,
 	targetWorkspaceID uuid.UUID,
 	transferingWithDbID *uuid.UUID,
 ) error {
-	existingStorage, err := s.storageRepository.FindByID(storageID)
+	existingStorage, err := s.storageRepository.FindByID(ctx, storageID)
 	if err != nil {
 		return err
 	}
 
-	canManageSource, err := s.workspaceService.CanUserManageDBs(existingStorage.WorkspaceID, user)
+	canManageSource, err := s.workspaceService.CanUserManageDBs(ctx, existingStorage.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -349,7 +359,7 @@ func (s *StorageService) TransferStorageToWorkspace(
 		return ErrInsufficientPermissionsInSourceWorkspace
 	}
 
-	canManageTarget, err := s.workspaceService.CanUserManageDBs(targetWorkspaceID, user)
+	canManageTarget, err := s.workspaceService.CanUserManageDBs(ctx, targetWorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -390,19 +400,25 @@ func (s *StorageService) TransferStorageToWorkspace(
 		return fmt.Errorf("failed to get target workspace: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Storage transferred out: %s to workspace '%s'",
-			existingStorage.Name, targetWorkspace.Name),
-		&user.ID,
-		&sourceWorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message: fmt.Sprintf(
+			"Storage transferred out: %s to workspace '%s'",
+			existingStorage.Name,
+			targetWorkspace.Name,
+		),
+		UserID:      &user.ID,
+		WorkspaceID: &sourceWorkspaceID,
+	})
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Storage transferred in: %s from workspace '%s'",
-			existingStorage.Name, sourceWorkspace.Name),
-		&user.ID,
-		&targetWorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message: fmt.Sprintf(
+			"Storage transferred in: %s from workspace '%s'",
+			existingStorage.Name,
+			sourceWorkspace.Name,
+		),
+		UserID:      &user.ID,
+		WorkspaceID: &targetWorkspaceID,
+	})
 
 	return nil
 }

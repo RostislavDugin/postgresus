@@ -1,6 +1,7 @@
 package stream_guard
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -26,13 +27,13 @@ func (g *Guard) IsDownloadInProgress(userID uuid.UUID) bool {
 	return g.tracker.IsDownloadInProgress(userID)
 }
 
-func (g *Guard) RefreshDownloadLock(userID uuid.UUID) {
-	g.tracker.RefreshDownloadLock(userID)
+func (g *Guard) RefreshDownloadLock(ctx context.Context, userID uuid.UUID) {
+	g.tracker.RefreshDownloadLock(ctx, userID)
 }
 
-func (g *Guard) ReleaseDownloadLock(userID uuid.UUID) {
-	g.tracker.ReleaseDownloadLock(userID)
-	g.logger.Info("released stream lock", "user_id", userID)
+func (g *Guard) ReleaseDownloadLock(ctx context.Context, userID uuid.UUID) {
+	g.tracker.ReleaseDownloadLock(ctx, userID)
+	g.logger.InfoContext(ctx, "released stream lock", "user_id", userID)
 }
 
 // AcquireSlot takes the per-user single-stream lock.

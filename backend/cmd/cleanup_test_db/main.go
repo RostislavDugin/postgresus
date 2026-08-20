@@ -80,7 +80,7 @@ func resetValkey(log *slog.Logger) error {
 		return fmt.Errorf("flush cache: %w", err)
 	}
 
-	log.Info("Valkey reset complete")
+	log.Info("valkey reset complete")
 	return nil
 }
 
@@ -174,7 +174,7 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 			"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()",
 			quoteLiteral(name),
 		)); err != nil {
-			log.Warn("could not terminate connections to DB", "db", name, "error", err)
+			log.WarnContext(ctx, "could not terminate connections to DB", "db", name, "error", err)
 		}
 
 		// No WITH (FORCE) - that's PG 13+ only and we support PG 12.
@@ -209,11 +209,11 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 		_, _ = db.ExecContext(ctx, fmt.Sprintf("DROP OWNED BY %s", quotedRole))
 
 		if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP ROLE IF EXISTS %s", quotedRole)); err != nil {
-			log.Warn("could not drop role", "role", role, "error", err)
+			log.WarnContext(ctx, "could not drop role", "role", role, "error", err)
 		}
 	}
 
-	log.Info("test PG container reset complete")
+	log.InfoContext(ctx, "test PG container reset complete")
 	return nil
 }
 
@@ -255,11 +255,11 @@ func dropDatabasusReplicationSlots(ctx context.Context, log *slog.Logger, db *sq
 		)
 
 		if _, err := db.ExecContext(ctx, "SELECT pg_drop_replication_slot($1)", name); err != nil {
-			log.Warn("could not drop replication slot", "slot_name", name, "error", err)
+			log.WarnContext(ctx, "could not drop replication slot", "slot_name", name, "error", err)
 			continue
 		}
 
-		log.Info("dropped leftover replication slot", "slot_name", name)
+		log.InfoContext(ctx, "dropped leftover replication slot", "slot_name", name)
 	}
 
 	return nil

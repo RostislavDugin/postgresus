@@ -1,6 +1,8 @@
 package backups_config_physical
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/intervals"
@@ -8,6 +10,7 @@ import (
 )
 
 func EnableBackupsForPhysicalTestDatabase(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	storage *storages.Storage,
 ) *PhysicalBackupConfig {
@@ -34,7 +37,7 @@ func EnableBackupsForPhysicalTestDatabase(
 		},
 	}
 
-	backupConfig, err := GetBackupConfigService().SaveBackupConfig(backupConfig)
+	backupConfig, err := GetBackupConfigService().SaveBackupConfig(ctx, backupConfig)
 	if err != nil {
 		panic(err)
 	}

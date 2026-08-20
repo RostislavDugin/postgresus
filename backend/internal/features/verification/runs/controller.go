@@ -45,7 +45,7 @@ func (c *VerificationController) EnqueueManual(ctx *gin.Context) {
 		return
 	}
 
-	verification, err := c.verificationService.EnqueueManualVerification(user, req.BackupID)
+	verification, err := c.verificationService.EnqueueManualVerification(ctx.Request.Context(), user, req.BackupID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -78,7 +78,7 @@ func (c *VerificationController) Cancel(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.verificationService.CancelVerification(user, verificationID); err != nil {
+	if err := c.verificationService.CancelVerification(ctx.Request.Context(), user, verificationID); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -110,7 +110,7 @@ func (c *VerificationController) GetByID(ctx *gin.Context) {
 		return
 	}
 
-	verification, err := c.verificationService.GetVerificationByID(user, verificationID)
+	verification, err := c.verificationService.GetVerificationByID(ctx.Request.Context(), user, verificationID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -151,7 +151,13 @@ func (c *VerificationController) ListByDatabase(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.verificationService.GetVerificationsByDatabaseID(user, databaseID, req.Limit, req.Offset)
+	response, err := c.verificationService.GetVerificationsByDatabaseID(
+		ctx.Request.Context(),
+		user,
+		databaseID,
+		req.Limit,
+		req.Offset,
+	)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

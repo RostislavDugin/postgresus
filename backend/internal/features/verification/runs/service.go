@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_services "databasus-backend/internal/features/backups/backups/services"
 	"databasus-backend/internal/features/databases"
@@ -36,6 +37,7 @@ type VerificationService struct {
 }
 
 func (s *VerificationService) EnqueueManualVerification(
+	ctx context.Context,
 	user *users_models.User,
 	backupID uuid.UUID,
 ) (*RestoreVerification, error) {
@@ -57,7 +59,7 @@ func (s *VerificationService) EnqueueManualVerification(
 		return nil, errors.New("cannot verify backup for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -106,11 +108,11 @@ func (s *VerificationService) EnqueueManualVerification(
 		return nil, err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("manual backup verification enqueued for database %q", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("manual backup verification enqueued for database %q", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return created, nil
 }
@@ -120,10 +122,11 @@ func (s *VerificationService) OnBackupCompleted(backupID uuid.UUID) {
 }
 
 func (s *VerificationService) CancelVerification(
+	ctx context.Context,
 	user *users_models.User,
 	verificationID uuid.UUID,
 ) error {
-	verification, err := s.verificationRepository.FindByID(verificationID)
+	verification, err := s.verificationRepository.FindByID(ctx, verificationID)
 	if err != nil {
 		return err
 	}
@@ -141,7 +144,7 @@ func (s *VerificationService) CancelVerification(
 		return errors.New("cannot cancel verification for database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -159,16 +162,17 @@ func (s *VerificationService) CancelVerification(
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("backup verification canceled for database %q", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("backup verification canceled for database %q", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return nil
 }
 
 func (s *VerificationService) GetVerificationsByDatabaseID(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 	limit, offset int,
@@ -182,7 +186,7 @@ func (s *VerificationService) GetVerificationsByDatabaseID(
 		return nil, errors.New("cannot list verifications for database without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -216,10 +220,11 @@ func (s *VerificationService) GetVerificationsByDatabaseID(
 }
 
 func (s *VerificationService) GetVerificationByID(
+	ctx context.Context,
 	user *users_models.User,
 	verificationID uuid.UUID,
 ) (*RestoreVerification, error) {
-	verification, err := s.verificationRepository.FindByID(verificationID)
+	verification, err := s.verificationRepository.FindByID(ctx, verificationID)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +242,7 @@ func (s *VerificationService) GetVerificationByID(
 		return nil, errors.New("cannot view verification for database without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +254,7 @@ func (s *VerificationService) GetVerificationByID(
 }
 
 func (s *VerificationService) ClaimVerification(
+	ctx context.Context,
 	agent *verification_agents.Agent,
 	req *ClaimRequest,
 ) (*JobAssignment, error) {
@@ -276,7 +282,8 @@ func (s *VerificationService) ClaimVerification(
 			}
 
 			if validateErr := validateDatabaseIsVerifiable(database); validateErr != nil {
-				s.logger.Warn(
+				s.logger.WarnContext(
+					ctx,
 					"skipping claim: database not verifiable",
 					"verification_id", candidate.Verification.ID,
 					"database_id", candidate.Verification.DatabaseID,
@@ -318,6 +325,7 @@ func (s *VerificationService) ClaimVerification(
 }
 
 func (s *VerificationService) OnAgentHeartbeated(
+	ctx context.Context,
 	agent *verification_agents.Agent,
 	currentVerificationIDs []uuid.UUID,
 ) ([]uuid.UUID, error) {
@@ -346,7 +354,7 @@ func (s *VerificationService) OnAgentHeartbeated(
 		}
 	}
 
-	s.reclaimDroppedRunningJobs(agent, ownedRunning, reportedVerifications)
+	s.reclaimDroppedRunningJobs(ctx, agent, ownedRunning, reportedVerifications)
 
 	return verificationsToAbort, nil
 }
@@ -356,7 +364,7 @@ func (s *VerificationService) GetBackupFile(
 	agent *verification_agents.Agent,
 	verificationID uuid.UUID,
 ) (io.ReadCloser, error) {
-	verification, err := s.verificationRepository.FindByID(verificationID)
+	verification, err := s.verificationRepository.FindByID(ctx, verificationID)
 	if err != nil {
 		return nil, err
 	}
@@ -382,11 +390,12 @@ func (s *VerificationService) GetBackupFile(
 }
 
 func (s *VerificationService) SubmitReport(
+	ctx context.Context,
 	agent *verification_agents.Agent,
 	verificationID uuid.UUID,
 	req *ReportRequest,
 ) error {
-	verification, err := s.verificationRepository.FindByID(verificationID)
+	verification, err := s.verificationRepository.FindByID(ctx, verificationID)
 	if err != nil {
 		return err
 	}
@@ -396,24 +405,25 @@ func (s *VerificationService) SubmitReport(
 	}
 
 	if req.Status == VerificationStatusFailed {
-		return s.RequeueOrFail(verification, classifyAgentReport(req), req.FailMessage)
+		return s.RequeueOrFail(ctx, verification, classifyAgentReport(req), req.FailMessage)
 	}
 
 	if restoredDbTooSmall, sizeMessage := s.isRestoredTooSmall(verification, req); restoredDbTooSmall {
-		return s.RequeueOrFail(verification, FailureReasonRestoredTooSmall, &sizeMessage)
+		return s.RequeueOrFail(ctx, verification, FailureReasonRestoredTooSmall, &sizeMessage)
 	}
 
 	if err := s.verificationRepository.WriteSuccessReport(verificationID, agent.ID, req); err != nil {
 		return err
 	}
 
-	s.syncBackupVerificationStatus(verification, VerificationStatusCompleted)
-	s.notifyTerminal(verification, VerificationStatusCompleted, nil)
+	s.syncBackupVerificationStatus(ctx, verification, VerificationStatusCompleted)
+	s.notifyTerminal(ctx, verification, VerificationStatusCompleted, nil)
 
 	return nil
 }
 
 func (s *VerificationService) RequeueOrFail(
+	ctx context.Context,
 	row *RestoreVerification,
 	reason FailureReason,
 	agentMessage *string,
@@ -431,13 +441,13 @@ func (s *VerificationService) RequeueOrFail(
 	}
 
 	// Re-read so the notification body reflects the row's freshly stamped finished_at.
-	updated, err := s.verificationRepository.FindByID(row.ID)
+	updated, err := s.verificationRepository.FindByID(ctx, row.ID)
 	if err == nil && updated != nil {
 		row = updated
 	}
 
-	s.syncBackupVerificationStatus(row, VerificationStatusFailed)
-	s.notifyTerminal(row, VerificationStatusFailed, &failMessage)
+	s.syncBackupVerificationStatus(ctx, row, VerificationStatusFailed)
+	s.notifyTerminal(ctx, row, VerificationStatusFailed, &failMessage)
 	return nil
 }
 
@@ -449,6 +459,7 @@ func (s *VerificationService) RequeueOrFail(
 // report the job, so a just-claimed row is legitimately unreported for one
 // cycle. Best-effort: it logs its own errors and never fails the heartbeat.
 func (s *VerificationService) reclaimDroppedRunningJobs(
+	ctx context.Context,
 	agent *verification_agents.Agent,
 	ownedRunning []*RestoreVerification,
 	reported map[uuid.UUID]struct{},
@@ -465,10 +476,10 @@ func (s *VerificationService) reclaimDroppedRunningJobs(
 		}
 
 		logger := s.logger.With("verification_id", row.ID, "agent_id", agent.ID)
-		logger.Info("reclaiming dropped verification")
+		logger.InfoContext(ctx, "reclaiming dropped verification")
 
-		if err := s.RequeueOrFail(row, FailureReasonAgentDroppedJob, nil); err != nil {
-			logger.Error("failed to reclaim dropped verification", "error", err)
+		if err := s.RequeueOrFail(ctx, row, FailureReasonAgentDroppedJob, nil); err != nil {
+			logger.ErrorContext(ctx, "failed to reclaim dropped verification", "error", err)
 		}
 	}
 }
@@ -620,6 +631,7 @@ func (s *VerificationService) isRestoredTooSmall(
 }
 
 func (s *VerificationService) syncBackupVerificationStatus(
+	ctx context.Context,
 	verification *RestoreVerification,
 	terminalStatus VerificationStatus,
 ) {
@@ -635,7 +647,8 @@ func (s *VerificationService) syncBackupVerificationStatus(
 	}
 
 	if err := s.backupService.SetRestoreVerificationStatus(verification.BackupID, status); err != nil {
-		s.logger.Error(
+		s.logger.ErrorContext(
+			ctx,
 			"failed to sync backup restore-verification status",
 			"error", err,
 			"verification_id", verification.ID,
@@ -645,6 +658,7 @@ func (s *VerificationService) syncBackupVerificationStatus(
 }
 
 func (s *VerificationService) notifyTerminal(
+	ctx context.Context,
 	verification *RestoreVerification,
 	terminalStatus VerificationStatus,
 	failMessage *string,
@@ -655,7 +669,7 @@ func (s *VerificationService) notifyTerminal(
 
 	config, err := s.configService.GetByDatabaseIDNoAuth(verification.DatabaseID)
 	if err != nil {
-		s.logger.Error(
+		s.logger.ErrorContext(ctx,
 			"failed to load verification config for notification",
 			"error", err,
 			"verification_id", verification.ID,
@@ -679,7 +693,7 @@ func (s *VerificationService) notifyTerminal(
 
 	database, err := s.databaseService.GetDatabaseByID(verification.DatabaseID)
 	if err != nil {
-		s.logger.Error(
+		s.logger.ErrorContext(ctx,
 			"failed to load database for notification",
 			"error", err,
 			"verification_id", verification.ID,
@@ -705,9 +719,13 @@ func (s *VerificationService) notifyTerminal(
 		Message: body,
 	}
 
+	// The goroutine outlives the request, so it must not inherit its cancellation: the handler
+	// returning would otherwise cancel the notifier lookup and drop the notification.
+	notifyCtx := context.WithoutCancel(ctx)
+
 	for i := range database.Notifiers {
 		notifier := database.Notifiers[i]
-		go s.notifierService.SendNotification(&notifier, notification)
+		go s.notifierService.SendNotification(notifyCtx, &notifier, notification)
 	}
 }
 

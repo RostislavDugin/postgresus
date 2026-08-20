@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,7 +78,7 @@ type userCounter interface {
 }
 
 type verificationAgentLister interface {
-	ListAgents() ([]*verification_agents.Agent, error)
+	ListAgents(ctx context.Context) ([]*verification_agents.Agent, error)
 }
 
 type verificationConfigLister interface {

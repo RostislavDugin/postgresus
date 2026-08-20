@@ -68,7 +68,7 @@ func (c *DatabaseController) CreateDatabase(ctx *gin.Context) {
 		return
 	}
 
-	database, err := c.databaseService.CreateDatabase(user, *request.WorkspaceID, &request)
+	database, err := c.databaseService.CreateDatabase(ctx.Request.Context(), user, *request.WorkspaceID, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -102,7 +102,7 @@ func (c *DatabaseController) UpdateDatabase(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.UpdateDatabase(user, &request); err != nil {
+	if err := c.databaseService.UpdateDatabase(ctx.Request.Context(), user, &request); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -133,7 +133,8 @@ func (c *DatabaseController) DeleteDatabase(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.DeleteDatabase(user, id); err != nil {
+	if err := c.databaseService.DeleteDatabase(ctx.Request.Context(), user, id); err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -164,7 +165,7 @@ func (c *DatabaseController) GetDatabase(ctx *gin.Context) {
 		return
 	}
 
-	database, err := c.databaseService.GetDatabase(user, id)
+	database, err := c.databaseService.GetDatabase(ctx.Request.Context(), user, id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -203,7 +204,7 @@ func (c *DatabaseController) GetDatabases(ctx *gin.Context) {
 		return
 	}
 
-	databases, err := c.databaseService.GetDatabasesByWorkspace(user, workspaceID)
+	databases, err := c.databaseService.GetDatabasesByWorkspace(ctx.Request.Context(), user, workspaceID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -235,7 +236,7 @@ func (c *DatabaseController) TestDatabaseConnection(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.TestDatabaseConnection(user, id); err != nil {
+	if err := c.databaseService.TestDatabaseConnection(ctx.Request.Context(), user, id); err != nil {
 		respondConnectionTestError(ctx, err)
 		return
 	}
@@ -266,7 +267,7 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.TestDatabaseConnectionDirect(&request); err != nil {
+	if err := c.databaseService.TestDatabaseConnectionDirect(ctx.Request.Context(), &request); err != nil {
 		respondConnectionTestError(ctx, err)
 		return
 	}
@@ -309,8 +310,9 @@ func (c *DatabaseController) IsNotifierUsing(ctx *gin.Context) {
 		return
 	}
 
-	isUsing, err := c.databaseService.IsNotifierUsing(user, id)
+	isUsing, err := c.databaseService.IsNotifierUsing(ctx.Request.Context(), user, id)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -342,8 +344,9 @@ func (c *DatabaseController) CountDatabasesByNotifier(ctx *gin.Context) {
 		return
 	}
 
-	count, err := c.databaseService.CountDatabasesByNotifier(user, id)
+	count, err := c.databaseService.CountDatabasesByNotifier(ctx.Request.Context(), user, id)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -375,7 +378,7 @@ func (c *DatabaseController) CopyDatabase(ctx *gin.Context) {
 		return
 	}
 
-	copiedDatabase, err := c.databaseService.CopyDatabase(user, id)
+	copiedDatabase, err := c.databaseService.CopyDatabase(ctx.Request.Context(), user, id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -410,7 +413,7 @@ func (c *DatabaseController) IsUserReadOnly(ctx *gin.Context) {
 		return
 	}
 
-	isReadOnly, privileges, err := c.databaseService.IsUserReadOnly(user, &request)
+	isReadOnly, privileges, err := c.databaseService.IsUserReadOnly(ctx.Request.Context(), user, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -445,7 +448,7 @@ func (c *DatabaseController) CreateReadOnlyUser(ctx *gin.Context) {
 		return
 	}
 
-	username, password, err := c.databaseService.CreateReadOnlyUser(user, &request)
+	username, password, err := c.databaseService.CreateReadOnlyUser(ctx.Request.Context(), user, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -483,7 +486,7 @@ func (c *DatabaseController) CreateReplicationOnlyUser(ctx *gin.Context) {
 		return
 	}
 
-	username, password, err := c.databaseService.CreateReplicationOnlyUser(user, &request)
+	username, password, err := c.databaseService.CreateReplicationOnlyUser(ctx.Request.Context(), user, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

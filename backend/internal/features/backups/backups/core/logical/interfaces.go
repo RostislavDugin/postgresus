@@ -14,6 +14,7 @@ import (
 
 type NotificationSender interface {
 	SendNotification(
+		ctx context.Context,
 		notifier *notifiers.Notifier,
 		notification notifier_models.Notification,
 	)

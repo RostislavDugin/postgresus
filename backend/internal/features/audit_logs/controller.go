@@ -49,12 +49,14 @@ func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
+	response, err := c.auditLogService.GetGlobalAuditLogs(ctx.Request.Context(), user, request)
 	if err != nil {
 		if errors.Is(err, ErrOnlyAdminsCanViewGlobalLogs) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
+		_ = ctx.Error(err)
+
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
 		return
 	}
@@ -98,12 +100,14 @@ func (c *AuditLogController) GetUserAuditLogs(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.auditLogService.GetUserAuditLogs(targetUserID, user, request)
+	response, err := c.auditLogService.GetUserAuditLogs(ctx.Request.Context(), targetUserID, user, request)
 	if err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsToViewLogs) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
+		_ = ctx.Error(err)
+
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs"})
 		return
 	}

@@ -1,11 +1,14 @@
 package audit_logs
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	user_enums "databasus-backend/internal/features/users/enums"
 	user_models "databasus-backend/internal/features/users/models"
 )
@@ -13,32 +16,29 @@ import (
 type AuditLogService struct {
 	auditLogRepository *AuditLogRepository
 	logger             *slog.Logger
+	auditLogger        *slog.Logger
 }
 
-func (s *AuditLogService) WriteAuditLog(
-	message string,
-	userID *uuid.UUID,
-	workspaceID *uuid.UUID,
-) {
+// The log-pipeline write is what makes the trail survive the database it describes: an operator
+// who wipes audit_logs cannot erase what already left for the file and the remote backend.
+func (s *AuditLogService) WriteAuditLog(ctx context.Context, entry audit_logs_models.AuditEntry) {
 	auditLog := &AuditLog{
-		UserID:      userID,
-		WorkspaceID: workspaceID,
-		Message:     message,
+		UserID:      entry.UserID,
+		WorkspaceID: entry.WorkspaceID,
+		Message:     entry.Message,
 		CreatedAt:   time.Now().UTC(),
 	}
 
-	err := s.auditLogRepository.Create(auditLog)
-	if err != nil {
-		s.logger.Error("failed to create audit log", "error", err)
-		return
+	s.auditLogger.InfoContext(ctx, entry.Message, "user_id", entry.UserID, "workspace_id", entry.WorkspaceID)
+
+	if err := s.auditLogRepository.Create(auditLog); err != nil {
+		s.logger.ErrorContext(ctx, "failed to create audit log",
+			"error", err, "user_id", entry.UserID, "workspace_id", entry.WorkspaceID)
 	}
 }
 
-func (s *AuditLogService) CreateAuditLog(auditLog *AuditLog) error {
-	return s.auditLogRepository.Create(auditLog)
-}
-
 func (s *AuditLogService) GetGlobalAuditLogs(
+	ctx context.Context,
 	user *user_models.User,
 	request *GetAuditLogsRequest,
 ) (*GetAuditLogsResponse, error) {
@@ -53,12 +53,12 @@ func (s *AuditLogService) GetGlobalAuditLogs(
 
 	offset := max(request.Offset, 0)
 
-	auditLogs, err := s.auditLogRepository.GetGlobal(limit, offset, request.BeforeDate)
+	auditLogs, err := s.auditLogRepository.GetGlobal(ctx, limit, offset, request.BeforeDate)
 	if err != nil {
 		return nil, err
 	}
 
-	total, err := s.auditLogRepository.CountGlobal(request.BeforeDate)
+	total, err := s.auditLogRepository.CountGlobal(ctx, request.BeforeDate)
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +72,7 @@ func (s *AuditLogService) GetGlobalAuditLogs(
 }
 
 func (s *AuditLogService) GetUserAuditLogs(
+	ctx context.Context,
 	targetUserID uuid.UUID,
 	user *user_models.User,
 	request *GetAuditLogsRequest,
@@ -89,6 +90,7 @@ func (s *AuditLogService) GetUserAuditLogs(
 	offset := max(request.Offset, 0)
 
 	auditLogs, err := s.auditLogRepository.GetByUser(
+		ctx,
 		targetUserID,
 		limit,
 		offset,
@@ -107,6 +109,7 @@ func (s *AuditLogService) GetUserAuditLogs(
 }
 
 func (s *AuditLogService) GetWorkspaceAuditLogs(
+	ctx context.Context,
 	workspaceID uuid.UUID,
 	request *GetAuditLogsRequest,
 ) (*GetAuditLogsResponse, error) {
@@ -118,6 +121,7 @@ func (s *AuditLogService) GetWorkspaceAuditLogs(
 	offset := max(request.Offset, 0)
 
 	auditLogs, err := s.auditLogRepository.GetByWorkspace(
+		ctx,
 		workspaceID,
 		limit,
 		offset,
@@ -135,18 +139,19 @@ func (s *AuditLogService) GetWorkspaceAuditLogs(
 	}, nil
 }
 
-func (s *AuditLogService) CleanOldAuditLogs() error {
+func (s *AuditLogService) CleanOldAuditLogs(ctx context.Context, logger *slog.Logger) error {
 	oneYearAgo := time.Now().UTC().Add(-365 * 24 * time.Hour)
 
-	deletedCount, err := s.auditLogRepository.DeleteOlderThan(oneYearAgo)
+	deletedCount, err := s.auditLogRepository.DeleteOlderThan(ctx, oneYearAgo)
 	if err != nil {
-		s.logger.Error("Failed to delete old audit logs", "error", err)
+		logger.ErrorContext(ctx, "failed to delete old audit logs", "error", err)
+
 		return err
 	}
 
-	if deletedCount > 0 {
-		s.logger.Info("Deleted old audit logs", "count", deletedCount, "olderThan", oneYearAgo)
-	}
+	// Logged even at zero, so that "ran and found nothing" stays distinguishable from "never ran".
+	logger.InfoContext(ctx, fmt.Sprintf("deleted %d audit logs older than a year", deletedCount),
+		"older_than", oneYearAgo)
 
 	return nil
 }

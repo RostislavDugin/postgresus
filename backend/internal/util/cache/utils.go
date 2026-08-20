@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/valkey-io/valkey-go"
+
+	"databasus-backend/internal/util/logger"
 )
 
 const (
@@ -37,17 +39,27 @@ func (c *CacheUtil[T]) Get(key string) *T {
 	fullKey := c.prefix + key
 	result := c.client.Do(ctx, c.client.B().Get().Key(fullKey).Build())
 
-	if result.Error() != nil {
+	if err := result.Error(); err != nil {
+		// A missing key is the normal case and says nothing; anything else means the cache is down,
+		// which is otherwise indistinguishable from a miss at every call site.
+		if !valkey.IsValkeyNil(err) {
+			logger.GetLogger().Warn("cache read failed", "cache_key", fullKey, "error", err)
+		}
+
 		return nil
 	}
 
 	data, err := result.AsBytes()
 	if err != nil {
+		logger.GetLogger().Warn("cache read returned an unreadable value", "cache_key", fullKey, "error", err)
+
 		return nil
 	}
 
 	var item T
 	if err := json.Unmarshal(data, &item); err != nil {
+		logger.GetLogger().Warn("cache read returned malformed json", "cache_key", fullKey, "error", err)
+
 		return nil
 	}
 

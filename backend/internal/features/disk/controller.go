@@ -23,8 +23,9 @@ func (c *DiskController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 500
 // @Router /disk/usage [get]
 func (c *DiskController) GetDiskUsage(ctx *gin.Context) {
-	diskUsage, err := c.diskService.GetDiskUsage()
+	diskUsage, err := c.diskService.GetDiskUsage(ctx.Request.Context())
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

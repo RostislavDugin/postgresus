@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"databasus-backend/internal/util/logger"
 )
 
 // ToolCheckResult is one DB-version bundle's verification outcome. A bundle
@@ -64,15 +66,14 @@ func CheckAllClientTools() []ToolCheckResult {
 	return results
 }
 
-// LogAndExitIfClientToolsBroken logs every check result and exits the process
-// if any fatal-tier (Postgres) bundle has errors. Non-fatal bundles only warn.
-// Used by config at application startup.
-func LogAndExitIfClientToolsBroken(logger *slog.Logger, isShowLogs bool) {
+// Only the Postgres bundle is fatal: the others degrade to a warning because an instance that
+// backs up no MySQL database has no reason to refuse to start over a missing mysqldump.
+func LogAndExitIfClientToolsBroken(toolsLogger *slog.Logger, isShowLogs bool) {
 	results := CheckAllClientTools()
 
 	hasFatalError := false
 	for _, r := range results {
-		log := logger.With("db", r.Db, "version", r.Version, "path", r.BinDir)
+		log := toolsLogger.With("db", r.Db, "version", r.Version, "path", r.BinDir)
 
 		if len(r.Errors) == 0 {
 			if isShowLogs {
@@ -93,7 +94,7 @@ func LogAndExitIfClientToolsBroken(logger *slog.Logger, isShowLogs bool) {
 	}
 
 	if hasFatalError {
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 }
 

@@ -23,6 +23,7 @@ type MockNotificationSender struct {
 }
 
 func (m *MockNotificationSender) SendNotification(
+	_ context.Context,
 	notifier *notifiers.Notifier,
 	notification notifier_models.Notification,
 ) {

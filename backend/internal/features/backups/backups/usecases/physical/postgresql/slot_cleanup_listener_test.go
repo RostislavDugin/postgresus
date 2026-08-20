@@ -59,7 +59,7 @@ func Test_OnBeforeDatabaseRemove_DropsBothPerBackupAndStreamerSlots(t *testing.T
 		logger.GetLogger(),
 	)
 
-	require.NoError(t, listener.OnBeforeDatabaseRemove(fixture.DB.ID))
+	require.NoError(t, listener.OnBeforeDatabaseRemove(t.Context(), fixture.DB.ID))
 
 	assert.False(t, postgresql_executor.SlotExists(t, adminConn, perBackupSlot),
 		"per-backup slot (keyed by PostgresqlPhysical.ID) must be dropped on DB removal")
@@ -102,7 +102,7 @@ func Test_OnBeforeDatabaseRemove_WhenTheSourceIsBehindABastion_DropsBothPerBacku
 		logger.GetLogger(),
 	)
 
-	require.NoError(t, listener.OnBeforeDatabaseRemove(fixture.DB.ID))
+	require.NoError(t, listener.OnBeforeDatabaseRemove(t.Context(), fixture.DB.ID))
 
 	assert.False(t, postgresql_executor.SlotExists(t, adminConn, perBackupSlot),
 		"per-backup slot must be dropped through the tunnel on DB removal")
@@ -124,7 +124,7 @@ func Test_OnBeforeDatabaseRemove_WhenSourceUnreachable_DoesNotBlockRemoval(t *te
 		logger.GetLogger(),
 	)
 
-	assert.NoError(t, listener.OnBeforeDatabaseRemove(fixture.DB.ID),
+	assert.NoError(t, listener.OnBeforeDatabaseRemove(t.Context(), fixture.DB.ID),
 		"unreachable source must be logged + skipped, never block the metadata delete")
 }
 

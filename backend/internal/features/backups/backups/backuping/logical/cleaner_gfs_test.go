@@ -346,7 +346,14 @@ func Test_BuildGFSKeepSet(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			keepSet := buildGFSKeepSet(tc.backups, tc.hours, tc.days, tc.weeks, tc.months, tc.years)
+			retainedTiersByBackupID := buildRetainedTiersByBackupID(
+				tc.backups,
+				tc.hours,
+				tc.days,
+				tc.weeks,
+				tc.months,
+				tc.years,
+			)
 
 			keptIndexSet := make(map[int]bool, len(tc.keptIndices))
 			for _, idx := range tc.keptIndices {
@@ -355,11 +362,11 @@ func Test_BuildGFSKeepSet(t *testing.T) {
 
 			for i, backup := range tc.backups {
 				if keptIndexSet[i] {
-					assert.True(t, keepSet[backup.ID],
+					assert.NotEmpty(t, retainedTiersByBackupID[backup.ID],
 						"backup at index %d (date=%s) should be kept",
 						i, backup.CreatedAt.Format("2006-01-02 15:04"))
 				} else {
-					assert.False(t, keepSet[backup.ID],
+					assert.Empty(t, retainedTiersByBackupID[backup.ID],
 						"backup at index %d (date=%s) should be deleted",
 						i, backup.CreatedAt.Format("2006-01-02 15:04"))
 				}
@@ -370,8 +377,8 @@ func Test_BuildGFSKeepSet(t *testing.T) {
 
 func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
@@ -382,11 +389,11 @@ func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -402,7 +409,7 @@ func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 		StorageID:           &storage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -424,7 +431,7 @@ func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -444,8 +451,8 @@ func Test_CleanByGFS_KeepsCorrectBackupsPerSlot(t *testing.T) {
 
 func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
@@ -456,11 +463,11 @@ func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -476,7 +483,7 @@ func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 		StorageID:           &storage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -500,7 +507,7 @@ func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -522,8 +529,8 @@ func Test_CleanByGFS_WithWeeklyAndMonthlySlots_KeepsWiderSpread(t *testing.T) {
 
 func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -534,11 +541,11 @@ func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -551,7 +558,7 @@ func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -573,7 +580,7 @@ func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -593,8 +600,8 @@ func Test_CleanByGFS_WithHourlySlots_KeepsCorrectBackups(t *testing.T) {
 
 func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
@@ -605,11 +612,11 @@ func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -626,7 +633,7 @@ func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 		StorageID:           &storage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -673,7 +680,7 @@ func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -700,8 +707,8 @@ func Test_CleanByGFS_SkipsRecentBackup_WhenNotInKeepSet(t *testing.T) {
 
 func Test_CleanByGFS_With20DailyBackups_KeepsOnlyExpectedCount(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -712,11 +719,11 @@ func Test_CleanByGFS_With20DailyBackups_KeepsOnlyExpectedCount(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -731,7 +738,7 @@ func Test_CleanByGFS_With20DailyBackups_KeepsOnlyExpectedCount(t *testing.T) {
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -754,7 +761,7 @@ func Test_CleanByGFS_With20DailyBackups_KeepsOnlyExpectedCount(t *testing.T) {
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -781,8 +788,8 @@ func Test_CleanByGFS_With20DailyBackups_KeepsOnlyExpectedCount(t *testing.T) {
 
 func Test_CleanByGFS_WithMultipleBackupsPerDay_KeepsOnlyOnePerDailySlot(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -793,11 +800,11 @@ func Test_CleanByGFS_WithMultipleBackupsPerDay_KeepsOnlyOnePerDailySlot(t *testi
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -811,7 +818,7 @@ func Test_CleanByGFS_WithMultipleBackupsPerDay_KeepsOnlyOnePerDailySlot(t *testi
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -838,7 +845,7 @@ func Test_CleanByGFS_WithMultipleBackupsPerDay_KeepsOnlyOnePerDailySlot(t *testi
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -870,8 +877,8 @@ func Test_CleanByGFS_WithMultipleBackupsPerDay_KeepsOnlyOnePerDailySlot(t *testi
 // Hourly slots should only cover the most recent hours, not span across weeks.
 func Test_CleanByGFS_With24HourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -882,11 +889,11 @@ func Test_CleanByGFS_With24HourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -903,7 +910,7 @@ func Test_CleanByGFS_With24HourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -922,7 +929,7 @@ func Test_CleanByGFS_With24HourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -939,8 +946,8 @@ func Test_CleanByGFS_With24HourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *
 // when hourly slots are not involved.
 func Test_CleanByGFS_WithDisabledHourlySlotsAnd23DailyBackups_DeletesExcessBackups(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -951,11 +958,11 @@ func Test_CleanByGFS_WithDisabledHourlySlotsAnd23DailyBackups_DeletesExcessBacku
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -972,7 +979,7 @@ func Test_CleanByGFS_WithDisabledHourlySlotsAnd23DailyBackups_DeletesExcessBacku
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -991,7 +998,7 @@ func Test_CleanByGFS_WithDisabledHourlySlotsAnd23DailyBackups_DeletesExcessBacku
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -1008,8 +1015,8 @@ func Test_CleanByGFS_WithDisabledHourlySlotsAnd23DailyBackups_DeletesExcessBacku
 // Daily slots should only cover the most recent days, not span months.
 func Test_CleanByGFS_WithDailySlotsAndWeeklyBackups_DeletesExcessBackups(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -1020,11 +1027,11 @@ func Test_CleanByGFS_WithDailySlotsAndWeeklyBackups_DeletesExcessBackups(t *test
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -1038,7 +1045,7 @@ func Test_CleanByGFS_WithDailySlotsAndWeeklyBackups_DeletesExcessBackups(t *test
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1060,7 +1067,7 @@ func Test_CleanByGFS_WithDailySlotsAndWeeklyBackups_DeletesExcessBackups(t *test
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)
@@ -1089,8 +1096,8 @@ func Test_CleanByGFS_WithDailySlotsAndWeeklyBackups_DeletesExcessBackups(t *test
 // Weekly slots should only cover the most recent weeks, not span years.
 func Test_CleanByGFS_WithWeeklySlotsAndMonthlyBackups_DeletesExcessBackups(t *testing.T) {
 	router := CreateTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	testStorage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
@@ -1101,11 +1108,11 @@ func Test_CleanByGFS_WithWeeklySlotsAndMonthlyBackups_DeletesExcessBackups(t *te
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(testStorage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), testStorage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	interval := createTestInterval()
@@ -1119,7 +1126,7 @@ func Test_CleanByGFS_WithWeeklySlotsAndMonthlyBackups_DeletesExcessBackups(t *te
 		StorageID:           &testStorage.ID,
 		BackupInterval:      interval,
 	}
-	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(backupConfig)
+	_, err := backups_config_logical.GetBackupConfigService().SaveBackupConfig(t.Context(), backupConfig)
 	assert.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -1142,7 +1149,7 @@ func Test_CleanByGFS_WithWeeklySlotsAndMonthlyBackups_DeletesExcessBackups(t *te
 	}
 
 	cleaner := GetBackupCleaner()
-	err = cleaner.cleanByRetentionPolicy(testLogger())
+	err = cleaner.cleanByRetentionPolicy(t.Context(), testLogger())
 	assert.NoError(t, err)
 
 	remainingBackups, err := backupRepository.FindByDatabaseID(database.ID)

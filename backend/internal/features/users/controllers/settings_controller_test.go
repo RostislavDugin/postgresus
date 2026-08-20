@@ -13,11 +13,11 @@ import (
 )
 
 func Test_GetUserSettings_WhenUserIsAdmin_ReturnsSettings(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create admin user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	var response users_models.UsersSettings
 	test_utils.MakeGetRequestAndUnmarshal(
@@ -36,11 +36,11 @@ func Test_GetUserSettings_WhenUserIsAdmin_ReturnsSettings(t *testing.T) {
 }
 
 func Test_GetUserSettings_WhenUserIsMember_ReturnsSettings(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create member user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	_ = test_utils.MakeGetRequest(
 		t,
@@ -52,18 +52,18 @@ func Test_GetUserSettings_WhenUserIsMember_ReturnsSettings(t *testing.T) {
 }
 
 func Test_GetUserSettings_WithoutAuth_ReturnsUnauthorized(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	test_utils.MakeGetRequest(t, router, "/api/v1/users/settings", "", http.StatusUnauthorized)
 }
 
 func Test_UpdateUserSettings_WhenUserIsAdmin_SettingsUpdated(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create admin user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	// Update some settings
 	request := users_models.UsersSettings{
@@ -90,11 +90,11 @@ func Test_UpdateUserSettings_WhenUserIsAdmin_SettingsUpdated(t *testing.T) {
 }
 
 func Test_UpdateUserSettings_WithPartialData_SettingsUpdated(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create admin user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	// Update only one setting
 	request := users_models.UsersSettings{
@@ -123,11 +123,11 @@ func Test_UpdateUserSettings_WithPartialData_SettingsUpdated(t *testing.T) {
 }
 
 func Test_UpdateUserSettings_WhenUserIsMember_ReturnsForbidden(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create member user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	request := users_models.UsersSettings{
 		IsAllowExternalRegistrations: false,
@@ -145,11 +145,11 @@ func Test_UpdateUserSettings_WhenUserIsMember_ReturnsForbidden(t *testing.T) {
 }
 
 func Test_UpdateUserSettings_WithInvalidJSON_ReturnsBadRequest(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	// Create admin user and get token
-	testUser := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	// Test with invalid JSON structure
 	resp := test_utils.MakeRequest(t, router, test_utils.RequestOptions{
@@ -164,7 +164,7 @@ func Test_UpdateUserSettings_WithInvalidJSON_ReturnsBadRequest(t *testing.T) {
 }
 
 func Test_UpdateUserSettings_WithoutAuth_ReturnsUnauthorized(t *testing.T) {
-	users_testing.ResetSettingsToDefaults()
+	users_testing.ResetSettingsToDefaults(t.Context())
 	router := createSettingsTestRouter()
 
 	request := users_models.UsersSettings{

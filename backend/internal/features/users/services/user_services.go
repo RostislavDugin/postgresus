@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"databasus-backend/internal/config"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	"databasus-backend/internal/features/encryption/secrets"
 	users_dto "databasus-backend/internal/features/users/dto"
 	users_enums "databasus-backend/internal/features/users/enums"
@@ -34,6 +36,7 @@ type UserService struct {
 	auditLogWriter          users_interfaces.AuditLogWriter
 	emailSender             users_interfaces.EmailSender
 	passwordResetRepository *users_repositories.PasswordResetRepository
+	logger                  *slog.Logger
 }
 
 func (s *UserService) SetAuditLogWriter(writer users_interfaces.AuditLogWriter) {
@@ -44,8 +47,8 @@ func (s *UserService) SetEmailSender(sender users_interfaces.EmailSender) {
 	s.emailSender = sender
 }
 
-func (s *UserService) SignUp(request *users_dto.SignUpRequestDTO) (*users_models.User, error) {
-	existingUser, err := s.userRepository.GetUserByEmail(request.Email)
+func (s *UserService) SignUp(ctx context.Context, request *users_dto.SignUpRequestDTO) (*users_models.User, error) {
+	existingUser, err := s.userRepository.GetUserByEmail(ctx, request.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
@@ -83,22 +86,22 @@ func (s *UserService) SignUp(request *users_dto.SignUpRequestDTO) (*users_models
 		}
 
 		// Fetch updated user to ensure we have the latest data
-		updatedUser, err := s.userRepository.GetUserByID(existingUser.ID)
+		updatedUser, err := s.userRepository.GetUserByID(ctx, existingUser.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get updated user: %w", err)
 		}
 
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("Invited user completed registration: %s", updatedUser.Email),
-			&updatedUser.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Invited user completed registration: %s", updatedUser.Email),
+			UserID:      &updatedUser.ID,
+			WorkspaceID: nil,
+		})
 
 		return updatedUser, nil
 	}
 
 	// Get settings to check registration policy for new users
-	settings, err := s.settingsService.GetSettings()
+	settings, err := s.settingsService.GetSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get settings: %w", err)
 	}
@@ -123,20 +126,25 @@ func (s *UserService) SignUp(request *users_dto.SignUpRequestDTO) (*users_models
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	s.auditLogWriter.WriteAuditLog(
-		fmt.Sprintf("User registered with email: %s", user.Email),
-		&user.ID,
-		nil,
-	)
+	s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("User registered with email: %s", user.Email),
+		UserID:      &user.ID,
+		WorkspaceID: nil,
+	})
 
 	return user, nil
 }
 
 func (s *UserService) SignIn(
+	ctx context.Context,
 	request *users_dto.SignInRequestDTO,
 ) (*users_dto.SignInResponseDTO, error) {
-	user, err := s.userRepository.GetUserByEmail(request.Email)
+	// Failed sign-ins are the only signal that someone is guessing credentials, so every branch that
+	// refuses one is logged. The handler's addresses are masked centrally by the log handler.
+	user, err := s.userRepository.GetUserByEmail(ctx, request.Email)
 	if err != nil {
+		s.logger.WarnContext(ctx, "sign-in refused: email lookup failed", "email", request.Email, "error", err)
+
 		return nil, errors.New("user with this email does not exist")
 	}
 
@@ -152,37 +160,48 @@ func (s *UserService) SignIn(
 			)
 		}
 
+		s.logger.WarnContext(ctx, "sign-in refused: no user with this email", "email", request.Email)
+
 		return nil, errors.New("user with this email does not exist")
 	}
 
 	if user.Status == users_enums.UserStatusInvited {
+		s.logger.WarnContext(ctx, "sign-in refused: the account has not completed sign-up",
+			"user_id", user.ID)
+
 		return nil, errors.New("user account is not passed sign up yet")
 	}
 
 	if user.Status != users_enums.UserStatusActive {
+		s.logger.WarnContext(ctx, "sign-in refused: the account is deactivated", "user_id", user.ID)
+
 		return nil, errors.New("user account is deactivated")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(*user.HashedPassword), []byte(request.Password))
 	if err != nil {
+		s.logger.WarnContext(ctx, "sign-in refused: incorrect password", "user_id", user.ID)
+
 		return nil, errors.New("password is incorrect")
 	}
 
-	response, err := s.GenerateAccessToken(user)
+	s.logger.InfoContext(ctx, "user signed in", "user_id", user.ID)
+
+	response, err := s.GenerateAccessToken(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	s.auditLogWriter.WriteAuditLog(
-		fmt.Sprintf("User signed in with email: %s", user.Email),
-		&user.ID,
-		nil,
-	)
+	s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("User signed in with email: %s", user.Email),
+		UserID:      &user.ID,
+		WorkspaceID: nil,
+	})
 
 	return response, nil
 }
 
-func (s *UserService) GetUserFromToken(token string) (*users_models.User, error) {
+func (s *UserService) GetUserFromToken(ctx context.Context, token string) (*users_models.User, error) {
 	secretKey, err := s.secretKeyService.GetSecretKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret key: %w", err)
@@ -209,7 +228,7 @@ func (s *UserService) GetUserFromToken(token string) (*users_models.User, error)
 			return nil, errors.New("invalid token claims")
 		}
 
-		user, err := s.userRepository.GetUserByID(userID)
+		user, err := s.userRepository.GetUserByID(ctx, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -239,6 +258,7 @@ func (s *UserService) GetUserFromToken(token string) (*users_models.User, error)
 }
 
 func (s *UserService) GenerateAccessToken(
+	ctx context.Context,
 	user *users_models.User,
 ) (*users_dto.SignInResponseDTO, error) {
 	secretKey, err := s.secretKeyService.GetSecretKey()
@@ -268,16 +288,16 @@ func (s *UserService) GenerateAccessToken(
 	}, nil
 }
 
-func (s *UserService) CreateInitialAdmin() error {
-	return s.userRepository.CreateInitialAdmin()
+func (s *UserService) CreateInitialAdmin(ctx context.Context) error {
+	return s.userRepository.CreateInitialAdmin(ctx)
 }
 
 func (s *UserService) GetUsersCount() (int64, error) {
 	return s.userRepository.GetUsersCount()
 }
 
-func (s *UserService) IsRootAdminHasPassword() (bool, error) {
-	admin, err := s.userRepository.GetUserByEmail("admin")
+func (s *UserService) IsRootAdminHasPassword(ctx context.Context) (bool, error) {
+	admin, err := s.userRepository.GetUserByEmail(ctx, "admin")
 	if err != nil {
 		return false, fmt.Errorf("failed to get admin user: %w", err)
 	}
@@ -289,8 +309,8 @@ func (s *UserService) IsRootAdminHasPassword() (bool, error) {
 	return admin.HasPassword(), nil
 }
 
-func (s *UserService) SetRootAdminPassword(password string) error {
-	admin, err := s.userRepository.GetUserByEmail("admin")
+func (s *UserService) SetRootAdminPassword(ctx context.Context, password string) error {
+	admin, err := s.userRepository.GetUserByEmail(ctx, "admin")
 	if err != nil {
 		return fmt.Errorf("failed to get admin user: %w", err)
 	}
@@ -313,26 +333,26 @@ func (s *UserService) SetRootAdminPassword(password string) error {
 	}
 
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			"Admin password set",
-			&admin.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     "Admin password set",
+			UserID:      &admin.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
-func (s *UserService) ChangeUserPasswordByEmail(email, newPassword string) error {
-	user, err := s.userRepository.GetUserByEmail(email)
+func (s *UserService) ChangeUserPasswordByEmail(ctx context.Context, email, newPassword string) error {
+	user, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	return s.ChangeUserPassword(user.ID, newPassword)
+	return s.ChangeUserPassword(ctx, user.ID, newPassword)
 }
 
-func (s *UserService) ChangeUserPassword(userID uuid.UUID, newPassword string) error {
+func (s *UserService) ChangeUserPassword(ctx context.Context, userID uuid.UUID, newPassword string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash new password: %w", err)
@@ -342,21 +362,22 @@ func (s *UserService) ChangeUserPassword(userID uuid.UUID, newPassword string) e
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
-	s.auditLogWriter.WriteAuditLog(
-		"Password changed",
-		&userID,
-		nil,
-	)
+	s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     "Password changed",
+		UserID:      &userID,
+		WorkspaceID: nil,
+	})
 
 	return nil
 }
 
 func (s *UserService) InviteUser(
+	ctx context.Context,
 	request *users_dto.InviteUserRequestDTO,
 	invitedBy *users_models.User,
 ) (*users_dto.InviteUserResponseDTO, error) {
 	// Get settings to check permissions
-	settings, err := s.settingsService.GetSettings()
+	settings, err := s.settingsService.GetSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get settings: %w", err)
 	}
@@ -367,7 +388,7 @@ func (s *UserService) InviteUser(
 	}
 
 	// Check if user already exists
-	existingUser, err := s.userRepository.GetUserByEmail(request.Email)
+	existingUser, err := s.userRepository.GetUserByEmail(ctx, request.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
@@ -394,11 +415,11 @@ func (s *UserService) InviteUser(
 	if request.IntendedWorkspaceID != nil {
 		message += " for workspace"
 	}
-	s.auditLogWriter.WriteAuditLog(
-		message,
-		&invitedBy.ID,
-		request.IntendedWorkspaceID,
-	)
+	s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     message,
+		UserID:      &invitedBy.ID,
+		WorkspaceID: request.IntendedWorkspaceID,
+	})
 
 	return &users_dto.InviteUserResponseDTO{
 		ID:                    user.ID,
@@ -409,15 +430,16 @@ func (s *UserService) InviteUser(
 	}, nil
 }
 
-func (s *UserService) GetUserByID(userID uuid.UUID) (*users_models.User, error) {
-	return s.userRepository.GetUserByID(userID)
+func (s *UserService) GetUserByID(ctx context.Context, userID uuid.UUID) (*users_models.User, error) {
+	return s.userRepository.GetUserByID(ctx, userID)
 }
 
-func (s *UserService) GetUserByEmail(email string) (*users_models.User, error) {
-	return s.userRepository.GetUserByEmail(email)
+func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*users_models.User, error) {
+	return s.userRepository.GetUserByEmail(ctx, email)
 }
 
 func (s *UserService) GetCurrentUserProfile(
+	ctx context.Context,
 	user *users_models.User,
 ) *users_dto.UserProfileResponseDTO {
 	return &users_dto.UserProfileResponseDTO{
@@ -431,10 +453,11 @@ func (s *UserService) GetCurrentUserProfile(
 }
 
 func (s *UserService) UpdateUserInfo(
+	ctx context.Context,
 	userID uuid.UUID,
 	request *users_dto.UpdateUserInfoRequestDTO,
 ) error {
-	user, err := s.userRepository.GetUserByID(userID)
+	user, err := s.userRepository.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -447,7 +470,7 @@ func (s *UserService) UpdateUserInfo(
 	}
 
 	if request.Email != nil && *request.Email != user.Email {
-		existingUser, err := s.userRepository.GetUserByEmail(*request.Email)
+		existingUser, err := s.userRepository.GetUserByEmail(ctx, *request.Email)
 		if err != nil {
 			return fmt.Errorf("failed to check email: %w", err)
 		}
@@ -476,19 +499,29 @@ func (s *UserService) UpdateUserInfo(
 
 	if len(auditMessages) > 0 {
 		for _, message := range auditMessages {
-			s.auditLogWriter.WriteAuditLog(message, &userID, nil)
+			s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     message,
+				UserID:      &userID,
+				WorkspaceID: nil,
+			})
 		}
 	} else {
-		s.auditLogWriter.WriteAuditLog("User info updated", &userID, nil)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     "User info updated",
+			UserID:      &userID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
 func (s *UserService) HandleGitHubOAuth(
+	ctx context.Context,
 	code, redirectUri string,
 ) (*users_dto.OAuthCallbackResponseDTO, error) {
 	return s.handleGitHubOAuthWithEndpoint(
+		ctx,
 		code,
 		redirectUri,
 		github.Endpoint,
@@ -497,9 +530,11 @@ func (s *UserService) HandleGitHubOAuth(
 }
 
 func (s *UserService) HandleGoogleOAuth(
+	ctx context.Context,
 	code, redirectUri string,
 ) (*users_dto.OAuthCallbackResponseDTO, error) {
 	return s.handleGoogleOAuthWithEndpoint(
+		ctx,
 		code,
 		redirectUri,
 		google.Endpoint,
@@ -507,8 +542,8 @@ func (s *UserService) HandleGoogleOAuth(
 	)
 }
 
-func (s *UserService) SendResetPasswordCode(email string) error {
-	user, err := s.userRepository.GetUserByEmail(email)
+func (s *UserService) SendResetPasswordCode(ctx context.Context, email string) error {
+	user, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -614,18 +649,18 @@ func (s *UserService) SendResetPasswordCode(email string) error {
 
 	// Audit log
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("Password reset code sent to: %s", user.Email),
-			&user.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Password reset code sent to: %s", user.Email),
+			UserID:      &user.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
-func (s *UserService) ResetPassword(email, code, newPassword string) error {
-	user, err := s.userRepository.GetUserByEmail(email)
+func (s *UserService) ResetPassword(ctx context.Context, email, code, newPassword string) error {
+	user, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -652,23 +687,24 @@ func (s *UserService) ResetPassword(email, code, newPassword string) error {
 	}
 
 	// Update user password
-	if err := s.ChangeUserPassword(user.ID, newPassword); err != nil {
+	if err := s.ChangeUserPassword(ctx, user.ID, newPassword); err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
 	// Audit log
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			"Password reset via email code",
-			&user.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     "Password reset via email code",
+			UserID:      &user.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return nil
 }
 
 func (s *UserService) handleGitHubOAuthWithEndpoint(
+	ctx context.Context,
 	code, redirectUri string,
 	endpoint oauth2.Endpoint,
 	userAPIURL string,
@@ -683,18 +719,22 @@ func (s *UserService) handleGitHubOAuthWithEndpoint(
 		Scopes:       []string{"user:email"},
 	}
 
-	token, err := oauthConfig.Exchange(context.Background(), code)
+	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "oauth code exchange failed", "error", err)
+
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	client := oauthConfig.Client(context.Background(), token)
-	githubReq, err := http.NewRequestWithContext(context.Background(), "GET", userAPIURL, nil)
+	client := oauthConfig.Client(ctx, token)
+	githubReq, err := http.NewRequestWithContext(ctx, "GET", userAPIURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user info request: %w", err)
 	}
 	resp, err := client.Do(githubReq)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "oauth user info request failed", "error", err)
+
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
 	defer func() {
@@ -723,7 +763,7 @@ func (s *UserService) handleGitHubOAuthWithEndpoint(
 
 	email := githubUser.Email
 	if email == "" {
-		email, err = s.fetchGitHubPrimaryEmail(client, userAPIURL)
+		email, err = s.fetchGitHubPrimaryEmail(ctx, client, userAPIURL)
 		if err != nil {
 			return nil, err
 		}
@@ -735,10 +775,11 @@ func (s *UserService) handleGitHubOAuthWithEndpoint(
 	}
 
 	oauthID := fmt.Sprintf("%d", githubUser.ID)
-	return s.getOrCreateUserFromOAuth(oauthID, email, name, "github")
+	return s.getOrCreateUserFromOAuth(ctx, oauthID, email, name, "github")
 }
 
 func (s *UserService) handleGoogleOAuthWithEndpoint(
+	ctx context.Context,
 	code, redirectUri string,
 	endpoint oauth2.Endpoint,
 	userAPIURL string,
@@ -756,18 +797,22 @@ func (s *UserService) handleGoogleOAuthWithEndpoint(
 		},
 	}
 
-	token, err := oauthConfig.Exchange(context.Background(), code)
+	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "oauth code exchange failed", "error", err)
+
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	client := oauthConfig.Client(context.Background(), token)
-	googleReq, err := http.NewRequestWithContext(context.Background(), "GET", userAPIURL, nil)
+	client := oauthConfig.Client(ctx, token)
+	googleReq, err := http.NewRequestWithContext(ctx, "GET", userAPIURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user info request: %w", err)
 	}
 	resp, err := client.Do(googleReq)
 	if err != nil {
+		s.logger.ErrorContext(ctx, "oauth user info request failed", "error", err)
+
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
 	defer func() {
@@ -802,10 +847,11 @@ func (s *UserService) handleGoogleOAuthWithEndpoint(
 		name = "User"
 	}
 
-	return s.getOrCreateUserFromOAuth(googleUser.ID, googleUser.Email, name, "google")
+	return s.getOrCreateUserFromOAuth(ctx, googleUser.ID, googleUser.Email, name, "google")
 }
 
 func (s *UserService) getOrCreateUserFromOAuth(
+	ctx context.Context,
 	oauthID, email, name, provider string,
 ) (*users_dto.OAuthCallbackResponseDTO, error) {
 	var existingUser *users_models.User
@@ -822,17 +868,17 @@ func (s *UserService) getOrCreateUserFromOAuth(
 	}
 
 	if existingUser != nil {
-		tokenResponse, err := s.GenerateAccessToken(existingUser)
+		tokenResponse, err := s.GenerateAccessToken(ctx, existingUser)
 		if err != nil {
 			return nil, err
 		}
 
 		if s.auditLogWriter != nil {
-			s.auditLogWriter.WriteAuditLog(
-				fmt.Sprintf("User signed in via %s", provider),
-				&existingUser.ID,
-				nil,
-			)
+			s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     fmt.Sprintf("User signed in via %s", provider),
+				UserID:      &existingUser.ID,
+				WorkspaceID: nil,
+			})
 		}
 
 		return &users_dto.OAuthCallbackResponseDTO{
@@ -843,7 +889,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		}, nil
 	}
 
-	userByEmail, err := s.userRepository.GetUserByEmail(email)
+	userByEmail, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check email: %w", err)
 	}
@@ -871,22 +917,22 @@ func (s *UserService) getOrCreateUserFromOAuth(
 			return nil, fmt.Errorf("failed to link OAuth ID: %w", err)
 		}
 
-		user, err := s.userRepository.GetUserByID(userByEmail.ID)
+		user, err := s.userRepository.GetUserByID(ctx, userByEmail.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get updated user: %w", err)
 		}
 
-		tokenResponse, err := s.GenerateAccessToken(user)
+		tokenResponse, err := s.GenerateAccessToken(ctx, user)
 		if err != nil {
 			return nil, err
 		}
 
 		if s.auditLogWriter != nil {
-			s.auditLogWriter.WriteAuditLog(
-				fmt.Sprintf("%s OAuth linked to existing account", provider),
-				&user.ID,
-				nil,
-			)
+			s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+				Message:     fmt.Sprintf("%s OAuth linked to existing account", provider),
+				UserID:      &user.ID,
+				WorkspaceID: nil,
+			})
 		}
 
 		return &users_dto.OAuthCallbackResponseDTO{
@@ -897,7 +943,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		}, nil
 	}
 
-	settings, err := s.settingsService.GetSettings()
+	settings, err := s.settingsService.GetSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get settings: %w", err)
 	}
@@ -931,17 +977,17 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	tokenResponse, err := s.GenerateAccessToken(newUser)
+	tokenResponse, err := s.GenerateAccessToken(ctx, newUser)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.auditLogWriter != nil {
-		s.auditLogWriter.WriteAuditLog(
-			fmt.Sprintf("User registered via %s OAuth: %s", provider, email),
-			&newUser.ID,
-			nil,
-		)
+		s.auditLogWriter.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("User registered via %s OAuth: %s", provider, email),
+			UserID:      &newUser.ID,
+			WorkspaceID: nil,
+		})
 	}
 
 	return &users_dto.OAuthCallbackResponseDTO{
@@ -953,6 +999,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 }
 
 func (s *UserService) fetchGitHubPrimaryEmail(
+	ctx context.Context,
 	client *http.Client,
 	userAPIURL string,
 ) (string, error) {
@@ -962,7 +1009,7 @@ func (s *UserService) fetchGitHubPrimaryEmail(
 		emailsURL = baseURL + "/user/emails"
 	}
 
-	emailsReq, err := http.NewRequestWithContext(context.Background(), "GET", emailsURL, nil)
+	emailsReq, err := http.NewRequestWithContext(ctx, "GET", emailsURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create user emails request: %w", err)
 	}

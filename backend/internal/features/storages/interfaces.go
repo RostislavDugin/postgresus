@@ -29,7 +29,12 @@ type StorageFileSaver interface {
 		fileName string,
 	) (io.ReadCloser, error)
 
-	DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error
+	DeleteFile(
+		ctx context.Context,
+		encryptor encryption.FieldEncryptor,
+		logger *slog.Logger,
+		fileName string,
+	) error
 
 	Validate(encryptor encryption.FieldEncryptor) error
 

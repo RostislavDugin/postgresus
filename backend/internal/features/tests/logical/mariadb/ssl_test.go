@@ -47,8 +47,8 @@ func Test_BackupAndRestoreMariadbSSL_Succeeds(t *testing.T) {
 	setupMariadbTestData(t, originalDB)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("MariaDB SSL Workspace", user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "MariaDB SSL Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	dbName := "testdb"
@@ -95,8 +95,8 @@ func Test_BackupAndRestoreMariadbSSL_Succeeds(t *testing.T) {
 		t, router, "/api/v1/databases/"+database.ID.String(),
 		"Bearer "+user.Token, http.StatusNoContent,
 	)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	storages.RemoveTestStorage(t.Context(), storage.ID)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func createMariadbSSLDatabaseViaAPI(

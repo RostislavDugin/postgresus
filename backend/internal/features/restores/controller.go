@@ -43,7 +43,7 @@ func (c *RestoreController) GetRestores(ctx *gin.Context) {
 		return
 	}
 
-	restores, err := c.restoreService.GetRestores(user, backupID)
+	restores, err := c.restoreService.GetRestores(ctx.Request.Context(), user, backupID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,7 +80,7 @@ func (c *RestoreController) RestoreBackup(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.restoreService.RestoreBackupWithAuth(user, backupID, requestDTO); err != nil {
+	if err := c.restoreService.RestoreBackupWithAuth(ctx.Request.Context(), user, backupID, requestDTO); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -110,7 +110,7 @@ func (c *RestoreController) CancelRestore(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.restoreService.CancelRestore(user, restoreID); err != nil {
+	if err := c.restoreService.CancelRestore(ctx.Request.Context(), user, restoreID); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

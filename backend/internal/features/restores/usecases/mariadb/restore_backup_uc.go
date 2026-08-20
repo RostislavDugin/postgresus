@@ -50,10 +50,10 @@ func (uc *RestoreMariadbBackupUsecase) Execute(
 		return errors.New("database type not supported")
 	}
 
-	uc.logger.Info(
-		"Restoring MariaDB backup via mariadb client",
-		"restoreId", restore.ID,
-		"backupId", backup.ID,
+	uc.logger.InfoContext(parentCtx,
+		"restoring MariaDB backup via mariadb client",
+		"restore_id", restore.ID,
+		"backup_id", backup.ID,
 	)
 
 	mdb := restoringToDB.Mariadb
@@ -159,7 +159,7 @@ func (uc *RestoreMariadbBackupUsecase) restoreFromStorage(
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			logger.Error("failed to close backup reader", "error", err)
+			logger.ErrorContext(parentCtx, "failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -186,7 +186,7 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
 
 	cmd := exec.CommandContext(ctx, mariadbBin, fullArgs...)
-	uc.logger.Info("Executing MariaDB restore command", "command", cmd.String())
+	uc.logger.InfoContext(ctx, "executing MariaDB restore command", "command", cmd.String())
 
 	storageReadFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
 
@@ -295,7 +295,7 @@ func (uc *RestoreMariadbBackupUsecase) setupDecryption(
 		return nil, fmt.Errorf("failed to create decryption reader: %w", err)
 	}
 
-	uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+	uc.logger.Info("using decryption for encrypted backup", "backup_id", backup.ID)
 	return decryptReader, nil
 }
 

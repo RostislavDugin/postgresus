@@ -42,7 +42,7 @@ func (c *VerificationConfigController) GetByDatabaseID(ctx *gin.Context) {
 		return
 	}
 
-	config, err := c.verificationConfigService.GetByDatabaseID(user, databaseID)
+	config, err := c.verificationConfigService.GetByDatabaseID(ctx.Request.Context(), user, databaseID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -83,7 +83,7 @@ func (c *VerificationConfigController) Save(ctx *gin.Context) {
 		return
 	}
 
-	config, err := c.verificationConfigService.Save(user, databaseID, &req)
+	config, err := c.verificationConfigService.Save(ctx.Request.Context(), user, databaseID, &req)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

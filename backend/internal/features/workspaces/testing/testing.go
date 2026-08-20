@@ -41,39 +41,43 @@ func CreateTestRouter(controllers ...ControllerInterface) *gin.Engine {
 }
 
 func CreateTestWorkspace(
+	ctx context.Context,
 	name string,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
 ) *workspaces_models.Workspace {
-	workspace, _ := CreateTestWorkspaceViaAPI(name, owner, router)
+	workspace, _ := CreateTestWorkspaceViaAPI(ctx, name, owner, router)
 	return workspace
 }
 
 func CreateTestWorkspaceViaAPI(
+	ctx context.Context,
 	name string,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
 ) (*workspaces_models.Workspace, string) {
-	return createTestWorkspaceViaAPI(name, owner, router, true)
+	return createTestWorkspaceViaAPI(ctx, name, owner, router, true)
 }
 
 func CreateTestWorkspaceViaAPIWithoutSettingsChange(
+	ctx context.Context,
 	name string,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
 ) (*workspaces_models.Workspace, string) {
-	return createTestWorkspaceViaAPI(name, owner, router, false)
+	return createTestWorkspaceViaAPI(ctx, name, owner, router, false)
 }
 
 func createTestWorkspaceViaAPI(
+	ctx context.Context,
 	name string,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
 	enableMemberCreation bool,
 ) (*workspaces_models.Workspace, string) {
 	if enableMemberCreation {
-		users_testing.EnableMemberWorkspaceCreation()
-		defer users_testing.ResetSettingsToDefaults()
+		users_testing.EnableMemberWorkspaceCreation(ctx)
+		defer users_testing.ResetSettingsToDefaults(ctx)
 	}
 
 	request := workspaces_dto.CreateWorkspaceRequestDTO{Name: name}
@@ -103,30 +107,33 @@ func createTestWorkspaceViaAPI(
 }
 
 func CreateTestWorkspaceWithToken(
+	ctx context.Context,
 	name string,
 	token string,
 	router *gin.Engine,
 ) (*workspaces_models.Workspace, string) {
-	return createTestWorkspaceWithToken(name, token, router, true)
+	return createTestWorkspaceWithToken(ctx, name, token, router, true)
 }
 
 func CreateTestWorkspaceWithTokenWithoutSettingsChange(
+	ctx context.Context,
 	name string,
 	token string,
 	router *gin.Engine,
 ) (*workspaces_models.Workspace, string) {
-	return createTestWorkspaceWithToken(name, token, router, false)
+	return createTestWorkspaceWithToken(ctx, name, token, router, false)
 }
 
 func createTestWorkspaceWithToken(
+	ctx context.Context,
 	name string,
 	token string,
 	router *gin.Engine,
 	enableMemberCreation bool,
 ) (*workspaces_models.Workspace, string) {
 	if enableMemberCreation {
-		users_testing.EnableMemberWorkspaceCreation()
-		defer users_testing.ResetSettingsToDefaults()
+		users_testing.EnableMemberWorkspaceCreation(ctx)
+		defer users_testing.ResetSettingsToDefaults(ctx)
 	}
 
 	request := workspaces_dto.CreateWorkspaceRequestDTO{Name: name}
@@ -181,6 +188,7 @@ func AddMemberToWorkspace(
 }
 
 func AddMemberToWorkspaceViaOwner(
+	ctx context.Context,
 	workspace *workspaces_models.Workspace,
 	member *users_dto.SignInResponseDTO,
 	role users_enums.WorkspaceRole,
@@ -197,12 +205,12 @@ func AddMemberToWorkspaceViaOwner(
 		if m.Role == users_enums.WorkspaceRoleOwner {
 			userService := users_services.GetUserService()
 
-			owner, err := userService.GetUserByID(m.UserID)
+			owner, err := userService.GetUserByID(ctx, m.UserID)
 			if err != nil {
 				panic("Failed to get owner user: " + err.Error())
 			}
 
-			tokenResponse, err := userService.GenerateAccessToken(owner)
+			tokenResponse, err := userService.GenerateAccessToken(ctx, owner)
 			if err != nil {
 				panic("Failed to generate owner token: " + err.Error())
 			}
@@ -372,7 +380,11 @@ func DeleteWorkspace(
 	}
 }
 
-func RemoveTestWorkspace(workspace *workspaces_models.Workspace, router *gin.Engine) {
+// The context is stripped of cancellation because callers pass t.Context() from a t.Cleanup, and
+// the test context is already cancelled by the time cleanup runs.
+func RemoveTestWorkspace(ctx context.Context, workspace *workspaces_models.Workspace, router *gin.Engine) {
+	ctx = context.WithoutCancel(ctx)
+
 	membershipRepo := &workspaces_repositories.MembershipRepository{}
 	workspaceMembers, err := membershipRepo.GetWorkspaceMembers(workspace.ID)
 	if err != nil {
@@ -390,14 +402,14 @@ func RemoveTestWorkspace(workspace *workspaces_models.Workspace, router *gin.Eng
 		if m.Role == users_enums.WorkspaceRoleOwner {
 			userService := users_services.GetUserService()
 
-			owner, err := userService.GetUserByID(m.UserID)
+			owner, err := userService.GetUserByID(ctx, m.UserID)
 			if err != nil {
 				// Owner user not found, workspace might be in inconsistent state, try direct deletion
 				_ = RemoveTestWorkspaceDirect(workspace.ID)
 				return
 			}
 
-			tokenResponse, err := userService.GenerateAccessToken(owner)
+			tokenResponse, err := userService.GenerateAccessToken(ctx, owner)
 			if err != nil {
 				// Cannot generate token, try direct deletion
 				_ = RemoveTestWorkspaceDirect(workspace.ID)

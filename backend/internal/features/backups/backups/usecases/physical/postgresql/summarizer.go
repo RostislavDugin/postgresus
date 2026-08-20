@@ -145,7 +145,8 @@ func summarizerGoThresholdBytes(ctx context.Context, conn *pgx.Conn) (int64, err
 
 	// current_setting reports the GUC with its display unit (e.g. "16MB"), so
 	// run it through pg_size_bytes rather than a raw ::bigint cast.
-	if err := conn.QueryRow(ctx,
+	if err := conn.QueryRow(
+		ctx,
 		"SELECT pg_size_bytes(current_setting('wal_segment_size'))::bigint",
 	).Scan(&segmentSizeBytes); err != nil {
 		return 0, fmt.Errorf("read wal_segment_size: %w", err)
@@ -224,7 +225,8 @@ func waitForSummarizer(
 func isSummarizerEnabled(ctx context.Context, conn *pgx.Conn) (bool, error) {
 	var setting string
 
-	if err := conn.QueryRow(ctx,
+	if err := conn.QueryRow(
+		ctx,
 		"SELECT setting FROM pg_settings WHERE name = 'summarize_wal'",
 	).Scan(&setting); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

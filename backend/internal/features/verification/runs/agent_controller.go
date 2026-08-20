@@ -54,8 +54,9 @@ func (c *VerificationAgentController) Claim(ctx *gin.Context) {
 		return
 	}
 
-	assignment, err := c.verificationService.ClaimVerification(agent, &req)
+	assignment, err := c.verificationService.ClaimVerification(ctx.Request.Context(), agent, &req)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -102,7 +103,8 @@ func (c *VerificationAgentController) BackupStream(ctx *gin.Context) {
 
 	defer func() {
 		if closeErr := reader.Close(); closeErr != nil {
-			c.logger.Error(
+			c.logger.ErrorContext(
+				ctx.Request.Context(),
 				"failed to close backup reader",
 				"error", closeErr,
 				"verification_id", verificationID,
@@ -117,7 +119,8 @@ func (c *VerificationAgentController) BackupStream(ctx *gin.Context) {
 	)
 
 	if _, err := io.Copy(ctx.Writer, reader); err != nil {
-		c.logger.Error(
+		c.logger.ErrorContext(
+			ctx.Request.Context(),
 			"failed to stream backup to agent",
 			"error", err,
 			"verification_id", verificationID,
@@ -159,7 +162,7 @@ func (c *VerificationAgentController) Report(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.verificationService.SubmitReport(agent, verificationID, &req); err != nil {
+	if err := c.verificationService.SubmitReport(ctx.Request.Context(), agent, verificationID, &req); err != nil {
 		if err.Error() == "verification gone" {
 			ctx.JSON(http.StatusGone, gin.H{"reason": "gone"})
 			return

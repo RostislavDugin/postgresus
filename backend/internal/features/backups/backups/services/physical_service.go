@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
 	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
 	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
@@ -71,11 +72,12 @@ type PhysicalBackupService struct {
 // SQL so a database with many WAL segments never loads its whole catalog. The
 // aggregate on-disk usage rides along so the UI need not sum it.
 func (s *PhysicalBackupService) GetBackups(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 	request *backups_dto_physical.GetPhysicalBackupsRequest,
 ) (*backups_dto_physical.GetPhysicalBackupsResponse, error) {
-	if _, err := s.databaseService.GetDatabase(user, databaseID); err != nil {
+	if _, err := s.databaseService.GetDatabase(ctx, user, databaseID); err != nil {
 		return nil, err
 	}
 
@@ -115,8 +117,12 @@ func (s *PhysicalBackupService) GetBackups(
 // RequestBackup triggers the backup the scheduler would naturally pick next:
 // an incremental when incrementals are enabled and an extendable chain exists,
 // otherwise a full.
-func (s *PhysicalBackupService) RequestBackup(user *users_models.User, databaseID uuid.UUID) error {
-	database, err := s.authorizeManage(user, databaseID)
+func (s *PhysicalBackupService) RequestBackup(
+	ctx context.Context,
+	user *users_models.User,
+	databaseID uuid.UUID,
+) error {
+	database, err := s.authorizeManage(ctx, user, databaseID)
 	if err != nil {
 		return err
 	}
@@ -130,14 +136,18 @@ func (s *PhysicalBackupService) RequestBackup(user *users_models.User, databaseI
 		return err
 	}
 
-	s.writeBackupAuditLog(user, database,
+	s.writeBackupAuditLog(ctx, user, database,
 		fmt.Sprintf("Physical backup requested for database: %s", database.Name))
 
 	return nil
 }
 
-func (s *PhysicalBackupService) RequestFullBackup(user *users_models.User, databaseID uuid.UUID) error {
-	database, err := s.authorizeManage(user, databaseID)
+func (s *PhysicalBackupService) RequestFullBackup(
+	ctx context.Context,
+	user *users_models.User,
+	databaseID uuid.UUID,
+) error {
+	database, err := s.authorizeManage(ctx, user, databaseID)
 	if err != nil {
 		return err
 	}
@@ -146,14 +156,18 @@ func (s *PhysicalBackupService) RequestFullBackup(user *users_models.User, datab
 		return err
 	}
 
-	s.writeBackupAuditLog(user, database,
+	s.writeBackupAuditLog(ctx, user, database,
 		fmt.Sprintf("Physical full backup requested for database: %s", database.Name))
 
 	return nil
 }
 
-func (s *PhysicalBackupService) RequestIncrementalBackup(user *users_models.User, databaseID uuid.UUID) error {
-	database, err := s.authorizeManage(user, databaseID)
+func (s *PhysicalBackupService) RequestIncrementalBackup(
+	ctx context.Context,
+	user *users_models.User,
+	databaseID uuid.UUID,
+) error {
+	database, err := s.authorizeManage(ctx, user, databaseID)
 	if err != nil {
 		return err
 	}
@@ -171,7 +185,7 @@ func (s *PhysicalBackupService) RequestIncrementalBackup(user *users_models.User
 		return err
 	}
 
-	s.writeBackupAuditLog(user, database,
+	s.writeBackupAuditLog(ctx, user, database,
 		fmt.Sprintf("Physical incremental backup requested for database: %s", database.Name))
 
 	return nil
@@ -180,7 +194,7 @@ func (s *PhysicalBackupService) RequestIncrementalBackup(user *users_models.User
 // CancelBackup stops an in-progress FULL or incremental backup: it authorizes
 // the caller against the owning database, refuses anything not currently
 // running, then cancels the in-flight task and releases its claim.
-func (s *PhysicalBackupService) CancelBackup(user *users_models.User, backupID uuid.UUID) error {
+func (s *PhysicalBackupService) CancelBackup(ctx context.Context, user *users_models.User, backupID uuid.UUID) error {
 	databaseID, status, found, err := s.resolveBackupDatabaseAndStatus(backupID)
 	if err != nil {
 		return err
@@ -189,7 +203,7 @@ func (s *PhysicalBackupService) CancelBackup(user *users_models.User, backupID u
 		return ErrBackupNotFound
 	}
 
-	database, err := s.authorizeManage(user, databaseID)
+	database, err := s.authorizeManage(ctx, user, databaseID)
 	if err != nil {
 		return err
 	}
@@ -209,7 +223,7 @@ func (s *PhysicalBackupService) CancelBackup(user *users_models.User, backupID u
 		return ErrBackupNotInProgress
 	}
 
-	s.writeBackupAuditLog(user, database,
+	s.writeBackupAuditLog(ctx, user, database,
 		fmt.Sprintf("Physical backup cancelled for database: %s", database.Name))
 
 	return nil
@@ -222,22 +236,22 @@ func (s *PhysicalBackupService) CancelBackup(user *users_models.User, backupID u
 //   - incremental: that incremental and every incremental descending from it;
 //     WAL and the FULL are left intact.
 //   - WAL: that segment and every later segment up to the next FULL/INCR anchor.
-func (s *PhysicalBackupService) DeleteBackup(user *users_models.User, backupID uuid.UUID) error {
+func (s *PhysicalBackupService) DeleteBackup(ctx context.Context, user *users_models.User, backupID uuid.UUID) error {
 	full, err := s.fullBackupRepository.FindByID(backupID)
 	if err != nil {
 		return err
 	}
 	if full != nil {
-		database, err := s.authorizeManage(user, full.DatabaseID)
+		database, err := s.authorizeManage(ctx, user, full.DatabaseID)
 		if err != nil {
 			return err
 		}
 
-		if err := s.deleteFull(full); err != nil {
+		if err := s.deleteFull(ctx, full); err != nil {
 			return err
 		}
 
-		s.writeBackupAuditLog(user, database,
+		s.writeBackupAuditLog(ctx, user, database,
 			fmt.Sprintf("Physical full backup deleted for database: %s", database.Name))
 
 		return nil
@@ -248,16 +262,16 @@ func (s *PhysicalBackupService) DeleteBackup(user *users_models.User, backupID u
 		return err
 	}
 	if incremental != nil {
-		database, err := s.authorizeManage(user, incremental.DatabaseID)
+		database, err := s.authorizeManage(ctx, user, incremental.DatabaseID)
 		if err != nil {
 			return err
 		}
 
-		if err := s.deleteIncremental(incremental); err != nil {
+		if err := s.deleteIncremental(ctx, incremental); err != nil {
 			return err
 		}
 
-		s.writeBackupAuditLog(user, database,
+		s.writeBackupAuditLog(ctx, user, database,
 			fmt.Sprintf("Physical incremental backup deleted for database: %s", database.Name))
 
 		return nil
@@ -268,16 +282,16 @@ func (s *PhysicalBackupService) DeleteBackup(user *users_models.User, backupID u
 		return err
 	}
 	if walSegment != nil {
-		database, err := s.authorizeManage(user, walSegment.DatabaseID)
+		database, err := s.authorizeManage(ctx, user, walSegment.DatabaseID)
 		if err != nil {
 			return err
 		}
 
-		if _, _, err := s.physicalCoreService.DeleteWalSegment(context.Background(), walSegment.ID); err != nil {
+		if _, _, err := s.physicalCoreService.DeleteWalSegment(ctx, walSegment.ID); err != nil {
 			return err
 		}
 
-		s.writeBackupAuditLog(user, database,
+		s.writeBackupAuditLog(ctx, user, database,
 			fmt.Sprintf("Physical WAL segment deleted for database: %s", database.Name))
 
 		return nil
@@ -292,11 +306,12 @@ func (s *PhysicalBackupService) DeleteBackup(user *users_models.User, backupID u
 // — a WAL gap, no chain, or a target before the earliest full — is reported here
 // rather than burning a token that only fails once the user runs the curl.
 func (s *PhysicalBackupService) GenerateRestoreToken(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 	request *backups_dto_physical.GenerateRestoreTokenRequest,
 ) (string, error) {
-	if _, err := s.databaseService.GetDatabase(user, databaseID); err != nil {
+	if _, err := s.databaseService.GetDatabase(ctx, user, databaseID); err != nil {
 		return "", err
 	}
 
@@ -304,7 +319,7 @@ func (s *PhysicalBackupService) GenerateRestoreToken(
 		return "", err
 	}
 
-	return s.restoreTokenService.GenerateRestoreToken(databaseID, user.ID, request.TargetTime)
+	return s.restoreTokenService.GenerateRestoreToken(ctx, databaseID, user.ID, request.TargetTime)
 }
 
 // GenerateBackupRestoreToken authorizes the caller and issues a single-use token
@@ -312,6 +327,7 @@ func (s *PhysicalBackupService) GenerateRestoreToken(
 // a specific FULL or incremental. It resolves the restore set up front so a
 // missing or not-yet-restorable backup is reported here, not mid-stream.
 func (s *PhysicalBackupService) GenerateBackupRestoreToken(
+	ctx context.Context,
 	user *users_models.User,
 	backupID uuid.UUID,
 ) (string, error) {
@@ -323,7 +339,7 @@ func (s *PhysicalBackupService) GenerateBackupRestoreToken(
 		return "", ErrBackupNotFound
 	}
 
-	if _, err := s.databaseService.GetDatabase(user, databaseID); err != nil {
+	if _, err := s.databaseService.GetDatabase(ctx, user, databaseID); err != nil {
 		return "", err
 	}
 
@@ -331,7 +347,7 @@ func (s *PhysicalBackupService) GenerateBackupRestoreToken(
 		return "", err
 	}
 
-	return s.restoreTokenService.GenerateBackupRestoreToken(databaseID, user.ID, backupID)
+	return s.restoreTokenService.GenerateBackupRestoreToken(ctx, databaseID, user.ID, backupID)
 }
 
 // Performs NO authorization — callers gate access (the user path via a restore token, restore
@@ -378,7 +394,7 @@ func (s *PhysicalBackupService) writeRestoreStream(
 	return s.restoreStreamWriter.Write(ctx, w, set, masterKey)
 }
 
-func (s *PhysicalBackupService) deleteFull(full *physical_models.PhysicalFullBackup) error {
+func (s *PhysicalBackupService) deleteFull(ctx context.Context, full *physical_models.PhysicalFullBackup) error {
 	s.stopInFlightForDelete(full.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
 		if inFlightBackupID == full.ID {
 			return true
@@ -395,12 +411,15 @@ func (s *PhysicalBackupService) deleteFull(full *physical_models.PhysicalFullBac
 		return s.fullBackupRepository.DeleteByID(full.ID)
 	}
 
-	_, err := s.physicalCoreService.DeleteFullCompletely(context.Background(), full.ID)
+	_, err := s.physicalCoreService.DeleteFullCompletely(ctx, full.ID)
 
 	return err
 }
 
-func (s *PhysicalBackupService) deleteIncremental(target *physical_models.PhysicalIncrementalBackup) error {
+func (s *PhysicalBackupService) deleteIncremental(
+	ctx context.Context,
+	target *physical_models.PhysicalIncrementalBackup,
+) error {
 	s.stopInFlightForDelete(target.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
 		if inFlightBackupID == target.ID {
 			return true
@@ -417,7 +436,7 @@ func (s *PhysicalBackupService) deleteIncremental(target *physical_models.Physic
 			*claimed.StartLSN >= *target.StartLSN
 	})
 
-	_, err := s.physicalCoreService.DeleteIncrementalCascade(context.Background(), target.ID)
+	_, err := s.physicalCoreService.DeleteIncrementalCascade(ctx, target.ID)
 
 	return err
 }
@@ -475,10 +494,11 @@ func (s *PhysicalBackupService) requestSchedulerChoice(
 // state-changing physical-backup operation — trigger, cancel, delete — matching
 // the logical backup service.
 func (s *PhysicalBackupService) authorizeManage(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 ) (*databases.Database, error) {
-	database, err := s.databaseService.GetDatabase(user, databaseID)
+	database, err := s.databaseService.GetDatabase(ctx, user, databaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -487,7 +507,7 @@ func (s *PhysicalBackupService) authorizeManage(
 		return nil, errors.New("cannot manage backups for a database without a workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -502,11 +522,16 @@ func (s *PhysicalBackupService) authorizeManage(
 // writeBackupAuditLog records a workspace audit entry for a state-changing
 // physical-backup operation, attributing it to the acting user.
 func (s *PhysicalBackupService) writeBackupAuditLog(
+	ctx context.Context,
 	user *users_models.User,
 	database *databases.Database,
 	message string,
 ) {
-	s.auditLogService.WriteAuditLog(message, &user.ID, database.WorkspaceID)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     message,
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 }
 
 // resolveBackupDatabaseAndStatus probes the FULL then incremental tables for a

@@ -35,7 +35,7 @@ func (c *HealthcheckController) CheckHealth(ctx *gin.Context) {
 		return
 	}
 
-	err := c.healthcheckService.IsHealthy()
+	err := c.healthcheckService.IsHealthy(ctx.Request.Context())
 
 	if err == nil {
 		ctx.JSON(

@@ -1,6 +1,7 @@
 package mongodb_logical
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -65,12 +66,12 @@ func Test_MongodbBackupRestore_OverSshTunnel_RestoresData(t *testing.T) {
 	setupMongodbTestData(t, sourceContainer)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("MongoDB SSH Tunnel Workspace", user, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "MongoDB SSH Tunnel Workspace", user, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	storage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(storage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), storage.ID) })
 
 	database := logicaltesting.SubmitCreateDatabase(t, router, "MongoDB cycle over SSH tunnel",
 		databases.Database{

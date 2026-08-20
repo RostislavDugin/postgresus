@@ -387,7 +387,7 @@ logger.Error(fmt.Sprintf("failed to save subscription: %v", err))
 
 Every log line must carry enough to reconstruct one entity's history:
 
-- **`request_id`** — auto-generated per HTTP request by Gin middleware and echoed back in the response. Attached to every log inside an HTTP request; do not add it manually.
+- **`request_id`** — auto-generated per HTTP request by `middleware.AssignRequestID()`, echoed back as `X-Request-Id`, and carried in the request's `context.Context`. The fan-out handler attaches it to any record logged through a `...Context` method, so on the request path use `logger.InfoContext(ctx, ...)` / `ErrorContext` and pass `ctx.Request.Context()` from the controller into the service. Never set `request_id` by hand.
 - **`user_id`, `database_id`, `backup_id`, `verification_id`, etc.** — attach via `logger.With(...)` at the boundary where the entity becomes known so downstream logs inherit it.
 - **Background jobs / schedulers** (no HTTP request, no `request_id`): pass these inline on every log call:
   - **`job_id`** — fresh UUID per execution; the correlation ID for one run.
@@ -460,7 +460,7 @@ func (c *AuditLogController) GetGlobalAuditLogs(ctx *gin.Context) {
         return
     }
 
-    response, err := c.auditLogService.GetGlobalAuditLogs(user, request)
+    response, err := c.auditLogService.GetGlobalAuditLogs(ctx.Request.Context(), user, request)
     if err != nil {
         if err.Error() == "only administrators can view global audit logs" {
             ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -481,6 +481,7 @@ var auditLogRepository = &AuditLogRepository{}
 var auditLogService = &AuditLogService{
     auditLogRepository,
     logger.GetLogger(),
+    logger.GetAuditLogger(),
 }
 var auditLogController = &AuditLogController{auditLogService}
 
@@ -537,10 +538,14 @@ func (r *AuditLogRepository) Create(auditLog *AuditLog) error {
     return storage.GetDb().Create(auditLog).Error
 }
 
-func (r *AuditLogRepository) GetGlobal(limit, offset int, beforeDate *time.Time) ([]*AuditLog, error) {
+func (r *AuditLogRepository) GetGlobal(
+    ctx context.Context,
+    limit, offset int,
+    beforeDate *time.Time,
+) ([]*AuditLog, error) {
     var auditLogs []*AuditLog
 
-    query := storage.GetDb().Order("created_at DESC")
+    query := storage.GetDb().WithContext(ctx).Order("created_at DESC")
     if beforeDate != nil {
         query = query.Where("created_at < ?", *beforeDate)
     }
@@ -557,22 +562,26 @@ func (r *AuditLogRepository) GetGlobal(limit, offset int, beforeDate *time.Time)
 type AuditLogService struct {
     auditLogRepository *AuditLogRepository
     logger             *slog.Logger
+    auditLogger        *slog.Logger
 }
 
-func (s *AuditLogService) WriteAuditLog(message string, userID, projectID *uuid.UUID) {
+func (s *AuditLogService) WriteAuditLog(ctx context.Context, entry audit_logs_models.AuditEntry) {
     auditLog := &AuditLog{
-        UserID:    userID,
-        ProjectID: projectID,
-        Message:   message,
+        UserID:    entry.UserID,
+        ProjectID: entry.ProjectID,
+        Message:   entry.Message,
         CreatedAt: time.Now().UTC(),
     }
 
+    s.auditLogger.InfoContext(ctx, entry.Message, "user_id", entry.UserID, "project_id", entry.ProjectID)
+
     if err := s.auditLogRepository.Create(auditLog); err != nil {
-        s.logger.Error("failed to create audit log", "error", err)
+        s.logger.ErrorContext(ctx, "failed to create audit log", "error", err)
     }
 }
 
 func (s *AuditLogService) GetGlobalAuditLogs(
+    ctx context.Context,
     user *user_models.User,
     request *GetAuditLogsRequest,
 ) (*GetAuditLogsResponse, error) {
@@ -587,12 +596,12 @@ func (s *AuditLogService) GetGlobalAuditLogs(
 
     offset := max(request.Offset, 0)
 
-    auditLogs, err := s.auditLogRepository.GetGlobal(limit, offset, request.BeforeDate)
+    auditLogs, err := s.auditLogRepository.GetGlobal(ctx, limit, offset, request.BeforeDate)
     if err != nil {
         return nil, err
     }
 
-    total, err := s.auditLogRepository.CountGlobal(request.BeforeDate)
+    total, err := s.auditLogRepository.CountGlobal(ctx, request.BeforeDate)
     if err != nil {
         return nil, err
     }

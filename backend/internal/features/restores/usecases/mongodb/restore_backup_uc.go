@@ -50,10 +50,10 @@ func (uc *RestoreMongodbBackupUsecase) Execute(
 		return errors.New("database type not supported")
 	}
 
-	uc.logger.Info(
-		"Restoring MongoDB backup via mongorestore",
-		"restoreId", restore.ID,
-		"backupId", backup.ID,
+	uc.logger.InfoContext(parentCtx,
+		"restoring MongoDB backup via mongorestore",
+		"restore_id", restore.ID,
+		"backup_id", backup.ID,
 	)
 
 	mdb := restoringToDB.Mongodb
@@ -159,7 +159,7 @@ func (uc *RestoreMongodbBackupUsecase) restoreFromStorage(
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			logger.Error("failed to close backup reader", "error", err)
+			logger.ErrorContext(parentCtx, "failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -183,8 +183,9 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 			safeArgs[i] = arg
 		}
 	}
-	uc.logger.Info(
-		"Executing MongoDB restore command",
+	uc.logger.InfoContext(
+		ctx,
+		"executing MongoDB restore command",
 		"command",
 		mongorestoreBin,
 		"args",

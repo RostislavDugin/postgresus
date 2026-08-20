@@ -82,8 +82,16 @@ func (s *AzureBlobStorage) SaveFile(
 
 	client, err := s.getClient(encryptor)
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to build the azure blob client",
+			"container", s.ContainerName, "error", err)
+
 		return err
 	}
+
+	startedAt := time.Now().UTC()
+
+	logger.DebugContext(ctx, "saving file to azure blob storage",
+		"file_name", fileName, "container", s.ContainerName)
 
 	blobName := s.buildBlobName(fileName)
 	blockBlobClient := client.ServiceClient().
@@ -145,15 +153,27 @@ func (s *AzureBlobStorage) SaveFile(
 			nil,
 		)
 		if err != nil {
+			logger.ErrorContext(ctx, "failed to save empty file to azure blob storage",
+				"file_name", fileName, "error", err)
+
 			return fmt.Errorf("failed to upload empty blob: %w", err)
 		}
+
+		logger.DebugContext(ctx, "saved empty file to azure blob storage", "file_name", fileName)
+
 		return nil
 	}
 
 	_, err = blockBlobClient.CommitBlockList(ctx, blockIDs, &blockblob.CommitBlockListOptions{})
 	if err != nil {
+		logger.ErrorContext(ctx, "failed to save file to azure blob storage",
+			"file_name", fileName, "error", err)
+
 		return fmt.Errorf("failed to commit block list: %w", err)
 	}
+
+	logger.DebugContext(ctx, fmt.Sprintf("saved file to azure blob storage: %d blocks in %s",
+		len(blockIDs), time.Since(startedAt)), "file_name", fileName)
 
 	return nil
 }
@@ -210,7 +230,12 @@ func getBlobSizeOrUnknown(contentLength *int64) int64 {
 	return *contentLength
 }
 
-func (s *AzureBlobStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileName string) error {
+func (s *AzureBlobStorage) DeleteFile(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+	logger *slog.Logger,
+	fileName string,
+) error {
 	client, err := s.getClient(encryptor)
 	if err != nil {
 		return err
@@ -218,11 +243,13 @@ func (s *AzureBlobStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileN
 
 	blobName := s.buildBlobName(fileName)
 
-	ctx, cancel := context.WithTimeout(context.Background(), azureDeleteTimeout)
+	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
+	// operation carries its own deadline; the caller's ctx stays for log correlation only.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), azureDeleteTimeout)
 	defer cancel()
 
 	_, err = client.DeleteBlob(
-		ctx,
+		deleteCtx,
 		s.ContainerName,
 		blobName,
 		nil,
@@ -234,6 +261,8 @@ func (s *AzureBlobStorage) DeleteFile(encryptor encryption.FieldEncryptor, fileN
 		}
 		return fmt.Errorf("failed to delete blob from Azure: %w", err)
 	}
+
+	logger.DebugContext(ctx, "deleted file from azure blob storage", "file_name", fileName)
 
 	return nil
 }

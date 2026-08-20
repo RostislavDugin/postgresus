@@ -75,6 +75,7 @@ func (c *ManagementController) GetUsers(ctx *gin.Context) {
 	}
 
 	users, total, err := c.managementService.GetUsers(
+		ctx.Request.Context(),
 		user,
 		request.Limit,
 		request.Offset,
@@ -133,7 +134,7 @@ func (c *ManagementController) GetUserProfile(ctx *gin.Context) {
 		return
 	}
 
-	user, err := c.managementService.GetUserProfile(userID, currentUser)
+	user, err := c.managementService.GetUserProfile(ctx.Request.Context(), userID, currentUser)
 	if err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
@@ -176,7 +177,7 @@ func (c *ManagementController) DeactivateUser(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.managementService.DeactivateUser(userID, currentUser); err != nil {
+	if err := c.managementService.DeactivateUser(ctx.Request.Context(), userID, currentUser); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -209,7 +210,7 @@ func (c *ManagementController) ActivateUser(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.managementService.ActivateUser(userID, currentUser); err != nil {
+	if err := c.managementService.ActivateUser(ctx.Request.Context(), userID, currentUser); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -251,7 +252,7 @@ func (c *ManagementController) ChangeUserRole(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.managementService.ChangeUserRole(userID, request.Role, currentUser); err != nil {
+	if err := c.managementService.ChangeUserRole(ctx.Request.Context(), userID, request.Role, currentUser); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

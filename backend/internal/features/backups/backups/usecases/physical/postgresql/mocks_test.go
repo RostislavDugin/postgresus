@@ -82,7 +82,12 @@ func (m *mockWalStorage) stopFailingSaves() {
 	m.isFailingAllSaves.Store(false)
 }
 
-func (m *mockWalStorage) DeleteFile(_ encryption.FieldEncryptor, fileName string) error {
+func (m *mockWalStorage) DeleteFile(
+	_ context.Context,
+	_ encryption.FieldEncryptor,
+	_ *slog.Logger,
+	fileName string,
+) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

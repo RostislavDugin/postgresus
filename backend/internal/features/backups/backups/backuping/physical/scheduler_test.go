@@ -349,7 +349,7 @@ func Test_EvaluateConfig_WhenInFlightClaimExists_SkipsWithoutNewRow(t *testing.T
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	scheduler.evaluateConfig(time.Now().UTC(), prereqs.Config)
+	scheduler.evaluateConfig(t.Context(), logger.GetLogger(), time.Now().UTC(), prereqs.Config)
 
 	lastFull, _ := physical_repositories.GetFullBackupRepository().FindLastFullAnyStatusByDatabase(prereqs.DB.ID)
 	assert.Nil(t, lastFull, "the existing claim must block a new typed row this tick")
@@ -471,7 +471,7 @@ func Test_RecoverInFlightOnRestart_FailsAndReleasesClaim(t *testing.T) {
 	scheduler := CreateTestPhysicalScheduler()
 	backupID := seedInProgressFullWithClaim(t, prereqs)
 
-	require.NoError(t, scheduler.recoverInFlightBackupsOnRestart())
+	require.NoError(t, scheduler.recoverInFlightBackupsOnRestart(t.Context(), logger.GetLogger()))
 
 	got, _ := physical_repositories.GetFullBackupRepository().FindByID(backupID)
 	require.NotNil(t, got)
@@ -539,7 +539,7 @@ func Test_EvaluateConfig_WhenStorageIDNil_SkipsWithoutScheduling(t *testing.T) {
 	prereqs.Config.StorageID = nil
 	scheduler := CreateTestPhysicalScheduler()
 
-	scheduler.evaluateConfig(time.Now().UTC(), prereqs.Config)
+	scheduler.evaluateConfig(t.Context(), logger.GetLogger(), time.Now().UTC(), prereqs.Config)
 
 	lastFull, _ := physical_repositories.GetFullBackupRepository().FindLastFullAnyStatusByDatabase(prereqs.DB.ID)
 	assert.Nil(t, lastFull, "a config without a storage id must schedule nothing")

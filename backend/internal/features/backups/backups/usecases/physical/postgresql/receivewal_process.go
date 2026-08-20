@@ -49,7 +49,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 ) receiverRunResult {
 	password, err := postgresql_shared.DecryptFieldIfNeeded(s.spec.SourceDB.Password, s.spec.FieldEncryptor)
 	if err != nil {
-		logger.Error("decrypt source password for pg_receivewal", "error", err)
+		logger.ErrorContext(ctx, "decrypt source password for pg_receivewal", "error", err)
 
 		return receiverRunResult{Exit: receiverRetryable}
 	}
@@ -58,7 +58,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		s.spec.SourceDB.CredentialSpec(), password, s.spec.FieldEncryptor,
 	)
 	if err != nil {
-		logger.Error("write pg_receivewal credentials", "error", err)
+		logger.ErrorContext(ctx, "write pg_receivewal credentials", "error", err)
 
 		return receiverRunResult{Exit: receiverRetryable}
 	}
@@ -75,20 +75,20 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		SlotName: s.slotName,
 	})
 	if err != nil {
-		logger.Error("build pg_receivewal command", "error", err)
+		logger.ErrorContext(ctx, "build pg_receivewal command", "error", err)
 
 		return receiverRunResult{Exit: receiverRetryable}
 	}
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		logger.Error("pg_receivewal stderr pipe", "error", err)
+		logger.ErrorContext(ctx, "pg_receivewal stderr pipe", "error", err)
 
 		return receiverRunResult{Exit: receiverRetryable}
 	}
 
 	if err := cmd.Start(); err != nil {
-		logger.Error("start pg_receivewal", "error", err)
+		logger.ErrorContext(ctx, "start pg_receivewal", "error", err)
 
 		return receiverRunResult{Exit: receiverRetryable}
 	}
@@ -99,7 +99,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	stderr := newStderrCapture(stderrPipe)
 	startedAt := time.Now().UTC()
 
-	logger.Info("pg_receivewal started", "watch_dir", s.watchDir)
+	logger.InfoContext(ctx, "pg_receivewal started", "watch_dir", s.watchDir)
 
 	exited := make(chan error, 1)
 
@@ -114,7 +114,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		return receiverRunResult{Exit: receiverCtxCancelled}
 
 	case <-s.restartSignal:
-		logger.Info("restarting pg_receivewal on internal signal (back pressure or slot stall)")
+		logger.InfoContext(ctx, "restarting pg_receivewal on internal signal (back pressure or slot stall)")
 		procCancel()
 		<-exited
 		stderr.stop()
@@ -126,21 +126,23 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		ranFor := time.Since(startedAt)
 
 		if waitErr == nil || procCtx.Err() != nil {
+			logger.DebugContext(ctx, "pg_receivewal exited cleanly", "ran_for", ranFor)
+
 			return receiverRunResult{Exit: receiverRetryable, RanFor: ranFor}
 		}
 
 		stderrText := stderr.contents()
 
 		if isResumeMismatchError(stderrText) {
-			logger.Warn("pg_receivewal asked for WAL the server has recycled; realigning the resume point",
-				"error", waitErr, "stderr", truncateStderr(stderrText))
+			logger.WarnContext(ctx, "pg_receivewal asked for WAL the server has recycled; realigning the resume point",
+				"error", waitErr, "ran_for", ranFor, "stderr", truncateStderr(stderrText))
 
 			return receiverRunResult{Exit: receiverResumeMismatch, RanFor: ranFor}
 		}
 
 		if isFatalReceivewalError(stderrText) {
-			logger.Error("pg_receivewal exited with a non-retryable error",
-				"error", waitErr, "stderr", truncateStderr(stderrText))
+			logger.ErrorContext(ctx, "pg_receivewal exited with a non-retryable error",
+				"error", waitErr, "ran_for", ranFor, "stderr", truncateStderr(stderrText))
 
 			return receiverRunResult{
 				Exit:   receiverFatal,
@@ -151,8 +153,8 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 			}
 		}
 
-		logger.Warn("pg_receivewal exited; will respawn",
-			"error", waitErr, "stderr", truncateStderr(stderrText))
+		logger.WarnContext(ctx, "pg_receivewal exited; will respawn",
+			"error", waitErr, "ran_for", ranFor, "stderr", truncateStderr(stderrText))
 
 		return receiverRunResult{Exit: receiverRetryable, RanFor: ranFor}
 	}

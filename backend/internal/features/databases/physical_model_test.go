@@ -81,13 +81,13 @@ func Test_TestConnection_OnPhysicalDatabase_DispatchesToReplicationConnection(t 
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
 			defer func() {
-				RemoveTestDatabase(database)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			test_utils.MakePostRequest(
@@ -105,13 +105,13 @@ func Test_CreateReplicationOnlyUser_OnPhysicalDatabase_ReturnsCredentials(t *tes
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
 			defer func() {
-				RemoveTestDatabase(database)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			var response CreateReadOnlyUserResponse
@@ -135,13 +135,13 @@ func Test_TestDatabaseConnectionDirect_OnReplicationReadyCluster_ReturnsSuccess(
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
 			defer func() {
-				RemoveTestDatabase(database)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			test_utils.MakePostRequest(
@@ -157,9 +157,9 @@ func Test_TestDatabaseConnectionDirect_OnReplicationReadyCluster_ReturnsSuccess(
 
 func Test_TestDatabaseConnectionDirect_WithoutPhysicalConfig_ReturnsBadRequest(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	databaseWithoutConfig := Database{
 		WorkspaceID: &workspace.ID,
@@ -182,8 +182,8 @@ func Test_CreatePhysicalDatabase_DetectsVersionFromServer_OverridingPayloadVersi
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			request := buildPhysicalDatabaseRequest(t, workspace.ID, fx)
 			request.PostgresqlPhysical.Version = tools.PostgresqlVersion16
@@ -197,8 +197,8 @@ func Test_CreatePhysicalDatabase_DetectsVersionFromServer_OverridingPayloadVersi
 			var database Database
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &database))
 			defer func() {
-				RemoveTestDatabase(&database)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), &database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			assert.Equal(t, fx.version, database.PostgresqlPhysical.Version)
@@ -208,9 +208,9 @@ func Test_CreatePhysicalDatabase_DetectsVersionFromServer_OverridingPayloadVersi
 
 func Test_CreatePhysicalDatabase_OnUnsupportedServerVersion_ReturnsError(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 	port, err := strconv.Atoi(config.GetEnv().TestLogicalPostgres16Port)
 	require.NoError(t, err)
@@ -240,13 +240,13 @@ func Test_CreatePhysicalDatabase_OnUnsupportedServerVersion_ReturnsError(t *test
 
 func Test_CreateReplicationOnlyUser_OnLogicalDatabase_ReturnsBadRequest(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	logicalDB := createTestDatabaseViaAPI("Logical DB", workspace.ID, owner.Token, router)
 	defer func() {
-		RemoveTestDatabase(logicalDB)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		RemoveTestDatabase(t.Context(), logicalDB)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	testResp := test_utils.MakePostRequest(
@@ -264,13 +264,13 @@ func Test_UpdatePhysicalDatabase_KeepsSameChildRow_WithStableIdAndDatabaseId(t *
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
 			defer func() {
-				RemoveTestDatabase(database)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			createdDatabase, err := databaseRepository.FindByID(database.ID)
@@ -309,8 +309,8 @@ func Test_CopyDatabase_OnPhysicalDatabase_DoesNotCopySystemIdentifier(t *testing
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			router := createTestRouter()
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			originalDatabase := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
 
@@ -331,9 +331,9 @@ func Test_CopyDatabase_OnPhysicalDatabase_DoesNotCopySystemIdentifier(t *testing
 				&copiedDatabase,
 			)
 			defer func() {
-				RemoveTestDatabase(&copiedDatabase)
-				RemoveTestDatabase(originalDatabase)
-				workspaces_testing.RemoveTestWorkspace(workspace, router)
+				RemoveTestDatabase(t.Context(), &copiedDatabase)
+				RemoveTestDatabase(t.Context(), originalDatabase)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
 			copiedPersistedDatabase, err := databaseRepository.FindByID(copiedDatabase.ID)

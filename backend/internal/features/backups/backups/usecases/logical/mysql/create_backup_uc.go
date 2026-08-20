@@ -74,7 +74,7 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 ) (*backups_core_logical.BackupMetadata, error) {
 	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID)
 
-	logger.Info("creating mysql backup via mysqldump")
+	logger.InfoContext(ctx, "creating mysql backup via mysqldump")
 
 	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
 		Database:  db,
@@ -103,7 +103,7 @@ func (uc *CreateMysqlBackupUsecase) Execute(
 
 	rawSizeMB, err := mysqlDatabase.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		logger.Warn("failed to fetch raw db size before backup", "error", err)
+		logger.WarnContext(ctx, "failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
@@ -175,7 +175,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	backupProgressListener func(completedMBs float64),
 	myConfig *mysqltypes.MysqlDatabase,
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info("Streaming MySQL backup to storage", "mysqlBin", mysqlBin)
+	uc.logger.InfoContext(parentCtx, "streaming MySQL backup to storage", "mysql_bin", mysqlBin)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
 	defer cancel(nil)
@@ -197,7 +197,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	fullArgs = append(fullArgs, args...)
 
 	cmd := exec.CommandContext(ctx, mysqlBin, fullArgs...)
-	uc.logger.Info("Executing MySQL backup command", "command", cmd.String())
+	uc.logger.InfoContext(parentCtx, "executing MySQL backup command", "command", cmd.String())
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
@@ -293,7 +293,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	}
 
 	if err := zstdWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close zstd writer", "error", err)
+		uc.logger.ErrorContext(parentCtx, "failed to close zstd writer", "error", err)
 	}
 	if err := uc.closeWriters(encryptionWriter, storageWriter); err != nil {
 		<-saveErrCh
@@ -477,7 +477,7 @@ func (uc *CreateMysqlBackupUsecase) setupBackupEncryption(
 
 	if backupConfig.Encryption != backups_core_enums.BackupEncryptionEncrypted {
 		metadata.Encryption = backups_core_enums.BackupEncryptionNone
-		uc.logger.Info("Encryption disabled for backup", "backupId", backupID)
+		uc.logger.Info("encryption disabled for backup", "backup_id", backupID)
 		return storageWriter, nil, metadata, nil
 	}
 
@@ -495,7 +495,7 @@ func (uc *CreateMysqlBackupUsecase) setupBackupEncryption(
 	metadata.EncryptionIV = &encSetup.NonceBase64
 	metadata.Encryption = backups_core_enums.BackupEncryptionEncrypted
 
-	uc.logger.Info("Encryption enabled for backup", "backupId", backupID)
+	uc.logger.Info("encryption enabled for backup", "backup_id", backupID)
 	return encSetup.Writer, encSetup.Writer, metadata, nil
 }
 
@@ -530,7 +530,7 @@ func (uc *CreateMysqlBackupUsecase) cleanupOnCancellation(
 	}
 
 	if err := storageWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close pipe writer during cancellation", "error", err)
+		uc.logger.Error("failed to close pipe writer during cancellation", "error", err)
 	}
 
 	<-saveErrCh
@@ -545,7 +545,7 @@ func (uc *CreateMysqlBackupUsecase) closeWriters(
 		go func() {
 			closeErr := encryptionWriter.Close()
 			if closeErr != nil {
-				uc.logger.Error("Failed to close encrypting writer", "error", closeErr)
+				uc.logger.Error("failed to close encrypting writer", "error", closeErr)
 			}
 			encryptionCloseErrCh <- closeErr
 		}()
@@ -556,13 +556,13 @@ func (uc *CreateMysqlBackupUsecase) closeWriters(
 	encryptionCloseErr := <-encryptionCloseErrCh
 	if encryptionCloseErr != nil {
 		if err := storageWriter.Close(); err != nil {
-			uc.logger.Error("Failed to close pipe writer after encryption error", "error", err)
+			uc.logger.Error("failed to close pipe writer after encryption error", "error", err)
 		}
 		return fmt.Errorf("failed to close encryption writer: %w", encryptionCloseErr)
 	}
 
 	if err := storageWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close pipe writer", "error", err)
+		uc.logger.Error("failed to close pipe writer", "error", err)
 		return err
 	}
 

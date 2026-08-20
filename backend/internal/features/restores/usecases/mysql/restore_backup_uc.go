@@ -50,10 +50,10 @@ func (uc *RestoreMysqlBackupUsecase) Execute(
 		return errors.New("database type not supported")
 	}
 
-	uc.logger.Info(
-		"Restoring MySQL backup via mysql client",
-		"restoreId", restore.ID,
-		"backupId", backup.ID,
+	uc.logger.InfoContext(parentCtx,
+		"restoring MySQL backup via mysql client",
+		"restore_id", restore.ID,
+		"backup_id", backup.ID,
 	)
 
 	my := restoringToDB.Mysql
@@ -148,7 +148,7 @@ func (uc *RestoreMysqlBackupUsecase) restoreFromStorage(
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			logger.Error("failed to close backup reader", "error", err)
+			logger.ErrorContext(parentCtx, "failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -167,7 +167,7 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
 
 	cmd := exec.CommandContext(ctx, mysqlBin, fullArgs...)
-	uc.logger.Info("Executing MySQL restore command", "command", cmd.String())
+	uc.logger.InfoContext(ctx, "executing MySQL restore command", "command", cmd.String())
 
 	storageReadFailureTracker := io_utils.NewFailureTrackingReader(backupReader)
 
@@ -276,7 +276,7 @@ func (uc *RestoreMysqlBackupUsecase) setupDecryption(
 		return nil, fmt.Errorf("failed to create decryption reader: %w", err)
 	}
 
-	uc.logger.Info("Using decryption for encrypted backup", "backupId", backup.ID)
+	uc.logger.Info("using decryption for encrypted backup", "backup_id", backup.ID)
 	return decryptReader, nil
 }
 

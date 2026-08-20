@@ -77,19 +77,31 @@ func (s *WalStreamSupervisor) GetSlotStateIfReachable(
 ) (state *SlotState, isSourceReachable bool) {
 	conn, err := s.spec.SourceDB.OpenInspectionConn(ctx, s.spec.FieldEncryptor)
 	if err != nil {
-		logger.Debug("slot-lsn watcher: source unreachable, deferring to lag monitor", "error", err)
+		logger.DebugContext(ctx, "source unreachable, deferring to the lag monitor", "error", err)
 
 		return nil, false
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
 
 	state, err = InspectSlot(ctx, conn, s.slotName)
-	if err != nil || state == nil {
+	if err != nil {
+		logger.DebugContext(ctx, "failed to inspect the replication slot", "error", err)
+
+		return nil, false
+	}
+
+	if state == nil {
+		// The slot is gone from the source while we still believe we are streaming from it, so WAL
+		// is no longer retained for us and the chain is already at risk.
+		logger.WarnContext(ctx, "the replication slot no longer exists on the source")
+
 		return nil, false
 	}
 
 	var alive int
 	if err := conn.QueryRow(ctx, "SELECT 1").Scan(&alive); err != nil {
+		logger.DebugContext(ctx, "source stopped responding during the slot probe", "error", err)
+
 		return nil, false
 	}
 
@@ -123,7 +135,8 @@ func (s *WalStreamSupervisor) runSlotLsnWatcher(ctx context.Context, logger *slo
 			}
 
 			if tracker.recordSampleAndDetectStall(sample, slotLsnStallTimeout) {
-				logger.Warn(
+				logger.WarnContext(
+					ctx,
 					fmt.Sprintf("slot restart_lsn stalled with %d bytes pending; restarting pg_receivewal",
 						state.LagBytes),
 					"restart_lsn", state.RestartLSN.String(),

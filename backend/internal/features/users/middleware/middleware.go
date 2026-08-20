@@ -8,13 +8,16 @@ import (
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_models "databasus-backend/internal/features/users/models"
 	users_services "databasus-backend/internal/features/users/services"
+	"databasus-backend/internal/util/logger"
 )
 
-// AuthMiddleware validates JWT token and adds user to context
 func AuthMiddleware(userService *users_services.UserService) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
 		if token == "" {
+			logger.GetLogger().WarnContext(ctx.Request.Context(),
+				"rejected a request with no authorization header", "client_ip", ctx.ClientIP())
+
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
 			ctx.Abort()
 			return
@@ -25,14 +28,24 @@ func AuthMiddleware(userService *users_services.UserService) gin.HandlerFunc {
 			token = token[7:]
 		}
 
-		user, err := userService.GetUserFromToken(token)
+		user, err := userService.GetUserFromToken(ctx.Request.Context(), token)
 		if err != nil {
+			logger.GetLogger().WarnContext(ctx.Request.Context(),
+				"rejected a request with an invalid token", "client_ip", ctx.ClientIP(), "error", err)
+
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			ctx.Abort()
 			return
 		}
 
 		ctx.Set("user", user)
+
+		// Puts the principal on the context the controllers already pass into services, so every
+		// downstream record carries it without a scoped logger.
+		ctx.Request = ctx.Request.WithContext(
+			logger.ContextWithUserID(ctx.Request.Context(), user.ID.String()),
+		)
+
 		ctx.Next()
 	}
 }
@@ -54,6 +67,11 @@ func RequireRole(requiredRole users_enums.UserRole) gin.HandlerFunc {
 		}
 
 		if user.Role != requiredRole {
+			logger.GetLogger().WarnContext(ctx.Request.Context(),
+				"rejected a request from a user without the required role",
+				"user_id", user.ID, "required_role", requiredRole, "user_role", user.Role,
+				"client_ip", ctx.ClientIP())
+
 			ctx.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
 			ctx.Abort()
 			return

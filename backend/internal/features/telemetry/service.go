@@ -94,7 +94,7 @@ func (s *TelemetryService) BuildAndSend(ctx context.Context) error {
 		return err
 	}
 
-	verificationAgents, err := s.collectVerificationAgents()
+	verificationAgents, err := s.collectVerificationAgents(ctx)
 	if err != nil {
 		return err
 	}
@@ -197,8 +197,8 @@ func buildVerificationEntry(
 	return entry
 }
 
-func (s *TelemetryService) collectVerificationAgents() ([]VerificationAgentEntry, error) {
-	listedAgents, err := s.verificationAgentService.ListAgents()
+func (s *TelemetryService) collectVerificationAgents(ctx context.Context) ([]VerificationAgentEntry, error) {
+	listedAgents, err := s.verificationAgentService.ListAgents(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -225,7 +225,7 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				require.NoError(t, err, "SaveFile should succeed")
 
 				t.Cleanup(func() {
-					_ = tc.storage.DeleteFile(encryptor, fileID.String())
+					_ = tc.storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileID.String())
 				})
 
 				file, err := tc.storage.GetFile(
@@ -256,7 +256,7 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 				)
 				require.NoError(t, err, "SaveFile should succeed")
 
-				err = tc.storage.DeleteFile(encryptor, fileID.String())
+				err = tc.storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileID.String())
 				assert.NoError(t, err, "DeleteFile should succeed")
 
 				file, err := tc.storage.GetFile(t.Context(), encryptor, logger.GetLogger(), fileID.String())
@@ -268,7 +268,7 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 
 			t.Run("Test_TestDeleteNonExistentFile_DoesNotError", func(t *testing.T) {
 				nonExistentID := uuid.New()
-				err := tc.storage.DeleteFile(encryptor, nonExistentID.String())
+				err := tc.storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), nonExistentID.String())
 				assert.NoError(t, err, "DeleteFile should not error for non-existent file")
 			})
 		})
@@ -433,7 +433,7 @@ acl = private`, s3Container.accessKey, s3Container.endpoint),
 
 	encryptor := encryption.GetFieldEncryptor()
 
-	err = rcloneStorage.DeleteFile(encryptor, fileID)
+	err = rcloneStorage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileID)
 	require.Error(t, err)
 
 	_, statErr := minioClient.StatObject(

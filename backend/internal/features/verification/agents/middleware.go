@@ -25,7 +25,7 @@ func (s *AgentService) RequireAgentAuth() gin.HandlerFunc {
 
 		agentID, err := uuid.Parse(ctx.Param("agentId"))
 		if err != nil {
-			s.logger.Warn("verification agent auth failure",
+			s.logger.WarnContext(ctx.Request.Context(), "verification agent auth failure",
 				"client_ip", clientIP, "reason", "invalid_uuid")
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized,
 				gin.H{"error": genericAuthError})
@@ -38,10 +38,10 @@ func (s *AgentService) RequireAgentAuth() gin.HandlerFunc {
 			rateLimitAgentMax, rateLimitAgentWindow,
 		)
 		if rateLimitErr != nil {
-			s.logger.Error("verification agent rate limit check failed",
+			s.logger.ErrorContext(ctx.Request.Context(), "verification agent rate limit check failed",
 				"error", rateLimitErr, "agent_id", agentID, "client_ip", clientIP)
 		} else if !isAllowed {
-			s.logger.Warn("verification agent per-agent rate limit hit",
+			s.logger.WarnContext(ctx.Request.Context(), "verification agent per-agent rate limit hit",
 				"agent_id", agentID, "client_ip", clientIP)
 			ctx.AbortWithStatusJSON(http.StatusTooManyRequests,
 				gin.H{"error": "too many requests"})
@@ -52,7 +52,7 @@ func (s *AgentService) RequireAgentAuth() gin.HandlerFunc {
 		header := ctx.GetHeader("Authorization")
 		token := strings.TrimPrefix(header, "Bearer ")
 		if token == "" || token == header {
-			s.logger.Warn("verification agent auth failure",
+			s.logger.WarnContext(ctx.Request.Context(), "verification agent auth failure",
 				"client_ip", clientIP, "agent_id", agentID, "reason", "missing_token")
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized,
 				gin.H{"error": genericAuthError})
@@ -62,7 +62,7 @@ func (s *AgentService) RequireAgentAuth() gin.HandlerFunc {
 
 		agent, err := s.VerifyAgentCredentials(agentID, token)
 		if err != nil {
-			s.logger.Warn("verification agent auth failure",
+			s.logger.WarnContext(ctx.Request.Context(), "verification agent auth failure",
 				"client_ip", clientIP, "agent_id", agentID, "reason", "invalid_credentials")
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized,
 				gin.H{"error": genericAuthError})

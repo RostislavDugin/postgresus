@@ -98,7 +98,7 @@ func (n *TeamsNotifier) Send(
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return notifier_models.ErrorWithoutWebhookURLCredentials(err)
 	}
 
 	defer func() {

@@ -97,6 +97,50 @@ Notes:
 - Env values must be strings. Use quoted `"true"` / `"false"` rather than bare booleans, and pass `--set-string` on the CLI (e.g. `--set-string 'extraEnv[0].value=true'`) to avoid Kubernetes rejecting non-string values.
 - `extraEnv` is appended after `SSL_CERT_FILE` (when `customRootCA` is set), so an entry with the same name will override `SSL_CERT_FILE`. Avoid duplicate `name` entries unless that override is intentional.
 
+### Logging and Observability
+
+Databasus logs to stdout and can additionally export to any OpenTelemetry backend. There is no dedicated chart value for this — configure it through `extraEnv` like any other application setting.
+
+| Variable                 | Description                                                      | Default |
+| ------------------------ | ---------------------------------------------------------------- | ------- |
+| `LOG_LEVEL`              | `debug`, `info`, `warn` or `error`                                | `info`  |
+| `OPEN_TELEMETRY_URL`     | Full OTLP endpoint URL; empty disables export                     | empty   |
+| `OPEN_TELEMETRY_HEADERS` | `k=v` pairs, comma separated, values percent-encoded              | empty   |
+
+The scheme selects the transport: `http://` and `https://` use the URL verbatim, path included, while `grpc://` and `grpcs://` take only the host and port. Pointing at a backend directly and pointing at an OTel Collector are the same setting — a Collector is itself an OTLP receiver:
+
+```yaml
+extraEnv:
+  - name: LOG_LEVEL
+    value: "info"
+  # OTLP/gRPC — Graylog 6.2+, SigNoz, a Collector on :4317
+  - name: OPEN_TELEMETRY_URL
+    value: "grpc://otel-collector.observability:4317"
+  # OTLP/HTTP — VictoriaLogs, Loki, a Collector on :4318/v1/logs
+  # value: "http://victoria-logs.observability:9428/insert/opentelemetry/v1/logs"
+```
+
+Headers are how a backend is authenticated and tuned: `signoz-ingestion-key` for SigNoz Cloud, `Authorization=Basic%20<base64>` for Grafana Cloud, `dd-api-key` for Datadog, `x-honeycomb-team` for Honeycomb, `VL-Stream-Fields` and `VL-Extra-Fields` for VictoriaLogs. The format matches the standard `OTEL_EXPORTER_OTLP_HEADERS`, so values are percent-decoded and a value may itself contain a comma (`%2C`), an equals sign (`%3D`) or a space (`%20`). A query string in the URL is rejected rather than silently dropped, since the exporter cannot send one.
+
+Use a Collector when you need to fan out to several backends or to survive a long backend outage — it has a disk-backed queue, whereas the in-process exporter drops records once its buffer fills.
+
+Audit entries (user actions) are exported alongside application logs and carry `log_type=audit`. They ignore `LOG_LEVEL`, so raising the level never silently drops the audit trail.
+
+**Credentials.** A token in `OPEN_TELEMETRY_HEADERS`, or a password embedded as userinfo in `OPEN_TELEMETRY_URL`, belongs in a Secret — never as a literal `extraEnv[].value`, which ends up in `values.yaml`, in git and in `helm get values`:
+
+```yaml
+extraEnv:
+  - name: OPEN_TELEMETRY_HEADERS
+    valueFrom:
+      secretKeyRef:
+        name: databasus-observability
+        key: otlp-headers
+```
+
+Over `http://` and `grpc://` those credentials travel in clear — use `https://` or `grpcs://` outside a trusted network.
+
+**File logging.** `logFileIsEnabled` is the one logging setting with its own chart value, and it is `false` here even though the application defaults it to on: stdout is already collected by the cluster's node agent, and that is the platform's logging model. The file sink exists for Docker and bare-metal installs. Set it to `true` and the pod writes `/databasus-data/databasus.log`, capped at 4 files of 5 MB, which needs `persistence` enabled or the logs vanish with the pod. The location and the limits are not configurable.
+
 ### Service
 
 | Parameter                  | Description             | Default Value |

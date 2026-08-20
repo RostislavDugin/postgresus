@@ -75,7 +75,14 @@ func (c *BackupController) GetBackups(ctx *gin.Context) {
 
 	filters := c.buildBackupFilters(&request)
 
-	response, err := c.backupService.GetBackups(user, databaseID, request.Limit, request.Offset, filters)
+	response, err := c.backupService.GetBackups(
+		ctx.Request.Context(),
+		user,
+		databaseID,
+		request.Limit,
+		request.Offset,
+		filters,
+	)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -109,7 +116,7 @@ func (c *BackupController) MakeBackup(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.backupService.MakeBackupWithAuth(user, request.DatabaseID); err != nil {
+	if err := c.backupService.MakeBackupWithAuth(ctx.Request.Context(), user, request.DatabaseID); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -140,7 +147,7 @@ func (c *BackupController) DeleteBackup(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.backupService.DeleteBackup(user, id); err != nil {
+	if err := c.backupService.DeleteBackup(ctx.Request.Context(), user, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -171,7 +178,7 @@ func (c *BackupController) CancelBackup(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.backupService.CancelBackup(user, id); err != nil {
+	if err := c.backupService.CancelBackup(ctx.Request.Context(), user, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -202,7 +209,7 @@ func (c *BackupController) GenerateDownloadToken(ctx *gin.Context) {
 		return
 	}
 
-	response, err := c.backupService.GenerateDownloadToken(user, id)
+	response, err := c.backupService.GenerateDownloadToken(ctx.Request.Context(), user, id)
 	if err != nil {
 		if errors.Is(err, stream_guard.ErrDownloadAlreadyInProgress) {
 			ctx.JSON(
@@ -253,7 +260,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		return
 	}
 
-	downloadToken, err := c.backupService.ValidateDownloadToken(token)
+	downloadToken, err := c.backupService.ValidateDownloadToken(ctx.Request.Context(), token)
 	if err != nil {
 		if errors.Is(err, stream_guard.ErrDownloadAlreadyInProgress) {
 			ctx.JSON(
@@ -279,7 +286,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		downloadToken.BackupID,
 	)
 	if err != nil {
-		c.backupService.ReleaseDownloadLock(downloadToken.UserID)
+		c.backupService.ReleaseDownloadLock(ctx.Request.Context(), downloadToken.UserID)
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -287,7 +294,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(context.Background())
 	defer func() {
 		cancelHeartbeat()
-		c.backupService.ReleaseDownloadLock(downloadToken.UserID)
+		c.backupService.ReleaseDownloadLock(ctx.Request.Context(), downloadToken.UserID)
 		if err := fileReader.Close(); err != nil {
 			fmt.Printf("Error closing file reader: %v\n", err)
 		}
@@ -313,7 +320,7 @@ func (c *BackupController) GetFile(ctx *gin.Context) {
 		fmt.Printf("Error streaming file: %v\n", err)
 	}
 
-	c.backupService.WriteAuditLogForDownload(downloadToken.UserID, backup, database)
+	c.backupService.WriteAuditLogForDownload(ctx.Request.Context(), downloadToken.UserID, backup, database)
 }
 
 func (c *BackupController) generateBackupFilename(
@@ -357,7 +364,7 @@ func (c *BackupController) startDownloadHeartbeat(ctx context.Context, userID uu
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.backupService.RefreshDownloadLock(userID)
+			c.backupService.RefreshDownloadLock(ctx, userID)
 		}
 	}
 }

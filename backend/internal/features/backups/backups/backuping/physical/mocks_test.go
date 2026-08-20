@@ -68,6 +68,7 @@ type recordingNotificationSender struct {
 }
 
 func (s *recordingNotificationSender) SendNotification(
+	_ context.Context,
 	notifier *notifiers.Notifier,
 	notification notifier_models.Notification,
 ) {
@@ -98,19 +99,19 @@ func seedBackupPrereqs(t *testing.T) *backupPrereqs {
 
 	router := backuping_logical.CreateTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(testStorage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), testStorage.ID) })
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	t.Cleanup(func() { notifiers.RemoveTestNotifier(notifier) })
 
 	db := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
-	t.Cleanup(func() { databases.RemoveTestDatabase(db) })
+	t.Cleanup(func() { databases.RemoveTestDatabase(t.Context(), db) })
 
 	cfgService := backups_config_physical.GetBackupConfigService()
 
@@ -129,7 +130,7 @@ func seedBackupPrereqs(t *testing.T) *backupPrereqs {
 		TimeOfDay: &timeOfDay,
 	}
 
-	savedConfig, err := cfgService.SaveBackupConfig(cfg)
+	savedConfig, err := cfgService.SaveBackupConfig(t.Context(), cfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { physical_testing.DeleteAllPhysicalCatalogForDatabase(t, db.ID) })

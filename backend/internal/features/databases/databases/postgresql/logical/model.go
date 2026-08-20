@@ -158,7 +158,7 @@ func (p *PostgresqlLogicalDatabase) GetRawDbSizeMb(
 	}
 	defer func() {
 		if closeErr := conn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -282,7 +282,7 @@ func (p *PostgresqlLogicalDatabase) PopulateVersion(
 	}
 	defer func() {
 		if closeErr := conn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.Error("failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -320,7 +320,7 @@ func (p *PostgresqlLogicalDatabase) IsUserReadOnly(
 	}
 	defer func() {
 		if closeErr := conn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -484,7 +484,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	}
 	defer func() {
 		if closeErr := conn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -529,7 +529,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 		defer func() {
 			if !success {
 				if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-					logger.Error("Failed to rollback transaction", "error", rollbackErr)
+					logger.ErrorContext(ctx, "failed to rollback transaction", "error", rollbackErr)
 				}
 			}
 		}()
@@ -568,8 +568,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 			_, err = tx.Exec(ctx, `REVOKE CREATE ON SCHEMA public FROM PUBLIC`)
 			if err != nil {
 				if strings.Contains(err.Error(), "permission denied") {
-					logger.Warn(
-						"Failed to revoke CREATE on public from PUBLIC (permission denied)",
+					logger.WarnContext(
+						ctx,
+						"failed to revoke CREATE on public from PUBLIC (permission denied)",
 						"error",
 						err,
 					)
@@ -584,8 +585,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 				fmt.Sprintf(`REVOKE CREATE ON SCHEMA public FROM "%s"`, baseUsername),
 			)
 			if err != nil {
-				logger.Warn(
-					"Failed to revoke CREATE on public schema from user",
+				logger.WarnContext(
+					ctx,
+					"failed to revoke CREATE on public schema from user",
 					"error",
 					err,
 					"username",
@@ -593,7 +595,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 				)
 			}
 		} else {
-			logger.Info("Public schema does not exist, skipping CREATE privilege revocation")
+			logger.InfoContext(ctx, "public schema does not exist, skipping CREATE privilege revocation")
 		}
 
 		// Step 3: Grant database connection privilege and revoke TEMP
@@ -608,7 +610,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 		// Revoke TEMP privilege from PUBLIC role (like CREATE on public schema, TEMP is granted to PUBLIC by default)
 		_, err = tx.Exec(ctx, fmt.Sprintf(`REVOKE TEMP ON DATABASE "%s" FROM PUBLIC`, *p.Database))
 		if err != nil {
-			logger.Warn("Failed to revoke TEMP from PUBLIC", "error", err)
+			logger.WarnContext(ctx, "failed to revoke TEMP from PUBLIC", "error", err)
 		}
 
 		// Also revoke from the specific user (belt and suspenders)
@@ -617,7 +619,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 			fmt.Sprintf(`REVOKE TEMP ON DATABASE "%s" FROM "%s"`, *p.Database, baseUsername),
 		)
 		if err != nil {
-			logger.Warn("Failed to revoke TEMP privilege", "error", err, "username", baseUsername)
+			logger.WarnContext(ctx, "failed to revoke TEMP privilege", "error", err, "username", baseUsername)
 		}
 
 		// Step 4: Discover schemas to grant privileges on
@@ -664,8 +666,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 				fmt.Sprintf(`REVOKE CREATE ON SCHEMA "%s" FROM "%s"`, schema, baseUsername),
 			)
 			if err != nil {
-				logger.Warn(
-					"Failed to revoke CREATE on schema",
+				logger.WarnContext(
+					ctx,
+					"failed to revoke CREATE on schema",
 					"error",
 					err,
 					"schema",
@@ -794,14 +797,14 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 
 		if err != nil {
 			// Log warning but continue - this is a best-effort enhancement
-			logger.Warn("Failed to query object owners for default privileges", "error", err)
+			logger.WarnContext(ctx, "failed to query object owners for default privileges", "error", err)
 		} else {
 			var schemaOwners []SchemaOwner
 			for ownerRows.Next() {
 				var so SchemaOwner
 				if err := ownerRows.Scan(&so.SchemaName, &so.RoleName); err != nil {
 					ownerRows.Close()
-					logger.Warn("Failed to scan schema owner", "error", err)
+					logger.WarnContext(ctx, "failed to scan schema owner", "error", err)
 					break
 				}
 				schemaOwners = append(schemaOwners, so)
@@ -809,7 +812,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 			ownerRows.Close()
 
 			if err := ownerRows.Err(); err != nil {
-				logger.Warn("Error iterating schema owners", "error", err)
+				logger.WarnContext(ctx, "error iterating schema owners", "error", err)
 			}
 
 			// Step 9: Set default privileges FOR ROLE for each object owner
@@ -827,8 +830,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 					),
 				)
 				if err != nil {
-					logger.Warn(
-						"Failed to set default privileges for role (tables)",
+					logger.WarnContext(
+						ctx,
+						"failed to set default privileges for role (tables)",
 						"error",
 						err,
 						"role",
@@ -851,8 +855,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 					),
 				)
 				if err != nil {
-					logger.Warn(
-						"Failed to set default privileges for role (sequences)",
+					logger.WarnContext(
+						ctx,
+						"failed to set default privileges for role (sequences)",
 						"error",
 						err,
 						"role",
@@ -866,8 +871,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 			}
 
 			if len(schemaOwners) > 0 {
-				logger.Info(
-					"Set default privileges for existing object owners",
+				logger.InfoContext(
+					ctx,
+					"set default privileges for existing object owners",
 					"readonly_user",
 					baseUsername,
 					"owner_count",
@@ -890,8 +896,9 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 
 		success = true
 		// Return connectionUsername (with project ID suffix for Supabase) for the caller to use when connecting
-		logger.Info(
-			"Read-only user created successfully",
+		logger.InfoContext(
+			ctx,
+			"read-only user created successfully",
 			"username",
 			baseUsername,
 			"connectionUsername",
@@ -935,7 +942,7 @@ func testSingleDatabaseConnection(
 	}
 	defer func() {
 		if closeErr := conn.Close(ctx); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 

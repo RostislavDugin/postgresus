@@ -47,7 +47,7 @@ func Test_GetItemsToRetain_WhenItemFillsEveryLevel_KeptOnce(t *testing.T) {
 
 	// The single newest item simultaneously fills the hourly, daily, weekly,
 	// monthly, and yearly slot, so each level is satisfied by it alone.
-	assert.True(t, keep[newest.ID])
+	assert.NotEmpty(t, keep[newest.ID])
 	assert.Len(t, keep, 1)
 }
 
@@ -62,9 +62,9 @@ func Test_GetItemsToRetain_WhenInputUnsorted_SortsBeforeApplyingScheme(t *testin
 
 	keep := GetItemsToRetain(unsorted, 2, 0, 0, 0, 0)
 
-	assert.True(t, keep[newest.ID])
-	assert.True(t, keep[middle.ID])
-	assert.False(t, keep[oldest.ID])
+	assert.NotEmpty(t, keep[newest.ID])
+	assert.NotEmpty(t, keep[middle.ID])
+	assert.Empty(t, keep[oldest.ID])
 	assert.Len(t, keep, 2)
 }
 
@@ -93,10 +93,10 @@ func Test_GetItemsToRetain_WhenMultipleItemsShareOneHour_KeepsOnlyNewestOfThatHo
 
 	// All three of the first three share the same hour bucket, so only the
 	// newest of them is kept; the previous hour fills the second hourly slot.
-	assert.True(t, keep[hourNewest.ID])
-	assert.True(t, keep[previousHour.ID])
-	assert.False(t, keep[hourMiddle.ID])
-	assert.False(t, keep[hourOldest.ID])
+	assert.NotEmpty(t, keep[hourNewest.ID])
+	assert.NotEmpty(t, keep[previousHour.ID])
+	assert.Empty(t, keep[hourMiddle.ID])
+	assert.Empty(t, keep[hourOldest.ID])
 	assert.Len(t, keep, 2)
 }
 
@@ -111,10 +111,10 @@ func Test_GetItemsToRetain_WhenHourlyCountExceeded_StopsKeeping(t *testing.T) {
 
 	keep := GetItemsToRetain(items, 2, 0, 0, 0, 0)
 
-	assert.True(t, keep[items[0].ID])
-	assert.True(t, keep[items[1].ID])
-	assert.False(t, keep[items[2].ID])
-	assert.False(t, keep[items[3].ID])
+	assert.NotEmpty(t, keep[items[0].ID])
+	assert.NotEmpty(t, keep[items[1].ID])
+	assert.Empty(t, keep[items[2].ID])
+	assert.Empty(t, keep[items[3].ID])
 	assert.Len(t, keep, 2)
 }
 
@@ -129,10 +129,10 @@ func Test_GetItemsToRetain_WithDailyRetention_KeepsOnePerDay(t *testing.T) {
 		[]Item{today, todayEarlier, yesterday, twoDaysAgo}, 0, 3, 0, 0, 0,
 	)
 
-	assert.True(t, keep[today.ID])
-	assert.True(t, keep[yesterday.ID])
-	assert.True(t, keep[twoDaysAgo.ID])
-	assert.False(t, keep[todayEarlier.ID])
+	assert.NotEmpty(t, keep[today.ID])
+	assert.NotEmpty(t, keep[yesterday.ID])
+	assert.NotEmpty(t, keep[twoDaysAgo.ID])
+	assert.Empty(t, keep[todayEarlier.ID])
 	assert.Len(t, keep, 3)
 }
 
@@ -163,12 +163,12 @@ func Test_GetItemsToRetain_WithMixedLevels_KeepsExpectedItems(t *testing.T) {
 
 	keep := GetItemsToRetain(items, 2, 2, 2, 2, 2)
 
-	assert.True(t, keep[now.ID])
-	assert.True(t, keep[oneHourAgo.ID])
-	assert.True(t, keep[yesterday.ID])
-	assert.True(t, keep[lastWeek.ID])
-	assert.True(t, keep[lastMonth.ID])
-	assert.True(t, keep[lastYear.ID])
+	assert.NotEmpty(t, keep[now.ID])
+	assert.NotEmpty(t, keep[oneHourAgo.ID])
+	assert.NotEmpty(t, keep[yesterday.ID])
+	assert.NotEmpty(t, keep[lastWeek.ID])
+	assert.NotEmpty(t, keep[lastMonth.ID])
+	assert.NotEmpty(t, keep[lastYear.ID])
 }
 
 func Test_GetItemsToRetain_DropsItemsOlderThanEveryWindow(t *testing.T) {
@@ -178,7 +178,7 @@ func Test_GetItemsToRetain_DropsItemsOlderThanEveryWindow(t *testing.T) {
 
 	keep := GetItemsToRetain([]Item{recent, ancient}, 1, 1, 1, 1, 1)
 
-	assert.True(t, keep[recent.ID])
-	assert.False(t, keep[ancient.ID])
+	assert.NotEmpty(t, keep[recent.ID])
+	assert.Empty(t, keep[ancient.ID])
 	assert.Len(t, keep, 1)
 }

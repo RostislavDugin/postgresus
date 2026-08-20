@@ -217,19 +217,19 @@ func wirePhysicalDBFixture(
 		backups_config_logical.GetBackupConfigController(),
 	)
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
-	workspace := workspaces_testing.CreateTestWorkspace("ws "+uuid.New().String(), owner, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	testStorage := storages.CreateTestStorage(workspace.ID)
-	t.Cleanup(func() { storages.RemoveTestStorage(testStorage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), testStorage.ID) })
 
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	t.Cleanup(func() { notifiers.RemoveTestNotifier(notifier) })
 
 	db := createDB(workspace.ID, notifier)
-	t.Cleanup(func() { databases.RemoveTestDatabase(db) })
+	t.Cleanup(func() { databases.RemoveTestDatabase(t.Context(), db) })
 
 	encryptor := encryption.GetFieldEncryptor()
 	log := logger.GetLogger()
@@ -291,7 +291,7 @@ func setupPhysicalFixture(
 		TimeOfDay: new("04:00"),
 	}
 
-	_, err = cfgService.SaveBackupConfig(cfg)
+	_, err = cfgService.SaveBackupConfig(t.Context(), cfg)
 	require.NoError(t, err)
 
 	backupID := uuid.New()
@@ -437,7 +437,8 @@ func GenerateWalActivity(
 ) (int64, error) {
 	tableName := "wal_activity_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
 
-	if _, err := conn.Exec(ctx,
+	if _, err := conn.Exec(
+		ctx,
 		fmt.Sprintf(`CREATE TABLE %s (id BIGSERIAL PRIMARY KEY, payload TEXT)`, tableName),
 	); err != nil {
 		return 0, fmt.Errorf("create wal activity table: %w", err)
@@ -457,7 +458,8 @@ func GenerateWalActivity(
 	const payloadSize = 1024
 
 	for {
-		_, err := conn.Exec(ctx,
+		_, err := conn.Exec(
+			ctx,
 			fmt.Sprintf(
 				`INSERT INTO %s (payload) SELECT repeat('x', %d) FROM generate_series(1, %d)`,
 				tableName, payloadSize, rowsPerBatch,
@@ -616,7 +618,8 @@ func SetSummarizerEnabled(t *testing.T, conn *pgx.Conn, enabled bool) {
 	defer cancel()
 
 	var previous string
-	if err := conn.QueryRow(ctx,
+	if err := conn.QueryRow(
+		ctx,
 		"SELECT setting FROM pg_settings WHERE name = 'summarize_wal'",
 	).Scan(&previous); err != nil {
 		t.Fatalf("read summarize_wal: %v", err)
@@ -631,7 +634,8 @@ func SetSummarizerEnabled(t *testing.T, conn *pgx.Conn, enabled bool) {
 		return
 	}
 
-	if _, err := conn.Exec(ctx,
+	if _, err := conn.Exec(
+		ctx,
 		fmt.Sprintf("ALTER SYSTEM SET summarize_wal = '%s'", desired),
 	); err != nil {
 		t.Fatalf("ALTER SYSTEM summarize_wal=%s: %v", desired, err)
@@ -667,13 +671,15 @@ func ExpireWalSummaries(t *testing.T, conn *pgx.Conn) {
 	defer cancel()
 
 	var previous string
-	if err := conn.QueryRow(ctx,
+	if err := conn.QueryRow(
+		ctx,
 		"SELECT setting FROM pg_settings WHERE name = 'wal_summary_keep_time'",
 	).Scan(&previous); err != nil {
 		t.Fatalf("read wal_summary_keep_time: %v", err)
 	}
 
-	if _, err := conn.Exec(ctx,
+	if _, err := conn.Exec(
+		ctx,
 		"ALTER SYSTEM SET wal_summary_keep_time = '1min'",
 	); err != nil {
 		t.Fatalf("ALTER SYSTEM wal_summary_keep_time: %v", err)

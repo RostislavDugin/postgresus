@@ -51,11 +51,11 @@ func (uc *RestorePostgresqlBackupUsecase) Execute(
 		return errors.New("database type not supported")
 	}
 
-	uc.logger.Info(
-		"Restoring PostgreSQL backup via pg_restore",
-		"restoreId",
+	uc.logger.InfoContext(parentCtx,
+		"restoring PostgreSQL backup via pg_restore",
+		"restore_id",
 		restore.ID,
-		"backupId",
+		"backup_id",
 		backup.ID,
 	)
 
@@ -92,9 +92,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreCustomType(
 	pg *pgtypes.PostgresqlLogicalDatabase,
 	options restores_core.RestoreOptions,
 ) error {
-	uc.logger.Info(
-		"Restoring backup in custom type (-Fc)",
-		"backupId",
+	uc.logger.InfoContext(parentCtx,
+		"restoring backup in custom type (-Fc)",
+		"backup_id",
 		backup.ID,
 		"cpuCount",
 		pg.CpuCount,
@@ -134,11 +134,12 @@ func (uc *RestorePostgresqlBackupUsecase) withTimescaleHooks(
 		return fmt.Errorf("timescaledb_pre_restore failed: %w", err)
 	}
 
-	uc.logger.Info("entered timescaledb restoring mode")
+	uc.logger.InfoContext(ctx, "entered timescaledb restoring mode")
 
 	defer func() {
 		if postErr := pg.RunTimescaleDBPostRestore(ctx, encryptor); postErr != nil {
-			uc.logger.Error(
+			uc.logger.ErrorContext(
+				ctx,
 				"timescaledb_post_restore failed; target database may be left in restoring mode",
 				"error", postErr,
 			)
@@ -162,7 +163,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 ) error {
 	logger := uc.logger.With("backup_id", backup.ID)
 
-	logger.Info("restoring via stdin streaming (CPU=1)")
+	logger.InfoContext(parentCtx, "restoring via stdin streaming (CPU=1)")
 
 	args := []string{
 		"-Fc", // expect custom type
@@ -229,7 +230,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 	}
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			logger.Error("failed to close backup reader", "error", err)
+			logger.ErrorContext(parentCtx, "failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -268,11 +269,11 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		}
 
 		backupReader = decryptReader
-		logger.Info("using decryption for encrypted backup")
+		logger.InfoContext(parentCtx, "using decryption for encrypted backup")
 	}
 
 	cmd := exec.CommandContext(ctx, pgBin, args...)
-	logger.Info("executing PostgreSQL restore command via stdin", "command", cmd.String())
+	logger.InfoContext(parentCtx, "executing PostgreSQL restore command via stdin", "command", cmd.String())
 
 	// Setup environment variables
 	uc.setupPgRestoreEnvironment(cmd, credentials, pg)
@@ -396,9 +397,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaFile(
 	pg *pgtypes.PostgresqlLogicalDatabase,
 	options restores_core.RestoreOptions,
 ) error {
-	uc.logger.Info(
-		"Restoring via file with parallel jobs",
-		"backupId",
+	uc.logger.InfoContext(parentCtx,
+		"restoring via file with parallel jobs",
+		"backup_id",
 		backup.ID,
 		"cpuCount",
 		pg.CpuCount,
@@ -463,7 +464,7 @@ func (uc *RestorePostgresqlBackupUsecase) restoreFromStorage(
 ) error {
 	logger := uc.logger.With("backup_id", backup.ID)
 
-	logger.Info(
+	logger.InfoContext(parentCtx,
 		"restoring backup from storage via temporary file",
 		"pg_bin",
 		pgBin,
@@ -569,7 +570,8 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 
 	tempBackupFile := filepath.Join(tempDir, "backup.dump")
 
-	logger.Info(
+	logger.InfoContext(
+		ctx,
 		"downloading backup file from storage to temporary file",
 		"temp_file",
 		tempBackupFile,
@@ -586,7 +588,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 
 	defer func() {
 		if err := rawReader.Close(); err != nil {
-			logger.Error("failed to close backup reader", "error", err)
+			logger.ErrorContext(ctx, "failed to close backup reader", "error", err)
 		}
 	}()
 
@@ -630,7 +632,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		}
 
 		backupReader = decryptReader
-		logger.Info("using decryption for encrypted backup")
+		logger.InfoContext(ctx, "using decryption for encrypted backup")
 	}
 
 	// Create temporary backup file
@@ -641,7 +643,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 	}
 	defer func() {
 		if err := tempFile.Close(); err != nil {
-			logger.Error("failed to close temporary file", "error", err)
+			logger.ErrorContext(ctx, "failed to close temporary file", "error", err)
 		}
 	}()
 
@@ -652,7 +654,7 @@ func (uc *RestorePostgresqlBackupUsecase) downloadBackupToTempFile(
 		return "", nil, fmt.Errorf("failed to write backup to temporary file: %w", err)
 	}
 
-	logger.Info("backup file written to temporary location", "temp_file", tempBackupFile)
+	logger.InfoContext(ctx, "backup file written to temporary location", "temp_file", tempBackupFile)
 
 	return tempBackupFile, cleanupFunc, nil
 }
@@ -673,7 +675,7 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 	pgBin := command.pgBin
 
 	cmd := exec.CommandContext(ctx, pgBin, command.args...)
-	command.logger.Info("executing pg_restore command", "command", cmd.String())
+	command.logger.InfoContext(ctx, "executing pg_restore command", "command", cmd.String())
 
 	// Setup environment variables
 	uc.setupPgRestoreEnvironment(cmd, command.credentials, command.pgConfig)
@@ -762,7 +764,7 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 	cmd.Env = append(cmd.Env, postgresql_shared.GetPgHostAddrEnv(pgConfig.CredentialSpec())...)
 	uc.logger.Info(
 		"Using temporary .pgpass file for authentication",
-		"pgpassFile", credentials.PgpassPath,
+		"pgpass_file", credentials.PgpassPath,
 	)
 
 	cmd.Env = append(cmd.Env,
@@ -784,7 +786,7 @@ func (uc *RestorePostgresqlBackupUsecase) setupPgRestoreEnvironment(
 		"PGSSLROOTCERT="+credentials.RootCertPath,
 		"PGSSLCRL=",
 	)
-	uc.logger.Info("Using SSL mode", "sslMode", sslMode)
+	uc.logger.Info("using SSL mode", "ssl_mode", sslMode)
 }
 
 type pgRestoreFailure struct {
@@ -971,7 +973,7 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 	pgConfig *pgtypes.PostgresqlLogicalDatabase,
 	options restores_core.RestoreOptions,
 ) (string, error) {
-	uc.logger.Info("Generating filtered TOC list", "backupFile", backupFile)
+	uc.logger.InfoContext(ctx, "generating filtered TOC list", "backup_file", backupFile)
 
 	// Run pg_restore -l to get the TOC list
 	listCmd := exec.CommandContext(ctx, pgBin, "-l", backupFile)
@@ -1003,12 +1005,12 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 		upperLine := strings.ToUpper(trimmedLine)
 
 		if options.IsExcludeExtensions && isExtensionEntry(upperLine) {
-			uc.logger.Info("Excluding extension-related entry from restore", "tocLine", trimmedLine)
+			uc.logger.InfoContext(ctx, "excluding extension-related entry from restore", "toc_line", trimmedLine)
 			continue
 		}
 
 		if options.IsSkipUserMappings && isUserMappingEntry(upperLine) {
-			uc.logger.Info("Excluding user mapping entry from restore", "tocLine", trimmedLine)
+			uc.logger.InfoContext(ctx, "excluding user mapping entry from restore", "toc_line", trimmedLine)
 			continue
 		}
 
@@ -1034,10 +1036,10 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 		return "", fmt.Errorf("failed to close TOC list file: %w", err)
 	}
 
-	uc.logger.Info("Generated filtered TOC list file",
-		"tocFile", tocFilePath,
-		"originalLines", len(strings.Split(string(tocOutput), "\n")),
-		"filteredLines", len(filteredLines),
+	uc.logger.InfoContext(ctx, "generated filtered TOC list file",
+		"toc_file", tocFilePath,
+		"original_lines", len(strings.Split(string(tocOutput), "\n")),
+		"filtered_lines", len(filteredLines),
 	)
 
 	return tocFilePath, nil

@@ -1,6 +1,7 @@
 package verification_agents
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	users_models "databasus-backend/internal/features/users/models"
 	cache_utils "databasus-backend/internal/util/cache"
 )
@@ -29,6 +31,7 @@ func (s *AgentService) AddAgentHeartbeatedListener(listener AgentHeartbeatedList
 }
 
 func (s *AgentService) CreateAgent(
+	ctx context.Context,
 	user *users_models.User,
 	req *CreateAgentRequest,
 ) (*CreatedAgentResponse, error) {
@@ -46,11 +49,11 @@ func (s *AgentService) CreateAgent(
 		return nil, err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("verification agent created: %s", agent.Name),
-		&user.ID,
-		nil,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("verification agent created: %s", agent.Name),
+		UserID:      &user.ID,
+		WorkspaceID: nil,
+	})
 
 	return &CreatedAgentResponse{
 		Agent: agent,
@@ -58,12 +61,12 @@ func (s *AgentService) CreateAgent(
 	}, nil
 }
 
-func (s *AgentService) ListAgents() ([]*Agent, error) {
-	return s.agentRepository.FindAll()
+func (s *AgentService) ListAgents(ctx context.Context) ([]*Agent, error) {
+	return s.agentRepository.FindAll(ctx)
 }
 
-func (s *AgentService) CountLiveAgents() (int64, error) {
-	return s.agentRepository.CountLive()
+func (s *AgentService) CountLiveAgents(ctx context.Context) (int64, error) {
+	return s.agentRepository.CountLive(ctx)
 }
 
 func (s *AgentService) GetStaleAgents(threshold time.Duration) ([]*Agent, error) {
@@ -71,6 +74,7 @@ func (s *AgentService) GetStaleAgents(threshold time.Duration) ([]*Agent, error)
 }
 
 func (s *AgentService) RotateToken(
+	ctx context.Context,
 	user *users_models.User,
 	agentID uuid.UUID,
 ) (string, error) {
@@ -89,16 +93,16 @@ func (s *AgentService) RotateToken(
 		return "", err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("verification agent token rotated: %s", agent.Name),
-		&user.ID,
-		nil,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("verification agent token rotated: %s", agent.Name),
+		UserID:      &user.ID,
+		WorkspaceID: nil,
+	})
 
 	return plainToken, nil
 }
 
-func (s *AgentService) DeleteAgent(user *users_models.User, agentID uuid.UUID) error {
+func (s *AgentService) DeleteAgent(ctx context.Context, user *users_models.User, agentID uuid.UUID) error {
 	agent, err := s.agentRepository.FindByID(agentID)
 	if err != nil {
 		return err
@@ -111,11 +115,11 @@ func (s *AgentService) DeleteAgent(user *users_models.User, agentID uuid.UUID) e
 		return err
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("verification agent deleted: %s", agent.Name),
-		&user.ID,
-		nil,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("verification agent deleted: %s", agent.Name),
+		UserID:      &user.ID,
+		WorkspaceID: nil,
+	})
 
 	return nil
 }
@@ -149,6 +153,7 @@ func (s *AgentService) GetAgentByID(id uuid.UUID) (*Agent, error) {
 }
 
 func (s *AgentService) Heartbeat(
+	ctx context.Context,
 	agent *Agent,
 	req *HeartbeatRequest,
 ) (seenAt time.Time, abortVerificationIDs []uuid.UUID, err error) {
@@ -170,9 +175,10 @@ func (s *AgentService) Heartbeat(
 
 	abortSet := make(map[uuid.UUID]struct{})
 	for _, listener := range s.heartbeatListeners {
-		listenerAborts, listenerErr := listener.OnAgentHeartbeated(agent, req.CurrentVerificationIDs)
+		listenerAborts, listenerErr := listener.OnAgentHeartbeated(ctx, agent, req.CurrentVerificationIDs)
 		if listenerErr != nil {
-			s.logger.Error(
+			s.logger.ErrorContext(
+				ctx,
 				"agent heartbeated listener failed",
 				"error", listenerErr,
 				"agent_id", agent.ID,

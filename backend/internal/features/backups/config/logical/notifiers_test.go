@@ -20,16 +20,16 @@ import (
 
 func Test_AttachNotifierFromSameWorkspace_SuccessfullyAttached(t *testing.T) {
 	router := createTestRouterWithNotifier()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	database.Notifiers = []notifiers.Notifier{*notifier}
@@ -53,19 +53,19 @@ func Test_AttachNotifierFromSameWorkspace_SuccessfullyAttached(t *testing.T) {
 func Test_AttachNotifierFromDifferentWorkspace_ReturnsForbidden(t *testing.T) {
 	router := createTestRouterWithNotifier()
 
-	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", owner1, router)
+	owner1 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", owner1, router)
 	database := createTestDatabaseViaAPI("Test Database", workspace1.ID, owner1.Token, router)
 
-	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", owner2, router)
+	owner2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", owner2, router)
 	notifier := notifiers.CreateTestNotifier(workspace2.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace1, router)
-		workspaces_testing.RemoveTestWorkspace(workspace2, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 	}()
 
 	database.Notifiers = []notifiers.Notifier{*notifier}
@@ -84,16 +84,16 @@ func Test_AttachNotifierFromDifferentWorkspace_ReturnsForbidden(t *testing.T) {
 
 func Test_DeleteNotifierWithAttachedDatabases_CannotDelete(t *testing.T) {
 	router := createTestRouterWithNotifier()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	database.Notifiers = []notifiers.Notifier{*notifier}
@@ -126,18 +126,18 @@ func Test_DeleteNotifierWithAttachedDatabases_CannotDelete(t *testing.T) {
 
 func Test_TransferNotifierWithAttachedDatabase_CannotTransfer(t *testing.T) {
 	router := createTestRouterWithNotifier()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	targetWorkspace := workspaces_testing.CreateTestWorkspace("Target Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	targetWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Target Workspace", owner, router)
 
 	database := createTestDatabaseViaAPI("Test Database", workspace.ID, owner.Token, router)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
-		workspaces_testing.RemoveTestWorkspace(targetWorkspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), targetWorkspace, router)
 	}()
 
 	database.Notifiers = []notifiers.Notifier{*notifier}

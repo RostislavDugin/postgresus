@@ -97,11 +97,14 @@ func (m *MysqlDatabase) TestConnection(
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
+		// The DSN carries the password, so only the database name goes into the log.
+		logger.ErrorContext(ctx, "failed to open the mysql connection", "database_name", *m.Database, "error", err)
+
 		return fmt.Errorf("failed to connect to MySQL database '%s': %w", *m.Database, err)
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close MySQL connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the mysql connection", "error", closeErr)
 		}
 	}()
 
@@ -110,6 +113,8 @@ func (m *MysqlDatabase) TestConnection(
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
+		logger.ErrorContext(ctx, "failed to ping the mysql database", "database_name", *m.Database, "error", err)
+
 		return fmt.Errorf("failed to ping MySQL database '%s': %w", *m.Database, err)
 	}
 
@@ -154,7 +159,7 @@ func (m *MysqlDatabase) GetRawDbSizeMb(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close MySQL connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close MySQL connection", "error", closeErr)
 		}
 	}()
 
@@ -255,7 +260,7 @@ func (m *MysqlDatabase) PopulateDbData(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the connection", "error", closeErr)
 		}
 	}()
 
@@ -298,7 +303,7 @@ func (m *MysqlDatabase) PopulateVersion(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close the connection", "error", closeErr)
 		}
 	}()
 
@@ -329,7 +334,7 @@ func (m *MysqlDatabase) IsUserReadOnly(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -408,7 +413,7 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
-			logger.Error("Failed to close connection", "error", closeErr)
+			logger.ErrorContext(ctx, "failed to close connection", "error", closeErr)
 		}
 	}()
 
@@ -426,7 +431,7 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 		defer func() {
 			if !success {
 				if rollbackErr := tx.Rollback(); rollbackErr != nil {
-					logger.Error("Failed to rollback transaction", "error", rollbackErr)
+					logger.ErrorContext(ctx, "failed to rollback transaction", "error", rollbackErr)
 				}
 			}
 		}()
@@ -470,8 +475,9 @@ func (m *MysqlDatabase) CreateReadOnlyUser(
 		}
 
 		success = true
-		logger.Info(
-			"Read-only MySQL user created successfully",
+		logger.InfoContext(
+			ctx,
+			"read-only MySQL user created successfully",
 			"username",
 			newUsername,
 		)

@@ -1,6 +1,7 @@
 package logicaltesting
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -32,14 +33,14 @@ func SetupFlakyBackupTarget(
 	t.Helper()
 
 	router = CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace(workspaceName, user, router)
-	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(workspace, router) })
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), workspaceName, user, router)
+	t.Cleanup(func() { workspaces_testing.RemoveTestWorkspace(context.Background(), workspace, router) })
 
 	// The bucket deliberately does not exist on this (reachable) MinIO, so SaveFile fails at upload
 	// rather than at connect — that is the issue-582 path the assertion below guards.
 	storage := storages.CreateTestFlakyS3Storage(workspace.ID, s3Endpoint)
-	t.Cleanup(func() { storages.RemoveTestStorage(storage.ID) })
+	t.Cleanup(func() { storages.RemoveTestStorage(t.Context(), storage.ID) })
 
 	return router, user.Token, workspace.ID, storage.ID
 }

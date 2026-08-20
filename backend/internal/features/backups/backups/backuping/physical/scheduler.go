@@ -64,12 +64,13 @@ func (s *PhysicalBackupsScheduler) Run(ctx context.Context) {
 		panic(fmt.Sprintf("%T.Run() called multiple times", s))
 	}
 
-	s.logger = s.logger.With("job_id", uuid.New(), "job_name", schedulerJobName)
+	startupRecoveryLogger := s.logger.With("job_id", uuid.New(), "job_name", schedulerJobName)
+	lifecycleLogger := s.logger.With("job_name", schedulerJobName)
 
 	s.lastTickTime.Store(time.Now().UTC())
 
-	if err := s.recoverInFlightBackupsOnRestart(); err != nil {
-		s.logger.Error("failed to recover in-flight physical backups on restart", "error", err)
+	if err := s.recoverInFlightBackupsOnRestart(ctx, startupRecoveryLogger); err != nil {
+		startupRecoveryLogger.ErrorContext(ctx, "failed to recover in-flight physical backups on restart", "error", err)
 
 		panic(err)
 	}
@@ -84,13 +85,20 @@ func (s *PhysicalBackupsScheduler) Run(ctx context.Context) {
 	ticker := time.NewTicker(schedulerTickInterval)
 	defer ticker.Stop()
 
+	lifecycleLogger.InfoContext(ctx, "physical backup scheduler started")
+
 	for {
 		select {
 		case <-ctx.Done():
+			lifecycleLogger.InfoContext(ctx, "physical backup scheduler stopped")
+
 			return
 		case <-ticker.C:
-			if err := s.runPendingBackups(); err != nil {
-				s.logger.Error("failed to run pending physical backups", "error", err)
+			// A fresh job_id per tick: it is the correlation ID for one run, not for the process.
+			tickLogger := s.logger.With("job_id", uuid.New(), "job_name", schedulerJobName)
+
+			if err := s.runPendingBackups(ctx, tickLogger); err != nil {
+				tickLogger.ErrorContext(ctx, "failed to run pending physical backups", "error", err)
 			}
 
 			s.lastTickTime.Store(time.Now().UTC())
@@ -98,7 +106,7 @@ func (s *PhysicalBackupsScheduler) Run(ctx context.Context) {
 	}
 }
 
-func (s *PhysicalBackupsScheduler) runPendingBackups() error {
+func (s *PhysicalBackupsScheduler) runPendingBackups(ctx context.Context, logger *slog.Logger) error {
 	enabledConfigs, err := s.backupConfigService.GetBackupConfigsWithEnabledBackups()
 	if err != nil {
 		return err
@@ -107,20 +115,22 @@ func (s *PhysicalBackupsScheduler) runPendingBackups() error {
 	now := time.Now().UTC()
 
 	for _, backupConfig := range enabledConfigs {
-		s.evaluateConfig(now, backupConfig)
+		s.evaluateConfig(ctx, logger, now, backupConfig)
 	}
 
 	return nil
 }
 
 func (s *PhysicalBackupsScheduler) evaluateConfig(
+	ctx context.Context,
+	logger *slog.Logger,
 	now time.Time,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 ) {
-	logger := s.logger.With("database_id", backupConfig.DatabaseID, "job_name", schedulerJobName)
+	logger = logger.With("database_id", backupConfig.DatabaseID)
 
 	if backupConfig.StorageID == nil {
-		logger.Error("physical backup config has no storage id; skipping")
+		logger.ErrorContext(ctx, "physical backup config has no storage id; skipping")
 
 		return
 	}
@@ -130,12 +140,15 @@ func (s *PhysicalBackupsScheduler) evaluateConfig(
 		return
 	}
 
-	s.scheduleBackup(logger, backupConfig, decision)
+	s.scheduleBackup(ctx, logger, backupConfig, decision)
 }
 
 // backupDecision is the outcome of the per-tick FULL-vs-INCR decision.
 type backupDecision struct {
-	kind                        physical_enums.PhysicalBackupType
+	kind physical_enums.PhysicalBackupType
+	// Why this backup was scheduled - "forced" and "cadence due" produce an identical row, so
+	// without it an operator cannot tell an out-of-cadence request from a normal tick.
+	reason                      string
 	incrRootFullBackupID        uuid.UUID
 	incrParentIncrID            *uuid.UUID
 	forceFullRequestedAt        *time.Time
@@ -163,6 +176,7 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 	if backupConfig.ForceFullRequestedAt != nil {
 		return backupDecision{
 			kind:                 physical_enums.PhysicalBackupTypeFull,
+			reason:               "full requested out of cadence",
 			forceFullRequestedAt: backupConfig.ForceFullRequestedAt,
 		}, true
 	}
@@ -181,10 +195,15 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 	}
 
 	if backupConfig.FullBackupInterval.ShouldTriggerBackup(now, createdAtOrNil(lastFull)) {
-		return backupDecision{kind: physical_enums.PhysicalBackupTypeFull}, true
+		return backupDecision{
+			kind:   physical_enums.PhysicalBackupTypeFull,
+			reason: "full cadence is due",
+		}, true
 	}
 
 	if !isIncrementalEnabled(backupConfig) {
+		logger.Debug("nothing due: full cadence is not due and incrementals are disabled")
+
 		return backupDecision{}, false
 	}
 
@@ -197,8 +216,15 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 
 	lastBackupTime := newestCreatedAt(lastFull, lastIncr)
 
-	if extendableChain == nil ||
-		!backupConfig.IncrementalBackupInterval.ShouldTriggerBackup(now, lastBackupTime) {
+	if extendableChain == nil {
+		logger.Debug("nothing due: no extendable chain to add an incremental to")
+
+		return backupDecision{}, false
+	}
+
+	if !backupConfig.IncrementalBackupInterval.ShouldTriggerBackup(now, lastBackupTime) {
+		logger.Debug("nothing due: neither cadence has elapsed")
+
 		return backupDecision{}, false
 	}
 
@@ -211,6 +237,7 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 
 	return backupDecision{
 		kind:                 physical_enums.PhysicalBackupTypeIncremental,
+		reason:               "incremental cadence is due",
 		incrRootFullBackupID: extendableChain.RootFull.ID,
 		incrParentIncrID:     parentIncrID,
 	}, true
@@ -289,6 +316,7 @@ func (s *PhysicalBackupsScheduler) resolveIncrParent(rootFullBackupID uuid.UUID)
 }
 
 func (s *PhysicalBackupsScheduler) scheduleBackup(
+	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	decision backupDecision,
@@ -298,13 +326,13 @@ func (s *PhysicalBackupsScheduler) scheduleBackup(
 
 	claimed, err := s.claimAndInsert(backupConfig, backupID, decision)
 	if err != nil {
-		logger.Error("failed to claim and insert backup row", "error", err)
+		logger.ErrorContext(ctx, "failed to claim and insert backup row", "error", err)
 
 		return
 	}
 
 	if !claimed {
-		logger.Debug("in-flight slot already claimed by another instance; skipping")
+		logger.DebugContext(ctx, "in-flight slot already claimed by another instance; skipping")
 
 		return
 	}
@@ -314,7 +342,7 @@ func (s *PhysicalBackupsScheduler) scheduleBackup(
 			backupConfig.DatabaseID,
 			decision.forceFullRequestedAt,
 		); err != nil {
-			logger.Error("failed to clear forced full request", "error", err)
+			logger.ErrorContext(ctx, "failed to clear forced full request", "error", err)
 		}
 	}
 
@@ -323,13 +351,13 @@ func (s *PhysicalBackupsScheduler) scheduleBackup(
 			backupConfig.DatabaseID,
 			decision.forceIncrementalRequestedAt,
 		); err != nil {
-			logger.Error("failed to clear forced incremental request", "error", err)
+			logger.ErrorContext(ctx, "failed to clear forced incremental request", "error", err)
 		}
 	}
 
-	go s.backuper.MakeBackup(backupID, true)
+	go s.backuper.MakeBackup(ctx, backupID, true)
 
-	logger.Info("scheduled physical backup")
+	logger.InfoContext(ctx, fmt.Sprintf("scheduled physical %s backup: %s", decision.kind, decision.reason))
 }
 
 // claimAndInsert reserves the cross-table in-flight slot and inserts the typed
@@ -397,10 +425,18 @@ func (s *PhysicalBackupsScheduler) claimAndInsert(
 // Runs once at Run() entry. The claim is the source of truth for in-flight state —
 // claimAndInsert writes the claim and the typed row in one transaction — so
 // iterating claims covers every backup that was running.
-func (s *PhysicalBackupsScheduler) recoverInFlightBackupsOnRestart() error {
+func (s *PhysicalBackupsScheduler) recoverInFlightBackupsOnRestart(
+	ctx context.Context,
+	logger *slog.Logger,
+) error {
 	claims, err := s.inFlightRepo.FindAll()
 	if err != nil {
 		return err
+	}
+
+	if len(claims) > 0 {
+		logger.InfoContext(ctx, fmt.Sprintf(
+			"failing %d physical backups orphaned by the previous run", len(claims)))
 	}
 
 	claimedBackupIDs := make(map[uuid.UUID]struct{}, len(claims))
@@ -408,17 +444,21 @@ func (s *PhysicalBackupsScheduler) recoverInFlightBackupsOnRestart() error {
 	for _, claim := range claims {
 		claimedBackupIDs[claim.BackupID] = struct{}{}
 
-		s.failOrphanedBackup(claim.BackupType, claim.BackupID, claim.DatabaseID)
+		s.failOrphanedBackup(ctx, logger, claim.BackupType, claim.BackupID, claim.DatabaseID)
 	}
 
-	return s.failClaimlessInProgressBackups(claimedBackupIDs)
+	return s.failClaimlessInProgressBackups(ctx, logger, claimedBackupIDs)
 }
 
 // failClaimlessInProgressBackups fails any IN_PROGRESS row that has no matching
 // in-flight claim. The atomic claim+insert should never leave such a row, so this
 // is a defensive sweep: without it a stray row could sit IN_PROGRESS forever after
 // a restart, since claim-driven recovery would never see it.
-func (s *PhysicalBackupsScheduler) failClaimlessInProgressBackups(claimedBackupIDs map[uuid.UUID]struct{}) error {
+func (s *PhysicalBackupsScheduler) failClaimlessInProgressBackups(
+	ctx context.Context,
+	logger *slog.Logger,
+	claimedBackupIDs map[uuid.UUID]struct{},
+) error {
 	fulls, err := s.fullRepo.FindAllInProgress()
 	if err != nil {
 		return err
@@ -429,7 +469,11 @@ func (s *PhysicalBackupsScheduler) failClaimlessInProgressBackups(claimedBackupI
 			continue
 		}
 
-		s.failOrphanedBackup(physical_enums.PhysicalBackupTypeFull, full.ID, full.DatabaseID)
+		// The atomic claim+insert should make this unreachable, so a hit means the invariant broke.
+		logger.WarnContext(ctx, "found an in-progress full backup with no in-flight claim",
+			"backup_id", full.ID, "database_id", full.DatabaseID)
+
+		s.failOrphanedBackup(ctx, logger, physical_enums.PhysicalBackupTypeFull, full.ID, full.DatabaseID)
 	}
 
 	incrementals, err := s.incrRepo.FindAllInProgress()
@@ -442,28 +486,41 @@ func (s *PhysicalBackupsScheduler) failClaimlessInProgressBackups(claimedBackupI
 			continue
 		}
 
-		s.failOrphanedBackup(physical_enums.PhysicalBackupTypeIncremental, incremental.ID, incremental.DatabaseID)
+		logger.WarnContext(ctx, "found an in-progress incremental backup with no in-flight claim",
+			"backup_id", incremental.ID, "database_id", incremental.DatabaseID)
+
+		s.failOrphanedBackup(ctx, logger,
+			physical_enums.PhysicalBackupTypeIncremental, incremental.ID, incremental.DatabaseID)
 	}
 
 	return nil
 }
 
 func (s *PhysicalBackupsScheduler) failOrphanedBackup(
+	ctx context.Context,
+	logger *slog.Logger,
 	kind physical_enums.PhysicalBackupType,
 	backupID, databaseID uuid.UUID,
 ) {
+	logger = logger.With("backup_id", backupID, "database_id", databaseID)
+
 	// Best-effort cancel of any locally-registered task; harmless if none
 	// (a fresh process holds no registrations).
 	if err := s.taskCancelManager.CancelTask(backupID); err != nil {
-		s.logger.Error("failed to cancel orphaned backup task", "backup_id", backupID, "error", err)
+		logger.ErrorContext(ctx, "failed to cancel orphaned backup task", "error", err)
 	}
 
 	if err := s.failBackupAndReleaseClaim(
 		kind, backupID, databaseID, physical_enums.PhysicalBackupErrorApplicationRestart,
 		"Backup was interrupted by an application restart and marked failed. Trigger a new backup.",
 	); err != nil {
-		s.logger.Error("failed to fail orphaned backup on restart", "backup_id", backupID, "error", err)
+		logger.ErrorContext(ctx, "failed to fail orphaned backup on restart", "error", err)
+
+		return
 	}
+
+	logger.InfoContext(ctx, fmt.Sprintf(
+		"failed a %s backup orphaned by the previous run", kind))
 }
 
 // failBackupAndReleaseClaim flips one typed row to ERROR and deletes the

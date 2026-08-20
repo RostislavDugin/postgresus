@@ -118,6 +118,8 @@ func Open(ctx context.Context, spec OpenSpec) (*Forwarder, error) {
 		dialBastionConn:  dialBastionConnOverTCP,
 	}
 
+	forwarderLogger.InfoContext(ctx, "ssh tunnel opened", "local_port", localAddress.Port)
+
 	if err := forwarder.dialAndCacheBastion(ctx); err != nil {
 		cancelLifetime()
 		_ = listener.Close()
@@ -137,6 +139,8 @@ func (f *Forwarder) GetLocalEndpoint() Endpoint {
 
 func (f *Forwarder) Close() {
 	f.closeOnce.Do(func() {
+		f.logger.Info("ssh tunnel closed")
+
 		close(f.done)
 		// Before taking clientMutex: a redial holding it aborts only once its context is cancelled.
 		f.cancelLifetime()
@@ -275,6 +279,8 @@ func (f *Forwarder) dialAndCacheBastionLocked(ctx context.Context) error {
 
 	bastionConn, err := f.dialBastionConn(ctx, f.bastionAddress)
 	if err != nil {
+		f.logger.ErrorContext(ctx, "failed to dial the ssh tunnel host", "error", err)
+
 		return fmt.Errorf("failed to dial the SSH tunnel host: %w", err)
 	}
 
@@ -288,8 +294,12 @@ func (f *Forwarder) dialAndCacheBastionLocked(ctx context.Context) error {
 	if err != nil {
 		_ = bastionConn.Close()
 
+		f.logger.ErrorContext(ctx, "failed to authenticate with the ssh tunnel host", "error", err)
+
 		return fmt.Errorf("failed to authenticate with the SSH tunnel host: %w", err)
 	}
+
+	f.logger.DebugContext(ctx, "connected to the ssh tunnel host")
 
 	// The deadline bounded the handshake only. Forwarded traffic must not inherit it, or every
 	// dump longer than the handshake bound would be cut off mid-stream.

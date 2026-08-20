@@ -59,11 +59,11 @@ func (c *PhysicalBackupCleaner) Run(ctx context.Context) {
 			logger := c.logger.With("job_id", uuid.New(), "job_name", cleanerJobName)
 
 			if err := c.cleanByRetentionPolicy(ctx, logger); err != nil {
-				logger.Error("failed to clean by retention policy", "error", err)
+				logger.ErrorContext(ctx, "failed to clean by retention policy", "error", err)
 			}
 
 			if err := c.cleanOrphans(ctx, logger); err != nil {
-				logger.Error("failed to clean orphans", "error", err)
+				logger.ErrorContext(ctx, "failed to clean orphans", "error", err)
 			}
 		}
 	}
@@ -76,8 +76,11 @@ func (c *PhysicalBackupCleaner) Run(ctx context.Context) {
 func (c *PhysicalBackupCleaner) runStartupSlotCleanup(ctx context.Context) {
 	isSlotProtected := func(uuid.UUID) (bool, error) { return false, nil }
 
-	if err := usecases_physical_postgresql.RunStartupCleanup(ctx, c.logger, isSlotProtected); err != nil {
-		c.logger.Error("physical startup slot cleanup reported failures", "error", err)
+	logger := c.logger.With("job_id", uuid.New(), "job_name", cleanerJobName)
+
+	// Best effort at boot: a slot that cannot be dropped is retried by the orphan sweep.
+	if err := usecases_physical_postgresql.RunStartupCleanup(ctx, logger, isSlotProtected); err != nil {
+		logger.WarnContext(ctx, "physical startup slot cleanup reported failures", "error", err)
 	}
 }
 
@@ -142,59 +145,73 @@ func (c *PhysicalBackupCleaner) nonExtendableChainsNewestEndFirst(
 	return candidates, nil
 }
 
-// deleteChainThroughService removes a whole chain via the service, bounded by
-// the per-tick WAL byte budget, logging progress.
+// Reports whether the delete succeeded, so callers count outcomes rather than attempts.
 func (c *PhysicalBackupCleaner) deleteChainThroughService(
 	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	rootFullBackupID uuid.UUID,
-) {
+) bool {
 	summary, err := c.physicalBackupService.DeleteFull(
-		ctx, rootFullBackupID, c.walDeleteBudgetMB(backupConfig.DatabaseID),
+		ctx, rootFullBackupID, c.walDeleteBudgetMB(ctx, backupConfig.DatabaseID),
 	)
 	if err != nil {
-		logger.Error("failed to delete chain", "root_full_backup_id", rootFullBackupID, "error", err)
+		logger.ErrorContext(ctx, "failed to delete chain", "root_full_backup_id", rootFullBackupID, "error", err)
 
-		return
+		return false
 	}
 
-	logger.Info(fmt.Sprintf(
+	logger.InfoContext(ctx, fmt.Sprintf(
 		"chain cleanup progress: %d wal, %d incr, %d history, %.1f MB, complete=%v",
 		summary.WalSegments, summary.Incrementals, summary.HistoryFiles,
 		summary.BytesDeletedMB, summary.ChainFullyDeleted,
 	), "root_full_backup_id", rootFullBackupID)
+
+	return true
 }
 
-// deleteChainDependentsThroughService drops a chain's INCRs and WAL but keeps
-// the FULL — used by FULL_BACKUPS policies that retain a kept FULL as a
-// standalone restore point.
+// A kept FULL stays a standalone restore point, so its INCRs and WAL go while it remains.
+// Reports whether the delete succeeded, so callers count outcomes rather than attempts.
 func (c *PhysicalBackupCleaner) deleteChainDependentsThroughService(
 	ctx context.Context,
 	logger *slog.Logger,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	rootFullBackupID uuid.UUID,
-) {
+) bool {
 	summary, err := c.physicalBackupService.DeleteChainDependentsKeepFull(
-		ctx, rootFullBackupID, c.walDeleteBudgetMB(backupConfig.DatabaseID),
+		ctx, rootFullBackupID, c.walDeleteBudgetMB(ctx, backupConfig.DatabaseID),
 	)
 	if err != nil {
-		logger.Error("failed to delete chain dependents", "root_full_backup_id", rootFullBackupID, "error", err)
+		logger.ErrorContext(ctx, "failed to delete chain dependents",
+			"root_full_backup_id", rootFullBackupID,
+			"error", err,
+		)
 
-		return
+		return false
 	}
 
-	logger.Info(fmt.Sprintf(
+	logger.InfoContext(ctx, fmt.Sprintf(
 		"chain dependents cleanup: %d wal, %d incr, %.1f MB",
 		summary.WalSegments, summary.Incrementals, summary.BytesDeletedMB,
 	), "root_full_backup_id", rootFullBackupID)
+
+	return true
 }
 
 // walDeleteBudgetMB anchors the per-tick WAL byte budget to the latest COMPLETED
 // FULL's size, floored at minWalDeleteBudgetMB.
-func (c *PhysicalBackupCleaner) walDeleteBudgetMB(databaseID uuid.UUID) float64 {
+func (c *PhysicalBackupCleaner) walDeleteBudgetMB(ctx context.Context, databaseID uuid.UUID) float64 {
 	fulls, err := c.fullRepo.FindCompletedNewestFirstByDatabase(databaseID)
-	if err == nil && len(fulls) > 0 && fulls[0].BackupSizeMb != nil {
+	if err != nil {
+		// Falling back to the floor silently would look like retention crawling for no reason.
+		c.logger.WarnContext(ctx, fmt.Sprintf(
+			"failed to size the wal delete budget, falling back to the %.0f MB floor",
+			minWalDeleteBudgetMB), "database_id", databaseID, "error", err)
+
+		return minWalDeleteBudgetMB
+	}
+
+	if len(fulls) > 0 && fulls[0].BackupSizeMb != nil {
 		return math.Max(*fulls[0].BackupSizeMb, minWalDeleteBudgetMB)
 	}
 
@@ -206,12 +223,13 @@ func (c *PhysicalBackupCleaner) walDeleteBudgetMB(databaseID uuid.UUID) float64 
 // per-backup grace). A failure to read the timestamp is treated as within grace
 // so a transient error never causes a premature delete.
 func (c *PhysicalBackupCleaner) isChainWithinGrace(
+	ctx context.Context,
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	rootFullBackupID uuid.UUID,
 ) bool {
 	endTs, err := c.chainViewService.GetChainEndTimestamp(rootFullBackupID)
 	if err != nil {
-		c.logger.Error("failed to get chain end timestamp; treating as within grace",
+		c.logger.WarnContext(ctx, "failed to get chain end timestamp; treating as within grace",
 			"root_full_backup_id", rootFullBackupID, "error", err)
 
 		return true
@@ -237,6 +255,8 @@ func (c *PhysicalBackupCleaner) cleanByChains(
 ) error {
 	keepCount := backupConfig.ChainsRetention.Count
 	if keepCount <= 0 {
+		logger.DebugContext(ctx, "chain retention has no count configured, keeping every chain")
+
 		return nil
 	}
 
@@ -246,15 +266,40 @@ func (c *PhysicalBackupCleaner) cleanByChains(
 	}
 
 	if len(candidates) <= keepCount {
+		logger.DebugContext(ctx, fmt.Sprintf("chain retention: keeping all %d chains, limit is %d",
+			len(candidates), keepCount))
+
 		return nil
 	}
 
+	deletedCount, withinGraceCount := 0, 0
+
 	for _, candidate := range candidates[keepCount:] {
-		if c.isChainWithinGrace(backupConfig, candidate.view.RootFull.ID) {
+		rootFullBackupID := candidate.view.RootFull.ID
+
+		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",
+				"root_full_backup_id", rootFullBackupID)
+
 			continue
 		}
 
-		c.deleteChainThroughService(ctx, logger, backupConfig, candidate.view.RootFull.ID)
+		if c.deleteChainThroughService(ctx, logger, backupConfig, rootFullBackupID) {
+			deletedCount++
+		}
+	}
+
+	summary := fmt.Sprintf(
+		"chain retention: %d non-extendable chains, %d kept by limit, %d deleted, %d within grace",
+		len(candidates), keepCount, deletedCount, withinGraceCount)
+
+	// The cleaner ticks every few seconds, so a run that changed nothing belongs at debug.
+	if deletedCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
@@ -274,8 +319,8 @@ func (c *PhysicalBackupCleaner) cleanByFulls(
 		return err
 	}
 
-	keepFullIDs := c.fullBackupsKeepSet(backupConfig, completedFulls)
-	if keepFullIDs == nil {
+	retainedTiersByFullBackupID := c.getRetainedTiersByFullBackupID(backupConfig, completedFulls)
+	if retainedTiersByFullBackupID == nil {
 		return nil
 	}
 
@@ -284,32 +329,55 @@ func (c *PhysicalBackupCleaner) cleanByFulls(
 		return err
 	}
 
+	deletedCount, dependentsOnlyCount, withinGraceCount := 0, 0, 0
+
 	for _, candidate := range candidates {
 		rootFullBackupID := candidate.view.RootFull.ID
 
-		if c.isChainWithinGrace(backupConfig, rootFullBackupID) {
+		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",
+				"root_full_backup_id", rootFullBackupID)
+
 			continue
 		}
 
-		if keepFullIDs[rootFullBackupID] {
-			c.deleteChainDependentsThroughService(ctx, logger, backupConfig, rootFullBackupID)
+		if tiers, isKept := retainedTiersByFullBackupID[rootFullBackupID]; isKept {
+			logger.DebugContext(ctx, fmt.Sprintf("keeping the full backup%s, shedding its dependents",
+				formatRetentionTiersSuffix(tiers)), "root_full_backup_id", rootFullBackupID)
+
+			if c.deleteChainDependentsThroughService(ctx, logger, backupConfig, rootFullBackupID) {
+				dependentsOnlyCount++
+			}
 
 			continue
 		}
 
-		c.deleteChainThroughService(ctx, logger, backupConfig, rootFullBackupID)
+		if c.deleteChainThroughService(ctx, logger, backupConfig, rootFullBackupID) {
+			deletedCount++
+		}
+	}
+
+	summary := fmt.Sprintf(
+		"full-backup retention: %d chains, %d shed to their full, %d deleted whole, %d within grace",
+		len(candidates), dependentsOnlyCount, deletedCount, withinGraceCount)
+
+	if deletedCount+dependentsOnlyCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
 }
 
-// fullBackupsKeepSet computes the kept-FULL id set for the FULL_BACKUPS policy.
-// Returns nil when the policy has no effective configuration (so the caller
-// no-ops rather than treating an empty set as "delete everything").
-func (c *PhysicalBackupCleaner) fullBackupsKeepSet(
+// Returns nil when the policy has no effective configuration, so the caller no-ops rather than
+// treating an empty result as "delete everything".
+func (c *PhysicalBackupCleaner) getRetainedTiersByFullBackupID(
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	completedFullsNewestFirst []*physical_models.PhysicalFullBackup,
-) map[uuid.UUID]bool {
+) map[uuid.UUID][]gfs.Tier {
 	retention := backupConfig.FullBackupsRetention
 
 	switch retention.Policy {
@@ -318,10 +386,10 @@ func (c *PhysicalBackupCleaner) fullBackupsKeepSet(
 			return nil
 		}
 
-		keep := make(map[uuid.UUID]bool)
+		keep := make(map[uuid.UUID][]gfs.Tier)
 		for i, full := range completedFullsNewestFirst {
 			if i < retention.Count {
-				keep[full.ID] = true
+				keep[full.ID] = nil
 			}
 		}
 
@@ -374,22 +442,46 @@ func (c *PhysicalBackupCleaner) cleanByCombined(
 		return err
 	}
 
-	for fullID := range c.fullBackupsKeepSet(backupConfig, completedFulls) {
+	for fullID := range c.getRetainedTiersByFullBackupID(backupConfig, completedFulls) {
 		keepRoots[fullID] = true
 	}
+
+	deletedCount, keptCount, withinGraceCount := 0, 0, 0
 
 	for _, candidate := range candidates {
 		rootFullBackupID := candidate.view.RootFull.ID
 
 		if keepRoots[rootFullBackupID] {
+			keptCount++
+
+			logger.DebugContext(ctx, "keeping chain, either policy retains it",
+				"root_full_backup_id", rootFullBackupID)
+
 			continue
 		}
 
-		if c.isChainWithinGrace(backupConfig, rootFullBackupID) {
+		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+			withinGraceCount++
+
+			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",
+				"root_full_backup_id", rootFullBackupID)
+
 			continue
 		}
 
-		c.deleteChainThroughService(ctx, logger, backupConfig, rootFullBackupID)
+		if c.deleteChainThroughService(ctx, logger, backupConfig, rootFullBackupID) {
+			deletedCount++
+		}
+	}
+
+	summary := fmt.Sprintf(
+		"combined retention: %d chains, %d kept by either policy, %d deleted, %d within grace",
+		len(candidates), keptCount, deletedCount, withinGraceCount)
+
+	if deletedCount > 0 {
+		logger.InfoContext(ctx, summary)
+	} else {
+		logger.DebugContext(ctx, summary)
 	}
 
 	return nil
@@ -407,7 +499,7 @@ func (c *PhysicalBackupCleaner) cleanOrphans(ctx context.Context, logger *slog.L
 		dbLog := logger.With("database_id", backupConfig.DatabaseID)
 
 		c.cleanOrphanWalForDatabase(ctx, dbLog, backupConfig.DatabaseID)
-		c.reapAbandonedWalClaims(dbLog, backupConfig.DatabaseID)
+		c.reapAbandonedWalClaims(ctx, dbLog, backupConfig.DatabaseID)
 	}
 
 	return nil
@@ -420,12 +512,12 @@ func (c *PhysicalBackupCleaner) cleanOrphanWalForDatabase(
 ) {
 	orphans, err := c.chainViewService.FindWalOrphansByDatabase(databaseID)
 	if err != nil {
-		logger.Error("failed to find orphan wal", "error", err)
+		logger.ErrorContext(ctx, "failed to find orphan wal", "error", err)
 
 		return
 	}
 
-	budget := c.walDeleteBudgetMB(databaseID)
+	budget := c.walDeleteBudgetMB(ctx, databaseID)
 
 	for _, orphan := range orphans {
 		segment := orphan.WalSegment
@@ -438,29 +530,38 @@ func (c *PhysicalBackupCleaner) cleanOrphanWalForDatabase(
 			ctx, databaseID, segment.TimelineID, span, budget,
 		)
 		if err != nil {
-			logger.Error("failed to delete orphan wal segment", "wal_filename", segment.WalFilename, "error", err)
+			logger.ErrorContext(ctx, "failed to delete orphan wal segment",
+				"wal_filename", segment.WalFilename,
+				"error", err,
+			)
 
 			continue
 		}
 
 		if rows > 0 {
-			logger.Info(fmt.Sprintf("deleted orphan wal segment (%.2f MB)", mb), "wal_filename", segment.WalFilename)
+			logger.InfoContext(ctx, fmt.Sprintf("deleted orphan wal segment (%.2f MB)", mb),
+				"wal_filename", segment.WalFilename,
+			)
 		}
 	}
 }
 
-func (c *PhysicalBackupCleaner) reapAbandonedWalClaims(logger *slog.Logger, databaseID uuid.UUID) {
+func (c *PhysicalBackupCleaner) reapAbandonedWalClaims(
+	ctx context.Context,
+	logger *slog.Logger,
+	databaseID uuid.UUID,
+) {
 	cutoff := time.Now().UTC().Add(-walClaimGracePeriod)
 
-	deleted, err := c.walSegmentRepo.DeleteAbandonedClaims(databaseID, cutoff)
+	deletedClaimCount, err := c.walSegmentRepo.DeleteAbandonedClaims(databaseID, cutoff)
 	if err != nil {
-		logger.Error("failed to reap abandoned wal claims", "error", err)
+		logger.ErrorContext(ctx, "failed to reap abandoned wal claims", "error", err)
 
 		return
 	}
 
-	if deleted > 0 {
-		logger.Info(fmt.Sprintf("reaped %d abandoned wal claims", deleted))
+	if deletedClaimCount > 0 {
+		logger.InfoContext(ctx, fmt.Sprintf("reaped %d abandoned wal claims", deletedClaimCount))
 	}
 }
 
@@ -479,4 +580,13 @@ func approxIntervalDuration(interval intervals.Interval) time.Duration {
 	default:
 		return 24 * time.Hour
 	}
+}
+
+// The LAST_N variant keeps by position rather than by tier, so it records no tiers at all.
+func formatRetentionTiersSuffix(tiers []gfs.Tier) string {
+	if len(tiers) == 0 {
+		return ""
+	}
+
+	return " (retained as " + gfs.FormatTiers(tiers) + ")"
 }

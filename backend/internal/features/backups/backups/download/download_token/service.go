@@ -1,6 +1,7 @@
 package download_token
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -28,7 +29,7 @@ func NewService(guard *stream_guard.Guard, logger *slog.Logger) *Service {
 	}
 }
 
-func (s *Service) Generate(backupID, userID uuid.UUID) (string, error) {
+func (s *Service) Generate(ctx context.Context, backupID, userID uuid.UUID) (string, error) {
 	if s.IsDownloadInProgress(userID) {
 		return "", stream_guard.ErrDownloadAlreadyInProgress
 	}
@@ -47,48 +48,58 @@ func (s *Service) Generate(backupID, userID uuid.UUID) (string, error) {
 		return "", err
 	}
 
-	s.logger.Info("Generated download token", "backupId", backupID, "userId", userID)
+	s.logger.InfoContext(ctx, "generated download token", "backup_id", backupID, "user_id", userID)
+
 	return token, nil
 }
 
 func (s *Service) ValidateAndConsume(
+	ctx context.Context,
 	token string,
 ) (*Token, error) {
-	dt, err := s.repository.FindByToken(token)
+	downloadToken, err := s.repository.FindByToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 
-	if dt == nil {
+	if downloadToken == nil {
 		return nil, errors.New("invalid token")
 	}
 
-	if dt.Used {
+	if downloadToken.Used {
 		return nil, errors.New("token already used")
 	}
 
-	if time.Now().UTC().After(dt.ExpiresAt) {
+	if time.Now().UTC().After(downloadToken.ExpiresAt) {
 		return nil, errors.New("token expired")
 	}
 
-	if err := s.AcquireSlot(dt.UserID); err != nil {
+	if err := s.AcquireSlot(downloadToken.UserID); err != nil {
 		return nil, err
 	}
 
-	dt.Used = true
-	if err := s.repository.Update(dt); err != nil {
-		s.logger.Error("Failed to mark token as used", "error", err)
+	downloadToken.Used = true
+	if err := s.repository.Update(downloadToken); err != nil {
+		s.logger.ErrorContext(ctx, "failed to mark token as used", "error", err)
 	}
 
-	s.logger.Info("Token validated and consumed", "backupId", dt.BackupID, "userId", dt.UserID)
-	return dt, nil
+	s.logger.InfoContext(
+		ctx,
+		"download token validated and consumed",
+		"backup_id",
+		downloadToken.BackupID,
+		"user_id",
+		downloadToken.UserID,
+	)
+
+	return downloadToken, nil
 }
 
-func (s *Service) CleanExpiredTokens() error {
-	if err := s.repository.DeleteExpired(time.Now().UTC()); err != nil {
-		return err
+func (s *Service) CleanExpiredTokens(ctx context.Context) (int64, error) {
+	deletedCount, err := s.repository.DeleteExpired(ctx, time.Now().UTC())
+	if err != nil {
+		return 0, err
 	}
 
-	s.logger.Debug("Cleaned expired download tokens")
-	return nil
+	return deletedCount, nil
 }

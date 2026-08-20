@@ -19,8 +19,8 @@ import (
 
 func Test_AttachStorageFromSameWorkspace_PhysicalConfig_SuccessfullyAttached(t *testing.T) {
 	router := createPhysicalTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	database := createPhysicalDatabaseViaAPI(
 		t, "Physical DB "+uuid.New().String(), workspace.ID, owner.Token, router,
@@ -29,9 +29,9 @@ func Test_AttachStorageFromSameWorkspace_PhysicalConfig_SuccessfullyAttached(t *
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		databases.RemoveTestDatabase(t.Context(), database)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	request := validPhysicalConfigForFullOnly(database.ID)
@@ -55,22 +55,22 @@ func Test_AttachStorageFromSameWorkspace_PhysicalConfig_SuccessfullyAttached(t *
 func Test_AttachStorageFromDifferentWorkspace_PhysicalConfig_ReturnsBadRequest(t *testing.T) {
 	router := createPhysicalTestRouter()
 
-	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", owner1, router)
+	owner1 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", owner1, router)
 	database := createPhysicalDatabaseViaAPI(
 		t, "Physical DB "+uuid.New().String(), workspace1.ID, owner1.Token, router,
 		postgresql_physical.BackupTypeFullOnly, "17",
 	)
 
-	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", owner2, router)
+	owner2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", owner2, router)
 	storage := storages.CreateTestStorage(workspace2.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace1, router)
-		workspaces_testing.RemoveTestWorkspace(workspace2, router)
+		databases.RemoveTestDatabase(t.Context(), database)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 	}()
 
 	request := validPhysicalConfigForFullOnly(database.ID)
@@ -89,8 +89,8 @@ func Test_AttachStorageFromDifferentWorkspace_PhysicalConfig_ReturnsBadRequest(t
 
 func Test_DeleteStorageWithAttachedPhysicalConfig_CannotDelete(t *testing.T) {
 	router := createPhysicalTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 	database := createPhysicalDatabaseViaAPI(
 		t, "Physical DB "+uuid.New().String(), workspace.ID, owner.Token, router,
@@ -99,9 +99,9 @@ func Test_DeleteStorageWithAttachedPhysicalConfig_CannotDelete(t *testing.T) {
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	defer func() {
-		databases.RemoveTestDatabase(database)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		databases.RemoveTestDatabase(t.Context(), database)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	request := validPhysicalConfigForFullOnly(database.ID)

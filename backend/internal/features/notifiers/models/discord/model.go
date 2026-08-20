@@ -67,7 +67,7 @@ func (d *DiscordNotifier) Send(
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send Discord message: %w", err)
+		return fmt.Errorf("failed to send Discord message: %w", notifier_models.ErrorWithoutWebhookURLCredentials(err))
 	}
 	defer func() {
 		_ = resp.Body.Close()

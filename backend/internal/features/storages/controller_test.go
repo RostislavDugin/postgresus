@@ -37,9 +37,9 @@ func (m *mockStorageDatabaseCounter) GetStorageAttachedDatabasesIDs(
 }
 
 func Test_SaveNewStorage_StorageReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 
 	var savedStorage Storage
@@ -83,13 +83,13 @@ func Test_SaveNewStorage_StorageReturnedViaGet(t *testing.T) {
 	assert.Contains(t, storages, savedStorage)
 
 	deleteStorage(t, router, savedStorage.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_UpdateExistingStorage_UpdatedStorageReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 
 	var savedStorage Storage
@@ -121,15 +121,15 @@ func Test_UpdateExistingStorage_UpdatedStorageReturnedViaGet(t *testing.T) {
 	assert.Equal(t, savedStorage.ID, updatedStorage.ID)
 
 	deleteStorage(t, router, updatedStorage.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_CreateRcloneStorage_OnlyAdminCanCreate_MemberGetsForbidden(t *testing.T) {
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	adminWorkspace := workspaces_testing.CreateTestWorkspace("Admin Workspace", admin, router)
-	memberWorkspace := workspaces_testing.CreateTestWorkspace("Member Workspace", member, router)
+	adminWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Admin Workspace", admin, router)
+	memberWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Member Workspace", member, router)
 
 	adminStorage := createNewRcloneStorage(adminWorkspace.ID)
 	var savedStorage Storage
@@ -158,16 +158,16 @@ func Test_CreateRcloneStorage_OnlyAdminCanCreate_MemberGetsForbidden(t *testing.
 	assert.Contains(t, string(resp.Body), "rclone storage can only be managed by administrators")
 
 	deleteStorage(t, router, savedStorage.ID, admin.Token)
-	workspaces_testing.RemoveTestWorkspace(adminWorkspace, router)
-	workspaces_testing.RemoveTestWorkspace(memberWorkspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), adminWorkspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), memberWorkspace, router)
 }
 
 func Test_UpdateStorageTypeToRclone_OnlyAdminCanUpdate_MemberGetsForbidden(t *testing.T) {
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	adminWorkspace := workspaces_testing.CreateTestWorkspace("Admin Workspace", admin, router)
-	memberWorkspace := workspaces_testing.CreateTestWorkspace("Member Workspace", member, router)
+	adminWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Admin Workspace", admin, router)
+	memberWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Member Workspace", member, router)
 
 	adminS3Storage := &Storage{
 		WorkspaceID: adminWorkspace.ID,
@@ -255,14 +255,14 @@ func Test_UpdateStorageTypeToRclone_OnlyAdminCanUpdate_MemberGetsForbidden(t *te
 
 	deleteStorage(t, router, adminSaved.ID, admin.Token)
 	deleteStorage(t, router, memberSaved.ID, member.Token)
-	workspaces_testing.RemoveTestWorkspace(adminWorkspace, router)
-	workspaces_testing.RemoveTestWorkspace(memberWorkspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), adminWorkspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), memberWorkspace, router)
 }
 
 func Test_TestStorageConnectionDirect_RcloneAsMember_ReturnsForbidden(t *testing.T) {
-	member := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Member Workspace", member, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Member Workspace", member, router)
 
 	payload := createNewRcloneStorage(workspace.ID)
 	resp := test_utils.MakePostRequest(
@@ -275,13 +275,13 @@ func Test_TestStorageConnectionDirect_RcloneAsMember_ReturnsForbidden(t *testing
 	)
 	assert.Contains(t, string(resp.Body), "rclone storage can only be managed by administrators")
 
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_DeleteStorage_StorageNotReturnedViaGet(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 
 	var savedStorage Storage
@@ -312,13 +312,13 @@ func Test_DeleteStorage_StorageNotReturnedViaGet(t *testing.T) {
 	)
 
 	assert.Contains(t, string(response.Body), "error")
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_TestDirectStorageConnection_ConnectionEstablished(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 	response := test_utils.MakePostRequest(
 		t, router, "/api/v1/storages/direct-test", "Bearer "+owner.Token, *storage, http.StatusOK,
@@ -326,13 +326,13 @@ func Test_TestDirectStorageConnection_ConnectionEstablished(t *testing.T) {
 
 	assert.Contains(t, string(response.Body), "successful")
 
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_TestExistingStorageConnection_ConnectionEstablished(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 
 	var savedStorage Storage
@@ -358,7 +358,7 @@ func Test_TestExistingStorageConnection_ConnectionEstablished(t *testing.T) {
 	assert.Contains(t, string(response.Body), "successful")
 
 	deleteStorage(t, router, savedStorage.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_WorkspaceRolePermissions(t *testing.T) {
@@ -417,17 +417,17 @@ func Test_WorkspaceRolePermissions(t *testing.T) {
 			router := createRouter()
 			SetStorageDatabaseCountersForTest(&mockStorageDatabaseCounter{})
 
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.workspaceRole != nil && *tt.workspaceRole == users_enums.WorkspaceRoleOwner {
 				testUserToken = owner.Token
 			} else if tt.workspaceRole != nil {
-				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					workspace,
 					testUser,
@@ -513,16 +513,16 @@ func Test_WorkspaceRolePermissions(t *testing.T) {
 			if !tt.canDelete {
 				deleteStorage(t, router, ownerStorage.ID, owner.Token)
 			}
-			workspaces_testing.RemoveTestWorkspace(workspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 		})
 	}
 }
 
 func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	outsider := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 	storage := createNewStorage(workspace.ID)
 
 	var savedStorage Storage
@@ -570,15 +570,15 @@ func Test_UserNotInWorkspace_CannotAccessStorages(t *testing.T) {
 	)
 
 	deleteStorage(t, router, savedStorage.ID, owner.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func Test_CrossWorkspaceSecurity_CannotAccessStorageFromAnotherWorkspace(t *testing.T) {
-	owner1 := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	owner2 := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	owner1 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	owner2 := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 	router := createRouter()
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", owner1, router)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", owner2, router)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", owner1, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", owner2, router)
 	storage1 := createNewStorage(workspace1.ID)
 
 	var savedStorage Storage
@@ -603,8 +603,8 @@ func Test_CrossWorkspaceSecurity_CannotAccessStorageFromAnotherWorkspace(t *test
 	assert.Contains(t, string(response.Body), "insufficient permissions")
 
 	deleteStorage(t, router, savedStorage.ID, owner1.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace1, router)
-	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 }
 
 func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
@@ -992,9 +992,9 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			if tc.storageType == StorageTypeRclone {
 				ownerRole = users_enums.UserRoleAdmin
 			}
-			owner := users_testing.CreateTestUser(ownerRole)
+			owner := users_testing.CreateTestUser(t.Context(), ownerRole)
 			router := createRouter()
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
 			// Phase 1: Create storage with sensitive data
 			initialStorage := tc.createStorage(workspace.ID)
@@ -1014,7 +1014,7 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 
 			// Phase 2: Verify sensitive data is encrypted in repository after creation
 			repository := &StorageRepository{}
-			storageFromDBAfterCreate, err := repository.FindByID(createdStorage.ID)
+			storageFromDBAfterCreate, err := repository.FindByID(t.Context(), createdStorage.ID)
 			assert.NoError(t, err)
 			tc.verifySensitiveData(t, storageFromDBAfterCreate)
 
@@ -1049,7 +1049,7 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 			assert.Equal(t, updatedStorage.Name, updateResponse.Name)
 
 			// Phase 5: Retrieve directly from repository to verify sensitive data preservation
-			storageFromDB, err := repository.FindByID(createdStorage.ID)
+			storageFromDB, err := repository.FindByID(t.Context(), createdStorage.ID)
 			assert.NoError(t, err)
 
 			// Verify original sensitive data is still present in DB
@@ -1072,7 +1072,7 @@ func Test_StorageSensitiveDataLifecycle_AllTypes(t *testing.T) {
 
 			// Cleanup
 			deleteStorage(t, router, createdStorage.ID, owner.Token)
-			workspaces_testing.RemoveTestWorkspace(workspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 		})
 	}
 }
@@ -1133,15 +1133,15 @@ func Test_TransferStorage_PermissionsEnforced(t *testing.T) {
 			router := createRouter()
 			SetStorageDatabaseCountersForTest(&mockStorageDatabaseCounter{})
 
-			sourceOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			targetOwner := users_testing.CreateTestUser(users_enums.UserRoleMember)
+			sourceOwner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			targetOwner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-			sourceWorkspace := workspaces_testing.CreateTestWorkspace(
+			sourceWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(),
 				"Source Workspace",
 				sourceOwner,
 				router,
 			)
-			targetWorkspace := workspaces_testing.CreateTestWorkspace(
+			targetWorkspace := workspaces_testing.CreateTestWorkspace(t.Context(),
 				"Target Workspace",
 				targetOwner,
 				router,
@@ -1161,10 +1161,10 @@ func Test_TransferStorage_PermissionsEnforced(t *testing.T) {
 
 			var testUserToken string
 			if tt.isGlobalAdmin {
-				admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+				admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 				testUserToken = admin.Token
 			} else if tt.sourceRole != nil {
-				testUser := users_testing.CreateTestUser(users_enums.UserRoleMember)
+				testUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 				workspaces_testing.AddMemberToWorkspace(
 					sourceWorkspace,
 					testUser,
@@ -1215,8 +1215,8 @@ func Test_TransferStorage_PermissionsEnforced(t *testing.T) {
 				deleteStorage(t, router, savedStorage.ID, sourceOwner.Token)
 			}
 
-			workspaces_testing.RemoveTestWorkspace(sourceWorkspace, router)
-			workspaces_testing.RemoveTestWorkspace(targetWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), sourceWorkspace, router)
+			workspaces_testing.RemoveTestWorkspace(t.Context(), targetWorkspace, router)
 		})
 	}
 }
@@ -1225,11 +1225,11 @@ func Test_TransferStorageNotManagableWorkspace_TransferFailed(t *testing.T) {
 	router := createRouter()
 	SetStorageDatabaseCountersForTest(&mockStorageDatabaseCounter{})
 
-	userA := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	userB := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	userA := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	userB := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
-	workspace1 := workspaces_testing.CreateTestWorkspace("Workspace 1", userA, router)
-	workspace2 := workspaces_testing.CreateTestWorkspace("Workspace 2", userB, router)
+	workspace1 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 1", userA, router)
+	workspace2 := workspaces_testing.CreateTestWorkspace(t.Context(), "Workspace 2", userB, router)
 
 	storage := createNewStorage(workspace1.ID)
 	var savedStorage Storage
@@ -1263,8 +1263,8 @@ func Test_TransferStorageNotManagableWorkspace_TransferFailed(t *testing.T) {
 	)
 
 	deleteStorage(t, router, savedStorage.ID, userA.Token)
-	workspaces_testing.RemoveTestWorkspace(workspace1, router)
-	workspaces_testing.RemoveTestWorkspace(workspace2, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace1, router)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace2, router)
 }
 
 func createRouter() *gin.Engine {

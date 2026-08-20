@@ -184,6 +184,7 @@ type WalStreamSpec struct {
 // is cancelled.
 type WalStreamSupervisor struct {
 	spec     WalStreamSpec
+	logger   *slog.Logger
 	uploader *WalUploader
 	watchDir string
 	slotName string
@@ -216,6 +217,13 @@ type WalStreamSupervisor struct {
 func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 	watchDir := filepath.Join(spec.WatchDirRoot, "wal-queue", spec.DatabaseID.String())
 
+	// The uploader logs per segment, so it needs the same scoping the supervisor uses; handing it the
+	// raw spec logger leaves every archiving line unattributable on a multi-database instance.
+	scopedLogger := spec.Logger.With(
+		"database_id", spec.DatabaseID,
+		"slot_name", spec.SourceDB.ReplicationSlotName,
+	)
+
 	uploader := NewWalUploader(WalUploadDeps{
 		DatabaseID:          spec.DatabaseID,
 		StorageID:           spec.StorageID,
@@ -225,7 +233,7 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 		FieldEncryptor:      spec.FieldEncryptor,
 		WalSegmentRepo:      spec.WalSegmentRepo,
 		WalSegmentSizeBytes: walSegmentSizeBytes(spec.SourceDB),
-		Logger:              spec.Logger,
+		Logger:              scopedLogger,
 		OnGapDetected:       spec.OnGapDetected,
 	})
 
@@ -233,6 +241,7 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 
 	return &WalStreamSupervisor{
 		spec:               spec,
+		logger:             scopedLogger,
 		uploader:           uploader,
 		watchDir:           watchDir,
 		slotName:           spec.SourceDB.ReplicationSlotName,
@@ -243,7 +252,7 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 }
 
 func (s *WalStreamSupervisor) Run(ctx context.Context) error {
-	logger := s.spec.Logger.With("database_id", s.spec.DatabaseID, "slot_name", s.slotName)
+	logger := s.logger
 
 	// pg_receivewal finalizes a segment by writing a marker into <dir>/archive_status/
 	// and refuses to start (or errors mid-stream) if that subdirectory is absent — it
@@ -292,12 +301,12 @@ func (s *WalStreamSupervisor) Run(ctx context.Context) error {
 	wg.Wait()
 
 	if fatalErr != nil {
-		logger.Error("wal stream supervisor stopping with fatal error", "error", fatalErr)
+		logger.ErrorContext(ctx, "wal stream supervisor stopping with fatal error", "error", fatalErr)
 
 		return fatalErr
 	}
 
-	logger.Info("wal stream supervisor stopped")
+	logger.InfoContext(ctx, "wal stream supervisor stopped")
 
 	return nil
 }
@@ -381,11 +390,17 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 		mismatchEscalator.reset()
 
 		if !isBastionReachable {
-			logger.Warn("wal receiver exited while the bastion was unreachable, waiting for the transport")
+			logger.WarnContext(ctx, "wal receiver exited while the bastion was unreachable, waiting for the transport")
 		}
 
 		decision := failureEscalator.recordExitAndDecideRetry(receiverRun.RanFor, isBastionReachable)
 		if decision.isEscalationRequired {
+			// The streamer is about to be marked FAILED and handed to another instance; without this
+			// the only evidence is a generic fatal at the top of Run.
+			logger.ErrorContext(ctx, fmt.Sprintf(
+				"pg_receivewal crash-looped: %d rapid failures, escalating for reassignment",
+				receivewalMaxRapidFailures), "ran_for", receiverRun.RanFor)
+
 			return fmt.Errorf(
 				"pg_receivewal crash-looped: %d rapid failures, escalating for reassignment",
 				receivewalMaxRapidFailures,
@@ -395,6 +410,10 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 		if decision.isBackoffResettable {
 			respawnBackoff = receivewalRespawnBackoff
 		}
+
+		// A streamer sitting in a long backoff is otherwise completely silent for its duration.
+		logger.DebugContext(ctx, fmt.Sprintf("respawning pg_receivewal in %s", respawnBackoff),
+			"ran_for", receiverRun.RanFor)
 
 		if !sleepCtx(ctx, respawnBackoff) {
 			return nil

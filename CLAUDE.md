@@ -153,3 +153,7 @@ Databasus handles sensitive data, so security is a layered defence. CodeQL, Code
 - Never log secrets, tokens or credentials. Redact at the logger layer, not at call sites.
 
 The README's `🛡️ Security & reliability engineering` section is the public-facing version of these practices — keep both consistent if substance changes.
+
+## Commiting
+
+Never put Co-Authoring in commit message until it is requested directly

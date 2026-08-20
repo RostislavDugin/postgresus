@@ -1,6 +1,8 @@
 package healthcheck_attempt
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/databases"
@@ -10,6 +12,7 @@ import (
 
 type HealthcheckAttemptSender interface {
 	SendNotification(
+		ctx context.Context,
 		notifier *notifiers.Notifier,
 		notification notifier_models.Notification,
 	)
@@ -18,7 +21,7 @@ type HealthcheckAttemptSender interface {
 type DatabaseService interface {
 	GetDatabaseByID(id uuid.UUID) (*databases.Database, error)
 
-	TestDatabaseConnectionDirect(database *databases.Database) error
+	TestDatabaseConnectionDirect(ctx context.Context, database *databases.Database) error
 
 	SetHealthStatus(
 		databaseID uuid.UUID,

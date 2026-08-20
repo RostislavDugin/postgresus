@@ -6,7 +6,11 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+const jobName = "download_token_cleanup"
 
 type BackgroundService struct {
 	downloadTokenService *Service
@@ -27,7 +31,9 @@ func (s *BackgroundService) Run(ctx context.Context) {
 		panic(fmt.Sprintf("%T.Run() called multiple times", s))
 	}
 
-	s.logger.Info("Starting download token cleanup background service")
+	lifecycleLogger := s.logger.With("job_name", jobName)
+
+	lifecycleLogger.InfoContext(ctx, "download token cleanup started")
 
 	if ctx.Err() != nil {
 		return
@@ -39,11 +45,20 @@ func (s *BackgroundService) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			lifecycleLogger.InfoContext(ctx, "download token cleanup stopped")
+
 			return
 		case <-ticker.C:
-			if err := s.downloadTokenService.CleanExpiredTokens(); err != nil {
-				s.logger.Error("Failed to clean expired download tokens", "error", err)
+			logger := s.logger.With("job_id", uuid.New(), "job_name", jobName)
+
+			deletedCount, err := s.downloadTokenService.CleanExpiredTokens(ctx)
+			if err != nil {
+				logger.ErrorContext(ctx, "failed to clean expired download tokens", "error", err)
+
+				continue
 			}
+
+			logger.DebugContext(ctx, fmt.Sprintf("deleted %d expired download tokens", deletedCount))
 		}
 	}
 }

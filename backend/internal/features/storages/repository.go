@@ -1,6 +1,8 @@
 package storages
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -130,11 +132,12 @@ func (r *StorageRepository) Save(storage *Storage) (*Storage, error) {
 	return storage, nil
 }
 
-func (r *StorageRepository) FindByID(id uuid.UUID) (*Storage, error) {
+func (r *StorageRepository) FindByID(ctx context.Context, id uuid.UUID) (*Storage, error) {
 	var s Storage
 
 	if err := db.
 		GetDb().
+		WithContext(ctx).
 		Preload("LocalStorage").
 		Preload("S3Storage").
 		Preload("GoogleDriveStorage").

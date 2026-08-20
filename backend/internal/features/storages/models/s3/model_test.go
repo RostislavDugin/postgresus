@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/testing/containers"
 )
 
@@ -44,7 +45,7 @@ func Test_DeleteFile_LegacySingleObjectWithoutManifest_RemovesObject(t *testing.
 	fileName := uuid.NewString()
 	putRawObject(t, rawClient, storage.S3Bucket, fileName, generateBytes(4096))
 
-	require.NoError(t, storage.DeleteFile(encryptor, fileName))
+	require.NoError(t, storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileName))
 
 	assert.Empty(t, listObjectKeys(t, rawClient, storage.S3Bucket, fileName))
 
@@ -142,7 +143,7 @@ func Test_DeleteFile_ChunkedBackup_RemovesAllPartsAndManifest(t *testing.T) {
 	)
 	require.NotEmpty(t, listObjectKeys(t, rawClient, storage.S3Bucket, fileName))
 
-	require.NoError(t, storage.DeleteFile(encryptor, fileName))
+	require.NoError(t, storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileName))
 
 	assert.Empty(t, listObjectKeys(t, rawClient, storage.S3Bucket, fileName))
 }
@@ -196,7 +197,7 @@ func Test_SaveGetDeleteFile_ChunkedWithPrefix_RoundTripsAndCleansUp(t *testing.T
 	reassembledBytes := readWholeFile(t, storage, encryptor, fileName)
 	assert.Equal(t, persistedBytes, reassembledBytes)
 
-	require.NoError(t, storage.DeleteFile(encryptor, fileName))
+	require.NoError(t, storage.DeleteFile(t.Context(), encryptor, logger.GetLogger(), fileName))
 	assert.Empty(t, listObjectKeys(t, rawClient, storage.S3Bucket, "team-a/"))
 }
 

@@ -100,12 +100,12 @@ func (s *WalStreamSupervisor) runForcedWalRotation(ctx context.Context, logger *
 			currentLSNAfterRotation, err := s.forceWalRotation(ctx)
 			if err != nil {
 				if !isInsufficientPrivilegeError(err) {
-					logger.Warn("forced wal rotation failed; will retry", "error", err)
+					logger.WarnContext(ctx, "forced wal rotation failed; will retry", "error", err)
 
 					continue
 				}
 
-				logger.Warn("source refuses pg_switch_wal; forced wal rotation disabled for this streamer",
+				logger.WarnContext(ctx, "source refuses pg_switch_wal; forced wal rotation disabled for this streamer",
 					"error", err)
 
 				s.reportChainAtRisk(logger, breakReasonRotationDenied, nil)
@@ -115,7 +115,7 @@ func (s *WalStreamSupervisor) runForcedWalRotation(ctx context.Context, logger *
 
 			rotationTracker.recordRotation(currentLSNAfterRotation, time.Now().UTC())
 
-			logger.Debug("forced a wal segment switch so the recovery point keeps advancing")
+			logger.DebugContext(ctx, "forced a wal segment switch so the recovery point keeps advancing")
 		}
 	}
 }
@@ -126,7 +126,7 @@ func (s *WalStreamSupervisor) getCurrentWalLsnIfReachable(
 ) (currentLSN walmath.LSN, isSourceReachable bool) {
 	conn, err := s.spec.SourceDB.OpenInspectionConn(ctx, s.spec.FieldEncryptor)
 	if err != nil {
-		logger.Debug("forced wal rotation: source unreachable this tick", "error", err)
+		logger.DebugContext(ctx, "forced wal rotation: source unreachable this tick", "error", err)
 
 		return 0, false
 	}

@@ -19,7 +19,7 @@ import (
 func Test_FullOnly_ProducesArtifactAndManifest(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
-	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(fixture.BackupID, false)
+	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), fixture.BackupID, false)
 
 	postgresql_executor.WaitForBackupStatus(t, fixture.BackupID, physical_enums.PhysicalBackupTypeFull,
 		physical_enums.PhysicalBackupStatusCompleted, nil, 3*time.Minute)

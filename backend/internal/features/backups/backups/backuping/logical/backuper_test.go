@@ -1,7 +1,10 @@
 package backuping_logical
 
 import (
+	"context"
+	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,17 +21,18 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	cache_utils "databasus-backend/internal/util/cache"
+	util_logger "databasus-backend/internal/util/logger"
 )
 
 func Test_BackupExecuted_NotificationSent(t *testing.T) {
 	cache_utils.ClearAllCache()
-	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 	router := CreateTestRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
-	backups_config_logical.EnableBackupsForTestDatabase(database.ID, storage)
+	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), database.ID, storage)
 
 	defer func() {
 		// cleanup backups first
@@ -37,11 +41,11 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			backupRepository.DeleteByID(backup.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond) // Wait for cascading deletes
 		notifiers.RemoveTestNotifier(notifier)
-		storages.RemoveTestStorage(storage.ID)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 	}()
 
 	t.Run("BackupFailed_FailNotificationSent", func(t *testing.T) {
@@ -70,7 +74,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			}),
 		).Once()
 
-		backuper.MakeBackup(backup.ID, true)
+		backuper.MakeBackup(t.Context(), backup.ID, true)
 
 		// Verify all expectations were met
 		mockNotificationSender.AssertExpectations(t)
@@ -102,7 +106,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			}),
 		).Once()
 
-		backuper.MakeBackup(backup.ID, true)
+		backuper.MakeBackup(t.Context(), backup.ID, true)
 
 		// Verify all expectations were met
 		mockNotificationSender.AssertExpectations(t)
@@ -136,7 +140,7 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 			capturedNotification = args.Get(1).(notifier_models.Notification)
 		}).Once()
 
-		backuper.MakeBackup(backup.ID, true)
+		backuper.MakeBackup(t.Context(), backup.ID, true)
 
 		// Verify expectations were met
 		mockNotificationSender.AssertExpectations(t)
@@ -149,4 +153,64 @@ func Test_BackupExecuted_NotificationSent(t *testing.T) {
 		assert.Contains(t, capturedNotification.Message, "10.00 MB")
 		assert.Equal(t, notifier.ID, capturedNotifier.ID)
 	})
+}
+
+func Test_MakeBackup_WhenCallerContextCarriesRequestID_FinishLineIsAttributed(t *testing.T) {
+	fixture := CreateBackupTestFixture(t, "Attribution Test Workspace")
+
+	capturingHandler := &requestIDCapturingHandler{requestIDByMessage: map[string]string{}}
+
+	mockNotificationSender := &MockNotificationSender{}
+	mockNotificationSender.On("SendNotification", mock.Anything, mock.Anything).Maybe()
+
+	backuper := CreateTestBackuper()
+	backuper.notificationSender = mockNotificationSender
+	backuper.createBackupUseCase = &CreateSuccessBackupUsecase{}
+	backuper.logger = slog.New(capturingHandler)
+
+	backup := SeedInProgressTestBackup(t, fixture.Database.ID, fixture.Storage.ID)
+
+	const requestID = "request-id-under-test"
+
+	backuper.MakeBackup(util_logger.ContextWithRequestID(t.Context(), requestID), backup.ID, true)
+
+	capturedRequestID, isLogged := capturingHandler.GetRequestIDForMessagePrefix("logical backup finished")
+
+	assert.True(t, isLogged, "the backup finish line was never logged")
+	assert.Equal(t, requestID, capturedRequestID)
+}
+
+// A record logged on the detached execution context is indistinguishable from one that never
+// carried a request at all, which is what this pins.
+type requestIDCapturingHandler struct {
+	mutex              sync.Mutex
+	requestIDByMessage map[string]string
+}
+
+func (h *requestIDCapturingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *requestIDCapturingHandler) Handle(ctx context.Context, record slog.Record) error {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	h.requestIDByMessage[record.Message] = util_logger.GetRequestID(ctx)
+
+	return nil
+}
+
+func (h *requestIDCapturingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *requestIDCapturingHandler) WithGroup(string) slog.Handler { return h }
+
+func (h *requestIDCapturingHandler) GetRequestIDForMessagePrefix(prefix string) (string, bool) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	for message, requestID := range h.requestIDByMessage {
+		if strings.HasPrefix(message, prefix) {
+			return requestID, true
+		}
+	}
+
+	return "", false
 }

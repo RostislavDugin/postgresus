@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	audit_logs "databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	physical_core_service "databasus-backend/internal/features/backups/backups/core/physical/service"
 	"databasus-backend/internal/features/notifiers"
 	users_models "databasus-backend/internal/features/users/models"
@@ -64,11 +65,12 @@ func (s *DatabaseService) GetNotifierAttachedDatabasesIDs(
 }
 
 func (s *DatabaseService) CreateDatabase(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 	database *Database,
 ) (*Database, error) {
-	canManage, err := s.workspaceService.CanUserManageDBs(workspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, workspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +87,7 @@ func (s *DatabaseService) CreateDatabase(
 	// The database has no ID until it is saved, so the workspace is all there is to correlate on.
 	logger := s.logger.With("workspace_id", workspaceID)
 
-	tunneledDatabase, err := OpenTunnel(context.Background(), OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
 		Database:  database,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -120,19 +122,20 @@ func (s *DatabaseService) CreateDatabase(
 	}
 
 	for _, listener := range s.dbCreationListener {
-		listener.OnDatabaseCreated(database.ID)
+		listener.OnDatabaseCreated(ctx, database.ID)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database created: %s", database.Name),
-		&user.ID,
-		&workspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Database created: %s", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: &workspaceID,
+	})
 
 	return database, nil
 }
 
 func (s *DatabaseService) UpdateDatabase(
+	ctx context.Context,
 	user *users_models.User,
 	database *Database,
 ) error {
@@ -149,7 +152,7 @@ func (s *DatabaseService) UpdateDatabase(
 		return errors.New("cannot update database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -175,7 +178,7 @@ func (s *DatabaseService) UpdateDatabase(
 
 	logger := s.logger.With("database_id", existingDatabase.ID)
 
-	tunneledDatabase, err := OpenTunnel(context.Background(), OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
 		Database:  existingDatabase,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -211,27 +214,24 @@ func (s *DatabaseService) UpdateDatabase(
 	}
 
 	if oldName != existingDatabase.Name {
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf(
-				"Database updated and renamed from '%s' to '%s'",
-				oldName,
-				existingDatabase.Name,
-			),
-			&user.ID,
-			existingDatabase.WorkspaceID,
-		)
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Database updated and renamed from '%s' to '%s'", oldName, existingDatabase.Name),
+			UserID:      &user.ID,
+			WorkspaceID: existingDatabase.WorkspaceID,
+		})
 	} else {
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf("Database updated: %s", existingDatabase.Name),
-			&user.ID,
-			existingDatabase.WorkspaceID,
-		)
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message:     fmt.Sprintf("Database updated: %s", existingDatabase.Name),
+			UserID:      &user.ID,
+			WorkspaceID: existingDatabase.WorkspaceID,
+		})
 	}
 
 	return nil
 }
 
 func (s *DatabaseService) DeleteDatabase(
+	ctx context.Context,
 	user *users_models.User,
 	id uuid.UUID,
 ) error {
@@ -244,7 +244,7 @@ func (s *DatabaseService) DeleteDatabase(
 		return errors.New("cannot delete database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -253,16 +253,16 @@ func (s *DatabaseService) DeleteDatabase(
 	}
 
 	for _, listener := range s.dbRemoveListener {
-		if err := listener.OnBeforeDatabaseRemove(id); err != nil {
+		if err := listener.OnBeforeDatabaseRemove(ctx, id); err != nil {
 			return err
 		}
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database deleted: %s", existingDatabase.Name),
-		&user.ID,
-		existingDatabase.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Database deleted: %s", existingDatabase.Name),
+		UserID:      &user.ID,
+		WorkspaceID: existingDatabase.WorkspaceID,
+	})
 
 	return s.dbRepository.Delete(id)
 }
@@ -279,12 +279,12 @@ func (s *DatabaseService) DeleteDatabase(
 // parallel test suite (go test -p=N) the cascade can deadlock against a concurrent writer in
 // the same process (a backup scheduler still settling), surfacing as SQLSTATE 40P01. The
 // aborted transaction is transient, so the whole delete — idempotent on a re-run — is retried.
-func (s *DatabaseService) DeleteForTest(id uuid.UUID) error {
+func (s *DatabaseService) DeleteForTest(ctx context.Context, id uuid.UUID) error {
 	const maxAttempts = 5
 
 	deleteOnce := func() error {
 		for _, listener := range s.dbRemoveListener {
-			if err := listener.OnBeforeDatabaseRemove(id); err != nil {
+			if err := listener.OnBeforeDatabaseRemove(ctx, id); err != nil {
 				return err
 			}
 		}
@@ -319,6 +319,7 @@ func isTransientSerializationError(err error) bool {
 }
 
 func (s *DatabaseService) GetDatabase(
+	ctx context.Context,
 	user *users_models.User,
 	id uuid.UUID,
 ) (*Database, error) {
@@ -331,7 +332,7 @@ func (s *DatabaseService) GetDatabase(
 		return nil, errors.New("cannot access database without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -344,10 +345,11 @@ func (s *DatabaseService) GetDatabase(
 }
 
 func (s *DatabaseService) GetDatabasesByWorkspace(
+	ctx context.Context,
 	user *users_models.User,
 	workspaceID uuid.UUID,
 ) ([]*Database, error) {
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(workspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, workspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -364,16 +366,17 @@ func (s *DatabaseService) GetDatabasesByWorkspace(
 		database.HideSensitiveData()
 	}
 
-	s.fillPhysicalLastBackupTimes(databases)
+	s.fillPhysicalLastBackupTimes(ctx, databases)
 
 	return databases, nil
 }
 
 func (s *DatabaseService) IsNotifierUsing(
+	ctx context.Context,
 	user *users_models.User,
 	notifierID uuid.UUID,
 ) (bool, error) {
-	_, err := s.notifierService.GetNotifier(user, notifierID)
+	_, err := s.notifierService.GetNotifier(ctx, user, notifierID)
 	if err != nil {
 		return false, err
 	}
@@ -382,10 +385,11 @@ func (s *DatabaseService) IsNotifierUsing(
 }
 
 func (s *DatabaseService) CountDatabasesByNotifier(
+	ctx context.Context,
 	user *users_models.User,
 	notifierID uuid.UUID,
 ) (int, error) {
-	_, err := s.notifierService.GetNotifier(user, notifierID)
+	_, err := s.notifierService.GetNotifier(ctx, user, notifierID)
 	if err != nil {
 		return 0, err
 	}
@@ -399,6 +403,7 @@ func (s *DatabaseService) CountDatabasesByNotifier(
 }
 
 func (s *DatabaseService) TestDatabaseConnection(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 ) error {
@@ -411,7 +416,7 @@ func (s *DatabaseService) TestDatabaseConnection(
 		return errors.New("cannot test connection for database without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, user)
 	if err != nil {
 		return err
 	}
@@ -421,7 +426,7 @@ func (s *DatabaseService) TestDatabaseConnection(
 
 	logger := s.logger.With("database_id", database.ID)
 
-	tunneledDatabase, err := OpenTunnel(context.Background(), OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
 		Database:  database,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -449,6 +454,7 @@ func (s *DatabaseService) TestDatabaseConnection(
 }
 
 func (s *DatabaseService) TestDatabaseConnectionDirect(
+	ctx context.Context,
 	database *Database,
 ) error {
 	usingDatabase, err := s.resolveConnectionTarget(database)
@@ -458,7 +464,7 @@ func (s *DatabaseService) TestDatabaseConnectionDirect(
 
 	logger := s.logger.With("database_id", usingDatabase.ID)
 
-	tunneledDatabase, err := OpenTunnel(context.Background(), OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
 		Database:  usingDatabase,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -514,6 +520,7 @@ func (s *DatabaseService) SetLastBackupTime(databaseID uuid.UUID, backupTime tim
 }
 
 func (s *DatabaseService) CopyDatabase(
+	ctx context.Context,
 	user *users_models.User,
 	databaseID uuid.UUID,
 ) (*Database, error) {
@@ -526,7 +533,7 @@ func (s *DatabaseService) CopyDatabase(
 		return nil, errors.New("cannot copy database without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -547,23 +554,24 @@ func (s *DatabaseService) CopyDatabase(
 	}
 
 	for _, listener := range s.dbCreationListener {
-		listener.OnDatabaseCreated(copiedDatabase.ID)
+		listener.OnDatabaseCreated(ctx, copiedDatabase.ID)
 	}
 
 	for _, listener := range s.dbCopyListener {
-		listener.OnDatabaseCopied(databaseID, copiedDatabase.ID)
+		listener.OnDatabaseCopied(ctx, databaseID, copiedDatabase.ID)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database copied: %s to %s", existingDatabase.Name, copiedDatabase.Name),
-		&user.ID,
-		existingDatabase.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Database copied: %s to %s", existingDatabase.Name, copiedDatabase.Name),
+		UserID:      &user.ID,
+		WorkspaceID: existingDatabase.WorkspaceID,
+	})
 
 	return copiedDatabase, nil
 }
 
 func (s *DatabaseService) TransferDatabaseToWorkspace(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	targetWorkspaceID uuid.UUID,
 ) error {
@@ -590,12 +598,16 @@ func (s *DatabaseService) TransferDatabaseToWorkspace(
 		return fmt.Errorf("failed to get target workspace: %w", err)
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Database transferred: %s from workspace '%s' to workspace '%s'",
-			database.Name, sourceWorkspace.Name, targetWorkspace.Name),
-		nil,
-		&targetWorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message: fmt.Sprintf(
+			"Database transferred: %s from workspace '%s' to workspace '%s'",
+			database.Name,
+			sourceWorkspace.Name,
+			targetWorkspace.Name,
+		),
+		UserID:      nil,
+		WorkspaceID: &targetWorkspaceID,
+	})
 
 	return nil
 }
@@ -650,6 +662,7 @@ func (s *DatabaseService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error
 }
 
 func (s *DatabaseService) IsUserReadOnly(
+	ctx context.Context,
 	user *users_models.User,
 	database *Database,
 ) (bool, []string, error) {
@@ -666,6 +679,7 @@ func (s *DatabaseService) IsUserReadOnly(
 		}
 
 		canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+			ctx,
 			*existingDatabase.WorkspaceID,
 			user,
 		)
@@ -690,6 +704,7 @@ func (s *DatabaseService) IsUserReadOnly(
 	} else {
 		if database.WorkspaceID != nil {
 			canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(
+				ctx,
 				*database.WorkspaceID,
 				user,
 			)
@@ -704,12 +719,12 @@ func (s *DatabaseService) IsUserReadOnly(
 		usingDatabase = database
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	tunnelCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	logger := s.logger.With("database_id", usingDatabase.ID)
 
-	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(tunnelCtx, OpenTunnelSpec{
 		Database:  usingDatabase,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -720,10 +735,11 @@ func (s *DatabaseService) IsUserReadOnly(
 
 	defer tunneledDatabase.Close()
 
-	return tunneledDatabase.GetDatabaseThroughTunnel().IsUserReadOnly(ctx, logger, s.fieldEncryptor)
+	return tunneledDatabase.GetDatabaseThroughTunnel().IsUserReadOnly(tunnelCtx, logger, s.fieldEncryptor)
 }
 
 func (s *DatabaseService) CreateReadOnlyUser(
+	ctx context.Context,
 	user *users_models.User,
 	database *Database,
 ) (string, string, error) {
@@ -739,7 +755,7 @@ func (s *DatabaseService) CreateReadOnlyUser(
 			return "", "", errors.New("cannot create user for database without workspace")
 		}
 
-		canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+		canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 		if err != nil {
 			return "", "", err
 		}
@@ -760,7 +776,7 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		usingDatabase = existingDatabase
 	} else {
 		if database.WorkspaceID != nil {
-			canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+			canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 			if err != nil {
 				return "", "", err
 			}
@@ -772,12 +788,15 @@ func (s *DatabaseService) CreateReadOnlyUser(
 		usingDatabase = database
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// MySQL and MariaDB commit CREATE USER and each GRANT implicitly, so their transaction cannot
+	// roll a half-granted user back. WithoutCancel keeps the request_id while stopping a client
+	// disconnect from cutting the sequence in half.
+	tunnelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 
 	logger := s.logger.With("database_id", usingDatabase.ID)
 
-	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(tunnelCtx, OpenTunnelSpec{
 		Database:  usingDatabase,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -795,19 +814,19 @@ func (s *DatabaseService) CreateReadOnlyUser(
 	switch usingDatabase.Type {
 	case DatabaseTypePostgresLogical:
 		username, password, err = databaseThroughTunnel.PostgresqlLogical.CreateReadOnlyUser(
-			ctx, logger, s.fieldEncryptor,
+			tunnelCtx, logger, s.fieldEncryptor,
 		)
 	case DatabaseTypeMysql:
 		username, password, err = databaseThroughTunnel.Mysql.CreateReadOnlyUser(
-			ctx, logger, s.fieldEncryptor,
+			tunnelCtx, logger, s.fieldEncryptor,
 		)
 	case DatabaseTypeMariadb:
 		username, password, err = databaseThroughTunnel.Mariadb.CreateReadOnlyUser(
-			ctx, logger, s.fieldEncryptor,
+			tunnelCtx, logger, s.fieldEncryptor,
 		)
 	case DatabaseTypeMongodb:
 		username, password, err = databaseThroughTunnel.Mongodb.CreateReadOnlyUser(
-			ctx, logger, s.fieldEncryptor,
+			tunnelCtx, logger, s.fieldEncryptor,
 		)
 	default:
 		return "", "", errors.New("read-only user creation not supported for this database type")
@@ -818,21 +837,22 @@ func (s *DatabaseService) CreateReadOnlyUser(
 	}
 
 	if usingDatabase.WorkspaceID != nil {
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf(
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message: fmt.Sprintf(
 				"Read-only user created for database: %s (username: %s)",
 				usingDatabase.Name,
 				username,
 			),
-			&user.ID,
-			usingDatabase.WorkspaceID,
-		)
+			UserID:      &user.ID,
+			WorkspaceID: usingDatabase.WorkspaceID,
+		})
 	}
 
 	return username, password, nil
 }
 
 func (s *DatabaseService) CreateReplicationOnlyUser(
+	ctx context.Context,
 	user *users_models.User,
 	database *Database,
 ) (string, string, error) {
@@ -848,7 +868,7 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 			return "", "", errors.New("cannot create user for database without workspace")
 		}
 
-		canManage, err := s.workspaceService.CanUserManageDBs(*existingDatabase.WorkspaceID, user)
+		canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 		if err != nil {
 			return "", "", err
 		}
@@ -869,7 +889,7 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 		usingDatabase = existingDatabase
 	} else {
 		if database.WorkspaceID != nil {
-			canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, user)
+			canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 			if err != nil {
 				return "", "", err
 			}
@@ -891,12 +911,12 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 		return "", "", errors.New("physical database details are missing")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	tunnelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger := s.logger.With("database_id", usingDatabase.ID)
 
-	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
+	tunneledDatabase, err := OpenTunnel(tunnelCtx, OpenTunnelSpec{
 		Database:  usingDatabase,
 		Logger:    logger,
 		Encryptor: s.fieldEncryptor,
@@ -908,21 +928,21 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 	defer tunneledDatabase.Close()
 
 	username, password, err := tunneledDatabase.GetDatabaseThroughTunnel().
-		PostgresqlPhysical.CreateReplicationOnlyUser(ctx, logger, s.fieldEncryptor)
+		PostgresqlPhysical.CreateReplicationOnlyUser(tunnelCtx, logger, s.fieldEncryptor)
 	if err != nil {
 		return "", "", err
 	}
 
 	if usingDatabase.WorkspaceID != nil {
-		s.auditLogService.WriteAuditLog(
-			fmt.Sprintf(
+		s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+			Message: fmt.Sprintf(
 				"Replication-only user created for database: %s (username: %s)",
 				usingDatabase.Name,
 				username,
 			),
-			&user.ID,
-			usingDatabase.WorkspaceID,
-		)
+			UserID:      &user.ID,
+			WorkspaceID: usingDatabase.WorkspaceID,
+		})
 	}
 
 	return username, password, nil
@@ -932,7 +952,7 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 // whose backups (FULL / INCREMENTAL / WAL) live outside the databases table and so
 // are not denormalized onto the row the way logical backups are. A failure here is
 // non-fatal: the list must still render, just without the last-backup decoration.
-func (s *DatabaseService) fillPhysicalLastBackupTimes(databases []*Database) {
+func (s *DatabaseService) fillPhysicalLastBackupTimes(ctx context.Context, databases []*Database) {
 	var physicalDatabaseIDs []uuid.UUID
 
 	for _, database := range databases {
@@ -947,7 +967,7 @@ func (s *DatabaseService) fillPhysicalLastBackupTimes(databases []*Database) {
 
 	lastBackupTimes, err := s.physicalBackupService.GetLastBackupTimesByDatabaseIDs(physicalDatabaseIDs)
 	if err != nil {
-		s.logger.Error("failed to load physical last backup times", "error", err)
+		s.logger.ErrorContext(ctx, "failed to load physical last backup times", "error", err)
 
 		return
 	}

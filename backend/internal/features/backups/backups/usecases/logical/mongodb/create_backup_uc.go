@@ -60,7 +60,7 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 ) (*backups_core_logical.BackupMetadata, error) {
 	logger := uc.logger.With("database_id", db.ID, "storage_id", storage.ID)
 
-	logger.Info("creating mongodb backup via mongodump")
+	logger.InfoContext(ctx, "creating mongodb backup via mongodump")
 
 	tunneledDatabase, err := databases.OpenTunnel(ctx, databases.OpenTunnelSpec{
 		Database:  db,
@@ -89,7 +89,7 @@ func (uc *CreateMongodbBackupUsecase) Execute(
 
 	rawSizeMB, err := mongodbDatabase.GetRawDbSizeMb(ctx, logger, uc.fieldEncryptor)
 	if err != nil {
-		logger.Warn("failed to fetch raw db size before backup", "error", err)
+		logger.WarnContext(ctx, "failed to fetch raw db size before backup", "error", err)
 	} else {
 		backup.BackupRawDbSizeMb = rawSizeMB
 	}
@@ -142,7 +142,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 	storage *storages.Storage,
 	backupProgressListener func(completedMBs float64),
 ) (*backups_core_logical.BackupMetadata, error) {
-	uc.logger.Info("Streaming MongoDB backup to storage", "mongodumpBin", mongodumpBin)
+	uc.logger.InfoContext(parentCtx, "streaming MongoDB backup to storage", "mongodump_bin", mongodumpBin)
 
 	ctx, cancel := uc.createBackupContext(parentCtx)
 	defer cancel(nil)
@@ -157,7 +157,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 			safeArgs[i] = arg
 		}
 	}
-	uc.logger.Info("Executing MongoDB backup command", "command", mongodumpBin, "args", safeArgs)
+	uc.logger.InfoContext(parentCtx, "executing MongoDB backup command", "command", mongodumpBin, "args", safeArgs)
 
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
@@ -420,12 +420,12 @@ func (uc *CreateMongodbBackupUsecase) closeWriters(
 ) error {
 	if encryptionWriter != nil {
 		if err := encryptionWriter.Close(); err != nil {
-			uc.logger.Error("Failed to close encryption writer", "error", err)
+			uc.logger.Error("failed to close encryption writer", "error", err)
 			return fmt.Errorf("failed to close encryption writer: %w", err)
 		}
 	}
 	if err := storageWriter.Close(); err != nil {
-		uc.logger.Error("Failed to close storage writer", "error", err)
+		uc.logger.Error("failed to close storage writer", "error", err)
 		return fmt.Errorf("failed to close storage writer: %w", err)
 	}
 	return nil

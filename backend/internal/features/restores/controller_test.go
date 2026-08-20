@@ -43,12 +43,12 @@ import (
 
 func Test_GetRestores_WhenUserIsWorkspaceMember_RestoresReturned(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	var restores []*restores_core.Restore
 	test_utils.MakeGetRequestAndUnmarshal(
@@ -67,14 +67,14 @@ func Test_GetRestores_WhenUserIsWorkspaceMember_RestoresReturned(t *testing.T) {
 
 func Test_GetRestores_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
-	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	testResp := test_utils.MakeGetRequest(
 		t,
@@ -89,14 +89,14 @@ func Test_GetRestores_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T
 
 func Test_GetRestores_WhenUserIsGlobalAdmin_RestoresReturned(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
-	admin := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	admin := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 
 	var restores []*restores_core.Restore
 	test_utils.MakeGetRequestAndUnmarshal(
@@ -114,12 +114,12 @@ func Test_GetRestores_WhenUserIsGlobalAdmin_RestoresReturned(t *testing.T) {
 func Test_RestoreBackup_WhenUserIsWorkspaceMember_RestoreInitiated(t *testing.T) {
 	router := createTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
@@ -145,14 +145,14 @@ func Test_RestoreBackup_WhenUserIsWorkspaceMember_RestoreInitiated(t *testing.T)
 
 func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing.T) {
 	router := createTestRouter()
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
-	nonMember := users_testing.CreateTestUser(users_enums.UserRoleMember)
+	nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
@@ -179,12 +179,12 @@ func Test_RestoreBackup_WhenUserIsNotWorkspaceMember_ReturnsForbidden(t *testing
 func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T) {
 	router := createTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
@@ -212,12 +212,12 @@ func Test_RestoreBackup_WithIsExcludeExtensions_FlagPassedCorrectly(t *testing.T
 func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	router := createTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
@@ -241,7 +241,7 @@ func Test_RestoreBackup_AuditLogWritten(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	auditLogService := audit_logs.GetAuditLogService()
-	auditLogs, err := auditLogService.GetWorkspaceAuditLogs(
+	auditLogs, err := auditLogService.GetWorkspaceAuditLogs(t.Context(),
 		workspace.ID,
 		&audit_logs.GetAuditLogsRequest{
 			Limit:  100,
@@ -292,9 +292,9 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			router := createTestRouter()
 
-			owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-			workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-			defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 			var database *databases.Database
 			var backup *backups_core_logical.LogicalBackup
@@ -302,8 +302,8 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 			var request restores_core.RestoreBackupRequest
 
 			if tc.dbType == databases.DatabaseTypePostgresLogical {
-				database, backup = createTestDatabaseWithBackupForRestore(workspace, owner, router)
-				defer cleanupDatabaseWithBackup(database, backup)
+				database, backup = createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+				defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 				request = restores_core.RestoreBackupRequest{
 					PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{
 						Version:  tools.PostgresqlVersion16,
@@ -328,9 +328,9 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 				defer func() {
 					// Cleanup in dependency order: backup -> database -> storage
 					cleanupBackup(backup)
-					databases.RemoveTestDatabase(mysqlDB)
+					databases.RemoveTestDatabase(t.Context(), mysqlDB)
 					time.Sleep(50 * time.Millisecond)
-					storages.RemoveTestStorage(storage.ID)
+					storages.RemoveTestStorage(t.Context(), storage.ID)
 				}()
 
 				configService := backups_config_logical.GetBackupConfigService()
@@ -340,7 +340,7 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 				config.IsBackupsEnabled = true
 				config.StorageID = &storage.ID
 				config.Storage = storage
-				_, err = configService.SaveBackupConfig(config)
+				_, err = configService.SaveBackupConfig(t.Context(), config)
 				assert.NoError(t, err)
 
 				backup = createTestBackup(mysqlDB, storage)
@@ -392,9 +392,9 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 	cache_utils.ClearAllCache()
 	tasks_cancellation.SetupDependencies()
 
-	user := users_testing.CreateTestUser(users_enums.UserRoleAdmin)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 	router := createTestRouter()
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	database := databases.CreateTestDatabase(workspace.ID, storage, notifier)
@@ -416,16 +416,16 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 			restoreRepo.DeleteByID(restore.ID)
 		}
 
-		databases.RemoveTestDatabase(database)
+		databases.RemoveTestDatabase(t.Context(), database)
 		time.Sleep(50 * time.Millisecond)
-		storages.RemoveTestStorage(storage.ID)
+		storages.RemoveTestStorage(t.Context(), storage.ID)
 		notifiers.RemoveTestNotifier(notifier)
-		workspaces_testing.RemoveTestWorkspace(workspace, router)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
 		cache_utils.ClearAllCache()
 	}()
 
-	backups_config_logical.EnableBackupsForTestDatabase(database.ID, storage)
+	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), database.ID, storage)
 	backup := backups_controllers_logical.CreateTestBackup(database.ID, storage.ID)
 
 	mockUsecase := &restoring.MockBlockingRestoreUsecase{
@@ -505,7 +505,7 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 	assert.Equal(t, restores_core.RestoreStatusCanceled, restore.Status)
 
 	auditLogService := audit_logs.GetAuditLogService()
-	auditLogs, err := auditLogService.GetWorkspaceAuditLogs(
+	auditLogs, err := auditLogService.GetWorkspaceAuditLogs(t.Context(),
 		workspace.ID,
 		&audit_logs.GetAuditLogsRequest{Limit: 100, Offset: 0},
 	)
@@ -527,12 +527,12 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 func Test_RestoreBackup_WithParallelRestoreInProgress_ReturnsError(t *testing.T) {
 	router := createTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	// Seeded rather than started for real: a restore dispatched over HTTP runs in a goroutine that
 	// reaches a terminal status within milliseconds, so the IN_PROGRESS state the guard reacts to
@@ -572,6 +572,7 @@ func createTestRouter() *gin.Engine {
 }
 
 func createTestDatabaseWithBackupForRestore(
+	ctx context.Context,
 	workspace *workspaces_models.Workspace,
 	owner *users_dto.SignInResponseDTO,
 	router *gin.Engine,
@@ -588,7 +589,7 @@ func createTestDatabaseWithBackupForRestore(
 	config.IsBackupsEnabled = true
 	config.StorageID = &storage.ID
 	config.Storage = storage
-	_, err = configService.SaveBackupConfig(config)
+	_, err = configService.SaveBackupConfig(ctx, config)
 	if err != nil {
 		panic(err)
 	}
@@ -737,29 +738,33 @@ func createTestBackup(
 	return backup
 }
 
-func cleanupDatabaseWithBackup(database *databases.Database, backup *backups_core_logical.LogicalBackup) {
+func cleanupDatabaseWithBackup(
+	ctx context.Context,
+	database *databases.Database,
+	backup *backups_core_logical.LogicalBackup,
+) {
 	// Clean up in reverse dependency order
 	cleanupBackup(backup)
-	databases.RemoveTestDatabase(database)
+	databases.RemoveTestDatabase(ctx, database)
 	time.Sleep(50 * time.Millisecond)
 
 	// Clean up storage last (after database and backup are removed)
 	configService := backups_config_logical.GetBackupConfigService()
 	config, err := configService.GetBackupConfigByDbId(database.ID)
 	if err == nil && config.StorageID != nil {
-		storages.RemoveTestStorage(*config.StorageID)
+		storages.RemoveTestStorage(ctx, *config.StorageID)
 	}
 }
 
 func Test_RestoreBackup_WithCpuCountMoreThanOne_RestoreInitiated(t *testing.T) {
 	router := createTestRouter()
 
-	owner := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", owner, router)
-	defer workspaces_testing.RemoveTestWorkspace(workspace, router)
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-	database, backup := createTestDatabaseWithBackupForRestore(workspace, owner, router)
-	defer cleanupDatabaseWithBackup(database, backup)
+	database, backup := createTestDatabaseWithBackupForRestore(t.Context(), workspace, owner, router)
+	defer cleanupDatabaseWithBackup(t.Context(), database, backup)
 
 	request := restores_core.RestoreBackupRequest{
 		PostgresqlLogicalDatabase: &postgresql_logical.PostgresqlLogicalDatabase{

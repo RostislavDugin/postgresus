@@ -17,7 +17,7 @@ type BackupConfigController struct {
 func (c *BackupConfigController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/backup-configs/save", c.SaveBackupConfig)
 	router.GET("/backup-configs/database/:id", c.GetBackupConfigByDbID)
-	router.GET("/backup-configs/storage/:id/is-using", c.IsStorageUsing)
+	router.GET("/backup-configs/storage/:id/is-using", c.IsStorageInUse)
 	router.GET("/backup-configs/storage/:id/databases-count", c.CountDatabasesForStorage)
 	router.POST("/backup-configs/database/:id/transfer", c.TransferDatabase)
 }
@@ -50,7 +50,7 @@ func (c *BackupConfigController) SaveBackupConfig(ctx *gin.Context) {
 	// make sure we rely on full .Storage object
 	requestDTO.StorageID = nil
 
-	savedConfig, err := c.backupConfigService.SaveBackupConfigWithAuth(user, &requestDTO)
+	savedConfig, err := c.backupConfigService.SaveBackupConfigWithAuth(ctx.Request.Context(), user, &requestDTO)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -83,7 +83,7 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 		return
 	}
 
-	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(user, id)
+	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(ctx.Request.Context(), user, id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
 		return
@@ -92,7 +92,7 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, backupConfig)
 }
 
-// IsStorageUsing
+// IsStorageInUse
 // @Summary Check if storage is being used
 // @Description Check if a storage is currently being used by any backup configuration
 // @Tags backup-configs
@@ -103,7 +103,7 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 // @Failure 401
 // @Failure 500
 // @Router /backup-configs/storage/{id}/is-using [get]
-func (c *BackupConfigController) IsStorageUsing(ctx *gin.Context) {
+func (c *BackupConfigController) IsStorageInUse(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -116,8 +116,9 @@ func (c *BackupConfigController) IsStorageUsing(ctx *gin.Context) {
 		return
 	}
 
-	isUsing, err := c.backupConfigService.IsStorageUsing(user, id)
+	isUsing, err := c.backupConfigService.IsStorageInUse(ctx.Request.Context(), user, id)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -149,8 +150,9 @@ func (c *BackupConfigController) CountDatabasesForStorage(ctx *gin.Context) {
 		return
 	}
 
-	count, err := c.backupConfigService.CountDatabasesForStorage(user, id)
+	count, err := c.backupConfigService.CountDatabasesForStorage(ctx.Request.Context(), user, id)
 	if err != nil {
+		_ = ctx.Error(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -195,7 +197,7 @@ func (c *BackupConfigController) TransferDatabase(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.backupConfigService.TransferDatabaseToWorkspace(user, id, &request); err != nil {
+	if err := c.backupConfigService.TransferDatabaseToWorkspace(ctx.Request.Context(), user, id, &request); err != nil {
 		if errors.Is(err, ErrInsufficientPermissionsInSourceWorkspace) ||
 			errors.Is(err, ErrInsufficientPermissionsInTargetWorkspace) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

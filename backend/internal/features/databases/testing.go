@@ -1,6 +1,7 @@
 package databases
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -432,8 +433,10 @@ func CreateTestMongodbDatabase(
 	return database
 }
 
-func RemoveTestDatabase(database *Database) {
-	if err := databaseService.DeleteForTest(database.ID); err != nil {
+// The context is stripped of cancellation because callers pass t.Context() from a t.Cleanup, and
+// the test context is already cancelled by the time cleanup runs.
+func RemoveTestDatabase(ctx context.Context, database *Database) {
+	if err := databaseService.DeleteForTest(context.WithoutCancel(ctx), database.ID); err != nil {
 		panic(fmt.Sprintf("failed to delete test database: %v", err))
 	}
 }

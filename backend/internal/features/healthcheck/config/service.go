@@ -1,6 +1,7 @@
 package healthcheck_config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/audit_logs"
+	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	"databasus-backend/internal/features/databases"
 	users_models "databasus-backend/internal/features/users/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -22,15 +24,17 @@ type HealthcheckConfigService struct {
 }
 
 func (s *HealthcheckConfigService) OnDatabaseCreated(
+	ctx context.Context,
 	databaseID uuid.UUID,
 ) {
 	err := s.initializeDefaultConfig(databaseID)
 	if err != nil {
-		s.logger.Error("failed to initialize default healthcheck config", "error", err)
+		s.logger.ErrorContext(ctx, "failed to initialize default healthcheck config", "error", err)
 	}
 }
 
 func (s *HealthcheckConfigService) Save(
+	ctx context.Context,
 	user users_models.User,
 	configDTO HealthcheckConfigDTO,
 ) error {
@@ -43,7 +47,7 @@ func (s *HealthcheckConfigService) Save(
 		return errors.New("cannot modify healthcheck config for databases without workspace")
 	}
 
-	canManage, err := s.workspaceService.CanUserManageDBs(*database.WorkspaceID, &user)
+	canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, &user)
 	if err != nil {
 		return err
 	}
@@ -52,7 +56,6 @@ func (s *HealthcheckConfigService) Save(
 	}
 
 	healthcheckConfig := configDTO.ToDTO()
-	s.logger.Info("healthcheck config", "config", healthcheckConfig)
 
 	healthcheckConfig.DatabaseID = database.ID
 
@@ -74,16 +77,17 @@ func (s *HealthcheckConfigService) Save(
 		}
 	}
 
-	s.auditLogService.WriteAuditLog(
-		fmt.Sprintf("Healthcheck config updated for database '%s'", database.Name),
-		&user.ID,
-		database.WorkspaceID,
-	)
+	s.auditLogService.WriteAuditLog(ctx, audit_logs_models.AuditEntry{
+		Message:     fmt.Sprintf("Healthcheck config updated for database '%s'", database.Name),
+		UserID:      &user.ID,
+		WorkspaceID: database.WorkspaceID,
+	})
 
 	return nil
 }
 
 func (s *HealthcheckConfigService) GetByDatabaseID(
+	ctx context.Context,
 	user users_models.User,
 	databaseID uuid.UUID,
 ) (*HealthcheckConfig, error) {
@@ -96,7 +100,7 @@ func (s *HealthcheckConfigService) GetByDatabaseID(
 		return nil, errors.New("cannot access healthcheck config for databases without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, &user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, &user)
 	if err != nil {
 		return nil, err
 	}

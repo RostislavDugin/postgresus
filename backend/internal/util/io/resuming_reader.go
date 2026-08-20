@@ -225,7 +225,8 @@ func (r *ResumingReader) resumeAfterFailure(cause error) error {
 		)
 	}
 
-	r.logger.Warn(
+	r.logger.WarnContext(
+		r.streamCtx,
 		fmt.Sprintf(
 			"storage read failed, resuming from offset %d (attempt %d of %d)",
 			r.deliveredBytes,

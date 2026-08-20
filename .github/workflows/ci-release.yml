@@ -3,8 +3,14 @@ name: CI and Release
 on:
   push:
     branches: ["**"]
+    paths-ignore:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
   pull_request:
     branches: ["**"]
+    paths-ignore:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
 
 permissions:

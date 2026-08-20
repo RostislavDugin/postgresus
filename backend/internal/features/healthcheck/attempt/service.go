@@ -1,6 +1,7 @@
 package healthcheck_attempt
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -18,6 +19,7 @@ type HealthcheckAttemptService struct {
 }
 
 func (s *HealthcheckAttemptService) GetAttemptsByDatabase(
+	ctx context.Context,
 	user users_models.User,
 	databaseID uuid.UUID,
 	afterDate time.Time,
@@ -31,7 +33,7 @@ func (s *HealthcheckAttemptService) GetAttemptsByDatabase(
 		return nil, errors.New("cannot access healthcheck attempts for databases without workspace")
 	}
 
-	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(*database.WorkspaceID, &user)
+	canAccess, _, err := s.workspaceService.CanUserAccessWorkspace(ctx, *database.WorkspaceID, &user)
 	if err != nil {
 		return nil, err
 	}

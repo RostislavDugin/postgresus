@@ -71,8 +71,8 @@ INSERT INTO public.%s (id, label) VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma')
 	}()
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	database := createDatabaseWithSchemasViaAPI(
@@ -137,8 +137,8 @@ INSERT INTO public.%s (id, label) VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma')
 		"Bearer "+user.Token,
 		http.StatusNoContent,
 	)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	storages.RemoveTestStorage(t.Context(), storage.ID)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func seedHypertableQuery(tableName string) string {
@@ -183,8 +183,8 @@ func testTimescaleBackupRestoreForCpuCount(t *testing.T, endpoint containers.End
 	require.Positive(t, sourceRowCount)
 
 	router := logicaltesting.CreateTestRouter()
-	user := users_testing.CreateTestUser(users_enums.UserRoleMember)
-	workspace := workspaces_testing.CreateTestWorkspace("Test Workspace", user, router)
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", user, router)
 	storage := storages.CreateTestStorage(workspace.ID)
 
 	database := createDatabaseWithCpuCountViaAPI(
@@ -247,8 +247,8 @@ func testTimescaleBackupRestoreForCpuCount(t *testing.T, endpoint containers.End
 		"Bearer "+user.Token,
 		http.StatusNoContent,
 	)
-	storages.RemoveTestStorage(storage.ID)
-	workspaces_testing.RemoveTestWorkspace(workspace, router)
+	storages.RemoveTestStorage(t.Context(), storage.ID)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }
 
 func assertHypertableRestored(t *testing.T, restoredDB *sqlx.DB, tableName string, expectedRows int) {
