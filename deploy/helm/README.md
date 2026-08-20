@@ -107,7 +107,7 @@ Databasus logs to stdout and can additionally export to any OpenTelemetry backen
 | `OPEN_TELEMETRY_URL`     | Full OTLP endpoint URL; empty disables export                     | empty   |
 | `OPEN_TELEMETRY_HEADERS` | `k=v` pairs, comma separated, values percent-encoded              | empty   |
 
-The URL is used verbatim, path included, and the scheme selects the transport. Pointing at a backend directly and pointing at an OTel Collector are the same setting — a Collector is itself an OTLP receiver:
+The scheme selects the transport: `http://` and `https://` use the URL verbatim, path included, while `grpc://` and `grpcs://` take only the host and port. Pointing at a backend directly and pointing at an OTel Collector are the same setting — a Collector is itself an OTLP receiver:
 
 ```yaml
 extraEnv:

@@ -1310,6 +1310,19 @@ export default function Index() {
                     Security &amp; reliability engineering
                   </a>{" "}
                   for the full pipeline.
+                  <br />
+                  <br />
+                  Moreover, all the logs can be exported to any external system
+                  (VictoriaLogs, SigNoz, Graylog, etc.) via the OpenTelemetry
+                  standard. By default, logs (including audit logs) are also
+                  written to local files, so audit logs cannot be lost. See{" "}
+                  <a
+                    href="/advanced-config#logging"
+                    className="text-blue-400 hover:text-blue-600"
+                  >
+                    advanced config
+                  </a>{" "}
+                  here.
                 </>
               }
             />
@@ -1603,8 +1616,8 @@ export default function Index() {
                   Databasus has been developed and used since 2023, and open
                   source in widespread use since early 2025. It has been in real
                   production use for a while, so it is battle-tested across many
-                  edge cases. Crucially, Databasus does not invent custom ways to
-                  back up your data — it relies on PostgreSQL&apos;s native,
+                  edge cases. Crucially, Databasus does not invent custom ways
+                  to back up your data — it relies on PostgreSQL&apos;s native,
                   tested implementation instead of building its own workarounds
                   for edge cases.
                   <br />

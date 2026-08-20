@@ -6,7 +6,7 @@ import DocTableOfContentComponent from "../components/DocTableOfContentComponent
 export const metadata: Metadata = {
   title: "Advanced config - Databasus Documentation",
   description:
-    "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, log shipping and a custom analytics script. Not needed for a default install.",
+    "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, OpenTelemetry log export and a custom analytics script. Not needed for a default install.",
   keywords: [
     "Databasus environment variables",
     "Databasus advanced configuration",
@@ -16,11 +16,12 @@ export const metadata: Metadata = {
     "SMTP email setup",
     "Cloudflare Turnstile",
     "Docker environment variables",
+    "OpenTelemetry logs",
   ],
   openGraph: {
     title: "Advanced config - Databasus Documentation",
     description:
-      "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, log shipping and a custom analytics script. Not needed for a default install.",
+      "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, OpenTelemetry log export and a custom analytics script. Not needed for a default install.",
     type: "article",
     url: "https://databasus.com/advanced-config",
   },
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Advanced config - Databasus Documentation",
     description:
-      "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, log shipping and a custom analytics script. Not needed for a default install.",
+      "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, OpenTelemetry log export and a custom analytics script. Not needed for a default install.",
   },
   alternates: {
     canonical: "https://databasus.com/advanced-config",
@@ -48,7 +49,7 @@ export default function AdvancedConfigPage() {
             "@type": "TechArticle",
             headline: "Advanced config - Databasus Documentation",
             description:
-              "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, log shipping and a custom analytics script. Not needed for a default install.",
+              "Optional environment variables for self-hosting Databasus: Google and GitHub sign-in, SMTP email, Cloudflare Turnstile captcha, telemetry, OpenTelemetry log export and a custom analytics script. Not needed for a default install.",
             author: {
               "@type": "Organization",
               name: "Databasus",
@@ -435,16 +436,41 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
-              <h2 id="log-shipping">Log shipping</h2>
+              <h2 id="logging">Logging</h2>
 
               <p>
-                By default Databasus keeps its application logs inside the
-                container. If you run central log aggregation, you can ship them
-                to an external VictoriaLogs instance instead. Setting{" "}
-                <code>VICTORIA_LOGS_URL</code> enables shipping; the username
-                and password are only needed if your endpoint requires basic
-                auth.
+                Databasus writes its logs to stdout and mirrors them as JSON to{" "}
+                <code>databasus.log</code> on the data volume. Set{" "}
+                <code>OPEN_TELEMETRY_URL</code> and it also exports them over
+                Open Telemetry to a backend such as VictoriaLogs, Graylog, SigNoz, Grafana
+                Loki, Datadog or Honeycomb, or to an OpenTelemetry Collector,
+                which is itself an OTLP receiver.
               </p>
+
+              <ul>
+                <li>
+                  <strong>Transport</strong> follows the scheme.{" "}
+                  <code>http://</code> and <code>https://</code> send OTLP/HTTP
+                  and use the URL verbatim, path included; <code>grpc://</code>{" "}
+                  and <code>grpcs://</code> send OTLP/gRPC and use only the host
+                  and port.
+                </li>
+                <li>
+                  <strong>Authentication</strong> goes into{" "}
+                  <code>OPEN_TELEMETRY_HEADERS</code> or into the URL as{" "}
+                  <code>user:password@host</code>.
+                </li>
+                <li>
+                  <strong>Secrets</strong> (passwords, tokens, credentials)
+                  inside URLs — are redacted before a record leaves the process.
+                </li>
+                <li>
+                  <strong>Audit entries</strong> ship with the application logs
+                  tagged <code>log_type=audit</code> and ignore{" "}
+                  <code>LOG_LEVEL</code>, so raising the level never drops the
+                  audit trail.
+                </li>
+              </ul>
 
               <table>
                 <thead>
@@ -457,36 +483,168 @@ export default function AdvancedConfigPage() {
                 <tbody>
                   <tr>
                     <td>
-                      <code>VICTORIA_LOGS_URL</code>
+                      <code>OPEN_TELEMETRY_URL</code>
                     </td>
                     <td data-label="Default">—</td>
                     <td data-label="Description">
-                      URL of a VictoriaLogs instance to ship application logs
-                      to. Leave unset to keep logs in the container.
+                      Full OTLP endpoint URL, including the path. Leave unset to
+                      keep logs in the container. A query string, a missing host
+                      or an unknown scheme stops the container at startup
+                      instead of exporting nowhere.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      <code>VICTORIA_LOGS_USERNAME</code>
+                      <code>OPEN_TELEMETRY_HEADERS</code>
                     </td>
                     <td data-label="Default">—</td>
                     <td data-label="Description">
-                      Username for the VictoriaLogs endpoint, if it requires
-                      basic auth.
+                      Comma-separated <code>key=value</code> pairs sent with
+                      every export, usually an API key. Values are
+                      percent-decoded, matching the standard{" "}
+                      <code>OTEL_EXPORTER_OTLP_HEADERS</code> format.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      <code>VICTORIA_LOGS_PASSWORD</code>
+                      <code>LOG_LEVEL</code>
                     </td>
-                    <td data-label="Default">—</td>
+                    <td data-label="Default">
+                      <code>info</code>
+                    </td>
                     <td data-label="Description">
-                      Password for the VictoriaLogs endpoint, if it requires
-                      basic auth.
+                      One of <code>debug</code>, <code>info</code>,{" "}
+                      <code>warn</code> or <code>error</code>. An unrecognised
+                      value falls back to <code>info</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>LOG_FILE_IS_ENABLED</code>
+                    </td>
+                    <td data-label="Default">
+                      <code>true</code>
+                    </td>
+                    <td data-label="Description">
+                      Writes <code>databasus.log</code> next to the rest of the
+                      data, rotating at 5 MB and keeping 3 older files. Set to{" "}
+                      <code>false</code> if your platform already collects
+                      stdout.
                     </td>
                   </tr>
                 </tbody>
               </table>
+
+              <p>
+                Values for common backends, each with the header that
+                authenticates it. Replace hosts, regions and keys with your own:
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Backend</th>
+                    <th>
+                      <code>OPEN_TELEMETRY_URL</code>
+                    </th>
+                    <th>
+                      <code>OPEN_TELEMETRY_HEADERS</code>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>VictoriaLogs</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>
+                        http://victoria-logs:9428/insert/opentelemetry/v1/logs
+                      </code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>Authorization=Basic%20dXNlcjpwYXNzd29yZA==</code> —
+                      the credentials your <code>vmauth</code> or reverse proxy
+                      expects, since VictoriaLogs itself has no auth on the
+                      ingest path.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>OpenTelemetry Collector</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>grpc://otel-collector:4317</code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>Authorization=Bearer%20your-token</code> — matches a{" "}
+                      <code>bearertokenauth</code> or{" "}
+                      <code>basicauth</code> extension on the receiver. A
+                      Collector reachable only inside your network usually needs
+                      none.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Graylog 6.2+</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>grpc://graylog:4317</code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>Authorization=Bearer%20your-token</code> — the token
+                      set on the OpenTelemetry (gRPC) input. The input also
+                      accepts mTLS instead.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>SigNoz Cloud</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>grpcs://ingest.eu.signoz.cloud:443</code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>signoz-ingestion-key=your-ingestion-key</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Grafana Cloud</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>
+                        https://otlp-gateway-prod-eu-west-0.grafana.net/otlp/v1/logs
+                      </code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>Authorization=Basic%20&lt;base64&gt;</code> — base64
+                      of <code>instance-id:api-token</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Honeycomb</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>https://api.honeycomb.io/v1/logs</code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      <code>x-honeycomb-team=your-api-key</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Datadog Agent</td>
+                    <td data-label="OPEN_TELEMETRY_URL">
+                      <code>grpc://datadog-agent:4317</code>
+                    </td>
+                    <td data-label="OPEN_TELEMETRY_HEADERS">
+                      None — the Agent holds the API key and forwards on your
+                      behalf.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p>
+                Header values are percent-decoded, so the space after{" "}
+                <code>Basic</code> or <code>Bearer</code> is written as{" "}
+                <code>%20</code> and a comma inside a value as <code>%2C</code>.
+                Basic auth can also go straight into the URL as{" "}
+                <code>https://user:password@host/path</code> — Databasus turns
+                it into the same header and keeps it out of the logs. Over{" "}
+                <code>http://</code> and <code>grpc://</code> keys and passwords
+                travel in clear, so use <code>https://</code> or{" "}
+                <code>grpcs://</code> outside a trusted network.
+              </p>
 
               <h2 id="analytics-script">Analytics script</h2>
 
