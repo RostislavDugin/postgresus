@@ -81,6 +81,8 @@ services:
     command:
       - -storageDataPath=/victoria-logs-data
       - -retentionPeriod=7d
+      # VictoriaLogs only enforces basic auth when BOTH are set; password alone is a no-op.
+      - -httpAuth.username=databasus
       - -httpAuth.password=devpassword
     volumes:
       - /victoria-logs-data

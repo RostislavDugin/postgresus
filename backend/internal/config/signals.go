@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"databasus-backend/internal/util/logger"
 )
 
 var isShutDownSignalReceived = false
@@ -14,6 +16,10 @@ func StartListeningForShutdownSignal() {
 
 	go func() {
 		<-quit
+
+		// Nothing else records why the process began shutting down.
+		logger.GetLogger().Info("shutdown signal received")
+
 		isShutDownSignalReceived = true
 	}()
 }

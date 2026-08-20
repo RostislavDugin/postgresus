@@ -16,6 +16,10 @@ replicaCount: 1
 # RootCA setup, need name of secret in same namespace
 customRootCA: ""
 
+# Mirror logs to a rotating file at <mountPath>/databasus.log, 4 files of 5 MB. Off here because
+# the cluster already collects the container's stdout; turning it on requires `persistence`.
+logFileIsEnabled: false
+
 # Extra environment variables to inject into the databasus container.
 # Accepts the standard Kubernetes EnvVar shape (value or valueFrom).
 # Note: env values must be strings — use quoted "true"/"false" rather than bare
@@ -24,6 +28,10 @@ customRootCA: ""
 extraEnv: []
 # - name: IS_DISABLE_ANONYMOUS_TELEMETRY
 #   value: "true"
+# - name: LOG_LEVEL
+#   value: "info"
+# - name: OPEN_TELEMETRY_URL
+#   value: "grpc://otel-collector.observability:4317"
 # - name: SOME_TOKEN
 #   valueFrom:
 #     secretKeyRef:

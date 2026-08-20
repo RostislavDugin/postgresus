@@ -142,12 +142,12 @@ func loadEnvVariables() {
 
 	envPath := filepath.Join(filepath.Dir(backendRoot), ".env")
 
-	log.Info("Trying to load .env", "path", envPath)
+	log.Info("trying to load .env", "path", envPath)
 	if err := godotenv.Load(envPath); err != nil {
-		log.Error("Error loading .env file from repo root", "path", envPath, "error", err)
-		os.Exit(1)
+		log.Error("error loading .env file from repo root", "path", envPath, "error", err)
+		logger.ExitAfterFlush(1)
 	}
-	log.Info("Successfully loaded .env", "path", envPath)
+	log.Info("successfully loaded .env", "path", envPath)
 
 	// Empty values for non-string fields (e.g. SMTP_PORT=) crash cleanenv's
 	// strconv parsing. Drop them so cleanenv falls back to the Go zero value.
@@ -155,13 +155,13 @@ func loadEnvVariables() {
 
 	err = cleanenv.ReadEnv(&env)
 	if err != nil {
-		log.Error("Configuration could not be loaded", "error", err)
-		os.Exit(1)
+		log.Error("configuration could not be loaded", "error", err)
+		logger.ExitAfterFlush(1)
 	}
 
 	if env.SMTPHost != "" && env.SMTPPort <= 0 {
 		log.Error("SMTP_PORT must be a positive integer when SMTP_HOST is set", "value", env.SMTPPort)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	// Set default value for ShowDbInstallationVerificationLogs if not defined
@@ -179,7 +179,7 @@ func loadEnvVariables() {
 	if env.IsTesting {
 		if env.TestDatabaseDsn == "" {
 			log.Error("TEST_DATABASE_DSN is empty")
-			os.Exit(1)
+			logger.ExitAfterFlush(1)
 		}
 
 		env.DatabaseDsn = env.TestDatabaseDsn
@@ -198,16 +198,16 @@ func loadEnvVariables() {
 
 	if env.DatabaseDsn == "" {
 		log.Error("DATABASE_DSN is empty")
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	if env.EnvMode == "" {
 		log.Error("ENV_MODE is empty")
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 	if env.EnvMode != "development" && env.EnvMode != "production" {
 		log.Error("ENV_MODE is invalid", "mode", env.EnvMode)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 	log.Info("ENV_MODE loaded", "mode", env.EnvMode)
 
@@ -220,11 +220,11 @@ func loadEnvVariables() {
 	// Valkey
 	if env.ValkeyHost == "" {
 		log.Error("VALKEY_HOST is empty")
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 	if env.ValkeyPort == "" {
 		log.Error("VALKEY_PORT is empty")
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	// Store the data and temp folders one level below the root
@@ -239,19 +239,19 @@ func loadEnvVariables() {
 	if env.IsTesting {
 		if env.TestLogicalPostgres16Port == "" {
 			log.Error("TEST_LOGICAL_POSTGRES_16_PORT is empty")
-			os.Exit(1)
+			logger.ExitAfterFlush(1)
 		}
 		if env.TestPhysicalPostgres17Port == "" {
 			log.Error("TEST_PHYSICAL_POSTGRES_17_PORT is empty")
-			os.Exit(1)
+			logger.ExitAfterFlush(1)
 		}
 		if env.TestPhysicalPostgres18Port == "" {
 			log.Error("TEST_PHYSICAL_POSTGRES_18_PORT is empty")
-			os.Exit(1)
+			logger.ExitAfterFlush(1)
 		}
 	}
 
-	log.Info("Environment variables loaded successfully!")
+	log.Info("environment variables loaded successfully")
 }
 
 func unsetEmptyEnvVars() {
@@ -283,7 +283,7 @@ func applyTestWorkerSlot() {
 	baseDbName, _, err := RewriteDbName(env.TestDatabaseDsn, systemDbName)
 	if err != nil {
 		log.Error("could not parse TEST_DATABASE_DSN for slot isolation", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	slot := claimTestWorkerSlot(env.TestDatabaseDsn, env.TestParallelWorkers)
@@ -292,7 +292,7 @@ func applyTestWorkerSlot() {
 	_, slotDsn, err := RewriteDbName(env.TestDatabaseDsn, slotDbName)
 	if err != nil {
 		log.Error("could not build per-slot DSN", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	env.DatabaseDsn = slotDsn
@@ -314,20 +314,20 @@ func claimTestWorkerSlot(testDsn string, pool int) int {
 	_, systemDsn, err := RewriteDbName(testDsn, systemDbName)
 	if err != nil {
 		log.Error("could not build system DSN for slot claim", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	db, err := sql.Open("pgx", systemDsn)
 	if err != nil {
 		log.Error("could not open system DB for slot claim", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	ctx := context.Background()
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		log.Error("could not get system DB connection for slot claim", "error", err)
-		os.Exit(1)
+		logger.ExitAfterFlush(1)
 	}
 
 	deadline := time.Now().Add(testSlotClaimTimeout)
@@ -341,7 +341,7 @@ func claimTestWorkerSlot(testDsn string, pool int) int {
 			).Scan(&locked)
 			if lockErr != nil {
 				log.Error("advisory lock query failed during slot claim", "error", lockErr)
-				os.Exit(1)
+				logger.ExitAfterFlush(1)
 			}
 
 			if locked {
@@ -356,7 +356,7 @@ func claimTestWorkerSlot(testDsn string, pool int) int {
 				"pool", pool,
 				"hint", "TEST_PARALLEL_WORKERS must be >= the `go test -p` value",
 			)
-			os.Exit(1)
+			logger.ExitAfterFlush(1)
 		}
 
 		time.Sleep(100 * time.Millisecond)

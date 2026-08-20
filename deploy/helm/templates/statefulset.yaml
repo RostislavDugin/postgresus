@@ -57,8 +57,9 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.customRootCA .Values.extraEnv }}
           env:
+            - name: LOG_FILE_IS_ENABLED
+              value: {{ .Values.logFileIsEnabled | quote }}
             {{- if .Values.customRootCA }}
             - name: SSL_CERT_FILE
               value: /etc/ssl/certs/custom-root-ca.crt
@@ -66,7 +67,6 @@ spec:
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- end }}
           {{- with .Values.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
