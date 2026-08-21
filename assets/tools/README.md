@@ -7,8 +7,10 @@ Layout (one subtree per arch, identical shape):
 
 ```
 assets/tools/<arch>/
-  postgresql/postgresql-{12,13,14,15,16,17,18}/bin/
+  postgresql/postgresql-{12,13,14,15,16}/bin/
     pg_dump, pg_restore, psql
+  postgresql/postgresql-{17,18,19}/bin/
+    pg_basebackup, pg_combinebackup, pg_dump, pg_receivewal, pg_restore, psql
   mysql/mysql-{5.7,8.0,8.4,9}/bin/
     mysql, mysqldump
   mariadb/mariadb-{10.6,12.1}/bin/
@@ -35,6 +37,10 @@ Bundled PostgreSQL minors (identical on both arches, Debian bookworm pgdg):
 | 16    | 16.14 | `16.14-1.pgdg12+1`                |
 | 17    | 17.10 | `17.10-1.pgdg12+1`                |
 | 18    | 18.4  | `18.4-1.pgdg12+1`                 |
+| 19    | beta3 | `19~beta3-1.pgdg12+1`             |
+
+PostgreSQL 19 is still pre-release. Refresh its bundled clients from the same
+PGDG package build when PostgreSQL publishes a newer beta, RC, or final release.
 
 Majors 12 and 13 are past upstream EOL, so those minors are the last ones that
 will ever exist. Keep every binary within one major on the same package build —

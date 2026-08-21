@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -22,6 +23,7 @@ const (
 	PostgresqlVersion16 PostgresqlVersion = "16"
 	PostgresqlVersion17 PostgresqlVersion = "17"
 	PostgresqlVersion18 PostgresqlVersion = "18"
+	PostgresqlVersion19 PostgresqlVersion = "19"
 )
 
 type PostgresqlExecutable string
@@ -35,24 +37,21 @@ const (
 )
 
 func GetPostgresqlVersionEnum(version string) PostgresqlVersion {
-	switch version {
-	case "12":
-		return PostgresqlVersion12
-	case "13":
-		return PostgresqlVersion13
-	case "14":
-		return PostgresqlVersion14
-	case "15":
-		return PostgresqlVersion15
-	case "16":
-		return PostgresqlVersion16
-	case "17":
-		return PostgresqlVersion17
-	case "18":
-		return PostgresqlVersion18
-	default:
-		panic(fmt.Sprintf("invalid postgresql version: %s", version))
+	parsedVersion, err := ParsePostgresqlVersion(version)
+	if err != nil {
+		panic(err)
 	}
+
+	return parsedVersion
+}
+
+func ParsePostgresqlVersion(version string) (PostgresqlVersion, error) {
+	postgresqlVersion := PostgresqlVersion(version)
+	if slices.Contains(postgresqlVersions, postgresqlVersion) {
+		return postgresqlVersion, nil
+	}
+
+	return "", fmt.Errorf("invalid postgresql version: %s", version)
 }
 
 func IsBackupDbVersionHigherThanRestoreDbVersion(

@@ -1,19 +1,9 @@
-import { type Database, PostgresSslMode, PostgresqlVersion } from '../../../../entity/databases';
+import { type Database, PostgresSslMode } from '../../../../entity/databases';
 import { ShowSshTunnelComponent } from './ShowSshTunnelComponent';
 
 interface Props {
   database: Database;
 }
-
-const postgresqlVersionLabels = {
-  [PostgresqlVersion.PostgresqlVersion12]: '12',
-  [PostgresqlVersion.PostgresqlVersion13]: '13',
-  [PostgresqlVersion.PostgresqlVersion14]: '14',
-  [PostgresqlVersion.PostgresqlVersion15]: '15',
-  [PostgresqlVersion.PostgresqlVersion16]: '16',
-  [PostgresqlVersion.PostgresqlVersion17]: '17',
-  [PostgresqlVersion.PostgresqlVersion18]: '18',
-};
 
 const sslModeLabels: Record<string, string> = {
   [PostgresSslMode.Disable]: 'Disable',
@@ -27,11 +17,7 @@ export const ShowPostgreSqlLogicalSpecificDataComponent = ({ database }: Props) 
     <div>
       <div className="mb-1 flex w-full items-center">
         <div className="min-w-[150px]">PG version</div>
-        <div>
-          {database.postgresqlLogical?.version
-            ? postgresqlVersionLabels[database.postgresqlLogical.version]
-            : ''}
-        </div>
+        <div>{database.postgresqlLogical?.version ?? ''}</div>
       </div>
 
       <div className="mb-1 flex w-full items-center">

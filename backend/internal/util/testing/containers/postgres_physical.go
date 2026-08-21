@@ -393,7 +393,7 @@ func StartPhysicalRestoreTarget(t *testing.T, image string) RestoreTarget {
 
 // restoreTargetTag derives a stable per-version image tag so KeepImage caches 17 and 18 separately.
 func restoreTargetTag(image string) string {
-	if major := postgresMajorVersion(image); major > 0 {
+	if major := ParsePostgresMajorVersion(image); major > 0 {
 		return fmt.Sprintf("pg%d", major)
 	}
 

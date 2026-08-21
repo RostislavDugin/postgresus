@@ -62,28 +62,30 @@ func postgresRequest(image string) testcontainers.ContainerRequest {
 // dir the entrypoint's layout detection rejects, so the server exits before becoming ready.
 // Mounting at the parent volume avoids that. An unparseable tag falls back to the pre-18 path.
 func postgresDataDir(image string) string {
-	if postgresMajorVersion(image) >= 18 {
+	if ParsePostgresMajorVersion(image) >= 18 {
 		return "/var/lib/postgresql"
 	}
 
 	return "/var/lib/postgresql/data"
 }
 
-// PostgresMajorVersion returns the major version from an image like "postgres:16" or
-// "postgres:17.2", or 0 when the tag is missing or not a leading integer (treated as pre-18).
-func PostgresMajorVersion(image string) int {
-	return postgresMajorVersion(image)
-}
-
-// postgresMajorVersion returns the major version from an image like "postgres:16" or
-// "postgres:17.2", or 0 when the tag is missing or not a leading integer (treated as pre-18).
-func postgresMajorVersion(image string) int {
+func ParsePostgresMajorVersion(image string) int {
 	_, tag, hasTag := strings.Cut(image, ":")
 	if !hasTag {
 		return 0
 	}
 
-	major, _, _ := strings.Cut(tag, ".")
+	majorEnd := strings.IndexFunc(tag, func(character rune) bool {
+		return character < '0' || character > '9'
+	})
+	if majorEnd == 0 {
+		return 0
+	}
+
+	major := tag
+	if majorEnd > 0 {
+		major = tag[:majorEnd]
+	}
 
 	version, err := strconv.Atoi(major)
 	if err != nil {

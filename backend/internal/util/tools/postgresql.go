@@ -14,6 +14,7 @@ var postgresqlVersions = []PostgresqlVersion{
 	PostgresqlVersion16,
 	PostgresqlVersion17,
 	PostgresqlVersion18,
+	PostgresqlVersion19,
 }
 
 var postgresqlRequired = []string{
@@ -33,7 +34,7 @@ var postgresqlRequiredV17Plus = []string{
 }
 
 func getPostgresqlRequiredForVersion(version PostgresqlVersion) []string {
-	if version == PostgresqlVersion17 || version == PostgresqlVersion18 {
+	if version >= PostgresqlVersion17 {
 		return postgresqlRequiredV17Plus
 	}
 

@@ -123,7 +123,7 @@ RUN set -eux; \
       libncurses5 libncurses6 libmariadb3 libgnutls30 \
       wget; \
     wget -qO /usr/share/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc; \
-    echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+    echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main 19" \
       > /etc/apt/sources.list.d/pgdg.list; \
     wget -qO /usr/share/keyrings/greensec.github.io-valkey-debian.key \
       https://greensec.github.io/valkey-debian/public.key; \

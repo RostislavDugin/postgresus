@@ -1009,13 +1009,12 @@ func detectDatabaseVersion(ctx context.Context, conn *pgx.Conn) (tools.Postgresq
 
 	majorVersion := matches[1]
 
-	// Map to known PostgresqlVersion enum values
-	switch majorVersion {
-	case "12", "13", "14", "15", "16", "17", "18":
-		return tools.PostgresqlVersion(majorVersion), nil
-	default:
+	version, err := tools.ParsePostgresqlVersion(majorVersion)
+	if err != nil {
 		return "", fmt.Errorf("unsupported PostgreSQL version: %s", majorVersion)
 	}
+
+	return version, nil
 }
 
 // checkBackupPermissions verifies the user has sufficient privileges for pg_dump backup.

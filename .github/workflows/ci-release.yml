@@ -267,7 +267,13 @@ jobs:
       - name: Install database client dependencies
         run: |
           # The bundled assets/tools clients are Debian-built; Ubuntu ships no libncurses5/libtinfo5
-          # package at all, and the ABI-identical .so.6 satisfies them via these symlinks.
+          # package at all, and the ABI-identical .so.6 satisfies them via these symlinks. The PGDG
+          # libpq is required by the newest bundled psql ABI.
+          source /etc/os-release
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/keyrings/pgdg.asc >/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main 19" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq libedit2 libncurses6 libtinfo6 libpq5 libmariadb3 libgnutls30 zstd netcat-openbsd
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5

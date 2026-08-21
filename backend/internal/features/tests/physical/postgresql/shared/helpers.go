@@ -90,8 +90,9 @@ func prepareRestoreTarget(t *testing.T, image string) containers.RestoreTarget {
 // restoredClusterDir is where the recovery script builds PGDATA under restoreWorkDir, mirroring the
 // image's layout: PG 18 nests <major>/docker, PG <=17 keeps <out>/data.
 func restoredClusterDir(image string) string {
-	if containers.PostgresMajorVersion(image) >= 18 {
-		return restoreWorkDir + "/" + strconv.Itoa(containers.PostgresMajorVersion(image)) + "/docker"
+	majorVersion := containers.ParsePostgresMajorVersion(image)
+	if majorVersion >= 18 {
+		return restoreWorkDir + "/" + strconv.Itoa(majorVersion) + "/docker"
 	}
 
 	return restoreWorkDir + "/data"
@@ -101,7 +102,7 @@ func restoredClusterDir(image string) string {
 // mounted at the image's data VOLUME: PG 18's volume root is the output dir itself (the cluster
 // nests at <out>/<major>/docker), while PG <=17's volume is PGDATA, i.e. <out>/data.
 func hostVolumeDirForMount(image, outDir string) string {
-	if containers.PostgresMajorVersion(image) >= 18 {
+	if containers.ParsePostgresMajorVersion(image) >= 18 {
 		return outDir
 	}
 
@@ -111,8 +112,9 @@ func hostVolumeDirForMount(image, outDir string) string {
 // hostClusterDir is the on-host PGDATA the recovery script builds under outDir, mirroring
 // restoredClusterDir but rooted at a real host path so a test can read the written config files.
 func hostClusterDir(image, outDir string) string {
-	if containers.PostgresMajorVersion(image) >= 18 {
-		return filepath.Join(outDir, strconv.Itoa(containers.PostgresMajorVersion(image)), "docker")
+	majorVersion := containers.ParsePostgresMajorVersion(image)
+	if majorVersion >= 18 {
+		return filepath.Join(outDir, strconv.Itoa(majorVersion), "docker")
 	}
 
 	return filepath.Join(outDir, "data")

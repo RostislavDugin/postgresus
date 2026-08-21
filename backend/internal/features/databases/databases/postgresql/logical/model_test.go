@@ -140,6 +140,8 @@ var postgresModelVersions = []postgresModelVersion{
 	{"PostgreSQL 15", "15", "postgres:15"},
 	{"PostgreSQL 16", "16", "postgres:16"},
 	{"PostgreSQL 17", "17", "postgres:17"},
+	{"PostgreSQL 18", "18", "postgres:18"},
+	{"PostgreSQL 19", "19", "postgres:19beta2"},
 }
 
 // Test_PostgresqlModel_AcrossSupportedVersions boots each PostgreSQL version once and runs every
