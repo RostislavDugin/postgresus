@@ -80,7 +80,7 @@ func (c *BackupConfigController) GetBackupConfigByDbID(ctx *gin.Context) {
 		return
 	}
 
-	backupConfig, err := c.backupConfigService.GetBackupConfigByDbIdWithAuth(ctx.Request.Context(), user, id)
+	backupConfig, err := c.backupConfigService.GetAndRepairBackupConfigByDbIdWithAuth(ctx.Request.Context(), user, id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "backup configuration not found"})
 		return

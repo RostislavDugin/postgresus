@@ -123,5 +123,5 @@ var SetupDependencies = sync.OnceFunc(func() {
 	// leaving it to pin WAL forever.
 	databases.GetDatabaseService().AddDbRemoveListener(physicalBackupCancellationListener)
 	databases.GetDatabaseService().AddDbRemoveListener(physicalSlotCleanupListener)
-	backups_config_physical.GetBackupConfigService().SetBackupConfigChangeListener(physicalBackupCancellationListener)
+	backups_config_physical.GetBackupConfigService().SetBackupCancellationListener(physicalBackupCancellationListener)
 })

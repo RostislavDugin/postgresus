@@ -172,7 +172,7 @@ func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 
 func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupConfig) bool {
 	if backupConfig.PostgresqlPhysical == nil ||
-		backupConfig.PostgresqlPhysical.BackupType != postgresql_physical.BackupTypeFullIncrementalAndWalStream {
+		!backupConfig.PostgresqlPhysical.BackupType.IsWalStreaming() {
 		return false
 	}
 

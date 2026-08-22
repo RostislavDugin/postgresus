@@ -7,6 +7,7 @@ import (
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
+	"databasus-backend/internal/util/logger"
 )
 
 var (
@@ -17,6 +18,7 @@ var (
 		storages.GetStorageService(),
 		notifiers.GetNotifierService(),
 		workspaces_services.GetWorkspaceService(),
+		logger.GetLogger(),
 		nil,
 		nil,
 	}
@@ -36,4 +38,5 @@ func GetBackupConfigService() *BackupConfigService {
 
 var SetupDependencies = sync.OnceFunc(func() {
 	storages.GetStorageService().AddStorageDatabaseCounter(backupConfigService)
+	databases.GetDatabaseService().AddDbBackupTypeChangeListener(backupConfigService)
 })

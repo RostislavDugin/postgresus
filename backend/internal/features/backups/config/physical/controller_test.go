@@ -1,6 +1,7 @@
 package backups_config_physical
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/storage"
 	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/tools"
 )
@@ -104,14 +106,12 @@ func createPhysicalDatabaseViaAPI(
 }
 
 func validPhysicalConfigForFullOnly(databaseID uuid.UUID) PhysicalBackupConfig {
-	timeOfDay := "04:00"
-
 	return PhysicalBackupConfig{
 		DatabaseID:       databaseID,
 		IsBackupsEnabled: true,
 		FullBackupInterval: intervals.Interval{
 			Type:      intervals.IntervalDaily,
-			TimeOfDay: &timeOfDay,
+			TimeOfDay: new("04:00"),
 		},
 		Retention: RetentionFullBackups,
 		FullBackupsRetention: FullBackupsRetention{
@@ -336,4 +336,348 @@ func Test_GetBackupConfig_PhysicalWhenNoneExists_InitializesDefaults(t *testing.
 	assert.Equal(t, FullBackupsRetentionPolicyLastN, response.FullBackupsRetention.Policy)
 	assert.Equal(t, 7, response.FullBackupsRetention.Count)
 	assert.Contains(t, response.SendNotificationsOn, NotificationChainBroken)
+}
+
+type recordingBackupCancellationListener struct {
+	backupsDisabledCount      int
+	walStreamingDisabledCount int
+}
+
+func (r *recordingBackupCancellationListener) OnBackupsDisabled(_ context.Context, _ uuid.UUID) {
+	r.backupsDisabledCount++
+}
+
+func (r *recordingBackupCancellationListener) OnWalStreamingDisabled(_ context.Context, _ uuid.UUID) {
+	r.walStreamingDisabledCount++
+}
+
+func recordBackupCancellations(t *testing.T) *recordingBackupCancellationListener {
+	t.Helper()
+
+	previousListener := GetBackupConfigService().backupCancellationListener
+
+	recorder := &recordingBackupCancellationListener{}
+	GetBackupConfigService().SetBackupCancellationListener(recorder)
+	t.Cleanup(func() { GetBackupConfigService().SetBackupCancellationListener(previousListener) })
+
+	return recorder
+}
+
+func validPhysicalConfigForWalStream(databaseID uuid.UUID) PhysicalBackupConfig {
+	return PhysicalBackupConfig{
+		DatabaseID:       databaseID,
+		IsBackupsEnabled: true,
+		FullBackupInterval: intervals.Interval{
+			Type:      intervals.IntervalWeekly,
+			Weekday:   new(1),
+			TimeOfDay: new("04:00"),
+		},
+		IncrementalBackupInterval: intervals.Interval{
+			Type:      intervals.IntervalDaily,
+			TimeOfDay: new("05:00"),
+		},
+		Retention:            RetentionChains,
+		ChainsRetention:      ChainsRetention{Count: 3},
+		WalLagThresholdBytes: 64 * 1024 * 1024,
+		SendNotificationsOn: []BackupNotificationType{
+			NotificationBackupFailed,
+			NotificationWalGap,
+		},
+	}
+}
+
+type backupTypeUpdateSpec struct {
+	router     *gin.Engine
+	token      string
+	database   *databases.Database
+	backupType postgresql_physical.BackupType
+}
+
+func updateBackupTypeViaAPI(t *testing.T, spec backupTypeUpdateSpec) {
+	t.Helper()
+
+	physicalSettings := *spec.database.PostgresqlPhysical
+	physicalSettings.BackupType = spec.backupType
+
+	updateRequest := *spec.database
+	updateRequest.PostgresqlPhysical = &physicalSettings
+
+	test_utils.MakePostRequest(
+		t,
+		spec.router,
+		"/api/v1/databases/update",
+		"Bearer "+spec.token,
+		updateRequest,
+		http.StatusOK,
+	)
+}
+
+// https://github.com/databasus/databasus/issues/746
+func Test_SaveBackupConfig_AfterBackupTypeDemotedFromWalStream_ConfigSavesCleanly(t *testing.T) {
+	router := createPhysicalTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	database := createPhysicalDatabaseViaAPI(
+		t,
+		"Physical DB "+uuid.New().String(),
+		workspace.ID,
+		owner.Token,
+		router,
+		postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+		"17",
+	)
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	recorder := recordBackupCancellations(t)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		validPhysicalConfigForWalStream(database.ID),
+		http.StatusOK,
+	)
+
+	updateBackupTypeViaAPI(t, backupTypeUpdateSpec{
+		router:     router,
+		token:      owner.Token,
+		database:   database,
+		backupType: postgresql_physical.BackupTypeFullAndIncremental,
+	})
+
+	var demotedConfig PhysicalBackupConfig
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/backup-configs/physical/database/%s", database.ID),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&demotedConfig,
+	)
+
+	assert.Zero(t, demotedConfig.WalLagThresholdBytes)
+	assert.Equal(t, RetentionChains, demotedConfig.Retention)
+	assert.Equal(t, 1, recorder.walStreamingDisabledCount, "demotion must stand the wal streamer down")
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		demotedConfig,
+		http.StatusOK,
+	)
+}
+
+func Test_SaveBackupConfig_AfterBackupTypePromotedFromFullOnly_ConfigSavesCleanly(t *testing.T) {
+	router := createPhysicalTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	database := createPhysicalDatabaseViaAPI(
+		t,
+		"Physical DB "+uuid.New().String(),
+		workspace.ID,
+		owner.Token,
+		router,
+		postgresql_physical.BackupTypeFullOnly,
+		"17",
+	)
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		validPhysicalConfigForFullOnly(database.ID),
+		http.StatusOK,
+	)
+
+	updateBackupTypeViaAPI(t, backupTypeUpdateSpec{
+		router:     router,
+		token:      owner.Token,
+		database:   database,
+		backupType: postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+	})
+
+	var promotedConfig PhysicalBackupConfig
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/backup-configs/physical/database/%s", database.ID),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&promotedConfig,
+	)
+
+	assert.Equal(t, RetentionChainsAndFullBackups, promotedConfig.Retention)
+	assert.Equal(t, defaultChainsRetentionCount, promotedConfig.ChainsRetention.Count)
+	assert.Equal(t, int64(defaultWalLagThresholdBytes), promotedConfig.WalLagThresholdBytes)
+	assert.Equal(t, intervals.IntervalHourly, promotedConfig.IncrementalBackupInterval.Type)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		promotedConfig,
+		http.StatusOK,
+	)
+}
+
+func Test_GetBackupConfig_PhysicalIncrementalWhenNoneExists_InitializesDefaultsThatSave(t *testing.T) {
+	router := createPhysicalTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	database := createPhysicalDatabaseViaAPI(
+		t,
+		"Physical DB "+uuid.New().String(),
+		workspace.ID,
+		owner.Token,
+		router,
+		postgresql_physical.BackupTypeFullAndIncremental,
+		"17",
+	)
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	var initializedConfig PhysicalBackupConfig
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/backup-configs/physical/database/%s", database.ID),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&initializedConfig,
+	)
+
+	assert.Equal(t, RetentionChainsAndFullBackups, initializedConfig.Retention)
+	assert.Equal(t, defaultChainsRetentionCount, initializedConfig.ChainsRetention.Count)
+	assert.Zero(t, initializedConfig.WalLagThresholdBytes)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		initializedConfig,
+		http.StatusOK,
+	)
+}
+
+func Test_SaveBackupConfig_WhenBackupsGetDisabled_StandsBackupWorkDown(t *testing.T) {
+	router := createPhysicalTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	database := createPhysicalDatabaseViaAPI(
+		t,
+		"Physical DB "+uuid.New().String(),
+		workspace.ID,
+		owner.Token,
+		router,
+		postgresql_physical.BackupTypeFullOnly,
+		"17",
+	)
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	recorder := recordBackupCancellations(t)
+
+	enabledConfig := validPhysicalConfigForFullOnly(database.ID)
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		enabledConfig,
+		http.StatusOK,
+	)
+	assert.Equal(t, 0, recorder.backupsDisabledCount)
+
+	disabledConfig := enabledConfig
+	disabledConfig.IsBackupsEnabled = false
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		disabledConfig,
+		http.StatusOK,
+	)
+
+	assert.Equal(t, 1, recorder.backupsDisabledCount)
+	assert.Equal(t, 0, recorder.walStreamingDisabledCount)
+}
+
+// https://github.com/databasus/databasus/issues/746, as left on installations
+// that switched backup type before the config followed along.
+func Test_GetBackupConfig_WhenStoredConfigPredatesTheBackupType_RepairsItOnRead(t *testing.T) {
+	router := createPhysicalTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	database := createPhysicalDatabaseViaAPI(
+		t,
+		"Physical DB "+uuid.New().String(),
+		workspace.ID,
+		owner.Token,
+		router,
+		postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+		"17",
+	)
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		validPhysicalConfigForWalStream(database.ID),
+		http.StatusOK,
+	)
+
+	require.NoError(t, storage.GetDb().
+		Model(&postgresql_physical.PostgresqlPhysicalDatabase{}).
+		Where("database_id = ?", database.ID).
+		Update("backup_type", postgresql_physical.BackupTypeFullAndIncremental).Error)
+
+	var repairedConfig PhysicalBackupConfig
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/backup-configs/physical/database/%s", database.ID),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&repairedConfig,
+	)
+
+	assert.Zero(t, repairedConfig.WalLagThresholdBytes)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/backup-configs/physical/save",
+		"Bearer "+owner.Token,
+		repairedConfig,
+		http.StatusOK,
+	)
 }
