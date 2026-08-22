@@ -258,6 +258,8 @@ func (s *VerificationService) ClaimVerification(
 	agent *verification_agents.Agent,
 	req *ClaimRequest,
 ) (*JobAssignment, error) {
+	logger := s.logger.With("agent_id", agent.ID)
+
 	runningBackups, err := s.verificationRepository.ListRunningBackupsByAgentID(agent.ID)
 	if err != nil {
 		return nil, err
@@ -272,7 +274,18 @@ func (s *VerificationService) ClaimVerification(
 		}
 
 		for _, candidate := range candidates {
-			if !IsVerificationFitWithinRemainedDiskCapacity(req.Capacity, runningBackups, candidate.Backup) {
+			candidateLogger := logger.With("verification_id", candidate.Verification.ID)
+
+			admission := EvaluateDiskAdmission(req.Capacity, runningBackups, candidate.Backup)
+			if !admission.IsFit {
+				candidateLogger.DebugContext(
+					ctx,
+					fmt.Sprintf(
+						"skipping claim: needs %d MB, %d MB already used of %d MB budget",
+						admission.CandidateRequiredMb, admission.RunningUsedMb, admission.TotalBudgetMb,
+					),
+				)
+
 				continue
 			}
 
@@ -282,10 +295,9 @@ func (s *VerificationService) ClaimVerification(
 			}
 
 			if validateErr := validateDatabaseIsVerifiable(database); validateErr != nil {
-				s.logger.WarnContext(
+				candidateLogger.WarnContext(
 					ctx,
 					"skipping claim: database not verifiable",
-					"verification_id", candidate.Verification.ID,
 					"database_id", candidate.Verification.DatabaseID,
 					"error", validateErr,
 				)
