@@ -10,10 +10,7 @@ type BackupConfigStorageChangeListener interface {
 	OnBeforeBackupsStorageChange(ctx context.Context, dbID uuid.UUID) error
 }
 
-// BackupConfigChangeListener is notified when a config save crosses a
-// transition that must stand work down: backups disabled, or BackupType demoted
-// away from WAL_STREAM. The scheduler package implements it to cancel in-flight
-// backups and delete the streamer row.
-type BackupConfigChangeListener interface {
-	OnBackupConfigChanged(oldConfig, newConfig *PhysicalBackupConfig)
+type BackupCancellationListener interface {
+	OnBackupsDisabled(ctx context.Context, databaseID uuid.UUID)
+	OnWalStreamingDisabled(ctx context.Context, databaseID uuid.UUID)
 }

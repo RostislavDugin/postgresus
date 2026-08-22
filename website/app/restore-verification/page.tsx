@@ -177,7 +177,7 @@ export default function RestoreVerificationPage() {
                   Disk capacity for each verification job covering the{" "}
                   <strong>backup file size</strong>, the{" "}
                   <strong>database raw size</strong> and a{" "}
-                  <strong>5 GB safety gap</strong> on top.
+                  <strong>safety gap</strong> on top.
                 </li>
                 <li>
                   At least 1 CPU core and 512 MB of RAM available per concurrent
@@ -319,7 +319,7 @@ export default function RestoreVerificationPage() {
                 concurrency. The disk budget is the easiest to get wrong: each
                 job needs enough space for the <strong>backup file size</strong>
                 , the <strong>database raw size</strong> and a{" "}
-                <strong>5 GB safety gap</strong> on top, so set{" "}
+                <strong>safety gap of up to 5 GB</strong> on top, so set{" "}
                 <code>--max-disk-gb</code> comfortably above that for your
                 largest database.
               </p>

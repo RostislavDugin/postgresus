@@ -317,7 +317,7 @@ func (m *MariadbDatabase) PopulateVersion(
 	return nil
 }
 
-func (m *MariadbDatabase) IsUserReadOnly(
+func (m *MariadbDatabase) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -392,8 +392,9 @@ func (m *MariadbDatabase) IsUserReadOnly(
 		privileges = append(privileges, priv)
 	}
 
-	isReadOnly := len(privileges) == 0
-	return isReadOnly, privileges, nil
+	shouldSuggestReadOnlyUser := len(privileges) > 0
+
+	return shouldSuggestReadOnlyUser, privileges, nil
 }
 
 func (m *MariadbDatabase) CreateReadOnlyUser(

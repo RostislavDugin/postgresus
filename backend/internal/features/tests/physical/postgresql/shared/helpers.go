@@ -340,10 +340,10 @@ func useReplicationOnlyUserViaAPI(
 	physical.Username = provisioned.Username
 	physical.Password = provisioned.Password
 
-	isMinimal, excessivePrivileges, err := physical.IsUserReplicationOnly(
+	shouldSuggestReplicationOnlyUser, excessivePrivileges, err := physical.ShouldSuggestReplicationOnlyUser(
 		t.Context(), logger.GetLogger(), encryption.GetFieldEncryptor())
 	require.NoError(t, err)
-	require.True(t, isMinimal,
+	require.False(t, shouldSuggestReplicationOnlyUser,
 		"backups must run through a replication-only user; excessive privileges: %v", excessivePrivileges)
 	require.Empty(t, excessivePrivileges)
 }

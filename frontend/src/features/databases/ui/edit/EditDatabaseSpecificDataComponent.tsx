@@ -1,4 +1,4 @@
-import { Modal } from 'antd';
+import { App, Modal } from 'antd';
 import { useState } from 'react';
 
 import { type Database, DatabaseType, databaseApi } from '../../../../entity/databases';
@@ -44,6 +44,8 @@ export const EditDatabaseSpecificDataComponent = ({
   isRestoreMode = false,
   onConnectionErrorChange,
 }: Props) => {
+  const { message } = App.useApp();
+
   const [isShowReadOnlyDialog, setIsShowReadOnlyDialog] = useState(false);
   const [editingDatabase, setEditingDatabase] = useState<Database>(database);
 
@@ -56,15 +58,15 @@ export const EditDatabaseSpecificDataComponent = ({
     }
 
     try {
-      const result = await databaseApi.isUserReadOnly(databaseToSave);
+      const readOnlyUserSuggestion = await databaseApi.shouldSuggestReadOnlyUser(databaseToSave);
 
-      if (result.isReadOnly) {
-        onSaved(databaseToSave);
-      } else {
+      if (readOnlyUserSuggestion.shouldSuggestReadOnlyUser) {
         setIsShowReadOnlyDialog(true);
+      } else {
+        onSaved(databaseToSave);
       }
     } catch (e) {
-      alert((e as Error).message);
+      message.error((e as Error).message);
     }
   };
 
@@ -100,8 +102,7 @@ export const EditDatabaseSpecificDataComponent = ({
           onSkipped={() => {
             skipReadOnlyUser();
           }}
-          onAlreadyExists={() => {
-            console.log('onAlreadyExists');
+          onReadOnlyUserNotSuggested={() => {
             onSaved(editingDatabase);
           }}
         />

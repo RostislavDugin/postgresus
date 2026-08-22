@@ -171,7 +171,7 @@ export const CreateDatabaseComponent = ({
         }}
         onGoBack={() => setStep('db-settings')}
         onSkipped={() => setStep('backup-config')}
-        onAlreadyExists={() => setStep('backup-config')}
+        onReadOnlyUserNotSuggested={() => setStep('backup-config')}
       />
     );
   }

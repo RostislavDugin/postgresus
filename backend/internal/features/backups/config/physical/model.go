@@ -134,6 +134,85 @@ func (b *PhysicalBackupConfig) Copy(newDatabaseID uuid.UUID) *PhysicalBackupConf
 	}
 }
 
+// The database owns BackupType, so a switch there leaves the config in a shape
+// Validate rejects, and an unsaveable config cannot be edited back into shape.
+func (b *PhysicalBackupConfig) CoerceFieldsForBackupType(backupType postgresql_physical.BackupType) {
+	switch backupType {
+	case postgresql_physical.BackupTypeFullOnly:
+		b.coerceFieldsForFullOnly()
+
+	case postgresql_physical.BackupTypeFullAndIncremental:
+		b.coerceFieldsForIncremental()
+		b.WalLagThresholdBytes = 0
+
+	case postgresql_physical.BackupTypeFullIncrementalAndWalStream:
+		b.coerceFieldsForIncremental()
+
+		if b.WalLagThresholdBytes <= 0 {
+			b.WalLagThresholdBytes = defaultWalLagThresholdBytes
+		}
+	}
+}
+
+func (b *PhysicalBackupConfig) coerceFieldsForFullOnly() {
+	b.IncrementalBackupInterval = intervals.Interval{}
+	b.WalLagThresholdBytes = 0
+	b.Retention = RetentionFullBackups
+	b.ChainsRetention = ChainsRetention{}
+
+	if b.FullBackupsRetention.Validate() != nil {
+		b.FullBackupsRetention = FullBackupsRetention{
+			Policy: FullBackupsRetentionPolicyLastN,
+			Count:  defaultFullBackupsRetentionCount,
+		}
+	}
+}
+
+func (b *PhysicalBackupConfig) coerceFieldsForIncremental() {
+	if b.Retention != RetentionChains && b.Retention != RetentionChainsAndFullBackups {
+		if b.FullBackupsRetention.Validate() == nil {
+			b.Retention = RetentionChainsAndFullBackups
+		} else {
+			b.Retention = RetentionChains
+		}
+	}
+
+	if b.Retention == RetentionChains {
+		b.FullBackupsRetention = FullBackupsRetention{}
+	}
+
+	if b.ChainsRetention.Count <= 0 {
+		b.ChainsRetention.Count = defaultChainsRetentionCount
+	}
+
+	if b.IncrementalBackupInterval.Validate() == nil &&
+		isIncrementalStrictlyMoreFrequent(b.IncrementalBackupInterval, b.FullBackupInterval) {
+		return
+	}
+
+	b.IncrementalBackupInterval = buildIntervalFasterThan(b.FullBackupInterval)
+}
+
+func buildIntervalFasterThan(fullBackupInterval intervals.Interval) intervals.Interval {
+	switch fullBackupInterval.Type {
+	case intervals.IntervalDaily:
+		return intervals.Interval{Type: intervals.IntervalHourly}
+
+	case intervals.IntervalWeekly, intervals.IntervalMonthly, intervals.IntervalCron:
+		timeOfDay := defaultBackupTimeOfDay
+		if fullBackupInterval.TimeOfDay != nil {
+			timeOfDay = *fullBackupInterval.TimeOfDay
+		}
+
+		return intervals.Interval{Type: intervals.IntervalDaily, TimeOfDay: &timeOfDay}
+
+	default:
+		// No fixed interval is more frequent than HOURLY; the owner has to slow
+		// the full cadence down first.
+		return intervals.Interval{}
+	}
+}
+
 func (b *PhysicalBackupConfig) validateRetentionFields() error {
 	switch b.Retention {
 	case RetentionChains:

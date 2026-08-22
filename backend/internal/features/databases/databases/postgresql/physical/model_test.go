@@ -672,7 +672,7 @@ func Test_GetClusterSizeMb_ReturnsPositiveValue(t *testing.T) {
 	}
 }
 
-func Test_IsUserReplicationOnly_DetectsSuperuser(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_DetectsSuperuser(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -681,15 +681,19 @@ func Test_IsUserReplicationOnly_DetectsSuperuser(t *testing.T) {
 
 			m := newTestModel(t, fx.port())
 
-			isMinimal, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			shouldSuggestReplicationOnlyUser, excessive, err := m.ShouldSuggestReplicationOnlyUser(
+				context.Background(),
+				testLogger(),
+				nil,
+			)
 			require.NoError(t, err)
-			assert.False(t, isMinimal)
+			assert.True(t, shouldSuggestReplicationOnlyUser)
 			assert.Contains(t, excessive, "SUPERUSER")
 		})
 	}
 }
 
-func Test_IsUserReplicationOnly_TrueForFreshlyCreatedReplicationUser(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_FalseForFreshlyCreatedReplicationUser(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -715,15 +719,19 @@ func Test_IsUserReplicationOnly_TrueForFreshlyCreatedReplicationUser(t *testing.
 			m.Username = username
 			m.Password = password
 
-			isMinimal, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			shouldSuggestReplicationOnlyUser, excessive, err := m.ShouldSuggestReplicationOnlyUser(
+				context.Background(),
+				testLogger(),
+				nil,
+			)
 			require.NoError(t, err)
-			assert.True(t, isMinimal, "excessive=%v", excessive)
+			assert.False(t, shouldSuggestReplicationOnlyUser, "excessive=%v", excessive)
 			assert.Empty(t, excessive)
 		})
 	}
 }
 
-func Test_IsUserReplicationOnly_DetectsTableWritePrivilege(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_DetectsTableWritePrivilege(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -753,9 +761,13 @@ func Test_IsUserReplicationOnly_DetectsTableWritePrivilege(t *testing.T) {
 			m.Username = username
 			m.Password = password
 
-			isMinimal, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			shouldSuggestReplicationOnlyUser, excessive, err := m.ShouldSuggestReplicationOnlyUser(
+				context.Background(),
+				testLogger(),
+				nil,
+			)
 			require.NoError(t, err)
-			assert.False(t, isMinimal)
+			assert.True(t, shouldSuggestReplicationOnlyUser)
 			assert.Contains(t, excessive, "INSERT")
 		})
 	}
@@ -1001,7 +1013,7 @@ func Test_CreateReplicationOnlyUser_OnSimulatedRds_GrantsRdsReplicationMembershi
 	}
 }
 
-func Test_IsUserReplicationOnly_OnSimulatedRds_FlagsRdsSuperuserMembership(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_OnSimulatedRds_FlagsRdsSuperuserMembership(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -1015,14 +1027,14 @@ func Test_IsUserReplicationOnly_OnSimulatedRds_FlagsRdsSuperuserMembership(t *te
 
 			m := newTestModel(t, fx.port())
 
-			_, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			_, excessive, err := m.ShouldSuggestReplicationOnlyUser(context.Background(), testLogger(), nil)
 			require.NoError(t, err)
 			assert.Contains(t, excessive, "rds_superuser (RDS admin)")
 		})
 	}
 }
 
-func Test_IsUserReplicationOnly_OnSimulatedAzure_FlagsAzurePgAdminMembership(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_OnSimulatedAzure_FlagsAzurePgAdminMembership(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -1036,14 +1048,14 @@ func Test_IsUserReplicationOnly_OnSimulatedAzure_FlagsAzurePgAdminMembership(t *
 
 			m := newTestModel(t, fx.port())
 
-			_, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			_, excessive, err := m.ShouldSuggestReplicationOnlyUser(context.Background(), testLogger(), nil)
 			require.NoError(t, err)
 			assert.Contains(t, excessive, "azure_pg_admin (Azure admin)")
 		})
 	}
 }
 
-func Test_IsUserReplicationOnly_OnSimulatedGcp_FlagsCloudsqlSuperuserMembership(t *testing.T) {
+func Test_ShouldSuggestReplicationOnlyUser_OnSimulatedGcp_FlagsCloudsqlSuperuserMembership(t *testing.T) {
 	for _, fx := range physicalFixtures() {
 		t.Run(fx.name, func(t *testing.T) {
 			if fx.port() == "" {
@@ -1057,7 +1069,7 @@ func Test_IsUserReplicationOnly_OnSimulatedGcp_FlagsCloudsqlSuperuserMembership(
 
 			m := newTestModel(t, fx.port())
 
-			_, excessive, err := m.IsUserReplicationOnly(context.Background(), testLogger(), nil)
+			_, excessive, err := m.ShouldSuggestReplicationOnlyUser(context.Background(), testLogger(), nil)
 			require.NoError(t, err)
 			assert.Contains(t, excessive, "cloudsqlsuperuser (GCP admin)")
 		})

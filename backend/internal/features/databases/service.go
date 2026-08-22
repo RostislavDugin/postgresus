@@ -14,6 +14,7 @@ import (
 	audit_logs "databasus-backend/internal/features/audit_logs"
 	audit_logs_models "databasus-backend/internal/features/audit_logs/models"
 	physical_core_service "databasus-backend/internal/features/backups/backups/core/physical/service"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/features/notifiers"
 	users_models "databasus-backend/internal/features/users/models"
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
@@ -25,9 +26,10 @@ type DatabaseService struct {
 	notifierService *notifiers.NotifierService
 	logger          *slog.Logger
 
-	dbCreationListener []DatabaseCreationListener
-	dbRemoveListener   []DatabaseRemoveListener
-	dbCopyListener     []DatabaseCopyListener
+	dbCreationListener         []DatabaseCreationListener
+	dbRemoveListener           []DatabaseRemoveListener
+	dbCopyListener             []DatabaseCopyListener
+	dbBackupTypeChangeListener []DatabaseBackupTypeChangeListener
 
 	workspaceService      *workspaces_services.WorkspaceService
 	auditLogService       *audit_logs.AuditLogService
@@ -51,6 +53,12 @@ func (s *DatabaseService) AddDbCopyListener(
 	dbCopyListener DatabaseCopyListener,
 ) {
 	s.dbCopyListener = append(s.dbCopyListener, dbCopyListener)
+}
+
+func (s *DatabaseService) AddDbBackupTypeChangeListener(
+	dbBackupTypeChangeListener DatabaseBackupTypeChangeListener,
+) {
+	s.dbBackupTypeChangeListener = append(s.dbBackupTypeChangeListener, dbBackupTypeChangeListener)
 }
 
 func (s *DatabaseService) GetNotifierAttachedDatabasesIDs(
@@ -170,6 +178,8 @@ func (s *DatabaseService) UpdateDatabase(
 		}
 	}
 
+	oldBackupType := getPhysicalBackupType(existingDatabase)
+
 	existingDatabase.Update(database)
 
 	if err := existingDatabase.Validate(); err != nil {
@@ -211,6 +221,16 @@ func (s *DatabaseService) UpdateDatabase(
 	_, err = s.dbRepository.Save(existingDatabase)
 	if err != nil {
 		return err
+	}
+
+	if newBackupType := getPhysicalBackupType(existingDatabase); newBackupType != oldBackupType {
+		for _, listener := range s.dbBackupTypeChangeListener {
+			listener.OnBackupTypeChanged(ctx, BackupTypeChange{
+				DatabaseID:    existingDatabase.ID,
+				OldBackupType: oldBackupType,
+				NewBackupType: newBackupType,
+			})
+		}
 	}
 
 	if oldName != existingDatabase.Name {
@@ -661,7 +681,7 @@ func (s *DatabaseService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error
 	return nil
 }
 
-func (s *DatabaseService) IsUserReadOnly(
+func (s *DatabaseService) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	user *users_models.User,
 	database *Database,
@@ -735,7 +755,7 @@ func (s *DatabaseService) IsUserReadOnly(
 
 	defer tunneledDatabase.Close()
 
-	return tunneledDatabase.GetDatabaseThroughTunnel().IsUserReadOnly(tunnelCtx, logger, s.fieldEncryptor)
+	return tunneledDatabase.GetDatabaseThroughTunnel().ShouldSuggestReadOnlyUser(tunnelCtx, logger, s.fieldEncryptor)
 }
 
 func (s *DatabaseService) CreateReadOnlyUser(
@@ -1003,4 +1023,12 @@ func (s *DatabaseService) resolveConnectionTarget(database *Database) (*Database
 	}
 
 	return existingDatabase, nil
+}
+
+func getPhysicalBackupType(database *Database) postgresql_physical.BackupType {
+	if database.PostgresqlPhysical == nil {
+		return ""
+	}
+
+	return database.PostgresqlPhysical.BackupType
 }

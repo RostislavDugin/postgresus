@@ -42,8 +42,7 @@ const (
 	PhysicalBackupErrorStartLsnOutsideTimeline  PhysicalBackupErrorReason = "START_LSN_OUTSIDE_TIMELINE_RANGE"
 
 	// Covers both an explicit user cancel on an in-flight backup AND
-	// in-flight backups cancelled by OnBackupConfigChanged when the user
-	// disables backups or demotes BackupType.
+	// in-flight backups cancelled when the user disables backups.
 	PhysicalBackupErrorCanceledByUser PhysicalBackupErrorReason = "CANCELED_BY_USER"
 
 	// In-flight backup killed because the parent DB was removed via

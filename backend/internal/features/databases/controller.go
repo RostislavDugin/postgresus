@@ -30,7 +30,7 @@ func (c *DatabaseController) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/databases/:id/copy", c.CopyDatabase)
 	router.GET("/databases/notifier/:id/is-using", c.IsNotifierUsing)
 	router.GET("/databases/notifier/:id/databases-count", c.CountDatabasesByNotifier)
-	router.POST("/databases/is-readonly", c.IsUserReadOnly)
+	router.POST("/databases/should-suggest-readonly-user", c.ShouldSuggestReadOnlyUser)
 	router.POST("/databases/create-readonly-user", c.CreateReadOnlyUser)
 	router.POST("/databases/create-replication-only-user", c.CreateReplicationOnlyUser)
 }
@@ -387,20 +387,20 @@ func (c *DatabaseController) CopyDatabase(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, copiedDatabase)
 }
 
-// IsUserReadOnly
-// @Summary Check if database user is read-only
-// @Description Check if current database credentials have only read (SELECT) privileges
+// ShouldSuggestReadOnlyUser
+// @Summary Check whether a limited backup user should be suggested
+// @Description Report whether Databasus should offer to create a read-only (or replication-only) user for these credentials
 // @Tags databases
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param request body Database true "Database configuration to check"
-// @Success 200 {object} IsReadOnlyResponse
+// @Success 200 {object} ShouldSuggestReadOnlyUserResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
-// @Router /databases/is-readonly [post]
-func (c *DatabaseController) IsUserReadOnly(ctx *gin.Context) {
+// @Router /databases/should-suggest-readonly-user [post]
+func (c *DatabaseController) ShouldSuggestReadOnlyUser(ctx *gin.Context) {
 	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -413,13 +413,20 @@ func (c *DatabaseController) IsUserReadOnly(ctx *gin.Context) {
 		return
 	}
 
-	isReadOnly, privileges, err := c.databaseService.IsUserReadOnly(ctx.Request.Context(), user, &request)
+	shouldSuggestReadOnlyUser, privileges, err := c.databaseService.ShouldSuggestReadOnlyUser(
+		ctx.Request.Context(),
+		user,
+		&request,
+	)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, IsReadOnlyResponse{IsReadOnly: isReadOnly, Privileges: privileges})
+	ctx.JSON(http.StatusOK, ShouldSuggestReadOnlyUserResponse{
+		ShouldSuggestReadOnlyUser: shouldSuggestReadOnlyUser,
+		Privileges:                privileges,
+	})
 }
 
 // CreateReadOnlyUser

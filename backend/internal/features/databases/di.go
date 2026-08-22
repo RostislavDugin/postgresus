@@ -21,6 +21,7 @@ var databaseService = &DatabaseService{
 	[]DatabaseCreationListener{},
 	[]DatabaseRemoveListener{},
 	[]DatabaseCopyListener{},
+	[]DatabaseBackupTypeChangeListener{},
 	workspaces_services.GetWorkspaceService(),
 	audit_logs.GetAuditLogService(),
 	encryption.GetFieldEncryptor(),

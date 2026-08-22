@@ -180,24 +180,24 @@ func (d *Database) GetRawDbSizeMb(
 	}
 }
 
-func (d *Database) IsUserReadOnly(
+func (d *Database) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
 ) (bool, []string, error) {
 	switch d.Type {
 	case DatabaseTypePostgresLogical:
-		return d.PostgresqlLogical.IsUserReadOnly(ctx, logger, encryptor)
+		return d.PostgresqlLogical.ShouldSuggestReadOnlyUser(ctx, logger, encryptor)
 	case DatabaseTypePostgresPhysical:
-		return d.PostgresqlPhysical.IsUserReplicationOnly(ctx, logger, encryptor)
+		return d.PostgresqlPhysical.ShouldSuggestReplicationOnlyUser(ctx, logger, encryptor)
 	case DatabaseTypeMysql:
-		return d.Mysql.IsUserReadOnly(ctx, logger, encryptor)
+		return d.Mysql.ShouldSuggestReadOnlyUser(ctx, logger, encryptor)
 	case DatabaseTypeMariadb:
-		return d.Mariadb.IsUserReadOnly(ctx, logger, encryptor)
+		return d.Mariadb.ShouldSuggestReadOnlyUser(ctx, logger, encryptor)
 	case DatabaseTypeMongodb:
-		return d.Mongodb.IsUserReadOnly(ctx, logger, encryptor)
+		return d.Mongodb.ShouldSuggestReadOnlyUser(ctx, logger, encryptor)
 	default:
-		return false, nil, errors.New("read-only check not supported for this database type")
+		return false, nil, errors.New("limited user suggestion not supported for this database type")
 	}
 }
 

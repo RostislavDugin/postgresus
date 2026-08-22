@@ -12,6 +12,10 @@ func (t BackupType) IsRequireWalSummary() bool {
 	return t == BackupTypeFullAndIncremental || t == BackupTypeFullIncrementalAndWalStream
 }
 
+func (t BackupType) IsWalStreaming() bool {
+	return t == BackupTypeFullIncrementalAndWalStream
+}
+
 // platform is the detected runtime classification of the source cluster.
 // Used to choose the right replication-grant SQL and to format actionable
 // fix messages — managed PG can't ALTER SYSTEM, so we tell the user where

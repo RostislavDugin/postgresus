@@ -3,7 +3,7 @@ import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
 import type { CreateReadOnlyUserResponse } from '../model/CreateReadOnlyUserResponse';
 import type { Database } from '../model/Database';
-import type { IsReadOnlyResponse } from '../model/IsReadOnlyResponse';
+import type { ShouldSuggestReadOnlyUserResponse } from '../model/ShouldSuggestReadOnlyUserResponse';
 
 export const databaseApi = {
   async createDatabase(database: Database) {
@@ -101,11 +101,11 @@ export const databaseApi = {
       .then((res) => res.count);
   },
 
-  async isUserReadOnly(database: Database) {
+  async shouldSuggestReadOnlyUser(database: Database) {
     const requestOptions: RequestOptions = new RequestOptions();
     requestOptions.setBody(JSON.stringify(database));
-    return apiHelper.fetchPostJson<IsReadOnlyResponse>(
-      `${getApplicationServer()}/api/v1/databases/is-readonly`,
+    return apiHelper.fetchPostJson<ShouldSuggestReadOnlyUserResponse>(
+      `${getApplicationServer()}/api/v1/databases/should-suggest-readonly-user`,
       requestOptions,
     );
   },

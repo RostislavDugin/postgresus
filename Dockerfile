@@ -116,6 +116,10 @@ ENV ENV_MODE=production
 #     store, so a compromised repo key cannot vouch for any other repository.
 #   - Codename: hardcoded "bookworm" (base image is pinned), so no lsb-release.
 #   - Valkey: bound to localhost only — never exposed outside the container.
+#   - Default cluster: the app runs its own cluster from /databasus-data/pgdata, so
+#     the one the package creates at 17/main is never read. Dropped inside this RUN
+#     so its data files never reach a layer; the server binaries under
+#     /usr/lib/postgresql stay.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -131,6 +135,7 @@ RUN set -eux; \
       > /etc/apt/sources.list.d/valkey-debian.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends postgresql-17 valkey; \
+    pg_dropcluster --stop 17 main; \
     apt-get purge -y --auto-remove wget; \
     rm -rf /var/lib/apt/lists/*
 
@@ -151,11 +156,14 @@ RUN --mount=type=bind,source=assets/tools,target=/ctx/tools,readonly \
              /app/assets/tools/*/mariadb/*/bin/* \
              /app/assets/tools/*/mongodb/bin/*
 
-# Create postgres user and set up directories
-RUN groupadd -g 999 postgres || true && \
-  useradd -m -s /bin/bash -u 999 -g 999 postgres || true && \
-  mkdir -p /databasus-data/pgdata && \
-  chown -R postgres:postgres /databasus-data/pgdata
+# postgres owns PGDATA inside the user's mounted /databasus-data volume, so its UID has
+# to stay stable across releases instead of whatever the postgresql-17 package assigns.
+# Hosts that need a different owner set PUID/PGID, which start.sh applies.
+RUN set -eux; \
+    groupmod -g 999 postgres; \
+    usermod -u 999 postgres; \
+    mkdir -p /databasus-data/pgdata; \
+    chown -R postgres:postgres /databasus-data/pgdata
 
 # Create non-root user for the main application process
 RUN useradd -r -s /usr/sbin/nologin -u 65532 databasus

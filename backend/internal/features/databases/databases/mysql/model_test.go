@@ -44,8 +44,8 @@ func Test_MysqlModel_AcrossSupportedVersions(t *testing.T) {
 				testTestConnectionSufficientPermissions(t, endpoint, dbVersion.version)
 			})
 
-			t.Run("Test_IsUserReadOnly_AdminUser_ReturnsFalse", func(t *testing.T) {
-				testIsUserReadOnlyAdminUser(t, endpoint, dbVersion.version)
+			t.Run("Test_ShouldSuggestReadOnlyUser_AdminUser_ReturnsTrue", func(t *testing.T) {
+				testShouldSuggestReadOnlyUserAdminUser(t, endpoint, dbVersion.version)
 			})
 
 			t.Run("Test_CreateReadOnlyUser_UserCanReadButNotWrite", func(t *testing.T) {
@@ -194,7 +194,7 @@ func testTestConnectionSufficientPermissions(
 	assert.NoError(t, err)
 }
 
-func testIsUserReadOnlyAdminUser(
+func testShouldSuggestReadOnlyUserAdminUser(
 	t *testing.T,
 	endpoint containers.Endpoint,
 	version tools.MysqlVersion,
@@ -206,13 +206,13 @@ func testIsUserReadOnlyAdminUser(
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := t.Context()
 
-	isReadOnly, privileges, err := mysqlModel.IsUserReadOnly(ctx, logger, nil)
+	shouldSuggestReadOnlyUser, privileges, err := mysqlModel.ShouldSuggestReadOnlyUser(ctx, logger, nil)
 	assert.NoError(t, err)
-	assert.False(t, isReadOnly, "Root user should not be read-only")
+	assert.True(t, shouldSuggestReadOnlyUser, "Root user must be offered a read-only user")
 	assert.NotEmpty(t, privileges, "Root user should have privileges")
 }
 
-func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
+func Test_ShouldSuggestReadOnlyUser_ReadOnlyUser_ReturnsFalse(t *testing.T) {
 	container := connectToMysqlContainer(t, "mysql:8.0", tools.MysqlVersion80)
 	defer container.DB.Close()
 
@@ -245,9 +245,9 @@ func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
 		IsHttps:  false,
 	}
 
-	isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(ctx, logger, nil)
+	shouldSuggestReadOnlyUser, privileges, err := readOnlyModel.ShouldSuggestReadOnlyUser(ctx, logger, nil)
 	assert.NoError(t, err)
-	assert.True(t, isReadOnly, "Read-only user should be read-only")
+	assert.False(t, shouldSuggestReadOnlyUser, "Read-only user must not be offered another one")
 	assert.Empty(t, privileges, "Read-only user should have no write privileges")
 
 	_, err = container.DB.Exec(fmt.Sprintf("DROP USER IF EXISTS '%s'@'%%'", username))
@@ -302,13 +302,13 @@ func testCreateReadOnlyUserCanReadButNotWrite(
 		IsHttps:  false,
 	}
 
-	isReadOnly, privileges, err := readOnlyModel.IsUserReadOnly(
+	shouldSuggestReadOnlyUser, privileges, err := readOnlyModel.ShouldSuggestReadOnlyUser(
 		ctx,
 		logger,
 		nil,
 	)
 	assert.NoError(t, err)
-	assert.True(t, isReadOnly, "Created user should be read-only")
+	assert.False(t, shouldSuggestReadOnlyUser, "Created user must not be offered another one")
 	assert.Empty(t, privileges, "Read-only user should have no write privileges")
 
 	readOnlyDSN := fmt.Sprintf(

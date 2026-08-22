@@ -9,8 +9,6 @@ import (
 
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
-	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
-	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	tasks_cancellation "databasus-backend/internal/features/tasks/cancellation"
 	"databasus-backend/internal/storage"
 	"databasus-backend/internal/util/logger"
@@ -44,27 +42,12 @@ func seedClaimAndStreamer(t *testing.T, databaseID uuid.UUID) {
 	require.NoError(t, physical_repositories.GetWalStreamerRepository().Claim(databaseID))
 }
 
-func configWithBackupType(
-	databaseID uuid.UUID,
-	enabled bool,
-	backupType postgresql_physical.BackupType,
-) *backups_config_physical.PhysicalBackupConfig {
-	return &backups_config_physical.PhysicalBackupConfig{
-		DatabaseID:         databaseID,
-		IsBackupsEnabled:   enabled,
-		PostgresqlPhysical: &postgresql_physical.PostgresqlPhysicalDatabase{BackupType: backupType},
-	}
-}
-
-func Test_OnBackupConfigChanged_WhenBackupsDisabled_CancelsInFlightAndDeletesStreamer(t *testing.T) {
+func Test_OnBackupsDisabled_CancelsInFlightAndDeletesStreamer(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	seedClaimAndStreamer(t, prereqs.DB.ID)
 	listener := newTestCancellationListener()
 
-	oldConfig := configWithBackupType(prereqs.DB.ID, true, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
-	newConfig := configWithBackupType(prereqs.DB.ID, false, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
-
-	listener.OnBackupConfigChanged(oldConfig, newConfig)
+	listener.OnBackupsDisabled(t.Context(), prereqs.DB.ID)
 
 	claim, _ := physical_repositories.GetInFlightBackupRepository().FindByDatabaseID(prereqs.DB.ID)
 	assert.Nil(t, claim, "disabling backups must cancel + release the in-flight claim")
@@ -73,15 +56,12 @@ func Test_OnBackupConfigChanged_WhenBackupsDisabled_CancelsInFlightAndDeletesStr
 	assert.Nil(t, streamer, "disabling backups must delete the streamer row")
 }
 
-func Test_OnBackupConfigChanged_WhenDemotedFromWalStream_DeletesStreamerKeepsInFlight(t *testing.T) {
+func Test_OnWalStreamingDisabled_DeletesStreamerKeepsInFlight(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	seedClaimAndStreamer(t, prereqs.DB.ID)
 	listener := newTestCancellationListener()
 
-	oldConfig := configWithBackupType(prereqs.DB.ID, true, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
-	newConfig := configWithBackupType(prereqs.DB.ID, true, postgresql_physical.BackupTypeFullAndIncremental)
-
-	listener.OnBackupConfigChanged(oldConfig, newConfig)
+	listener.OnWalStreamingDisabled(t.Context(), prereqs.DB.ID)
 
 	claim, _ := physical_repositories.GetInFlightBackupRepository().FindByDatabaseID(prereqs.DB.ID)
 	assert.NotNil(t, claim, "demoting BackupType must leave in-flight FULL/INCR running")

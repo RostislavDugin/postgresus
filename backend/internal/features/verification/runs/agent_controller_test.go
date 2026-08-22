@@ -74,6 +74,37 @@ func Test_ClaimVerification_WhenPendingFitsBudget_ReturnsJobAssignment(t *testin
 	assert.Equal(t, agent.Agent.ID, *updated.AgentID)
 }
 
+func Test_ClaimVerification_WhenAgentHasFiveGbAndBackupIsTiny_ReturnsJobAssignment(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "ws "+uuid.New().String(), owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	testStorage := storages.CreateTestStorage(workspace.ID)
+	defer storages.RemoveTestStorage(t.Context(), testStorage.ID)
+
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	defer notifiers.RemoveTestNotifier(notifier)
+
+	database := databases.CreateTestDatabase(workspace.ID, testStorage, notifier)
+	defer databases.RemoveTestDatabase(t.Context(), database)
+
+	tinyBackup := backuping_logical.SeedTestBackup(t, database.ID, testStorage.ID, 0.01)
+
+	enqueuedVerification := EnqueueManualVerificationViaAPI(t, router, owner.Token, tinyBackup.ID)
+
+	agent := verification_agents.CreateTestVerificationAgent(t, router, owner.Token, "small-disk-"+uuid.New().String())
+	defer verification_agents.RemoveTestVerificationAgent(t, router, owner.Token, agent.Agent.ID)
+
+	assignment := ClaimVerificationViaAPI(
+		t, router, agent.Agent.ID, agent.Token,
+		AgentCapacity{MaxCPU: 2, MaxRAMMb: 1024, MaxDiskGb: 5, MaxConcurrentJobs: 1},
+	)
+
+	assert.Equal(t, enqueuedVerification.ID, assignment.VerificationID)
+	assert.Equal(t, tinyBackup.ID, assignment.BackupID)
+}
+
 func Test_ClaimVerification_WhenBackupUsesTimescaleDB_ForwardsTimescaledbVersion(t *testing.T) {
 	router := createTestRouter()
 	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
