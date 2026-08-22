@@ -558,16 +558,10 @@ func (p *PostgresqlPhysicalDatabase) GetClusterSizeMb(
 	return float64(sizeBytes) / (1024 * 1024), nil
 }
 
-// IsUserReplicationOnly reports whether the configured user has only
-// LOGIN + REPLICATION (or its cloud equivalent) and nothing more. Mirrors
-// logical's IsUserReadOnly but tuned for physical: cloud admin roles
-// (rds_superuser, azure_pg_admin, cloudsqlsuperuser) count as "excessive"
-// even though they don't flip rolsuper on managed PG.
-//
-// Returns (isMinimal, excessivePrivileges, error). REPLICATION itself is the
-// baseline and is NOT in the excessive list — it is validated separately by
-// TestReplicationConnection.
-func (p *PostgresqlPhysicalDatabase) IsUserReplicationOnly(
+// Cloud admin roles (rds_superuser, azure_pg_admin, cloudsqlsuperuser) count as excessive even
+// though they don't flip rolsuper on managed PG. REPLICATION itself is the baseline and is not
+// excessive - it is validated separately by TestReplicationConnection.
+func (p *PostgresqlPhysicalDatabase) ShouldSuggestReplicationOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -718,7 +712,7 @@ func (p *PostgresqlPhysicalDatabase) IsUserReplicationOnly(
 		excessive = append(excessive, "EXECUTE (SECURITY DEFINER)")
 	}
 
-	return len(excessive) == 0, excessive, nil
+	return len(excessive) > 0, excessive, nil
 }
 
 // CreateReplicationOnlyUser provisions a fresh role with exactly

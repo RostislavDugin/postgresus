@@ -295,21 +295,7 @@ func (p *PostgresqlLogicalDatabase) PopulateVersion(
 	return nil
 }
 
-// IsUserReadOnly checks if the database user has read-only privileges.
-//
-// This method performs a comprehensive security check by examining:
-// - Role-level attributes (superuser, createrole, createdb, bypassrls, replication)
-// - Database-level privileges (CREATE, TEMP)
-// - Schema-level privileges (CREATE on any non-system schema)
-// - Table-level write permissions (INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER)
-// - Function-level privileges (EXECUTE on SECURITY DEFINER functions)
-//
-// A user is considered read-only only if they have ZERO write privileges
-// across all levels. This ensures the database user follows the
-// principle of least privilege for backup operations.
-//
-// Returns: (isReadOnly, detectedPrivileges, error)
-func (p *PostgresqlLogicalDatabase) IsUserReadOnly(
+func (p *PostgresqlLogicalDatabase) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -451,28 +437,67 @@ func (p *PostgresqlLogicalDatabase) IsUserReadOnly(
 		privileges = append(privileges, "EXECUTE (SECURITY DEFINER)")
 	}
 
-	isReadOnly := len(privileges) == 0
-	return isReadOnly, privileges, nil
+	rowLevelSecurityTables, err := getRowLevelSecurityTables(ctx, conn, p.IncludeSchemas)
+	if err != nil {
+		return false, nil, err
+	}
+
+	shouldSuggestReadOnlyUser := len(privileges) > 0 && len(rowLevelSecurityTables) == 0
+
+	return shouldSuggestReadOnlyUser, privileges, nil
 }
 
-// CreateReadOnlyUser creates a new PostgreSQL user with read-only privileges.
-//
-// This method performs the following operations atomically in a single transaction:
-// 1. Creates a PostgreSQL user with a UUID-based password
-// 2. Revokes CREATE privilege on public schema from PUBLIC role
-// 3. Grants CONNECT privilege on the database
-// 4. Discovers all user-created schemas
-// 5. Grants USAGE on all non-system schemas
-// 6. Grants SELECT on all existing tables and sequences
-// 7. Sets default privileges for future tables and sequences
-// 8. Verifies user creation before committing
-//
-// Security features:
-// - Username format: "databasus-{8-char-uuid}" for uniqueness
-// - Password: Full UUID (36 characters) for strong entropy
-// - Transaction safety: All operations rollback on any failure
-// - Retry logic: Up to 3 attempts if username collision occurs
-// - Pre-validation: Checks CREATEROLE privilege before starting transaction
+// pg_dump runs with row_security = off and aborts rather than emit a partial dump, so a role
+// without BYPASSRLS can never back these tables up.
+func getRowLevelSecurityTables(
+	ctx context.Context,
+	conn *pgx.Conn,
+	includeSchemas []string,
+) ([]string, error) {
+	query := `
+		SELECT n.nspname || '.' || c.relname
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relrowsecurity
+		AND c.relkind = 'r'
+		AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		AND n.nspname NOT LIKE 'pg_temp_%'
+		AND n.nspname NOT LIKE 'pg_toast_temp_%'
+	`
+
+	var rows pgx.Rows
+	var err error
+
+	if len(includeSchemas) > 0 {
+		rows, err = conn.Query(ctx, query+" AND n.nspname = ANY($1::text[]) ORDER BY 1", includeSchemas)
+	} else {
+		rows, err = conn.Query(ctx, query+" ORDER BY 1")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to check row-level security: %w", err)
+	}
+
+	defer rows.Close()
+
+	var rowLevelSecurityTables []string
+
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, fmt.Errorf("failed to scan row-level security table: %w", err)
+		}
+
+		rowLevelSecurityTables = append(rowLevelSecurityTables, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating row-level security tables: %w", err)
+	}
+
+	return rowLevelSecurityTables, nil
+}
+
 func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -488,7 +513,8 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 		}
 	}()
 
-	// Pre-validate: Check if current user can create roles
+	// Pre-validation runs on the bare connection so a refusal costs no transaction and leaks no
+	// generated credentials.
 	var canCreateRole, isSuperuser bool
 	err = conn.QueryRow(ctx, `
 		SELECT rolcreaterole, rolsuper
@@ -500,6 +526,18 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	}
 	if !canCreateRole && !isSuperuser {
 		return "", "", errors.New("current database user lacks CREATEROLE privilege")
+	}
+
+	rowLevelSecurityTables, err := getRowLevelSecurityTables(ctx, conn, p.IncludeSchemas)
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(rowLevelSecurityTables) > 0 {
+		return "", "", fmt.Errorf(
+			"row-level security is enabled on %s; grant BYPASSRLS to a role you create yourself, or back up with a role that owns these tables",
+			formatTruncatedTableList(rowLevelSecurityTables),
+		)
 	}
 
 	// Retry logic for username collision
@@ -1188,4 +1226,17 @@ func isLocalhostAddress(host string) bool {
 
 	// The entire 127.0.0.0/8 loopback range, not just 127.0.0.1
 	return strings.HasPrefix(host, "127.")
+}
+
+func formatTruncatedTableList(tables []string) string {
+	const maxListedTables = 5
+	if len(tables) <= maxListedTables {
+		return strings.Join(tables, ", ")
+	}
+
+	return fmt.Sprintf(
+		"%s and %d more",
+		strings.Join(tables[:maxListedTables], ", "),
+		len(tables)-maxListedTables,
+	)
 }

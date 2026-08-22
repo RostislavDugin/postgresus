@@ -293,7 +293,7 @@ func (m *MongodbDatabase) PopulateVersion(
 	return nil
 }
 
-func (m *MongodbDatabase) IsUserReadOnly(
+func (m *MongodbDatabase) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -388,17 +388,17 @@ func (m *MongodbDatabase) IsUserReadOnly(
 
 	users, ok := result["users"].(bson.A)
 	if !ok || len(users) == 0 {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	user, ok := users[0].(bson.M)
 	if !ok {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	roles, ok := user["roles"].(bson.A)
 	if !ok {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	// Collect all role names and check for write roles
@@ -416,7 +416,7 @@ func (m *MongodbDatabase) IsUserReadOnly(
 	// Check if any detected role is a write role
 	for _, roleName := range detectedRoles {
 		if writeRoles[roleName] {
-			return false, detectedRoles, nil
+			return true, detectedRoles, nil
 		}
 	}
 
@@ -429,7 +429,7 @@ func (m *MongodbDatabase) IsUserReadOnly(
 		}
 	}
 	if allRolesReadOnly && len(detectedRoles) > 0 {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	// Check inherited privileges for custom roles
@@ -447,12 +447,12 @@ func (m *MongodbDatabase) IsUserReadOnly(
 
 	privUsers, ok := privResult["users"].(bson.A)
 	if !ok || len(privUsers) == 0 {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	privUser, ok := privUsers[0].(bson.M)
 	if !ok {
-		return true, detectedRoles, nil
+		return false, detectedRoles, nil
 	}
 
 	// Check inheritedPrivileges for write actions
@@ -470,13 +470,13 @@ func (m *MongodbDatabase) IsUserReadOnly(
 			for _, action := range actions {
 				actionStr, ok := action.(string)
 				if ok && writeActions[actionStr] {
-					return false, detectedRoles, nil
+					return true, detectedRoles, nil
 				}
 			}
 		}
 	}
 
-	return true, detectedRoles, nil
+	return false, detectedRoles, nil
 }
 
 func (m *MongodbDatabase) CreateReadOnlyUser(

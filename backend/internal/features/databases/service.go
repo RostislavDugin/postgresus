@@ -681,7 +681,7 @@ func (s *DatabaseService) OnBeforeWorkspaceDeletion(workspaceID uuid.UUID) error
 	return nil
 }
 
-func (s *DatabaseService) IsUserReadOnly(
+func (s *DatabaseService) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	user *users_models.User,
 	database *Database,
@@ -755,7 +755,7 @@ func (s *DatabaseService) IsUserReadOnly(
 
 	defer tunneledDatabase.Close()
 
-	return tunneledDatabase.GetDatabaseThroughTunnel().IsUserReadOnly(tunnelCtx, logger, s.fieldEncryptor)
+	return tunneledDatabase.GetDatabaseThroughTunnel().ShouldSuggestReadOnlyUser(tunnelCtx, logger, s.fieldEncryptor)
 }
 
 func (s *DatabaseService) CreateReadOnlyUser(

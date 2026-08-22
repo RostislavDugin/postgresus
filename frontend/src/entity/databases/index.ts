@@ -35,5 +35,5 @@ export { MariadbVersion } from './model/mariadb/MariadbVersion';
 export { type MongodbDatabase } from './model/mongodb/MongodbDatabase';
 export { MongodbVersion } from './model/mongodb/MongodbVersion';
 export { disableSrvWhenTunneled } from './model/mongodb/disableSrvWhenTunneled';
-export { type IsReadOnlyResponse } from './model/IsReadOnlyResponse';
+export { type ShouldSuggestReadOnlyUserResponse } from './model/ShouldSuggestReadOnlyUserResponse';
 export { type CreateReadOnlyUserResponse } from './model/CreateReadOnlyUserResponse';

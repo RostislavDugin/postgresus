@@ -49,8 +49,8 @@ func Test_MongodbModel_AcrossSupportedVersions(t *testing.T) {
 				testTestConnectionSufficientPermissions(t, endpoint, dbVersion.version)
 			})
 
-			t.Run("Test_IsUserReadOnly_AdminUser_ReturnsFalse", func(t *testing.T) {
-				testIsUserReadOnlyAdminUser(t, endpoint, dbVersion.version)
+			t.Run("Test_ShouldSuggestReadOnlyUser_AdminUser_ReturnsTrue", func(t *testing.T) {
+				testShouldSuggestReadOnlyUserAdminUser(t, endpoint, dbVersion.version)
 			})
 
 			t.Run("Test_CreateReadOnlyUser_UserCanReadButNotWrite", func(t *testing.T) {
@@ -162,7 +162,7 @@ func testTestConnectionSufficientPermissions(
 	assert.NoError(t, err)
 }
 
-func testIsUserReadOnlyAdminUser(
+func testShouldSuggestReadOnlyUserAdminUser(
 	t *testing.T,
 	endpoint containers.Endpoint,
 	version tools.MongodbVersion,
@@ -174,13 +174,13 @@ func testIsUserReadOnlyAdminUser(
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	ctx := t.Context()
 
-	isReadOnly, roles, err := mongodbModel.IsUserReadOnly(ctx, logger, nil)
+	shouldSuggestReadOnlyUser, roles, err := mongodbModel.ShouldSuggestReadOnlyUser(ctx, logger, nil)
 	assert.NoError(t, err)
-	assert.False(t, isReadOnly, "Root user should not be read-only")
+	assert.True(t, shouldSuggestReadOnlyUser, "Root user must be offered a read-only user")
 	assert.NotEmpty(t, roles, "Root user should have roles")
 }
 
-func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
+func Test_ShouldSuggestReadOnlyUser_ReadOnlyUser_ReturnsFalse(t *testing.T) {
 	container := connectToMongodbContainer(t, "mongo:7.0", tools.MongodbVersion7)
 	defer container.Client.Disconnect(t.Context())
 
@@ -209,9 +209,9 @@ func Test_IsUserReadOnly_ReadOnlyUser_ReturnsTrue(t *testing.T) {
 		CpuCount:     1,
 	}
 
-	isReadOnly, roles, err := readOnlyModel.IsUserReadOnly(ctx, logger, nil)
+	shouldSuggestReadOnlyUser, roles, err := readOnlyModel.ShouldSuggestReadOnlyUser(ctx, logger, nil)
 	assert.NoError(t, err)
-	assert.True(t, isReadOnly, "Read-only user should be read-only")
+	assert.False(t, shouldSuggestReadOnlyUser, "Read-only user must not be offered another one")
 	assert.NotEmpty(t, roles, "Read-only user should have roles (read, backup)")
 
 	dropUserSafe(container.Client, username, container.AuthDatabase)

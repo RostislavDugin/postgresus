@@ -316,7 +316,7 @@ func (m *MysqlDatabase) PopulateVersion(
 	return nil
 }
 
-func (m *MysqlDatabase) IsUserReadOnly(
+func (m *MysqlDatabase) ShouldSuggestReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
@@ -390,9 +390,9 @@ func (m *MysqlDatabase) IsUserReadOnly(
 		privileges = append(privileges, priv)
 	}
 
-	isReadOnly := len(privileges) == 0
+	shouldSuggestReadOnlyUser := len(privileges) > 0
 
-	return isReadOnly, privileges, nil
+	return shouldSuggestReadOnlyUser, privileges, nil
 }
 
 func (m *MysqlDatabase) CreateReadOnlyUser(

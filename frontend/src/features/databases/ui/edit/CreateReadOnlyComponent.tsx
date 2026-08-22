@@ -1,9 +1,10 @@
-import { Button, Modal, Spin } from 'antd';
+import { App, Button, Modal, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 
 import {
   type Database,
   DatabaseType,
+  type ShouldSuggestReadOnlyUserResponse,
   databaseApi,
   getDatabaseTypeLabel,
 } from '../../../../entity/databases';
@@ -14,7 +15,7 @@ interface Props {
 
   onGoBack: () => void;
   onSkipped: () => void;
-  onAlreadyExists: () => void;
+  onReadOnlyUserNotSuggested: () => void;
 }
 
 const PRIVILEGES_TRUNCATE_LENGTH = 50;
@@ -24,9 +25,11 @@ export const CreateReadOnlyComponent = ({
   onReadOnlyUserUpdated,
   onGoBack,
   onSkipped,
-  onAlreadyExists,
+  onReadOnlyUserNotSuggested,
 }: Props) => {
-  const [isCheckingReadOnlyUser, setIsCheckingReadOnlyUser] = useState(false);
+  const { message } = App.useApp();
+
+  const [isCheckingReadOnlyUserSuggestion, setIsCheckingReadOnlyUserSuggestion] = useState(false);
   const [isCreatingReadOnlyUser, setIsCreatingReadOnlyUser] = useState(false);
   const [isShowSkipConfirmation, setShowSkipConfirmation] = useState(false);
   const [privileges, setPrivileges] = useState<string[]>([]);
@@ -42,16 +45,15 @@ export const CreateReadOnlyComponent = ({
   const privilegesLabel = isMongodb ? 'roles' : 'privileges';
   const userKindNoun = isPhysicalPostgres ? 'replication-only user' : 'read-only user';
 
-  const checkReadOnlyUser = async (): Promise<boolean> => {
-    try {
-      const response = await databaseApi.isUserReadOnly(database);
-      setPrivileges(response.privileges || []);
-      return response.isReadOnly;
-    } catch (e) {
-      alert((e as Error).message);
-      return false;
-    }
-  };
+  const fetchReadOnlyUserSuggestion =
+    async (): Promise<ShouldSuggestReadOnlyUserResponse | null> => {
+      try {
+        return await databaseApi.shouldSuggestReadOnlyUser(database);
+      } catch (e) {
+        message.error((e as Error).message);
+        return null;
+      }
+    };
 
   const getPrivilegesDisplay = () => {
     const fullText = privileges.join(', ');
@@ -94,7 +96,7 @@ export const CreateReadOnlyComponent = ({
 
       onReadOnlyUserUpdated(database);
     } catch (e) {
-      alert((e as Error).message);
+      message.error((e as Error).message);
     }
 
     setIsCreatingReadOnlyUser(false);
@@ -111,19 +113,23 @@ export const CreateReadOnlyComponent = ({
 
   useEffect(() => {
     const run = async () => {
-      setIsCheckingReadOnlyUser(true);
+      setIsCheckingReadOnlyUserSuggestion(true);
 
-      const isReadOnly = await checkReadOnlyUser();
-      if (isReadOnly) {
-        onAlreadyExists();
+      const readOnlyUserSuggestion = await fetchReadOnlyUserSuggestion();
+      setPrivileges(readOnlyUserSuggestion?.privileges || []);
+
+      // A failed check must not silently advance the wizard - keep the screen so the user
+      // still gets the choice.
+      if (readOnlyUserSuggestion && !readOnlyUserSuggestion.shouldSuggestReadOnlyUser) {
+        onReadOnlyUserNotSuggested();
       }
 
-      setIsCheckingReadOnlyUser(false);
+      setIsCheckingReadOnlyUserSuggestion(false);
     };
     run();
   }, []);
 
-  if (isCheckingReadOnlyUser) {
+  if (isCheckingReadOnlyUserSuggestion) {
     return (
       <div className="flex items-center">
         <Spin />
