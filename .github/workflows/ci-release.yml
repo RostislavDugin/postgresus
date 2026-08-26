@@ -375,7 +375,10 @@ jobs:
 
       - name: Run smoke pings against dev image
         run: |
+          # 0770 keeps the traversal bit off for others, so the smoke run only passes
+          # while the in-container postgres account reaches PGDATA through its group.
           mkdir -p /tmp/databasus-dev-smoke-data
+          chmod 770 /tmp/databasus-dev-smoke-data
           docker run -d --name databasus-dev-smoke \
             -p 4005:4005 \
             -v /tmp/databasus-dev-smoke-data:/databasus-data \
@@ -574,7 +577,10 @@ jobs:
 
       - name: Run smoke pings against built image
         run: |
+          # 0770 keeps the traversal bit off for others, so the smoke run only passes
+          # while the in-container postgres account reaches PGDATA through its group.
           mkdir -p /tmp/databasus-smoke-data
+          chmod 770 /tmp/databasus-smoke-data
           docker run -d --name databasus-smoke \
             -p 4005:4005 \
             -v /tmp/databasus-smoke-data:/databasus-data \
