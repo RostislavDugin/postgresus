@@ -162,11 +162,21 @@ RUN --mount=type=bind,source=assets/tools,target=/ctx/tools,readonly \
 RUN set -eux; \
     groupmod -g 999 postgres; \
     usermod -u 999 postgres; \
+    # Renumbering rewrites the account, not the directories the package already created, so
+    # they would keep IDs that resolve to nothing until some later install reuses them.
+    chown -R postgres:postgres \
+      /var/lib/postgresql /etc/postgresql /var/log/postgresql /run/postgresql; \
     mkdir -p /databasus-data/pgdata; \
     chown -R postgres:postgres /databasus-data/pgdata
 
-# Create non-root user for the main application process
-RUN useradd -r -s /usr/sbin/nologin -u 65532 databasus
+# databasus owns everything in /databasus-data except PGDATA, so like postgres above it needs
+# IDs that stay stable across releases for hosts that bind-mount the volume. postgres joins
+# the group as a supplementary member rather than sharing a primary group, because it has to
+# traverse the volume root to reach PGDATA and PUID/PGID renumber its primary group at startup.
+RUN set -eux; \
+    groupadd -g 65532 databasus; \
+    useradd -r -s /usr/sbin/nologin -u 65532 -g databasus databasus; \
+    usermod -aG databasus postgres
 
 WORKDIR /app
 
@@ -275,6 +285,9 @@ mkdir -p /databasus-data/pgdata
 mkdir -p /databasus-data/temp
 mkdir -p /databasus-data/backups
 chown databasus:databasus /databasus-data
+# postgres reaches pgdata through this directory as a member of the databasus group, and a
+# bind-mounted host directory can arrive without a group traversal bit.
+chmod g+x /databasus-data
 chown -R postgres:postgres /databasus-data/pgdata
 chown -R databasus:databasus /databasus-data/temp /databasus-data/backups
 # Upgrade path: secret.key and instance.json may be owned by root or postgres
