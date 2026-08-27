@@ -67,6 +67,7 @@ func CheckSummarizerReadiness(
 	conn *pgx.Conn,
 	prevStopLSN walmath.LSN,
 	incrementalCadence time.Duration,
+	summarizerLagThresholdOverride int64,
 ) (SummarizerResult, error) {
 	enabled, err := isSummarizerEnabled(ctx, conn)
 	if err != nil {
@@ -113,7 +114,12 @@ func CheckSummarizerReadiness(
 		return SummarizerResult{}, err
 	}
 
-	if lag >= summarizerFullThresholdBytes {
+	effectiveThreshold := summarizerFullThresholdBytes
+	if summarizerLagThresholdOverride > 0 {
+		effectiveThreshold = summarizerLagThresholdOverride
+	}
+
+	if lag >= effectiveThreshold {
 		return SummarizerResult{Decision: DecisionFullSameChain}, nil
 	}
 
@@ -170,8 +176,9 @@ func resolveSummarizerDecision(
 	conn *pgx.Conn,
 	prevStopLSN walmath.LSN,
 	cadence time.Duration,
+	summarizerLagThresholdOverride int64,
 ) (SummarizerResult, error) {
-	result, err := summarizerCheck(ctx, conn, prevStopLSN, cadence)
+	result, err := summarizerCheck(ctx, conn, prevStopLSN, cadence, summarizerLagThresholdOverride)
 	if err != nil {
 		return SummarizerResult{}, err
 	}
@@ -180,7 +187,7 @@ func resolveSummarizerDecision(
 		return result, nil
 	}
 
-	return waitForSummarizer(ctx, conn, prevStopLSN, cadence, result)
+	return waitForSummarizer(ctx, conn, prevStopLSN, cadence, summarizerLagThresholdOverride, result)
 }
 
 // waitForSummarizer polls the readiness probe on result.PollEvery until the
@@ -193,6 +200,7 @@ func waitForSummarizer(
 	conn *pgx.Conn,
 	prevStopLSN walmath.LSN,
 	cadence time.Duration,
+	summarizerLagThresholdOverride int64,
 	initial SummarizerResult,
 ) (SummarizerResult, error) {
 	deadline := time.Now().UTC().Add(initial.WaitFor)
@@ -206,7 +214,7 @@ func waitForSummarizer(
 			return SummarizerResult{}, ctx.Err()
 
 		case <-ticker.C:
-			result, err := summarizerCheck(ctx, conn, prevStopLSN, cadence)
+			result, err := summarizerCheck(ctx, conn, prevStopLSN, cadence, summarizerLagThresholdOverride)
 			if err != nil {
 				return SummarizerResult{}, err
 			}

@@ -171,7 +171,7 @@ func runSummarizerPreCheck(ctx context.Context, spec IncrementalBackupSpec) (Phy
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
 
-	decision, err := resolveSummarizerDecision(ctx, conn, spec.ParentManifest.StopLSN, spec.IncrementalCadence)
+	decision, err := resolveSummarizerDecision(ctx, conn, spec.ParentManifest.StopLSN, spec.IncrementalCadence, spec.SummarizerLagThresholdBytes)
 	if err != nil {
 		if ctx.Err() != nil {
 			return canceledResult(physical_enums.PhysicalBackupErrorCanceledByUser,

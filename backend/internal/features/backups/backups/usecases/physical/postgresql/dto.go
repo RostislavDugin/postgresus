@@ -50,6 +50,11 @@ type IncrementalBackupSpec struct {
 	// bounded summarizer wait window (min(cadence/4, cap)). Zero is acceptable —
 	// the executor then waits only up to its own cap.
 	IncrementalCadence time.Duration
+
+	// SummarizerLagThresholdBytes overrides the hardcoded 1 GB threshold above
+	// which CheckSummarizerReadiness stops waiting and forces a FULL. Zero means
+	// "use the built-in default" (1 GB).
+	SummarizerLagThresholdBytes int64
 }
 
 type PhysicalBackupResult struct {

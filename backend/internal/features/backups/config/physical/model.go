@@ -29,6 +29,7 @@ type PhysicalBackupConfig struct {
 	FullBackupsRetention FullBackupsRetention `json:"fullBackupsRetention" gorm:"embedded;embeddedPrefix:full_backups_retention_"`
 
 	WalLagThresholdBytes int64 `json:"walLagThresholdBytes" gorm:"column:wal_lag_threshold_bytes;type:bigint;not null;default:0"`
+	SummarizerLagThresholdBytes int64 `json:"summarizerLagThresholdBytes" gorm:"column:summarizer_lag_threshold_bytes;type:bigint;not null;default:0"`
 
 	ForceFullRequestedAt        *time.Time `json:"-" gorm:"column:force_full_requested_at;type:timestamptz"`
 	ForceIncrementalRequestedAt *time.Time `json:"-" gorm:"column:force_incremental_requested_at;type:timestamptz"`
@@ -93,6 +94,10 @@ func (b *PhysicalBackupConfig) Validate() error {
 		return errors.New("wal lag threshold must be non-negative")
 	}
 
+	if b.SummarizerLagThresholdBytes < 0 {
+		return errors.New("summarizer lag threshold must be non-negative")
+	}
+
 	backupType := b.PostgresqlPhysical.BackupType
 
 	if err := validateRetentionAllowedForBackupType(b.Retention, backupType); err != nil {
@@ -128,6 +133,7 @@ func (b *PhysicalBackupConfig) Copy(newDatabaseID uuid.UUID) *PhysicalBackupConf
 		ChainsRetention:           b.ChainsRetention,
 		FullBackupsRetention:      b.FullBackupsRetention,
 		WalLagThresholdBytes:      b.WalLagThresholdBytes,
+		SummarizerLagThresholdBytes: b.SummarizerLagThresholdBytes,
 		StorageID:                 b.StorageID,
 		Encryption:                b.Encryption,
 		SendNotificationsOn:       b.SendNotificationsOn,

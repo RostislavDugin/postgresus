@@ -38,7 +38,7 @@ func Test_CheckSummarizerReadiness_WhenSummarizerOff_FallsBackToFullNewChain(t *
 	require.NoError(t, err)
 	require.False(t, enabled, "the no-summary cluster must report summarize_wal off")
 
-	result, err := CheckSummarizerReadiness(ctx, conn, walmath.LSN(0), time.Hour)
+	result, err := CheckSummarizerReadiness(ctx, conn, walmath.LSN(0), time.Hour, 0)
 	require.NoError(t, err)
 
 	require.Equal(t, DecisionFullNewChain, result.Decision)
@@ -66,7 +66,7 @@ func Test_CheckSummarizerReadiness_WhenStopLsnPredatesOldestSummary_FallsBackToF
 	// the oldest retained summary regardless of where the summarizer currently starts.
 	expiredTargetLSN := walmath.LSN(1)
 
-	result, err := CheckSummarizerReadiness(context.Background(), conn, expiredTargetLSN, time.Hour)
+	result, err := CheckSummarizerReadiness(context.Background(), conn, expiredTargetLSN, time.Hour, 0)
 	require.NoError(t, err)
 
 	require.Equal(t, DecisionFullNewChain, result.Decision)
@@ -97,7 +97,7 @@ func Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_DoesNotBreakChain
 			var walTipLSN walmath.LSN
 			require.NoError(t, conn.QueryRow(ctx, "SELECT pg_current_wal_lsn()::text").Scan(&walTipLSN))
 
-			result, err := CheckSummarizerReadiness(ctx, conn, walTipLSN, time.Hour)
+			result, err := CheckSummarizerReadiness(ctx, conn, walTipLSN, time.Hour, 0)
 			require.NoError(t, err)
 
 			require.NotEqual(t, DecisionFullNewChain, result.Decision,
@@ -122,7 +122,7 @@ func stubSummarizerCheck(t *testing.T, steps ...summarizerStep) {
 
 	callIndex := 0
 	summarizerCheck = func(
-		_ context.Context, _ *pgx.Conn, _ walmath.LSN, _ time.Duration,
+		_ context.Context, _ *pgx.Conn, _ walmath.LSN, _ time.Duration, _ int64,
 	) (SummarizerResult, error) {
 		step := steps[min(callIndex, len(steps)-1)]
 		callIndex++
@@ -155,7 +155,7 @@ func Test_WaitForSummarizer_LaggingThenCatchesUp_ProceedsNoChainBroken(t *testin
 		decisionStep(DecisionGoIncremental, nil),    // caught up within the window
 	)
 
-	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour)
+	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour, 0)
 
 	require.NoError(t, err)
 	require.Equal(t, DecisionGoIncremental, result.Decision,
@@ -167,7 +167,7 @@ func Test_WaitForSummarizer_StaysLaggingPastDeadline_FallsBackToFullSameChain(t 
 	// expires while still lagging — the loop must collapse to FullSameChain.
 	stubSummarizerCheck(t, waitStep(20*time.Millisecond, 5*time.Millisecond))
 
-	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour)
+	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour, 0)
 
 	require.NoError(t, err)
 	require.Equal(t, DecisionFullSameChain, result.Decision,
@@ -182,7 +182,7 @@ func Test_WaitForSummarizer_SummariesExpireMidWait_FallsBackToFullNewChain(t *te
 		decisionStep(DecisionFullNewChain, &expired), // summaries aged out during the wait
 	)
 
-	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour)
+	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour, 0)
 
 	require.NoError(t, err)
 	require.Equal(t, DecisionFullNewChain, result.Decision)
@@ -197,7 +197,7 @@ func Test_WaitForSummarizer_ContextCanceled_ReturnsError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := resolveSummarizerDecision(ctx, nil, walmath.LSN(0), time.Hour)
+	_, err := resolveSummarizerDecision(ctx, nil, walmath.LSN(0), time.Hour, 0)
 
 	require.True(t, errors.Is(err, context.Canceled),
 		"a cancelled context during the wait must surface as context.Canceled")
@@ -208,7 +208,7 @@ func Test_ResolveSummarizerDecision_TerminalOnFirstProbe_DoesNotWait(t *testing.
 
 	stubSummarizerCheck(t, decisionStep(DecisionFullNewChain, &off))
 
-	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour)
+	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour, 0)
 
 	require.NoError(t, err)
 	require.Equal(t, DecisionFullNewChain, result.Decision)

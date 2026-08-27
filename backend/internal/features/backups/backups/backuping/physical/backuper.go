@@ -218,6 +218,7 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 		ParentManifest:     parentRef,
 		IncrRepo:           b.incrRepo,
 		IncrementalCadence: backupCtx.Config.IncrementalBackupInterval.ApproxPeriod(),
+		SummarizerLagThresholdBytes: backupCtx.Config.SummarizerLagThresholdBytes,
 	}
 
 	logger.InfoContext(ctx, fmt.Sprintf("physical incremental backup started: database %q, parent lsn %s",
