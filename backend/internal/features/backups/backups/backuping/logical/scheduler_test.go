@@ -1,6 +1,7 @@
 package backuping_logical
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/intervals"
 	"databasus-backend/internal/features/notifiers"
+	notifier_models "databasus-backend/internal/features/notifiers/models"
 	"databasus-backend/internal/features/storages"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
@@ -924,4 +926,46 @@ func Test_StartBackup_When2BackupsStartedForDifferentDatabases_BothUseCasesAreCa
 	}
 
 	time.Sleep(200 * time.Millisecond)
+}
+
+// Pins issue #748: the goroutine spawned by StartBackup outlives the HTTP request
+// that triggered it, so the notification at the end of the backup must not run on
+// the request's canceled context.
+func Test_StartBackup_WhenRequestContextCanceledAfterStart_NotificationContextStaysAlive(t *testing.T) {
+	fixture := CreateBackupTestFixture(t, "Canceled Request Context Workspace")
+
+	notificationSender := &sendContextCapturingNotificationSender{
+		notificationSent: make(chan struct{}),
+	}
+	backuper := CreateTestBackuperWithUseCase(&CreateSuccessBackupUsecase{})
+	backuper.notificationSender = notificationSender
+
+	scheduler := CreateTestSchedulerWithBackuper(backuper)
+
+	requestCtx, cancelRequest := context.WithCancel(t.Context())
+	scheduler.StartBackup(requestCtx, fixture.Database, true)
+	cancelRequest()
+
+	select {
+	case <-notificationSender.notificationSent:
+	case <-time.After(10 * time.Second):
+		t.Fatal("notification was never sent after the backup completed")
+	}
+
+	assert.NoError(t, notificationSender.capturedSendContextErr,
+		"notification must run on a context that outlives the HTTP request")
+}
+
+type sendContextCapturingNotificationSender struct {
+	capturedSendContextErr error
+	notificationSent       chan struct{}
+}
+
+func (s *sendContextCapturingNotificationSender) SendNotification(
+	ctx context.Context,
+	_ *notifiers.Notifier,
+	_ notifier_models.Notification,
+) {
+	s.capturedSendContextErr = ctx.Err()
+	close(s.notificationSent)
 }
