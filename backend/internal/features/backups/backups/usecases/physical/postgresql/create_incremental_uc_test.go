@@ -44,11 +44,11 @@ func Test_CreateIncremental_WhenSummarizerOff_ChainBrokenNoArtifact(t *testing.T
 		"pre-check must bail before claiming a file name, so no artifact is uploaded")
 }
 
-// Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental proves the
-// pre-check does not regress the happy path: with summaries covering the
-// parent's stop_lsn and a healthy (small) trailing lag, the INCR runs to
-// COMPLETED and produces an artifact.
-func Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental(t *testing.T) {
+// Test_CreateIncremental_WhenWalWrittenSinceLastCheckpoint_Completes pins issue 756.
+// WAL summaries close only at checkpoint records, so on a cluster that keeps writing
+// the newest published summary ends far behind the WAL tip. The incremental must run
+// anyway: pg_basebackup forces its own checkpoint, which closes the summary it needs.
+func Test_CreateIncremental_WhenWalWrittenSinceLastCheckpoint_Completes(t *testing.T) {
 	fixture := postgresql_executor.SetupPhysicalDBForBackup(t)
 
 	backuping_physical.CreateTestPhysicalBackuper(nil).MakeBackup(t.Context(), fixture.BackupID, false)
@@ -64,18 +64,12 @@ func Test_CreateIncremental_WhenSummarizerHealthy_GoesIncremental(t *testing.T) 
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 
-	// Cross a segment boundary and close it so the summarizer flushes a summary
-	// past the FULL's stop_lsn (it never summarizes the active segment).
-	_, err = postgresql_executor.GenerateWalActivity(ctx, conn, 32*1024*1024)
+	// Several segments' worth, and deliberately no manual CHECKPOINT, pg_switch_wal
+	// or wait for a summary: the newest published summary must end well behind the
+	// WAL tip when the pre-check runs. pg_basebackup forces its own checkpoint, and
+	// that is what closes the summary file the incremental actually needs.
+	_, err = postgresql_executor.GenerateWalActivity(ctx, conn, 64*1024*1024)
 	require.NoError(t, err)
-
-	_, err = conn.Exec(ctx, "CHECKPOINT")
-	require.NoError(t, err)
-
-	_, err = conn.Exec(ctx, "SELECT pg_switch_wal()")
-	require.NoError(t, err)
-
-	require.NoError(t, postgresql_executor.WaitForWalSummaries(ctx, conn, *fullRow.StopLSN, 2*time.Minute))
 
 	incrID := postgresql_executor.BuildAndClaimIncremental(t, fixture, nil)
 

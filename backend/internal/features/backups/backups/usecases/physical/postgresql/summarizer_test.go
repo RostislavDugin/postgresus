@@ -74,13 +74,13 @@ func Test_CheckSummarizerReadiness_WhenStopLsnPredatesOldestSummary_FallsBackToF
 	require.Equal(t, physical_enums.PhysicalBackupErrorSummariesExpired, *result.Reason)
 }
 
-// Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_DoesNotBreakChain is the
+// Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_GoesIncremental is the
 // regression guard for the field report: right after a FULL on a near-idle DB the
 // WAL summarizer trails the FULL's stop_lsn (it never summarizes the active segment).
-// A stop_lsn the summarizer simply hasn't reached yet is NOT expiry — the check must
-// fall through to the lag path (GoIncremental / Wait), never CHAIN_BROKEN the chain
-// with SUMMARIES_EXPIRED. Runs on both PG majors since PG 18 is the reported engine.
-func Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_DoesNotBreakChain(t *testing.T) {
+// A stop_lsn the summarizer simply hasn't reached yet is NOT expiry, and with the
+// summarizer process alive there is nothing left to wait for either. Runs on both PG
+// majors since PG 18 is the reported engine.
+func Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_GoesIncremental(t *testing.T) {
 	for _, version := range []string{"17", "18"} {
 		t.Run("PostgreSQL "+version, func(t *testing.T) {
 			fixture := SetupPhysicalDBForBackupVersion(t, version)
@@ -100,11 +100,9 @@ func Test_CheckSummarizerReadiness_WhenStopLsnAheadOfSummaries_DoesNotBreakChain
 			result, err := CheckSummarizerReadiness(ctx, conn, walTipLSN, time.Hour)
 			require.NoError(t, err)
 
-			require.NotEqual(t, DecisionFullNewChain, result.Decision,
-				"a stop_lsn the summarizer has not reached yet must not break the chain")
+			require.Equal(t, DecisionGoIncremental, result.Decision,
+				"a stop_lsn the summarizer has not reached yet must neither stall nor break the chain")
 			require.Nil(t, result.Reason)
-			require.Contains(t,
-				[]SummarizerDecision{DecisionGoIncremental, DecisionWait}, result.Decision)
 		})
 	}
 }
@@ -162,16 +160,55 @@ func Test_WaitForSummarizer_LaggingThenCatchesUp_ProceedsNoChainBroken(t *testin
 		"a summarizer that catches up within the window must proceed with the incremental")
 }
 
-func Test_WaitForSummarizer_StaysLaggingPastDeadline_FallsBackToFullSameChain(t *testing.T) {
-	// WaitFor is tiny and every probe keeps reporting Wait, so the window
-	// expires while still lagging — the loop must collapse to FullSameChain.
+func Test_WaitForSummarizer_WhenWaitDecisionOutlivesDeadline_FallsBackToRetryNextCadence(t *testing.T) {
+	// WaitFor is tiny and every probe keeps reporting Wait, so the window expires
+	// with the summarizer still publishing nothing.
 	stubSummarizerCheck(t, waitStep(20*time.Millisecond, 5*time.Millisecond))
 
 	result, err := resolveSummarizerDecision(context.Background(), nil, walmath.LSN(0), time.Hour)
 
 	require.NoError(t, err)
-	require.Equal(t, DecisionFullSameChain, result.Decision,
-		"a summarizer that never catches up within the window must fall back to a FULL")
+	require.Equal(t, DecisionRetryNextCadence, result.Decision,
+		"a wait window that expires unresolved must hand the attempt to the next cadence")
+}
+
+func Test_WaitWindowForCadence_WhenCronIntervalHasNoPeriod_FallsBackToCap(t *testing.T) {
+	require.Equal(t, summarizerWaitCap, waitWindowForCadence(0),
+		"a cron interval reports no period, and a zero window would skip the wait entirely")
+}
+
+func Test_WaitWindowForCadence_WhenHourlyCadence_UsesQuarterOfCadence(t *testing.T) {
+	require.Equal(t, 15*time.Minute, waitWindowForCadence(time.Hour))
+}
+
+func Test_WaitWindowForCadence_WhenDailyCadence_ClampsToCap(t *testing.T) {
+	require.Equal(t, summarizerWaitCap, waitWindowForCadence(24*time.Hour))
+}
+
+func Test_IsSummarizerRunning_OnClusterWithSummarizerOn_ReturnsTrue(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+	conn := OpenAdminConn(t, fixture)
+
+	isRunning, err := isSummarizerRunning(context.Background(), conn)
+
+	require.NoError(t, err)
+	require.True(t, isRunning)
+}
+
+func Test_IsSummarizerRunning_OnClusterWithoutSummarizer_ReturnsFalse(t *testing.T) {
+	source := containers.StartPhysicalPostgres(t, "postgres:17", containers.WithoutSummarizer())
+	sourceDB := databases.GetTestPhysicalPostgresConfigNoSummary(source.Host, source.Port, "17")
+
+	ctx := context.Background()
+
+	conn, err := sourceDB.OpenInspectionConn(ctx, encryption.GetFieldEncryptor())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+
+	isRunning, err := isSummarizerRunning(ctx, conn)
+
+	require.NoError(t, err)
+	require.False(t, isRunning, "the summarizer process never starts when summarize_wal is off")
 }
 
 func Test_WaitForSummarizer_SummariesExpireMidWait_FallsBackToFullNewChain(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -30,7 +31,9 @@ import (
 //   - ERROR: the chain stays extendable, so the next cadence-due tick re-attempts
 //     the SAME kind. A freshly-failed attempt is the newest row of its kind, so
 //     the cadence check on its created_at prevents a tight retry loop.
-//   - CHAIN_BROKEN: no extendable chain remains, so the next tick opens a new FULL.
+//   - CHAIN_BROKEN: nothing is left to extend, so the incremental cadence re-anchors
+//     with a new FULL rather than the tick going idle until the FULL cadence, unless
+//     the source produced no completed FULL recently.
 //   - CANCELED: neither COMPLETED nor CHAIN_BROKEN; the chain it belonged to stays
 //     extendable and resumes on cadence — no immediate auto-retry.
 type PhysicalBackupsScheduler struct {
@@ -155,12 +158,9 @@ type backupDecision struct {
 	forceIncrementalRequestedAt *time.Time
 }
 
-// decideBackupKind picks FULL or INCR purely from catalog state + cadence (no
-// source-PG connection): FULL when its interval is due (covers bootstrap, chain
-// rotation, and post-CHAIN_BROKEN re-anchor since no extendable chain exists);
-// INCR when incrementals are enabled, an extendable chain exists, and the INCR
-// interval is due. The shipped executors handle summarizer/timeline reality at
-// run time, returning CHAIN_BROKEN when an INCR cannot actually proceed.
+// decideBackupKind picks FULL or INCR purely from catalog state and cadence, with
+// no source-PG connection: the shipped executors handle summarizer and timeline
+// reality at run time.
 func (s *PhysicalBackupsScheduler) decideBackupKind(
 	logger *slog.Logger,
 	now time.Time,
@@ -216,16 +216,14 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 
 	lastBackupTime := newestCreatedAt(lastFull, lastIncr)
 
-	if extendableChain == nil {
-		logger.Debug("nothing due: no extendable chain to add an incremental to")
-
-		return backupDecision{}, false
-	}
-
 	if !backupConfig.IncrementalBackupInterval.ShouldTriggerBackup(now, lastBackupTime) {
 		logger.Debug("nothing due: neither cadence has elapsed")
 
 		return backupDecision{}, false
+	}
+
+	if extendableChain == nil {
+		return s.decideReAnchoringFull(logger, backupConfig, lastIncr)
 	}
 
 	parentIncrID, err := s.resolveIncrParent(extendableChain.RootFull.ID)
@@ -596,6 +594,72 @@ func newestCreatedAt(
 	default:
 		return &full.CreatedAt
 	}
+}
+
+// decideReAnchoringFull answers the incremental cadence when no chain is left to
+// extend. Waiting for the FULL cadence instead would leave the database without
+// new restore points for a whole FULL interval, which on a weekly FULL is a week.
+// Two exceptions fall back to that wait anyway: a chain broken by SUMMARIZER_OFF
+// (a fresh FULL cannot fix a server-side setting, so re-anchoring at incremental
+// speed would just alternate full backups with broken incrementals forever) and
+// a source that produced no completed FULL in its newest few attempts (the
+// cluster is broken rather than merely chainless, and re-anchoring it at
+// incremental speed only burns it).
+func (s *PhysicalBackupsScheduler) decideReAnchoringFull(
+	logger *slog.Logger,
+	backupConfig *backups_config_physical.PhysicalBackupConfig,
+	lastIncr *physical_models.PhysicalIncrementalBackup,
+) (backupDecision, bool) {
+	if isChainBrokenBySummarizerOff(lastIncr) {
+		logger.Debug("nothing due: chain broken by summarizer off, which a fresh FULL cannot fix")
+
+		return backupDecision{}, false
+	}
+
+	recentFullBackups, err := s.fullRepo.FindNewestAnyStatusByDatabase(
+		backupConfig.DatabaseID, recentFullAttemptsWindow)
+	if err != nil {
+		logger.Error("failed to find recent full backups", "error", err)
+
+		return backupDecision{}, false
+	}
+
+	if hasNoRecentCompletedFull(recentFullBackups) {
+		logger.Debug(fmt.Sprintf(
+			"nothing due: no extendable chain and no completed full among the newest %d",
+			recentFullAttemptsWindow))
+
+		return backupDecision{}, false
+	}
+
+	return backupDecision{
+		kind:   physical_enums.PhysicalBackupTypeFull,
+		reason: "re-anchoring: no extendable chain",
+	}, true
+}
+
+// The newest incremental row is the right witness: any completed INCR after it
+// would have kept the chain extendable, so this branch would not run at all.
+// Once the operator re-enables summarize_wal, incrementals resume with the next
+// FULL on its own cadence (or a forced FULL), because the scheduler reads only
+// the catalog and never sees the live GUC.
+func isChainBrokenBySummarizerOff(lastIncr *physical_models.PhysicalIncrementalBackup) bool {
+	return lastIncr != nil &&
+		lastIncr.Status == physical_enums.PhysicalBackupStatusChainBroken &&
+		lastIncr.ErrorReason != nil &&
+		*lastIncr.ErrorReason == physical_enums.PhysicalBackupErrorSummarizerOff
+}
+
+// Asking for a completed FULL rather than counting failures also weighs cancels:
+// a source whose newest attempts all failed or were cancelled has produced
+// nothing to anchor on. A single cancel among completed neighbours does not
+// engage the brake, matching the CANCELED policy of resuming on cadence. An empty history
+// answers true, which only ever means "wait", never "hammer the source".
+func hasNoRecentCompletedFull(recentFullBackups []*physical_models.PhysicalFullBackup) bool {
+	return !slices.ContainsFunc(recentFullBackups,
+		func(fullBackup *physical_models.PhysicalFullBackup) bool {
+			return fullBackup.Status == physical_enums.PhysicalBackupStatusCompleted
+		})
 }
 
 func isIncrementalEnabled(backupConfig *backups_config_physical.PhysicalBackupConfig) bool {

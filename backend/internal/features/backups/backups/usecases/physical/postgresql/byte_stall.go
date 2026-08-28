@@ -10,13 +10,22 @@ import (
 	"time"
 )
 
-// ByteStallTimeout bounds how long pg_basebackup may make zero progress before
-// the watcher tears it down. Kernel-pipe back pressure means a healthy slow
+// ByteStallTimeout bounds how long pg_basebackup may make zero progress after
+// its first byte before the watcher tears it down. Kernel-pipe back pressure means a healthy slow
 // storage still ticks bytes forward; zero bytes for this long is a stuck TCP
 // connection (mid-write NAT timeout, silently-dropped firewall) that
 // pg_basebackup's own session-level keepalives won't notice for tens of
 // minutes.
 const ByteStallTimeout = 60 * time.Second
+
+// FirstByteTimeout bounds the silent stretch before pg_basebackup's first
+// byte. The server spends it inside backup start: the forced checkpoint and,
+// for incrementals, the wait for WAL summarization — both legitimately run for
+// minutes on a large busy cluster, and PostgreSQL already aborts that wait
+// itself when summarization makes no progress, so this watchdog must not be
+// stricter than the server's own. The cost: a connection dead from the very
+// start is detected in minutes rather than in ByteStallTimeout.
+const FirstByteTimeout = 10 * time.Minute
 
 // byteStallPollInterval — the watcher reads BytesWritten on this cadence.
 // Tight enough that we detect a stall within ~10 s of crossing the timeout,
@@ -55,14 +64,22 @@ func (b *ByteCounter) BytesWritten() int64 {
 	return b.bytes.Load()
 }
 
+// ByteStallThresholds separates the budget for reaching the first byte from
+// the steady-state stall budget; see FirstByteTimeout for why the two differ.
+type ByteStallThresholds struct {
+	FirstByteTimeout time.Duration
+	StallTimeout     time.Duration
+}
+
 // WithByteStallWatcher polls counter.BytesWritten on a fixed interval and
-// invokes onStall when no bytes have moved for stallTimeout. The returned
-// stop function tears down the watcher; the caller defers it on the
+// invokes onStall when no bytes have moved for the applicable threshold:
+// FirstByteTimeout while no byte has arrived yet, StallTimeout afterwards. The
+// returned stop function tears down the watcher; the caller defers it on the
 // success path so the watcher does not outlive the executor.
 func WithByteStallWatcher(
 	ctx context.Context,
 	counter *ByteCounter,
-	stallTimeout time.Duration,
+	thresholds ByteStallThresholds,
 	onStall func(),
 ) (stop func()) {
 	watcherCtx, cancel := context.WithCancel(ctx)
@@ -91,7 +108,12 @@ func WithByteStallWatcher(
 					continue
 				}
 
-				if now.Sub(lastProgressAt) > stallTimeout {
+				stallBudget := thresholds.StallTimeout
+				if current == 0 {
+					stallBudget = thresholds.FirstByteTimeout
+				}
+
+				if now.Sub(lastProgressAt) > stallBudget {
 					onStall()
 
 					return

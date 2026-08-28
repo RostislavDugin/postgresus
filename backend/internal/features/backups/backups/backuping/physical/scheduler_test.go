@@ -156,7 +156,7 @@ func Test_DecideBackupKind_WhenChainBrokenAndFullCadenceDue_ReAnchorsWithFull(t 
 		"a CHAIN_BROKEN chain re-anchors with a new FULL, never an INCR")
 }
 
-func Test_DecideBackupKind_WhenChainBrokenAndIncrDueButFullNotDue_SchedulesNothing(t *testing.T) {
+func Test_DecideBackupKind_WhenChainBrokenAndIncrDueButFullNotDue_ReAnchorsWithFull(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	makeIncrementalDue(prereqs) // full weekly (not due), incr hourly
 	full := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 3)
@@ -164,9 +164,81 @@ func Test_DecideBackupKind_WhenChainBrokenAndIncrDueButFullNotDue_SchedulesNothi
 
 	scheduler := CreateTestPhysicalScheduler()
 
+	decision, ok := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
+
+	require.True(t, ok)
+	assert.Equal(t, physical_enums.PhysicalBackupTypeFull, decision.kind,
+		"a broken chain re-anchors on the incremental cadence instead of idling until the full one")
+}
+
+func Test_DecideBackupKind_WhenChainBrokenAndRecentFullsAllErrored_SchedulesNothing(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 10)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusChainBroken, 2, 9)
+
+	for index := range recentFullAttemptsWindow {
+		seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusError, 3+index, 4-index)
+	}
+
+	scheduler := CreateTestPhysicalScheduler()
+
 	_, ok := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
 
-	assert.False(t, ok, "a broken chain never spawns an INCR; it waits for the FULL cadence")
+	assert.False(t, ok,
+		"a source whose recent fulls all failed is broken itself; re-anchoring at incr speed only burns it")
+}
+
+func Test_DecideBackupKind_WhenChainBrokenAndRecentFullsCanceled_SchedulesNothing(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 10)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusChainBroken, 2, 9)
+
+	for index := range recentFullAttemptsWindow {
+		seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCanceled, 3+index, 4-index)
+	}
+
+	scheduler := CreateTestPhysicalScheduler()
+
+	_, ok := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
+
+	assert.False(t, ok, "a user who keeps cancelling fulls must not have one restarted on the incr cadence")
+}
+
+func Test_DecideBackupKind_WhenChainBrokenAndOneFullErrored_ReAnchorsWithFull(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 10)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusChainBroken, 2, 9)
+	seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusError, 3, 2)
+
+	scheduler := CreateTestPhysicalScheduler()
+
+	decision, ok := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
+
+	require.True(t, ok)
+	assert.Equal(t, physical_enums.PhysicalBackupTypeFull, decision.kind,
+		"one failed full is not a broken source, so the re-anchor still goes ahead")
+}
+
+func Test_DecideBackupKind_WhenChainBrokenBySummarizerOff_WaitsForFullCadence(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 10)
+
+	brokenIncr := seedIncrWithStatusAndAge(t, prereqs, rootFull.ID,
+		physical_enums.PhysicalBackupStatusChainBroken, 2, 9)
+	summarizerOff := physical_enums.PhysicalBackupErrorSummarizerOff
+	brokenIncr.ErrorReason = &summarizerOff
+	require.NoError(t, storage.GetDb().Save(brokenIncr).Error)
+
+	scheduler := CreateTestPhysicalScheduler()
+
+	_, ok := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
+
+	assert.False(t, ok,
+		"a fresh FULL cannot fix summarize_wal being off, so re-anchoring would loop full backups forever")
 }
 
 func Test_DecideBackupKind_WhenCanceledIncrRecent_SchedulesNothing(t *testing.T) {

@@ -125,7 +125,10 @@ func runStream(
 
 	counter := NewByteCounter(finalWriter)
 
-	stopWatcher := WithByteStallWatcher(streamCtx, counter, ByteStallTimeout, func() {
+	stopWatcher := WithByteStallWatcher(streamCtx, counter, ByteStallThresholds{
+		FirstByteTimeout: FirstByteTimeout,
+		StallTimeout:     ByteStallTimeout,
+	}, func() {
 		p.Logger.Warn("byte-stall timeout tripped; terminating pg_basebackup",
 			"backup_id", p.BackupID,
 			"file_name", p.FileName)

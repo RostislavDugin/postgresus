@@ -693,6 +693,70 @@ func Test_RunIncrementalBackup_WhenExecutorResultErrorStatus_PersistsErrorAndSen
 	assert.Equal(t, notifier_models.NotificationTypeBackupFailed, sender.sentNotifications[0].Notification.Type)
 }
 
+func Test_RunIncrementalBackup_WhenSecondConsecutiveFailure_KeepsChainExtendable(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	backuper := CreateTestPhysicalBackuper(&recordingNotificationSender{})
+	_, incrExecutor := installFakeExecutors(backuper)
+	incrExecutor.result = erroredResult()
+
+	rootFull := seedCompletedRootFull(t, prereqs)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusError, 2, 2)
+	incrBackup := seedInProgressIncr(t, prereqs, rootFull.ID)
+
+	backuper.MakeBackup(t.Context(), incrBackup.ID, true)
+
+	persisted, err := physical_repositories.GetIncrementalBackupRepository().FindByID(incrBackup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, physical_enums.PhysicalBackupStatusError, persisted.Status,
+		"the budget is three attempts, so the second failure must leave the chain extendable")
+}
+
+func Test_RunIncrementalBackup_WhenRetryBudgetExhausted_BreaksChainKeepingErrorReason(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	sender := &recordingNotificationSender{}
+	backuper := CreateTestPhysicalBackuper(sender)
+	_, incrExecutor := installFakeExecutors(backuper)
+	incrExecutor.result = erroredResult()
+
+	rootFull := seedCompletedRootFull(t, prereqs)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusError, 2, 3)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusError, 3, 2)
+	incrBackup := seedInProgressIncr(t, prereqs, rootFull.ID)
+
+	backuper.MakeBackup(t.Context(), incrBackup.ID, true)
+
+	persisted, err := physical_repositories.GetIncrementalBackupRepository().FindByID(incrBackup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, physical_enums.PhysicalBackupStatusChainBroken, persisted.Status)
+	require.NotNil(t, persisted.ErrorReason)
+	assert.Equal(t, physical_enums.PhysicalBackupErrorPgBasebackupFailed, *persisted.ErrorReason,
+		"the operator still needs to see what actually failed, not just that the chain closed")
+
+	require.Len(t, sender.sentNotifications, 1)
+	assert.Contains(t, sender.sentNotifications[0].Notification.Heading, "chain-broken",
+		"the row and the notification must agree on the verdict")
+}
+
+func Test_RunIncrementalBackup_WhenCompletedBackupSeparatesFailures_KeepsChainExtendable(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	backuper := CreateTestPhysicalBackuper(&recordingNotificationSender{})
+	_, incrExecutor := installFakeExecutors(backuper)
+	incrExecutor.result = erroredResult()
+
+	rootFull := seedCompletedRootFull(t, prereqs)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusError, 2, 4)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusCompleted, 3, 3)
+	seedIncrWithStatusAndAge(t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusError, 4, 2)
+	incrBackup := seedInProgressIncr(t, prereqs, rootFull.ID)
+
+	backuper.MakeBackup(t.Context(), incrBackup.ID, true)
+
+	persisted, err := physical_repositories.GetIncrementalBackupRepository().FindByID(incrBackup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, physical_enums.PhysicalBackupStatusError, persisted.Status,
+		"a COMPLETED backup between failures ends the run, so the budget is not spent")
+}
+
 func Test_ReleaseOwned_WhenForeignBackupHoldsClaim_LeavesItIntact(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	inFlightRepo := physical_repositories.GetInFlightBackupRepository()

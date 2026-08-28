@@ -113,25 +113,37 @@ func (r *PhysicalFullBackupRepository) DeleteByID(id uuid.UUID) error {
 	return storage.GetDb().Delete(&physical_models.PhysicalFullBackup{}, "id = ?", id).Error
 }
 
-func (r *PhysicalFullBackupRepository) FindLastFullAnyStatusByDatabase(
+func (r *PhysicalFullBackupRepository) FindNewestAnyStatusByDatabase(
 	databaseID uuid.UUID,
-) (*physical_models.PhysicalFullBackup, error) {
-	var backup physical_models.PhysicalFullBackup
+	limit int,
+) ([]*physical_models.PhysicalFullBackup, error) {
+	var backups []*physical_models.PhysicalFullBackup
 
-	err := storage.
+	if err := storage.
 		GetDb().
 		Where("database_id = ?", databaseID).
 		Order("created_at DESC").
-		First(&backup).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-
+		Limit(limit).
+		Find(&backups).Error; err != nil {
 		return nil, err
 	}
 
-	return &backup, nil
+	return backups, nil
+}
+
+func (r *PhysicalFullBackupRepository) FindLastFullAnyStatusByDatabase(
+	databaseID uuid.UUID,
+) (*physical_models.PhysicalFullBackup, error) {
+	backups, err := r.FindNewestAnyStatusByDatabase(databaseID, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(backups) == 0 {
+		return nil, nil
+	}
+
+	return backups[0], nil
 }
 
 func (r *PhysicalFullBackupRepository) FindAllInProgress() ([]*physical_models.PhysicalFullBackup, error) {

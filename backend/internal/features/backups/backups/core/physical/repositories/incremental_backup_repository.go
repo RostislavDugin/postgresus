@@ -74,6 +74,27 @@ func (r *PhysicalIncrementalBackupRepository) FindLatestCompletedByRootFull(
 	return &backup, nil
 }
 
+// FindNewestAnyStatusByRootFull orders by created_at rather than start_lsn
+// because failed attempts never get one: persistIncrResult writes LSNs only for
+// COMPLETED rows.
+func (r *PhysicalIncrementalBackupRepository) FindNewestAnyStatusByRootFull(
+	rootFullBackupID uuid.UUID,
+	limit int,
+) ([]*physical_models.PhysicalIncrementalBackup, error) {
+	var backups []*physical_models.PhysicalIncrementalBackup
+
+	if err := storage.
+		GetDb().
+		Where("root_full_backup_id = ?", rootFullBackupID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&backups).Error; err != nil {
+		return nil, err
+	}
+
+	return backups, nil
+}
+
 func (r *PhysicalIncrementalBackupRepository) FindAllByRootFull(
 	rootFullBackupID uuid.UUID,
 ) ([]*physical_models.PhysicalIncrementalBackup, error) {

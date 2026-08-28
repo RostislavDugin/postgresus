@@ -48,11 +48,10 @@ func (uc *CreateIncrementalBackupUsecase) Execute(
 		return refusalResult, nil
 	}
 
-	// Gate on WAL-summarizer readiness BEFORE any work: a doomed
-	// pg_basebackup --incremental (summarizer off / summaries expired / falling
-	// behind) is turned into a deterministic CHAIN_BROKEN here, so the next
-	// scheduler tick re-anchors on a fresh FULL instead of looping transient
-	// ERRORs. Runs before the parent-manifest download so a bail costs nothing.
+	// Gate on WAL-summarizer readiness BEFORE any work: summarizer off and expired
+	// summaries are conditions no retry can fix, so they close the chain here rather
+	// than after a doomed pg_basebackup --incremental. Runs before the
+	// parent-manifest download so a bail costs nothing.
 	preCheckResult, canProceed := runSummarizerPreCheck(ctx, spec)
 	if !canProceed {
 		return preCheckResult, nil
@@ -156,13 +155,13 @@ func verifyIncrTimelineCompatibility(
 }
 
 // runSummarizerPreCheck opens an inspection connection and resolves the
-// WAL-summarizer decision (including the bounded wait for a lagging-but-catching-up
-// summarizer). It returns proceed=true to run the incremental, or a terminal
-// result the caller must return verbatim:
-//   - DecisionGoIncremental         → proceed
-//   - DecisionFullSameChain / wait timeout → CHAIN_BROKEN / SUMMARIZER_FALLING_BEHIND
-//   - DecisionFullNewChain          → CHAIN_BROKEN / SUMMARIZER_OFF | SUMMARIES_EXPIRED
-//   - ctx cancelled mid-wait        → CANCELED / CANCELED_BY_USER
+// WAL-summarizer decision (including the bounded wait for a summarizer that has
+// published no summary yet). It returns proceed=true to run the incremental, or
+// a terminal result the caller must return verbatim:
+//   - DecisionGoIncremental    → proceed
+//   - DecisionRetryNextCadence → ERROR / SUMMARIZER_FALLING_BEHIND
+//   - DecisionFullNewChain     → CHAIN_BROKEN / SUMMARIZER_OFF | SUMMARIES_EXPIRED
+//   - ctx cancelled mid-wait   → CANCELED / CANCELED_BY_USER
 func runSummarizerPreCheck(ctx context.Context, spec IncrementalBackupSpec) (PhysicalBackupResult, bool) {
 	conn, err := spec.SourceDB.OpenInspectionConn(ctx, spec.FieldEncryptor)
 	if err != nil {
@@ -185,22 +184,29 @@ func runSummarizerPreCheck(ctx context.Context, spec IncrementalBackupSpec) (Phy
 	case DecisionGoIncremental:
 		return PhysicalBackupResult{}, true
 
-	case DecisionFullSameChain:
-		return summarizerChainBroken(physical_enums.PhysicalBackupErrorSummarizerFallingBehind,
-			"summarizer trailing current WAL; closing chain, new FULL required"), false
+	case DecisionRetryNextCadence:
+		return summarizerRefusedResult(
+			physical_enums.PhysicalBackupStatusError,
+			physical_enums.PhysicalBackupErrorSummarizerFallingBehind,
+			"WAL summarizer is not publishing summaries (none yet, or its process is gone); retrying on the next cadence",
+		), false
 
 	default: // DecisionFullNewChain — Reason is always set on this branch
-		return summarizerChainBroken(*decision.Reason,
-			"summarizer pre-check refused incremental; new FULL required"), false
+		return summarizerRefusedResult(
+			physical_enums.PhysicalBackupStatusChainBroken,
+			*decision.Reason,
+			"summarizer pre-check refused incremental; new FULL required",
+		), false
 	}
 }
 
-func summarizerChainBroken(
+func summarizerRefusedResult(
+	status physical_enums.PhysicalBackupStatus,
 	reason physical_enums.PhysicalBackupErrorReason,
 	message string,
 ) PhysicalBackupResult {
 	return PhysicalBackupResult{
-		Status:       physical_enums.PhysicalBackupStatusChainBroken,
+		Status:       status,
 		ErrorReason:  &reason,
 		ErrorMessage: message,
 		CompletedAt:  time.Now().UTC(),
@@ -300,14 +306,34 @@ func decryptParentManifest(reader io.Reader, spec IncrementalBackupSpec) (io.Rea
 	return dec, nil
 }
 
+// Verbatim messages from PostgreSQL's basebackup_incremental.c and
+// walsummarizer.c, matched by substring because the timeline and LSN arguments
+// are interpolated per call.
+const (
+	summariesMissingForRangeStderr = "WAL summaries are required on timeline"
+	summarizerStalledStderr        = "WAL summarization is not progressing"
+)
+
 func classifyIncrStreamError(streamErr error, stderr []byte) streamOutcome {
+	message := fmt.Sprintf("%v; stderr: %s", streamErr, truncateStderr(stderr))
+
 	if isSummariesExpiredError(stderr) {
 		reason := physical_enums.PhysicalBackupErrorSummariesExpired
 
 		return streamOutcome{
 			Status:       physical_enums.PhysicalBackupStatusChainBroken,
 			ErrorReason:  &reason,
-			ErrorMessage: fmt.Sprintf("%v; stderr: %s", streamErr, truncateStderr(stderr)),
+			ErrorMessage: message,
+		}
+	}
+
+	if isSummarizerStalledError(stderr) {
+		reason := physical_enums.PhysicalBackupErrorSummarizerFallingBehind
+
+		return streamOutcome{
+			Status:       physical_enums.PhysicalBackupStatusError,
+			ErrorReason:  &reason,
+			ErrorMessage: message,
 		}
 	}
 
@@ -316,26 +342,22 @@ func classifyIncrStreamError(streamErr error, stderr []byte) streamOutcome {
 	return streamOutcome{
 		Status:       physical_enums.PhysicalBackupStatusError,
 		ErrorReason:  &reason,
-		ErrorMessage: fmt.Sprintf("%v; stderr: %s", streamErr, truncateStderr(stderr)),
+		ErrorMessage: message,
 	}
 }
 
 // isSummariesExpiredError detects the post-readiness-check race where the source cluster
 // pruned WAL summaries between CheckSummarizerReadiness returning OK and pg_basebackup
-// --incremental opening the actual range. PG surfaces this as "WAL summary file
-// ... not found" or "could not open WAL summary".
+// --incremental opening the actual range. The same message covers a range that was never
+// summarized at all and one summarized with a hole in the middle.
 func isSummariesExpiredError(stderr []byte) bool {
-	msg := string(stderr)
+	return strings.Contains(string(stderr), summariesMissingForRangeStderr)
+}
 
-	for _, needle := range []string{
-		"WAL summary file",
-		"could not open WAL summary",
-		"WAL summary not found",
-	} {
-		if strings.Contains(msg, needle) {
-			return true
-		}
-	}
-
-	return false
+// isSummarizerStalledError detects a summarizer that stopped absorbing WAL.
+// PostgreSQL waits for summarization through the backup start LSN and gives up
+// only after a minute without a single absorbed record, so this is a real stall
+// rather than a slow cluster.
+func isSummarizerStalledError(stderr []byte) bool {
+	return strings.Contains(string(stderr), summarizerStalledStderr)
 }
