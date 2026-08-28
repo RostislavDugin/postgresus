@@ -233,6 +233,11 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 		return
 	}
 
+	if backupResult.Status == physical_enums.PhysicalBackupStatusError &&
+		b.isIncrRetryBudgetExhausted(ctx, logger, incrBackup) {
+		backupResult.Status = physical_enums.PhysicalBackupStatusChainBroken
+	}
+
 	if backupResult.Status != physical_enums.PhysicalBackupStatusCompleted {
 		logger.WarnContext(ctx, "incremental executor returned non-COMPLETED result",
 			"status", backupResult.Status,
@@ -506,6 +511,45 @@ func (b *PhysicalBackuper) persistIncrResult(
 	)
 }
 
+// The current attempt's row is already IN_PROGRESS in the table (claimAndInsert
+// writes it before the backuper runs), so it is dropped before counting.
+// Requiring the exact remaining count matters: on a young chain a shorter slice
+// would make "every one of them failed" vacuously true and close the chain an
+// attempt early. A read failure answers false, because losing a chain to a
+// transient database error is worse than granting one retry too many.
+//
+// Only the executor-result path asks this. The pre-executor finalize paths stay
+// plain ERROR deliberately: they return before any notification is sent, and a
+// chain that closes without telling anyone is worse than one that closes an
+// attempt late.
+func (b *PhysicalBackuper) isIncrRetryBudgetExhausted(
+	ctx context.Context,
+	logger *slog.Logger,
+	incrBackup *physical_models.PhysicalIncrementalBackup,
+) bool {
+	recentBackups, err := b.incrRepo.FindNewestAnyStatusByRootFull(
+		incrBackup.RootFullBackupID, maxConsecutiveFailedIncrTries)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to read the chain's recent incrementals", "error", err)
+
+		return false
+	}
+
+	priorBackups := slices.DeleteFunc(recentBackups,
+		func(backup *physical_models.PhysicalIncrementalBackup) bool {
+			return backup.ID == incrBackup.ID
+		})
+
+	if len(priorBackups) != maxConsecutiveFailedIncrTries-1 {
+		return false
+	}
+
+	return !slices.ContainsFunc(priorBackups,
+		func(backup *physical_models.PhysicalIncrementalBackup) bool {
+			return backup.Status != physical_enums.PhysicalBackupStatusError
+		})
+}
+
 // saveTerminalResultIfInProgress writes the mutated backup row and releases its
 // in-flight claim in one transaction, but only while the row is still
 // IN_PROGRESS. A backuper can return after a restart-recovery sweep already
@@ -590,10 +634,11 @@ func (b *PhysicalBackuper) finalizeIncrAsError(
 }
 
 // finalizeIncrAsChainBroken closes the chain instead of marking a transient
-// failure. Use it only for irreversible conditions (a missing parent manifest,
-// expired summaries) where retrying the same INCR is futile: CHAIN_BROKEN forces
-// the next scheduler tick to open a fresh FULL, whereas ERROR would keep the
-// chain extendable and retry the doomed INCR forever.
+// failure. Use it for irreversible conditions (a missing parent manifest,
+// expired summaries) where retrying the same INCR is futile: CHAIN_BROKEN makes
+// the scheduler re-anchor on a fresh FULL, whereas ERROR would keep the chain
+// extendable and retry the doomed INCR forever. A run of maxConsecutiveFailedIncrTries
+// ordinary failures reaches the same verdict through isIncrRetryBudgetExhausted.
 func (b *PhysicalBackuper) finalizeIncrAsChainBroken(
 	incrBackup *physical_models.PhysicalIncrementalBackup,
 	reason physical_enums.PhysicalBackupErrorReason,

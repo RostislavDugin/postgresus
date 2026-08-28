@@ -52,15 +52,15 @@ const (
 	// between the CANCEL and the DROP.
 	PhysicalBackupErrorCanceledByDbRemoval PhysicalBackupErrorReason = "CANCELED_BY_DB_REMOVAL"
 
-	// INCR-specific (all chain-killing, status = CHAIN_BROKEN).
+	// INCR-specific and chain-killing (status = CHAIN_BROKEN).
 	PhysicalBackupErrorSummariesExpired      PhysicalBackupErrorReason = "SUMMARIES_EXPIRED"
 	PhysicalBackupErrorSummarizerOff         PhysicalBackupErrorReason = "SUMMARIZER_OFF"
 	PhysicalBackupErrorParentManifestMissing PhysicalBackupErrorReason = "PARENT_MANIFEST_MISSING"
 
-	// The summarizer is on and covers the parent, but trails current WAL by
-	// more than the lag threshold (or stayed behind for the whole bounded
-	// wait): pushing an INCR would race a moving target, so the chain is closed
-	// and the next tick opens a fresh FULL.
+	// INCR-specific and transient (status = ERROR): the summarizer is on and
+	// covers the parent, but its process is not publishing summaries. The chain
+	// stays extendable and the next cadence tick retries it; only a run of
+	// consecutive failures closes the chain.
 	PhysicalBackupErrorSummarizerFallingBehind PhysicalBackupErrorReason = "SUMMARIZER_FALLING_BEHIND"
 )
 
