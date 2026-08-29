@@ -134,11 +134,20 @@ func (uc *CreateMysqlBackupUsecase) buildMysqldumpArgs(my *mysqltypes.MysqlDatab
 		"--quick",
 		"--skip-add-locks",
 		"--verbose",
+		// Dumping tablespace definitions makes mysqldump read INFORMATION_SCHEMA.FILES, which costs
+		// a global PROCESS privilege that a backup role has no other use for and that managed
+		// providers often refuse to grant.
+		"--no-tablespaces",
 	}
 
+	// Triggers are on by default, so a role without the privilege has to be opted out explicitly
+	// or mysqldump fails on SHOW TRIGGERS instead of dumping without them.
 	if my.HasPrivilege("TRIGGER") {
 		args = append(args, "--triggers")
+	} else {
+		args = append(args, "--skip-triggers")
 	}
+
 	if my.HasPrivilege("EVENT") {
 		args = append(args, "--events")
 	}

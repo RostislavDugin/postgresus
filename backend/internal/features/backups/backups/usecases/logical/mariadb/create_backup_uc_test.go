@@ -77,6 +77,57 @@ func Test_BuildMariadbDumpArgs_WhenExcludedTablesArePastedMultiline_TrimsAndSpli
 	}
 }
 
+// Dumping tablespace definitions reads INFORMATION_SCHEMA.FILES, which costs a global PROCESS
+// privilege the connection test no longer requires, so the flag has to stay in every dump.
+func Test_BuildMariadbDumpArgs_ForAnyDatabase_AlwaysSkipsTablespaces(t *testing.T) {
+	uc := &CreateMariadbBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mariadbtypes.MariadbDatabase{
+		Version:  tools.MariadbVersion1011,
+		Database: &databaseName,
+	}
+
+	args := uc.buildMariadbDumpArgs(database)
+
+	if !slices.Contains(args, "--no-tablespaces") {
+		t.Fatalf("expected --no-tablespaces, got %v", args)
+	}
+}
+
+func Test_BuildMariadbDumpArgs_WithTriggerPrivilege_KeepsTriggers(t *testing.T) {
+	uc := &CreateMariadbBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mariadbtypes.MariadbDatabase{
+		Version:    tools.MariadbVersion1011,
+		Database:   &databaseName,
+		Privileges: "SELECT,SHOW VIEW,TRIGGER",
+	}
+
+	args := uc.buildMariadbDumpArgs(database)
+
+	if !slices.Contains(args, "--triggers") || slices.Contains(args, "--skip-triggers") {
+		t.Fatalf("expected --triggers and no --skip-triggers, got %v", args)
+	}
+}
+
+// Triggers are on by default, so without the explicit opt-out mariadb-dump fails on SHOW TRIGGERS
+// for a role that lacks the privilege instead of dumping without them.
+func Test_BuildMariadbDumpArgs_WithoutTriggerPrivilege_SkipsTriggers(t *testing.T) {
+	uc := &CreateMariadbBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mariadbtypes.MariadbDatabase{
+		Version:    tools.MariadbVersion1011,
+		Database:   &databaseName,
+		Privileges: "SELECT,SHOW VIEW",
+	}
+
+	args := uc.buildMariadbDumpArgs(database)
+
+	if !slices.Contains(args, "--skip-triggers") || slices.Contains(args, "--triggers") {
+		t.Fatalf("expected --skip-triggers and no --triggers, got %v", args)
+	}
+}
+
 func Test_BuildMariadbDumpArgs_WithoutExcludedTables_OmitsIgnoreTableArgs(t *testing.T) {
 	uc := &CreateMariadbBackupUsecase{}
 	databaseName := "oa_db"

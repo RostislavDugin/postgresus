@@ -37,3 +37,14 @@ func Test_FormatUniqueNames_WithDirtyNames_JoinsNormalizedNamesWithCommas(t *tes
 	assert.Equal(t, "orders,users", FormatUniqueNames([]string{" orders ", "\nusers", "orders", ""}))
 	assert.Equal(t, "", FormatUniqueNames(nil))
 }
+
+func Test_FormatTruncatedNames_WhenNamesFitTheLimit_ListsThemAll(t *testing.T) {
+	assert.Equal(t, "orders, users", FormatTruncatedNames([]string{"orders", "users"}))
+	assert.Equal(t, "", FormatTruncatedNames(nil))
+}
+
+func Test_FormatTruncatedNames_WhenNamesExceedTheLimit_AppendsTheRemainingCount(t *testing.T) {
+	manyNames := []string{"a", "b", "c", "d", "e", "f", "g"}
+
+	assert.Equal(t, "a, b, c, d, e and 2 more", FormatTruncatedNames(manyNames))
+}

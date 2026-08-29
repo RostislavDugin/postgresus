@@ -577,7 +577,10 @@ func testBackupRestoreSkipUserMappingsForVersion(t *testing.T, endpoint containe
 		fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s' LOGIN`, limitedUsername, limitedPassword),
 		fmt.Sprintf(`GRANT CONNECT ON DATABASE "%s" TO "%s"`, container.Database, limitedUsername),
 		fmt.Sprintf(`GRANT USAGE ON SCHEMA public TO "%s"`, limitedUsername),
-		`GRANT SELECT ON skip_um_data TO "` + limitedUsername + `"`,
+		// The backup covers the whole database, and the version's subtests share this server
+		// (ADR-0013), so the role needs every relation in public, not just this test's table.
+		fmt.Sprintf(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO "%s"`, limitedUsername),
+		fmt.Sprintf(`GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "%s"`, limitedUsername),
 	}
 
 	for _, statement := range setupStatements {
@@ -1196,9 +1199,9 @@ func testBackupFailsWhenUserCannotReadSequencesForVersion(
 		CREATE ROLE %[1]s LOGIN PASSWORD '%[2]s';
 		GRANT CONNECT ON DATABASE %[3]s TO %[1]s;
 		GRANT USAGE ON SCHEMA public TO %[1]s;
-		GRANT SELECT ON TABLE %[4]s TO %[1]s;
-		REVOKE ALL ON SEQUENCE %[5]s FROM PUBLIC, %[1]s;
-	`, restrictedUsername, restrictedPassword, container.Database, tableName, sequenceName))
+		GRANT SELECT ON ALL TABLES IN SCHEMA public TO %[1]s;
+		GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO %[1]s;
+	`, restrictedUsername, restrictedPassword, container.Database))
 	assert.NoError(t, err)
 
 	defer func() {
@@ -1228,6 +1231,15 @@ func testBackupFailsWhenUserCannotReadSequencesForVersion(
 		restrictedUsername, restrictedPassword,
 		user.Token,
 	)
+
+	// The sequence is revoked only after the database is saved, because privileges drift on a
+	// live server and a backup must fail loudly when they do, rather than emit a partial dump.
+	_, err = container.DB.Exec(fmt.Sprintf(
+		`REVOKE ALL ON SEQUENCE %s FROM PUBLIC, %s`,
+		sequenceName,
+		restrictedUsername,
+	))
+	assert.NoError(t, err)
 
 	logicaltesting.EnableBackupsViaAPI(
 		t, router, restrictedDatabase.ID, storage.ID,

@@ -77,6 +77,57 @@ func Test_BuildMysqldumpArgs_WhenExcludedTablesArePastedMultiline_TrimsAndSplits
 	}
 }
 
+// Dumping tablespace definitions reads INFORMATION_SCHEMA.FILES, which costs a global PROCESS
+// privilege the connection test no longer requires, so the flag has to stay in every dump.
+func Test_BuildMysqldumpArgs_ForAnyDatabase_AlwaysSkipsTablespaces(t *testing.T) {
+	uc := &CreateMysqlBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mysqltypes.MysqlDatabase{
+		Version:  tools.MysqlVersion80,
+		Database: &databaseName,
+	}
+
+	args := uc.buildMysqldumpArgs(database)
+
+	if !slices.Contains(args, "--no-tablespaces") {
+		t.Fatalf("expected --no-tablespaces, got %v", args)
+	}
+}
+
+func Test_BuildMysqldumpArgs_WithTriggerPrivilege_KeepsTriggers(t *testing.T) {
+	uc := &CreateMysqlBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mysqltypes.MysqlDatabase{
+		Version:    tools.MysqlVersion80,
+		Database:   &databaseName,
+		Privileges: "SELECT,SHOW VIEW,TRIGGER",
+	}
+
+	args := uc.buildMysqldumpArgs(database)
+
+	if !slices.Contains(args, "--triggers") || slices.Contains(args, "--skip-triggers") {
+		t.Fatalf("expected --triggers and no --skip-triggers, got %v", args)
+	}
+}
+
+// Triggers are on by default, so without the explicit opt-out mysqldump fails on SHOW TRIGGERS
+// for a role that lacks the privilege instead of dumping without them.
+func Test_BuildMysqldumpArgs_WithoutTriggerPrivilege_SkipsTriggers(t *testing.T) {
+	uc := &CreateMysqlBackupUsecase{}
+	databaseName := "oa_db"
+	database := &mysqltypes.MysqlDatabase{
+		Version:    tools.MysqlVersion80,
+		Database:   &databaseName,
+		Privileges: "SELECT,SHOW VIEW",
+	}
+
+	args := uc.buildMysqldumpArgs(database)
+
+	if !slices.Contains(args, "--skip-triggers") || slices.Contains(args, "--triggers") {
+		t.Fatalf("expected --skip-triggers and no --triggers, got %v", args)
+	}
+}
+
 func Test_BuildMysqldumpArgs_WithoutExcludedTables_OmitsIgnoreTableArgs(t *testing.T) {
 	uc := &CreateMysqlBackupUsecase{}
 	databaseName := "oa_db"

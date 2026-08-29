@@ -6,6 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_GetIncludedSchemaNames_WhenNamesArePastedMultiline_ReturnsTrimmedUniqueNames(t *testing.T) {
+	filter := DumpFilter{IncludeSchemas: []string{"\npublic", " reporting ", "public"}}
+
+	assert.Equal(t, []string{"public", "reporting"}, filter.getIncludedSchemaNames())
+}
+
+func Test_GetIncludedSchemaNames_WhenNoSchemasAreConfigured_ReturnsEmptySlice(t *testing.T) {
+	filter := DumpFilter{}
+
+	assert.Empty(t, filter.getIncludedSchemaNames())
+	assert.NotNil(t, filter.getIncludedSchemaNames())
+}
+
 func Test_IsRelationExcluded_WithVariousPatterns_MatchesPgDumpSemantics(t *testing.T) {
 	exclusionCases := []struct {
 		name                 string

@@ -135,10 +135,18 @@ func (uc *CreateMariadbBackupUsecase) buildMariadbDumpArgs(
 		"--quick",
 		"--skip-add-locks",
 		"--verbose",
+		// Dumping tablespace definitions makes mariadb-dump read INFORMATION_SCHEMA.FILES, which costs
+		// a global PROCESS privilege that a backup role has no other use for and that managed
+		// providers often refuse to grant.
+		"--no-tablespaces",
 	}
 
+	// Triggers are on by default, so a role without the privilege has to be opted out explicitly
+	// or mariadb-dump fails on SHOW TRIGGERS instead of dumping without them.
 	if mdb.HasPrivilege("TRIGGER") {
 		args = append(args, "--triggers")
+	} else {
+		args = append(args, "--skip-triggers")
 	}
 
 	if mdb.HasPrivilege("EVENT") && !mdb.IsExcludeEvents {
