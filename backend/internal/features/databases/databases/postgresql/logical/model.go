@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	postgresql_shared "databasus-backend/internal/features/databases/databases/postgresql/shared"
@@ -447,57 +446,6 @@ func (p *PostgresqlLogicalDatabase) ShouldSuggestReadOnlyUser(
 	return shouldSuggestReadOnlyUser, privileges, nil
 }
 
-// pg_dump runs with row_security = off and aborts rather than emit a partial dump, so a role
-// without BYPASSRLS can never back these tables up.
-func getRowLevelSecurityTables(
-	ctx context.Context,
-	conn *pgx.Conn,
-	includeSchemas []string,
-) ([]string, error) {
-	query := `
-		SELECT n.nspname || '.' || c.relname
-		FROM pg_class c
-		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE c.relrowsecurity
-		AND c.relkind = 'r'
-		AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-		AND n.nspname NOT LIKE 'pg_temp_%'
-		AND n.nspname NOT LIKE 'pg_toast_temp_%'
-	`
-
-	var rows pgx.Rows
-	var err error
-
-	if len(includeSchemas) > 0 {
-		rows, err = conn.Query(ctx, query+" AND n.nspname = ANY($1::text[]) ORDER BY 1", includeSchemas)
-	} else {
-		rows, err = conn.Query(ctx, query+" ORDER BY 1")
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to check row-level security: %w", err)
-	}
-
-	defer rows.Close()
-
-	var rowLevelSecurityTables []string
-
-	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err != nil {
-			return nil, fmt.Errorf("failed to scan row-level security table: %w", err)
-		}
-
-		rowLevelSecurityTables = append(rowLevelSecurityTables, table)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating row-level security tables: %w", err)
-	}
-
-	return rowLevelSecurityTables, nil
-}
-
 func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -536,7 +484,7 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	if len(rowLevelSecurityTables) > 0 {
 		return "", "", fmt.Errorf(
 			"row-level security is enabled on %s; grant BYPASSRLS to a role you create yourself, or back up with a role that owns these tables",
-			formatTruncatedTableList(rowLevelSecurityTables),
+			namelist.FormatTruncatedNames(rowLevelSecurityTables),
 		)
 	}
 
@@ -957,19 +905,16 @@ func (p *PostgresqlLogicalDatabase) validateSslConfig() error {
 	)
 }
 
-// testSingleDatabaseConnection tests connection to a specific database for pg_dump
 func testSingleDatabaseConnection(
 	logger *slog.Logger,
 	ctx context.Context,
 	postgresDb *PostgresqlLogicalDatabase,
 	encryptor encryption.FieldEncryptor,
 ) error {
-	// For single database backup, we need to connect to the specific database
 	if postgresDb.Database == nil || *postgresDb.Database == "" {
 		return errors.New("database name is required for single database backup (pg_dump)")
 	}
 
-	// Test connection
 	conn, err := openPgConn(ctx, postgresDb, *postgresDb.Database, encryptor)
 	if err != nil {
 		// TODO make more readable errors:
@@ -984,15 +929,16 @@ func testSingleDatabaseConnection(
 		}
 	}()
 
-	// Detect and set the database version automatically
 	detectedVersion, err := detectDatabaseVersion(ctx, conn)
 	if err != nil {
 		return err
 	}
 	postgresDb.Version = detectedVersion
 
-	// Verify user has sufficient permissions for backup operations
-	if err := checkBackupPermissions(ctx, conn, postgresDb.IncludeSchemas); err != nil {
+	if err := checkDumpReadPrivileges(ctx, conn, DumpFilter{
+		IncludeSchemas:       postgresDb.IncludeSchemas,
+		ExcludeTablePatterns: postgresDb.ExcludeTables,
+	}); err != nil {
 		return err
 	}
 
@@ -1005,31 +951,6 @@ func testSingleDatabaseConnection(
 	return nil
 }
 
-// PostgreSQL masks pg_user_mappings.umoptions (credentials) from any role that is not a superuser,
-// the foreign server owner, or the mapping's own user. Such a role's pg_dump emits a bare CREATE
-// USER MAPPING that loses the credentials and breaks restore for FDWs that require them (e.g.
-// oracle_fdw), so refuse the backup when any mapping's options are hidden.
-func checkUserMappingsReadable(ctx context.Context, conn *pgx.Conn) error {
-	var unreadableCount int
-	err := conn.QueryRow(ctx, "SELECT count(*) FROM pg_user_mappings WHERE umoptions IS NULL").
-		Scan(&unreadableCount)
-	if err != nil {
-		return fmt.Errorf("cannot check user mapping options: %w", err)
-	}
-
-	if unreadableCount > 0 {
-		return fmt.Errorf(
-			"database has %d user mapping(s) whose options this role cannot read; their "+
-				"credentials would be lost on restore — back up as a superuser or the foreign "+
-				"server/mapping owner, or enable 'skip user mappings'",
-			unreadableCount,
-		)
-	}
-
-	return nil
-}
-
-// detectDatabaseVersion queries and returns the PostgreSQL major version
 func detectDatabaseVersion(ctx context.Context, conn *pgx.Conn) (tools.PostgresqlVersion, error) {
 	var versionStr string
 	err := conn.QueryRow(ctx, "SELECT version()").Scan(&versionStr)
@@ -1054,141 +975,6 @@ func detectDatabaseVersion(ctx context.Context, conn *pgx.Conn) (tools.Postgresq
 	default:
 		return "", fmt.Errorf("unsupported PostgreSQL version: %s", majorVersion)
 	}
-}
-
-// checkBackupPermissions verifies the user has sufficient privileges for pg_dump backup.
-// Required privileges: CONNECT on database, USAGE on schemas, SELECT on tables.
-// If includeSchemas is specified, only checks permissions on those schemas.
-func checkBackupPermissions(
-	ctx context.Context,
-	conn *pgx.Conn,
-	includeSchemas []string,
-) error {
-	var missingPrivileges []string
-
-	// Check CONNECT privilege on database
-	var hasConnect bool
-	err := conn.QueryRow(ctx, "SELECT has_database_privilege(current_user, current_database(), 'CONNECT')").
-		Scan(&hasConnect)
-	if err != nil {
-		return fmt.Errorf("cannot check database privileges: %w", err)
-	}
-	if !hasConnect {
-		missingPrivileges = append(missingPrivileges, "CONNECT on database")
-	}
-
-	// Check USAGE privilege on at least one non-system schema
-	var schemaCount int
-	if len(includeSchemas) > 0 {
-		// Check only the specified schemas
-		err = conn.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM pg_namespace n
-			WHERE has_schema_privilege(current_user, n.nspname, 'USAGE')
-			AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-			AND n.nspname NOT LIKE 'pg_temp_%'
-			AND n.nspname NOT LIKE 'pg_toast_temp_%'
-			AND n.nspname = ANY($1::text[])
-		`, includeSchemas).Scan(&schemaCount)
-	} else {
-		// Check all non-system schemas
-		err = conn.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM pg_namespace n
-			WHERE has_schema_privilege(current_user, n.nspname, 'USAGE')
-			AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-			AND n.nspname NOT LIKE 'pg_temp_%'
-			AND n.nspname NOT LIKE 'pg_toast_temp_%'
-		`).Scan(&schemaCount)
-	}
-
-	if err != nil {
-		return fmt.Errorf("cannot check schema privileges: %w", err)
-	}
-	if schemaCount == 0 {
-		missingPrivileges = append(missingPrivileges, "USAGE on at least one schema")
-	}
-
-	// Check SELECT privilege on at least one table (if tables exist)
-	// Use pg_tables from pg_catalog which shows all tables regardless of user privileges
-	var tableCount int
-
-	if len(includeSchemas) > 0 {
-		// Check only tables in the specified schemas
-		err = conn.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM pg_catalog.pg_tables t
-			WHERE t.schemaname NOT IN ('pg_catalog', 'information_schema')
-			AND t.schemaname NOT LIKE 'pg_temp_%'
-			AND t.schemaname NOT LIKE 'pg_toast_temp_%'
-			AND t.schemaname = ANY($1::text[])
-		`, includeSchemas).Scan(&tableCount)
-	} else {
-		// Check all tables in non-system schemas
-		err = conn.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM pg_catalog.pg_tables t
-			WHERE t.schemaname NOT IN ('pg_catalog', 'information_schema')
-			AND t.schemaname NOT LIKE 'pg_temp_%'
-			AND t.schemaname NOT LIKE 'pg_toast_temp_%'
-		`).Scan(&tableCount)
-	}
-
-	if err != nil {
-		return fmt.Errorf("cannot check table count: %w", err)
-	}
-
-	if tableCount > 0 {
-		// Check if user has SELECT on at least one of these tables
-		var selectableTableCount int
-
-		if len(includeSchemas) > 0 {
-			// Check only tables in the specified schemas
-			err = conn.QueryRow(ctx, `
-				SELECT COUNT(*)
-				FROM pg_catalog.pg_tables t
-				WHERE t.schemaname NOT IN ('pg_catalog', 'information_schema')
-				AND t.schemaname NOT LIKE 'pg_temp_%'
-				AND t.schemaname NOT LIKE 'pg_toast_temp_%'
-				AND t.schemaname = ANY($1::text[])
-				AND has_table_privilege(current_user, quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT')
-			`, includeSchemas).Scan(&selectableTableCount)
-		} else {
-			// Check all tables in non-system schemas
-			err = conn.QueryRow(ctx, `
-				SELECT COUNT(*)
-				FROM pg_catalog.pg_tables t
-				WHERE t.schemaname NOT IN ('pg_catalog', 'information_schema')
-				AND t.schemaname NOT LIKE 'pg_temp_%'
-				AND t.schemaname NOT LIKE 'pg_toast_temp_%'
-				AND has_table_privilege(current_user, quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT')
-			`).Scan(&selectableTableCount)
-		}
-
-		if err != nil {
-			// If the user doesn't have USAGE on the schema, has_table_privilege will fail
-			// with "permission denied for schema". This means they definitely don't have
-			// SELECT privileges, so treat this as missing permissions rather than an error.
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "42501" { // insufficient_privilege
-				selectableTableCount = 0
-			} else {
-				return fmt.Errorf("cannot check SELECT privileges: %w", err)
-			}
-		}
-		if selectableTableCount == 0 {
-			missingPrivileges = append(missingPrivileges, "SELECT on tables")
-		}
-	}
-
-	if len(missingPrivileges) > 0 {
-		return fmt.Errorf(
-			"insufficient permissions for backup. Missing: %s. Required: CONNECT on database, USAGE on schemas, SELECT on tables",
-			strings.Join(missingPrivileges, ", "),
-		)
-	}
-
-	return nil
 }
 
 func isSupabaseConnection(host, username string) bool {
@@ -1226,17 +1012,4 @@ func isLocalhostAddress(host string) bool {
 
 	// The entire 127.0.0.0/8 loopback range, not just 127.0.0.1
 	return strings.HasPrefix(host, "127.")
-}
-
-func formatTruncatedTableList(tables []string) string {
-	const maxListedTables = 5
-	if len(tables) <= maxListedTables {
-		return strings.Join(tables, ", ")
-	}
-
-	return fmt.Sprintf(
-		"%s and %d more",
-		strings.Join(tables[:maxListedTables], ", "),
-		len(tables)-maxListedTables,
-	)
 }

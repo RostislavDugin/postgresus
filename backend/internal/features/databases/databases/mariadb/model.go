@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"databasus-backend/internal/features/databases/databases/mysqlfamily"
 	"databasus-backend/internal/features/sshtunnel"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/namelist"
@@ -123,14 +123,20 @@ func (m *MariadbDatabase) TestConnection(
 	}
 	m.Version = detectedVersion
 
-	privileges, err := detectPrivileges(ctx, db, *m.Database)
+	backupPrivileges, err := readBackupPrivileges(ctx, backupPrivilegesQuery{
+		DB:            db,
+		Logger:        logger,
+		Version:       m.Version,
+		SchemaName:    *m.Database,
+		ExcludeTables: m.ExcludeTables,
+	})
 	if err != nil {
 		return err
 	}
-	m.Privileges = privileges
+	m.Privileges = backupPrivileges.GetEffectivePrivilegesCsv()
 
-	if err := checkBackupPermissions(m.Privileges); err != nil {
-		return err
+	if !backupPrivileges.IsSufficientForDump() {
+		return backupPrivileges.NewInsufficiencyError()
 	}
 
 	return nil
@@ -271,11 +277,17 @@ func (m *MariadbDatabase) PopulateDbData(
 	}
 	m.Version = detectedVersion
 
-	privileges, err := detectPrivileges(ctx, db, *m.Database)
+	backupPrivileges, err := readBackupPrivileges(ctx, backupPrivilegesQuery{
+		DB:            db,
+		Logger:        logger,
+		Version:       m.Version,
+		SchemaName:    *m.Database,
+		ExcludeTables: m.ExcludeTables,
+	})
 	if err != nil {
 		return err
 	}
-	m.Privileges = privileges
+	m.Privileges = backupPrivileges.GetEffectivePrivilegesCsv()
 
 	return nil
 }
@@ -376,9 +388,14 @@ func (m *MariadbDatabase) ShouldSuggestReadOnlyUser(
 			return false, nil, fmt.Errorf("failed to scan grant: %w", err)
 		}
 
-		for _, priv := range parseGrantPrivileges(grant) {
-			if writePrivileges[priv] {
-				detectedPrivileges[priv] = true
+		parsedGrant := mysqlfamily.ParseGrantLine(grant)
+		if parsedGrant == nil {
+			continue
+		}
+
+		for _, privilege := range parsedGrant.Privileges {
+			if writePrivileges[privilege] {
+				detectedPrivileges[privilege] = true
 			}
 		}
 	}
@@ -460,14 +477,6 @@ func (m *MariadbDatabase) CreateReadOnlyUser(
 			return "", "", fmt.Errorf("failed to grant database privileges: %w", err)
 		}
 
-		_, err = tx.ExecContext(ctx, fmt.Sprintf(
-			"GRANT PROCESS ON *.* TO '%s'@'%%'",
-			newUsername,
-		))
-		if err != nil {
-			return "", "", fmt.Errorf("failed to grant PROCESS privilege: %w", err)
-		}
-
 		_, err = tx.ExecContext(ctx, "FLUSH PRIVILEGES")
 		if err != nil {
 			return "", "", fmt.Errorf("failed to flush privileges: %w", err)
@@ -487,19 +496,6 @@ func (m *MariadbDatabase) CreateReadOnlyUser(
 	}
 
 	return "", "", errors.New("failed to generate unique username after 3 attempts")
-}
-
-func (m *MariadbDatabase) HasPrivilege(priv string) bool {
-	return HasPrivilege(m.Privileges, priv)
-}
-
-func HasPrivilege(privileges, priv string) bool {
-	for p := range strings.SplitSeq(privileges, ",") {
-		if strings.TrimSpace(p) == priv {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *MariadbDatabase) buildDSN(password, database string) string {
@@ -602,139 +598,6 @@ func mapMariadb11xVersion(minor string) (tools.MariadbVersion, error) {
 	default:
 		return tools.MariadbVersion118, nil
 	}
-}
-
-// parseGrantPrivileges extracts comma-separated privilege names from a single
-// SHOW GRANTS line. Returns uppercased privilege tokens with column-level
-// qualifiers like "(col1, col2)" stripped. Returns nil for role grants and
-// other lines without an ON clause.
-//
-// Parsing the privilege list is necessary because a naive substring search
-// over the whole grant string falsely matches privilege keywords that appear
-// inside other privilege names — e.g. "SHOW CREATE ROUTINE" contains both
-// "CREATE" and "CREATE ROUTINE" as substrings.
-func parseGrantPrivileges(grant string) []string {
-	headRe := regexp.MustCompile(`(?is)^\s*GRANT\s+(.+?)\s+ON\s+`)
-	m := headRe.FindStringSubmatch(grant)
-	if m == nil {
-		return nil
-	}
-
-	colRe := regexp.MustCompile(`\s*\([^)]*\)`)
-	privsStr := colRe.ReplaceAllString(m[1], "")
-
-	parts := strings.Split(privsStr, ",")
-	privs := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(strings.ToUpper(p))
-		if p != "" {
-			privs = append(privs, p)
-		}
-	}
-
-	return privs
-}
-
-// detectPrivileges detects backup-related privileges and returns them as comma-separated string
-func detectPrivileges(ctx context.Context, db *sql.DB, database string) (string, error) {
-	rows, err := db.QueryContext(ctx, "SHOW GRANTS FOR CURRENT_USER()")
-	if err != nil {
-		return "", fmt.Errorf("failed to check grants: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	backupPrivileges := []string{
-		"SELECT", "SHOW VIEW", "LOCK TABLES", "TRIGGER", "EVENT",
-	}
-
-	detectedPrivileges := make(map[string]bool)
-	hasProcess := false
-	hasAllPrivileges := false
-
-	// Escape underscores to match MariaDB's grant output format
-	// MariaDB escapes _ as \_ in SHOW GRANTS output
-	// Pattern matches either literal _ or escaped \_
-	escapedDbName := strings.ReplaceAll(regexp.QuoteMeta(database), "_", `(_|\\_)`)
-	dbPatternStr := fmt.Sprintf(
-		`(?i)ON\s+[\x60'"]?%s[\x60'"]?\s*\.\s*\*`,
-		escapedDbName,
-	)
-	dbPattern := regexp.MustCompile(dbPatternStr)
-	globalPattern := regexp.MustCompile(`(?i)ON\s+\*\s*\.\s*\*`)
-	allPrivilegesPattern := regexp.MustCompile(`(?i)\bALL\s+PRIVILEGES\b`)
-
-	for rows.Next() {
-		var grant string
-		if err := rows.Scan(&grant); err != nil {
-			return "", fmt.Errorf("failed to scan grant: %w", err)
-		}
-
-		isRelevantGrant := globalPattern.MatchString(grant) || dbPattern.MatchString(grant)
-
-		if allPrivilegesPattern.MatchString(grant) && isRelevantGrant {
-			hasAllPrivileges = true
-		}
-
-		if isRelevantGrant {
-			for _, priv := range backupPrivileges {
-				privPattern := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(priv) + `\b`)
-				if privPattern.MatchString(grant) {
-					detectedPrivileges[priv] = true
-				}
-			}
-		}
-
-		if globalPattern.MatchString(grant) {
-			processPattern := regexp.MustCompile(`(?i)\bPROCESS\b`)
-			if processPattern.MatchString(grant) {
-				hasProcess = true
-			}
-		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("error iterating grants: %w", err)
-	}
-
-	if hasAllPrivileges {
-		for _, priv := range backupPrivileges {
-			detectedPrivileges[priv] = true
-		}
-		hasProcess = true
-	}
-
-	privileges := make([]string, 0, len(detectedPrivileges)+1)
-	for priv := range detectedPrivileges {
-		privileges = append(privileges, priv)
-	}
-	if hasProcess {
-		privileges = append(privileges, "PROCESS")
-	}
-
-	sort.Strings(privileges)
-	return strings.Join(privileges, ","), nil
-}
-
-// checkBackupPermissions verifies the user has sufficient privileges for mariadb-dump backup.
-// Required: SELECT, SHOW VIEW
-func checkBackupPermissions(privileges string) error {
-	requiredPrivileges := []string{"SELECT", "SHOW VIEW"}
-
-	var missingPrivileges []string
-	for _, priv := range requiredPrivileges {
-		if !HasPrivilege(privileges, priv) {
-			missingPrivileges = append(missingPrivileges, priv)
-		}
-	}
-
-	if len(missingPrivileges) > 0 {
-		return fmt.Errorf(
-			"insufficient permissions for backup. Missing: %s. Required: SELECT, SHOW VIEW",
-			strings.Join(missingPrivileges, ", "),
-		)
-	}
-
-	return nil
 }
 
 func decryptPasswordIfNeeded(

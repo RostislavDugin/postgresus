@@ -169,7 +169,9 @@ func (s *BackupsScheduler) StartBackup(ctx context.Context, database *databases.
 	}
 
 	go func() {
-		s.backuper.MakeBackup(ctx, backup.ID, isCallNotifier)
+		// Detached so a finished HTTP request cannot cancel completion work such as
+		// sending notifications; context values (request_id) survive for logging.
+		s.backuper.MakeBackup(context.WithoutCancel(ctx), backup.ID, isCallNotifier)
 		s.onBackupCompleted(backup.ID)
 	}()
 

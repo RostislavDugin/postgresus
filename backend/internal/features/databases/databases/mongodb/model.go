@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -139,13 +138,12 @@ func (m *MongodbDatabase) TestConnection(
 	}
 	m.Version = detectedVersion
 
-	if err := checkBackupPermissions(
-		ctx,
-		client,
-		m.Username,
-		m.Database,
-		m.AuthDatabase,
-	); err != nil {
+	if err := checkDumpReadPrivileges(ctx, client, backupPrivilegeScope{
+		Username:           m.Username,
+		Database:           m.Database,
+		AuthDatabase:       m.AuthDatabase,
+		ExcludeCollections: m.ExcludeCollections,
+	}); err != nil {
 		return err
 	}
 
@@ -663,128 +661,6 @@ func mapMongodbVersion(major, minor string) (tools.MongodbVersion, error) {
 			major, minor,
 		)
 	}
-}
-
-// checkBackupPermissions verifies the user has sufficient privileges for mongodump backup.
-// Required: 'read' role on target database OR 'backup' role on admin OR 'readAnyDatabase' role.
-func checkBackupPermissions(
-	ctx context.Context,
-	client *mongo.Client,
-	username, database, authDatabase string,
-) error {
-	authDB := authDatabase
-	if authDB == "" {
-		authDB = "admin"
-	}
-
-	adminDB := client.Database(authDB)
-	var result bson.M
-	err := adminDB.RunCommand(ctx, bson.D{
-		{Key: "usersInfo", Value: bson.D{
-			{Key: "user", Value: username},
-			{Key: "db", Value: authDB},
-		}},
-		{Key: "showPrivileges", Value: true},
-	}).Decode(&result)
-	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
-	}
-
-	users, ok := result["users"].(bson.A)
-	if !ok || len(users) == 0 {
-		return errors.New("insufficient permissions for backup. User not found")
-	}
-
-	user, ok := users[0].(bson.M)
-	if !ok {
-		return errors.New("insufficient permissions for backup. Could not parse user info")
-	}
-
-	// Check roles for backup permissions
-	roles, ok := user["roles"].(bson.A)
-	if !ok {
-		return errors.New("insufficient permissions for backup. No roles assigned")
-	}
-
-	backupRoles := map[string]bool{
-		"backup":               true,
-		"root":                 true,
-		"readAnyDatabase":      true,
-		"dbOwner":              true,
-		"__system":             true,
-		"clusterAdmin":         true,
-		"readWriteAnyDatabase": true,
-	}
-
-	var userRoles []string
-	hasBackupRole := false
-	hasReadOnTargetDB := false
-
-	for _, roleDoc := range roles {
-		role, ok := roleDoc.(bson.M)
-		if !ok {
-			continue
-		}
-		roleName, _ := role["role"].(string)
-		roleDB, _ := role["db"].(string)
-
-		if roleName != "" {
-			userRoles = append(userRoles, roleName)
-		}
-
-		if backupRoles[roleName] {
-			hasBackupRole = true
-		}
-
-		if roleName == "read" && (roleDB == database || roleDB == "") {
-			hasReadOnTargetDB = true
-		}
-		if roleName == "readWrite" && (roleDB == database || roleDB == "") {
-			hasReadOnTargetDB = true
-		}
-	}
-
-	if hasBackupRole || hasReadOnTargetDB {
-		return nil
-	}
-
-	// Check inherited privileges for 'find' action on target database
-	inheritedPrivileges, ok := user["inheritedPrivileges"].(bson.A)
-	if ok {
-		for _, privDoc := range inheritedPrivileges {
-			priv, ok := privDoc.(bson.M)
-			if !ok {
-				continue
-			}
-			resource, ok := priv["resource"].(bson.M)
-			if !ok {
-				continue
-			}
-
-			resourceDB, _ := resource["db"].(string)
-			resourceCluster, _ := resource["cluster"].(bool)
-
-			isTargetDB := resourceDB == database || resourceDB == "" || resourceCluster
-
-			actions, ok := priv["actions"].(bson.A)
-			if !ok {
-				continue
-			}
-
-			for _, action := range actions {
-				actionStr, ok := action.(string)
-				if ok && actionStr == "find" && isTargetDB {
-					return nil
-				}
-			}
-		}
-	}
-
-	return fmt.Errorf(
-		"insufficient permissions for backup. Current roles: %s. Required: 'read' role on database '%s' OR 'backup' role on admin OR 'readAnyDatabase' role",
-		strings.Join(userRoles, ", "),
-		database,
-	)
 }
 
 func decryptPasswordIfNeeded(

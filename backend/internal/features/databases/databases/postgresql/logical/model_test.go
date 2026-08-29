@@ -64,6 +64,12 @@ func Test_TestConnection_PasswordContainingSpaces_TestedSuccessfully(t *testing.
 	))
 	assert.NoError(t, err)
 
+	_, err = container.DB.Exec(fmt.Sprintf(
+		`GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "%s"`,
+		usernameWithSpaces,
+	))
+	assert.NoError(t, err)
+
 	defer func() {
 		_, _ = container.DB.Exec(fmt.Sprintf(`DROP USER IF EXISTS "%s"`, usernameWithSpaces))
 	}()
@@ -190,6 +196,60 @@ func Test_PostgresqlModel_AcrossSupportedVersions(t *testing.T) {
 				testCreateReadOnlyUserWhenRlsTableInScope(t, endpoint, dbVersion.tag)
 			})
 
+			t.Run(
+				"Test_TestConnection_WhenSelectIsMissingOnSomeTables_ReturnsErrorNamingOnlyUnreadableTable",
+				func(t *testing.T) {
+					testConnectionSelectMissingOnSomeTables(t, endpoint, dbVersion.tag)
+				},
+			)
+
+			t.Run("Test_TestConnection_WhenEveryTableAndSequenceIsReadable_Success", func(t *testing.T) {
+				testConnectionEveryTableAndSequenceReadable(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenSelectIsMissingOnSequence_ReturnsError", func(t *testing.T) {
+				testConnectionSelectMissingOnSequence(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenUnreadableTableIsExcluded_Success", func(t *testing.T) {
+				testConnectionUnreadableTableExcluded(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run(
+				"Test_TestConnection_WhenExcludedEntryIsUnnormalized_Success",
+				func(t *testing.T) {
+					testConnectionUnreadableTableExcludedWithUnnormalizedEntry(
+						t,
+						endpoint,
+						dbVersion.tag,
+					)
+				},
+			)
+
+			t.Run("Test_TestConnection_WhenUnreadableTableIsOutsideIncludedSchemas_Success", func(t *testing.T) {
+				testConnectionUnreadableTableOutsideIncludedSchemas(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenSchemaUsageIsMissing_ReturnsError", func(t *testing.T) {
+				testConnectionSchemaUsageMissing(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenRoleOwnsEveryTable_Success", func(t *testing.T) {
+				testConnectionRoleOwnsEveryTable(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenNoRelationIsInScope_Success", func(t *testing.T) {
+				testConnectionNoRelationInScope(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenPartitionIsUnreadable_ReturnsError", func(t *testing.T) {
+				testConnectionPartitionUnreadable(t, endpoint, dbVersion.tag)
+			})
+
+			t.Run("Test_TestConnection_WhenUnreadableTableBelongsToExtension_Success", func(t *testing.T) {
+				testConnectionUnreadableTableBelongsToExtension(t, endpoint, dbVersion.tag)
+			})
+
 			t.Run("Test_TestConnection_WhenUserMappingUnreadableAndFlagFalse_ReturnsError", func(t *testing.T) {
 				testConnectionUserMappingUnreadableFlagFalse(t, endpoint, dbVersion.tag)
 			})
@@ -213,11 +273,14 @@ func setupUnreadableUserMappingModel(
 	limitedUsername := fmt.Sprintf("um_limited_%s", suffix)
 	limitedPassword := "limitedpassword123"
 	serverName := fmt.Sprintf("um_test_srv_%s", suffix)
-	tableName := fmt.Sprintf("um_test_table_%s", suffix)
+	// The version's subtests share one server (ADR-0013), so an own schema keeps the dump scope
+	// free of the tables other subtests leave behind in public.
+	schemaName := fmt.Sprintf("um_test_schema_%s", suffix)
 
 	setupStatements := []string{
-		fmt.Sprintf(`CREATE TABLE %s (id SERIAL PRIMARY KEY, data TEXT NOT NULL)`, tableName),
-		fmt.Sprintf(`INSERT INTO %s (data) VALUES ('row1')`, tableName),
+		fmt.Sprintf(`CREATE SCHEMA %s`, schemaName),
+		fmt.Sprintf(`CREATE TABLE %s.um_test_table (id SERIAL PRIMARY KEY, data TEXT NOT NULL)`, schemaName),
+		fmt.Sprintf(`INSERT INTO %s.um_test_table (data) VALUES ('row1')`, schemaName),
 		`CREATE EXTENSION IF NOT EXISTS postgres_fdw`,
 		fmt.Sprintf(
 			`CREATE SERVER %s FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host 'localhost', dbname 'postgres')`,
@@ -229,8 +292,9 @@ func setupUnreadableUserMappingModel(
 		),
 		fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s' LOGIN`, limitedUsername, limitedPassword),
 		fmt.Sprintf(`GRANT CONNECT ON DATABASE "%s" TO "%s"`, container.Database, limitedUsername),
-		fmt.Sprintf(`GRANT USAGE ON SCHEMA public TO "%s"`, limitedUsername),
-		fmt.Sprintf(`GRANT SELECT ON %s TO "%s"`, tableName, limitedUsername),
+		fmt.Sprintf(`GRANT USAGE ON SCHEMA %s TO "%s"`, schemaName, limitedUsername),
+		fmt.Sprintf(`GRANT SELECT ON ALL TABLES IN SCHEMA %s TO "%s"`, schemaName, limitedUsername),
+		fmt.Sprintf(`GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO "%s"`, schemaName, limitedUsername),
 	}
 
 	for _, statement := range setupStatements {
@@ -240,20 +304,21 @@ func setupUnreadableUserMappingModel(
 
 	t.Cleanup(func() {
 		_, _ = container.DB.Exec(fmt.Sprintf(`DROP SERVER IF EXISTS %s CASCADE`, serverName))
-		_, _ = container.DB.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS %s CASCADE`, tableName))
+		_, _ = container.DB.Exec(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schemaName))
 		_, _ = container.DB.Exec(fmt.Sprintf(`DROP OWNED BY "%s"`, limitedUsername))
 		_, _ = container.DB.Exec(fmt.Sprintf(`DROP USER IF EXISTS "%s"`, limitedUsername))
 	})
 
 	return &PostgresqlLogicalDatabase{
-		Version:  tools.GetPostgresqlVersionEnum(version),
-		Host:     container.Host,
-		Port:     container.Port,
-		Username: limitedUsername,
-		Password: limitedPassword,
-		Database: &container.Database,
-		SslMode:  postgresql_shared.PostgresSslModeDisable,
-		CpuCount: 1,
+		Version:        tools.GetPostgresqlVersionEnum(version),
+		Host:           container.Host,
+		Port:           container.Port,
+		Username:       limitedUsername,
+		Password:       limitedPassword,
+		Database:       &container.Database,
+		SslMode:        postgresql_shared.PostgresSslModeDisable,
+		IncludeSchemas: []string{schemaName},
+		CpuCount:       1,
 	}
 }
 
@@ -380,6 +445,12 @@ func testConnectionSufficientPermissions(t *testing.T, endpoint containers.Endpo
 
 	_, err = container.DB.Exec(fmt.Sprintf(
 		`GRANT SELECT ON ALL TABLES IN SCHEMA public TO "%s"`,
+		backupUsername,
+	))
+	assert.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(
+		`GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "%s"`,
 		backupUsername,
 	))
 	assert.NoError(t, err)

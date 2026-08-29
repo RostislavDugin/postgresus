@@ -17,16 +17,17 @@ import (
 )
 
 type mysqlModelVersion struct {
-	name    string
-	version tools.MysqlVersion
-	image   string
+	name     string
+	version  tools.MysqlVersion
+	image    string
+	hasRoles bool
 }
 
 var mysqlModelVersions = []mysqlModelVersion{
-	{"MySQL 5.7", tools.MysqlVersion57, "mysql:5.7"},
-	{"MySQL 8.0", tools.MysqlVersion80, "mysql:8.0"},
-	{"MySQL 8.4", tools.MysqlVersion84, "mysql:8.4"},
-	{"MySQL 9", tools.MysqlVersion9, "mysql:9"},
+	{"MySQL 5.7", tools.MysqlVersion57, "mysql:5.7", false},
+	{"MySQL 8.0", tools.MysqlVersion80, "mysql:8.0", true},
+	{"MySQL 8.4", tools.MysqlVersion84, "mysql:8.4", true},
+	{"MySQL 9", tools.MysqlVersion9, "mysql:9", true},
 }
 
 // Test_MysqlModel_AcrossSupportedVersions boots each MySQL version once and runs every matrix model
@@ -59,6 +60,32 @@ func Test_MysqlModel_AcrossSupportedVersions(t *testing.T) {
 			t.Run("Test_TestConnection_DatabaseWithUnderscoresAndAllPrivileges_Success", func(t *testing.T) {
 				testTestConnectionDatabaseWithUnderscoresAndAllPrivileges(t, endpoint, dbVersion.version)
 			})
+
+			t.Run("Test_TestConnection_WhenTableGrantsCoverEveryVisibleTable_Success", func(t *testing.T) {
+				testTestConnectionTableGrantsCoverEveryVisibleTable(t, endpoint, dbVersion.version)
+			})
+
+			t.Run("Test_TestConnection_WhenVisibleTableLacksSelect_ReturnsError", func(t *testing.T) {
+				testTestConnectionVisibleTableLacksSelect(t, endpoint, dbVersion.version)
+			})
+
+			t.Run("Test_TestConnection_WhenVisibleTableLackingSelectIsExcluded_Success", func(t *testing.T) {
+				testTestConnectionVisibleTableLackingSelectIsExcluded(t, endpoint, dbVersion.version)
+			})
+
+			t.Run("Test_TestConnection_WhenViewLacksShowView_ReturnsErrorUntilShowViewIsGranted", func(t *testing.T) {
+				testTestConnectionViewLacksShowView(t, endpoint, dbVersion.version)
+			})
+
+			if dbVersion.hasRoles {
+				t.Run("Test_TestConnection_WhenBackupPrivilegesComeFromActiveRole_Success", func(t *testing.T) {
+					testTestConnectionBackupPrivilegesFromActiveRole(t, endpoint, dbVersion.version)
+				})
+
+				t.Run("Test_TestConnection_WhenRoleIsGrantedButNotActivated_ReturnsError", func(t *testing.T) {
+					testTestConnectionRoleGrantedButNotActivated(t, endpoint, dbVersion.version)
+				})
+			}
 		})
 	}
 }
@@ -93,8 +120,10 @@ func testTestConnectionInsufficientPermissions(
 	))
 	assert.NoError(t, err)
 
+	// INSERT makes the schema and its tables visible without making them readable, which is what
+	// the dump tool aborts on.
 	_, err = container.DB.Exec(fmt.Sprintf(
-		"GRANT SELECT ON `%s`.* TO '%s'@'%%'",
+		"GRANT INSERT ON `%s`.* TO '%s'@'%%'",
 		container.Database,
 		limitedUsername,
 	))
@@ -122,8 +151,10 @@ func testTestConnectionInsufficientPermissions(
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	err = mysqlModel.TestConnection(logger, nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "insufficient permissions")
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "insufficient permissions")
+		assert.Contains(t, err.Error(), "SELECT")
+	}
 }
 
 func testTestConnectionSufficientPermissions(
@@ -159,12 +190,6 @@ func testTestConnectionSufficientPermissions(
 	_, err = container.DB.Exec(fmt.Sprintf(
 		"GRANT SELECT, SHOW VIEW, LOCK TABLES, TRIGGER, EVENT ON `%s`.* TO '%s'@'%%'",
 		container.Database,
-		backupUsername,
-	))
-	assert.NoError(t, err)
-
-	_, err = container.DB.Exec(fmt.Sprintf(
-		"GRANT PROCESS ON *.* TO '%s'@'%%'",
 		backupUsername,
 	))
 	assert.NoError(t, err)
@@ -777,72 +802,6 @@ func Test_GetRawDbSizeMb_Mysql_ReturnsPositiveSize(t *testing.T) {
 	sizeMB, err := mysqlModel.GetRawDbSizeMb(t.Context(), logger, nil)
 	assert.NoError(t, err)
 	assert.Greater(t, sizeMB, 0.0, "raw db size should be > 0 after inserting data")
-}
-
-func Test_ParseGrantPrivileges_ReturnsExpectedTokens(t *testing.T) {
-	cases := []struct {
-		name  string
-		grant string
-		want  []string
-	}{
-		{
-			"issue-568 SHOW CREATE ROUTINE not split into CREATE",
-			"GRANT SELECT, SHOW VIEW, SHOW CREATE ROUTINE ON *.* TO 'backup'@'%'",
-			[]string{"SELECT", "SHOW VIEW", "SHOW CREATE ROUTINE"},
-		},
-		{
-			"standard write privs",
-			"GRANT SELECT, INSERT, UPDATE ON *.* TO 'x'@'%'",
-			[]string{"SELECT", "INSERT", "UPDATE"},
-		},
-		{
-			"ALL PRIVILEGES",
-			"GRANT ALL PRIVILEGES ON db.* TO 'x'@'%'",
-			[]string{"ALL PRIVILEGES"},
-		},
-		{
-			"USAGE-only line",
-			"GRANT USAGE ON *.* TO 'x'@'%'",
-			[]string{"USAGE"},
-		},
-		{
-			"column-level qualifiers stripped",
-			"GRANT SELECT (col1, col2), UPDATE (col3) ON db.t TO 'x'@'%'",
-			[]string{"SELECT", "UPDATE"},
-		},
-		{
-			"role grant (no ON clause) returns nil",
-			"GRANT my_role TO 'u'@'%'",
-			nil,
-		},
-		{
-			"PROXY grant",
-			"GRANT PROXY ON 'other'@'%' TO 'u'@'%'",
-			[]string{"PROXY"},
-		},
-		{
-			"WITH GRANT OPTION trailer ignored",
-			"GRANT SELECT, INSERT ON *.* TO 'x'@'%' WITH GRANT OPTION",
-			[]string{"SELECT", "INSERT"},
-		},
-		{
-			"mixed case GRANT/ON",
-			"grant Select, Update on *.* to 'x'@'%'",
-			[]string{"SELECT", "UPDATE"},
-		},
-		{
-			"column literally named ON inside parens",
-			"GRANT SELECT (on) ON db.t TO 'x'@'%'",
-			[]string{"SELECT"},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := parseGrantPrivileges(tc.grant)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func Test_HideSensitiveData_WhenCalled_ClearsPasswordAndPreservesOtherFields(t *testing.T) {

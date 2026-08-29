@@ -56,6 +56,20 @@ func Test_MongodbModel_AcrossSupportedVersions(t *testing.T) {
 			t.Run("Test_CreateReadOnlyUser_UserCanReadButNotWrite", func(t *testing.T) {
 				testCreateReadOnlyUserCanReadButNotWrite(t, endpoint, dbVersion.version)
 			})
+
+			t.Run(
+				"Test_TestConnection_WhenFindIsGrantedOnSingleCollection_ReturnsErrorUntilCollectionIsExcluded",
+				func(t *testing.T) {
+					testTestConnectionFindGrantedOnSingleCollection(t, endpoint, dbVersion.version)
+				},
+			)
+
+			t.Run(
+				"Test_TestConnection_WhenClusterRoleNameLivesOnAnotherDatabase_ReturnsError",
+				func(t *testing.T) {
+					testTestConnectionClusterRoleNameOnAnotherDatabase(t, endpoint, dbVersion.version)
+				},
+			)
 		})
 	}
 }
