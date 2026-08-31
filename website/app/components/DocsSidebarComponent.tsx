@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { getLocalizedHref, isTranslatedPath, type Locale } from "@/app/i18n";
 
 interface NavItem {
   title: string;
@@ -84,8 +85,144 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function DocsSidebarComponent() {
+// Keyed by the English titles used in navItems.
+const SIDEBAR_TITLES: Record<Locale, Record<string, string>> = {
+  ru: {
+    Installation: "Установка",
+    "Restore verification": "Проверка восстановления",
+    Storages: "Хранилища",
+    Notifiers: "Уведомления",
+    "Access management": "Управление доступом",
+    "Reset password": "Сброс пароля",
+    Security: "Безопасность",
+    FAQ: "FAQ",
+    "How to backup localhost": "Как бекапить localhost",
+    "How to backup Supabase": "Как бекапить Supabase",
+    Contribute: "Участие в разработке",
+    "How to add storage": "Как добавить хранилище",
+    "How to add notifier": "Как добавить уведомления",
+    Comparisons: "Сравнения",
+    "pg_dump alternative": "Альтернатива pg_dump",
+    "Manual recovery from backup without Databasus":
+      "Ручное восстановление из бекапа без Databasus",
+    "Advanced config": "Расширенная настройка",
+  },
+  es: {
+    Installation: "Instalación",
+    "Restore verification": "Verificación de restauración",
+    Storages: "Almacenamientos",
+    Notifiers: "Notificadores",
+    "Access management": "Gestión de acceso",
+    "Reset password": "Restablecer contraseña",
+    Security: "Seguridad",
+    FAQ: "Preguntas frecuentes",
+    "How to backup localhost": "Cómo respaldar localhost",
+    "How to backup Supabase": "Cómo respaldar Supabase",
+    Contribute: "Contribuir",
+    "How to add storage": "Cómo añadir un almacenamiento",
+    "How to add notifier": "Cómo añadir un notificador",
+    Comparisons: "Comparaciones",
+    "pg_dump alternative": "Alternativa a pg_dump",
+    "Manual recovery from backup without Databasus":
+      "Recuperación manual desde un respaldo sin Databasus",
+    "Advanced config": "Configuración avanzada",
+  },
+  pt: {
+    Installation: "Instalação",
+    "Restore verification": "Verificação de restauração",
+    Storages: "Armazenamentos",
+    Notifiers: "Notificadores",
+    "Access management": "Gestão de acesso",
+    "Reset password": "Redefinir senha",
+    Security: "Segurança",
+    FAQ: "Perguntas frequentes",
+    "How to backup localhost": "Como fazer backup do localhost",
+    "How to backup Supabase": "Como fazer backup do Supabase",
+    Contribute: "Contribuir",
+    "How to add storage": "Como adicionar um armazenamento",
+    "How to add notifier": "Como adicionar um notificador",
+    Comparisons: "Comparações",
+    "pg_dump alternative": "Alternativa ao pg_dump",
+    "Manual recovery from backup without Databasus":
+      "Recuperação manual do backup sem Databasus",
+    "Advanced config": "Configuração avançada",
+  },
+  zh: {
+    Installation: "安装",
+    "Restore verification": "恢复验证",
+    Storages: "存储",
+    Notifiers: "通知",
+    "Access management": "访问管理",
+    "Reset password": "重置密码",
+    Security: "安全",
+    FAQ: "常见问题",
+    "How to backup localhost": "如何备份 localhost",
+    "How to backup Supabase": "如何备份 Supabase",
+    Contribute: "参与贡献",
+    "How to add storage": "如何添加存储",
+    "How to add notifier": "如何添加通知器",
+    Comparisons: "对比",
+    "pg_dump alternative": "pg_dump 替代方案",
+    "Manual recovery from backup without Databasus":
+      "不使用 Databasus 手动恢复备份",
+    "Advanced config": "高级配置",
+  },
+  fr: {
+    Installation: "Installation",
+    "Restore verification": "Vérification de restauration",
+    Storages: "Stockages",
+    Notifiers: "Notificateurs",
+    "Access management": "Gestion des accès",
+    "Reset password": "Réinitialiser le mot de passe",
+    Security: "Sécurité",
+    FAQ: "FAQ",
+    "How to backup localhost": "Sauvegarder localhost",
+    "How to backup Supabase": "Sauvegarder Supabase",
+    Contribute: "Contribuer",
+    "How to add storage": "Ajouter un stockage",
+    "How to add notifier": "Ajouter un notificateur",
+    Comparisons: "Comparaisons",
+    "pg_dump alternative": "Alternative à pg_dump",
+    "Manual recovery from backup without Databasus":
+      "Restauration manuelle d'une sauvegarde sans Databasus",
+    "Advanced config": "Configuration avancée",
+  },
+};
+
+const NAVIGATION_HEADINGS: Record<Locale | "en", string> = {
+  en: "Navigation",
+  ru: "Навигация",
+  es: "Navegación",
+  pt: "Navegação",
+  zh: "导航",
+  fr: "Navigation",
+};
+
+export default function DocsSidebarComponent({
+  lang = "en",
+}: {
+  lang?: Locale | "en";
+}) {
   const pathname = usePathname();
+
+  const localizeHref = (href: string) => {
+    if (lang === "en") return href;
+    const path = href.replace(/^\//, "");
+    // Untranslated pages (e.g. Contribute) keep their English URLs in every locale.
+    return isTranslatedPath(path) ? getLocalizedHref(lang, path) : href;
+  };
+  const localizeTitle = (title: string) =>
+    lang === "en" ? title : (SIDEBAR_TITLES[lang][title] ?? title);
+  const localizedNavItems = navItems.map((item) => ({
+    ...item,
+    title: localizeTitle(item.title),
+    href: localizeHref(item.href),
+    children: item.children?.map((child) => ({
+      ...child,
+      title: localizeTitle(child.title),
+      href: localizeHref(child.href),
+    })),
+  }));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [manuallyToggledSections, setManuallyToggledSections] = useState<
     Set<string>
@@ -126,7 +263,7 @@ export default function DocsSidebarComponent() {
       return true;
     }
     // Auto-expand if a child page is active
-    const item = navItems.find((i) => i.href === href);
+    const item = localizedNavItems.find((i) => i.href === href);
     if (item && isParentActive(item)) {
       return true;
     }
@@ -163,7 +300,7 @@ export default function DocsSidebarComponent() {
 
   const renderSidebarContent = () => (
     <nav className="space-y-0.5">
-      {navItems.map((item) => (
+      {localizedNavItems.map((item) => (
         <div key={item.href}>
           <div className="flex items-center">
             <a
@@ -304,7 +441,9 @@ export default function DocsSidebarComponent() {
         }`}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Navigation</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {NAVIGATION_HEADINGS[lang]}
+          </h2>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
             className="rounded-lg p-2 text-gray-400 hover:bg-[#1f2937]"

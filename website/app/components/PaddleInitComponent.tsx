@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { PADDLE_CLIENT_TOKEN, PADDLE_SANDBOX } from "../sponsorship/tiers";
+import { PADDLE_CLIENT_TOKEN, PADDLE_SANDBOX } from "@/app/(en)/sponsorship/tiers";
 
 // Minimal shape of the Paddle Billing v2 global we rely on.
 interface PaddleApi {
