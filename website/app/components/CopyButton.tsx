@@ -1,14 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import type { Locale } from "@/app/i18n";
+import { COPY_LABELS } from "./copyLabels";
 
 interface CopyButtonProps {
   text: string;
   className?: string;
+  lang?: Locale | "en";
 }
 
-export function CopyButton({ text, className = "" }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+export function CopyButton({
+  text,
+  className = "",
+  lang = "en",
+}: CopyButtonProps) {
+  const [isCopied, setIsCopied] = useState(false);
 
   const copyToClipboard = () => {
     if (!navigator.clipboard) {
@@ -40,9 +47,9 @@ export function CopyButton({ text, className = "" }: CopyButtonProps) {
   };
 
   const showCopyFeedback = () => {
-    setCopied(true);
+    setIsCopied(true);
     setTimeout(() => {
-      setCopied(false);
+      setIsCopied(false);
     }, 2000);
   };
 
@@ -50,10 +57,10 @@ export function CopyButton({ text, className = "" }: CopyButtonProps) {
     <button
       onClick={copyToClipboard}
       className={`rounded px-2 py-1 text-xs text-white transition-colors ${
-        copied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
+        isCopied ? "bg-green-500" : "bg-blue-600 hover:bg-blue-700"
       } ${className}`}
     >
-      {copied ? "Copied!" : "Copy"}
+      {isCopied ? COPY_LABELS[lang].copied : COPY_LABELS[lang].copy}
     </button>
   );
 }

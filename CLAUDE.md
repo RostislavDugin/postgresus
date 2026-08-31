@@ -8,6 +8,8 @@ Per-folder rules live next to the code they govern:
 - [`backend/CLAUDE.md`](backend/CLAUDE.md) — Go + Gin + GORM + PostgreSQL backend (controllers, migrations, CRUD, DI, testing, logging)
 - [`agent/verification/CLAUDE.md`](agent/verification/CLAUDE.md) — Go verification agent CLI (self-update + capacity heartbeat; restore logic deferred)
 - [`frontend/CLAUDE.md`](frontend/CLAUDE.md) — React 19 + TypeScript + Vite + Ant Design + Tailwind
+- [`website/CLAUDE.md`](website/CLAUDE.md) — Next.js marketing site and its 6-language translation rules
+- [`assets/readme/CLAUDE.md`](assets/readme/CLAUDE.md) — translated copies of the root `README.md`
 
 This root file holds the engineering philosophy that applies everywhere.
 
@@ -24,6 +26,8 @@ Running the backend suite host-native is supported on Fedora via `make test-fedo
 ## Language in code
 
 **English only in code, comments, identifiers, log messages, API strings, test assertions, and commit messages.** No other language inside `backend/`, `agent/`, or `frontend/src/` — even for user-facing fallback copy or error messages.
+
+Translated end-user content is allowed in three places and nowhere else: the website page copies (`website/app/[lang]/*/content/<locale>.tsx`), the README translations (`assets/readme/README.<locale>.md`), and the six language-switcher labels in the root `README.md`. Even there, file names, identifiers and commit messages stay English.
 
 ---
 
@@ -53,7 +57,7 @@ Reread the diff with fresh eyes and **list** (don't silently apply) refactor sug
 
 ### Mandatory compliance review
 
-Every non-trivial change is audited twice by the [`claude-md-reviewer`](.claude/agents/claude-md-reviewer.md) subagent — against this document **and** the module doc for each area it touches (`backend/CLAUDE.md`, `agent/verification/CLAUDE.md`, `frontend/CLAUDE.md`). The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
+Every non-trivial change is audited twice by the [`claude-md-reviewer`](.claude/agents/claude-md-reviewer.md) subagent — against this document **and** the module doc for each area it touches (`backend/CLAUDE.md`, `agent/verification/CLAUDE.md`, `frontend/CLAUDE.md`, `website/CLAUDE.md`, `assets/readme/CLAUDE.md`). The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
 
 1. **After planning, before writing code** — it checks the proposed names, file placement, and any planned backward-compat shims while they're still cheap to change.
 2. **After implementing, before finishing the turn** — it checks the working-tree diff and runs the linter for each directory the diff touches.
@@ -152,7 +156,7 @@ Databasus handles sensitive data, so security is a layered defence. CodeQL, Code
 - Keep Dockerfiles free of secrets, floating base-image tags and unjustified root. If root-at-start is required (PUID/PGID remap, volume chown, initdb), drop privileges with `gosu` before `exec`-ing the app.
 - Never log secrets, tokens or credentials. Redact at the logger layer, not at call sites.
 
-The README's `🛡️ Security & reliability engineering` section is the public-facing version of these practices — keep both consistent if substance changes.
+The README's `🛡️ Security & reliability engineering` section is the public-facing version of these practices — keep both consistent if substance changes. That section, like the rest of `README.md`, exists in 6 languages: a substantive edit lands in the English file and in all five `assets/readme/README.<locale>.md` copies.
 
 ## Commiting
 

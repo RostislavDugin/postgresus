@@ -17,6 +17,15 @@
   [![Open Source](https://img.shields.io/badge/open%20source-❤️-red)](https://github.com/databasus/databasus)
 
   <p>
+    <b>English</b> •
+    <a href="assets/readme/README.ru.md">Русский</a> •
+    <a href="assets/readme/README.es.md">Español</a> •
+    <a href="assets/readme/README.pt.md">Português</a> •
+    <a href="assets/readme/README.zh.md">中文</a> •
+    <a href="assets/readme/README.fr.md">Français</a>
+  </p>
+
+  <p>
     <a href="#-features">Features</a> •
     <a href="#-installation">Installation</a> •
     <a href="#-usage">Usage</a> •
@@ -277,7 +286,7 @@ Container images are scanned with Trivy on every build. A separate Trivy pass on
 
 Critical paths are covered by both unit and integration tests, run against real database containers for every supported engine and major version. Restore is the path that matters most for a backup tool, so we test it explicitly: every PR runs full backup-then-restore cycles against those same real containers, verifying that backups can actually be restored end-to-end, not just written successfully. The rest of the CI/CD pipeline runs lint, type-check, the full test suite, image smoke tests and multi-architecture builds on every PR. A release only ships if all of it passes.
 
-Found a vulnerability? Report it via the GitHub Security tab. See [SECURITY.md](https://github.com/databasus/databasus?tab=security-ov-file#readme). Security reports are the highest-priority work queue. For runtime application security (AES-256-GCM at rest, zero-trust storage, encrypted secrets, read-only DB user by default) see [Enterprise-grade security](#-enterprise-grade-security) in the Features section above.
+Found a vulnerability? Report it via the GitHub Security tab. See [SECURITY.md](https://github.com/databasus/databasus?tab=security-ov-file#readme). Security reports are the highest-priority work queue. For runtime application security (AES-256-GCM at rest, zero-trust storage, encrypted secrets, read-only DB user by default) see [Enterprise-grade security](#-enterprise-grade-security-docs) in the Features section above.
 
 ---
 

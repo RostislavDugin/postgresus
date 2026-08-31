@@ -1,0 +1,150 @@
+import type { Metadata } from "next";
+import { OG_LOCALES, getLanguageAlternates, getLocalizedUrl } from "@/app/i18n";
+import DocsNavbarComponent from "@/app/components/DocsNavbarComponent";
+import DocsSidebarComponent from "@/app/components/DocsSidebarComponent";
+import DocTableOfContentComponent from "@/app/components/DocTableOfContentComponent";
+
+export const metadata: Metadata = {
+  title: "Armazenamentos - Documentação do Databasus",
+  description:
+    "Lista de destinos de armazenamento suportados para backups do Databasus, incluindo armazenamento local, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone e Dropbox.",
+  keywords: [
+    "armazenamentos Databasus",
+    "armazenamento de backups",
+    "armazenamento S3",
+    "backup no Google Drive",
+    "Cloudflare R2",
+    "backup em NAS",
+    "backup no Dropbox",
+    "armazenamento local",
+    "Azure Blob Storage",
+    "backup por FTP",
+    "backup por SFTP",
+    "backup com rclone",
+  ],
+  openGraph: {
+    title: "Armazenamentos - Documentação do Databasus",
+    description:
+      "Lista de destinos de armazenamento suportados para backups do Databasus, incluindo armazenamento local, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone e Dropbox.",
+    type: "article",
+    url: getLocalizedUrl("pt", "storages"),
+    locale: OG_LOCALES.pt,
+  },
+  twitter: {
+    card: "summary",
+    title: "Armazenamentos - Documentação do Databasus",
+    description:
+      "Lista de destinos de armazenamento suportados para backups do Databasus, incluindo armazenamento local, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone e Dropbox.",
+  },
+  alternates: {
+    canonical: getLocalizedUrl("pt", "storages"),
+    languages: getLanguageAlternates("storages"),
+  },
+  robots: "index, follow",
+};
+
+export default function StoragesPage() {
+  return (
+    <>
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "TechArticle",
+            headline: "Armazenamentos - Documentação do Databasus",
+            description:
+              "Lista de destinos de armazenamento suportados para backups do Databasus, incluindo armazenamento local, S3, Cloudflare R2, Google Drive, Azure Blob Storage, NAS, FTP, SFTP, rclone e Dropbox.",
+            author: {
+              "@type": "Organization",
+              name: "Databasus",
+            },
+            publisher: {
+              "@type": "Organization",
+              name: "Databasus",
+              logo: {
+                "@type": "ImageObject",
+                url: "https://databasus.com/logo.svg",
+              },
+            },
+          }),
+        }}
+      />
+
+      <DocsNavbarComponent lang="pt" />
+
+      <div className="flex min-h-screen bg-[#0F1115]">
+        {/* Sidebar */}
+        <DocsSidebarComponent lang="pt" />
+
+        {/* Main Content */}
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+          <div className="mx-auto max-w-4xl">
+            <article className="prose prose-blue max-w-none">
+              <h1 id="storages">Armazenamentos</h1>
+
+              <p className="text-lg text-gray-400">
+                O Databasus suporta vários destinos de armazenamento para os
+                seus backups PostgreSQL. Escolha onde salvar as suas cópias de
+                segurança de acordo com a sua infraestrutura e requisitos.
+              </p>
+
+              <h2 id="supported-storages">Armazenamentos suportados</h2>
+
+              <ul>
+                <li>
+                  <strong>Armazenamento local</strong> - Salve os backups
+                  diretamente no seu servidor ou VPS
+                </li>
+                <li>
+                  <strong>S3</strong> - Amazon S3 e serviços de armazenamento
+                  compatíveis com S3
+                </li>
+                <li>
+                  <a
+                    href="/pt/storages/cloudflare-r2"
+                    className="font-semibold! text-blue-600 hover:text-blue-800"
+                  >
+                    Cloudflare R2
+                  </a>{" "}
+                  - Armazenamento de objetos compatível com S3 da Cloudflare
+                </li>
+                <li>
+                  <a
+                    href="/pt/storages/google-drive"
+                    className="font-semibold! text-blue-600 hover:text-blue-800"
+                  >
+                    Google Drive
+                  </a>{" "}
+                  - Armazenamento na nuvem da Google
+                </li>
+                <li>
+                  <strong>Azure Blob Storage</strong> - Armazenamento na nuvem
+                  do Microsoft Azure
+                </li>
+                <li>
+                  <strong>NAS</strong> - Dispositivos de armazenamento
+                  conectados à rede
+                </li>
+                <li>
+                  <strong>FTP</strong> - Servidores File Transfer Protocol
+                </li>
+                <li>
+                  <strong>SFTP</strong> - Servidores SSH File Transfer Protocol
+                </li>
+                <li>
+                  <strong>rclone</strong> - Conecte-se a mais de 70 provedores
+                  de armazenamento na nuvem via rclone
+                </li>
+              </ul>
+            </article>
+          </div>
+        </main>
+
+        {/* Table of Contents */}
+        <DocTableOfContentComponent />
+      </div>
+    </>
+  );
+}
