@@ -1,0 +1,56 @@
+schema: spec-driven
+
+context: |
+  Databasus - PostgreSQL/MySQL/MariaDB/MongoDB backup and restore platform,
+  self-hosted, Docker-deployed.
+
+  Stack: Go + Gin + GORM + PostgreSQL (backend/), Go CLI (agent/verification/),
+  React 19 + TypeScript + Vite + Ant Design 5 + Tailwind (frontend/),
+  Next.js 16 static export (website/).
+
+  Per-folder rules live in backend/AGENTS.md, agent/verification/AGENTS.md,
+  frontend/AGENTS.md, website/AGENTS.md; the root AGENTS.md holds the
+  engineering philosophy. A change under a folder answers to both.
+
+  Conventions that shape planning:
+  - English only in code, comments, identifiers, API strings and commit
+    messages. AGENTS.md enumerates every place translated end-user content
+    is allowed; a change that needs another one amends that rule explicitly
+    and with the user's approval, rather than assuming it.
+  - No unrequested backward compatibility. A change that breaks callers,
+    schemas, configs or APIs states the break; approved breaks delete the
+    old code rather than leaving a shim.
+  - No issue numbers in production code. The exception is a test pinning a
+    specific issue's behavior.
+  - Names state intent. Getters take Get, predicates read as questions,
+    booleans take is/can/has/should.
+  - Work happens inside the repo Dev Container. Commands are make (backend,
+    agent) and pnpm (frontend).
+  - Every non-trivial change is audited by the claude-md-reviewer subagent
+    twice: after planning and after implementation.
+
+rules:
+  proposal:
+    - Name the module AGENTS.md files the change answers to.
+    - Include an explicit out-of-scope list; scope creep is the main failure mode here.
+    - Mark anything that breaks existing callers, schemas, configs or APIs as BREAKING, and say what gets deleted rather than kept as a shim.
+  specs:
+    - State behavior a user or a downstream system can observe. No Go types, React components, file paths or library names.
+    - Security-relevant behavior gets its own requirement, not a footnote.
+  design:
+    - For each decision, name the alternatives rejected and why. A decision with no alternatives listed is a description, not a decision.
+    - Ground claims about current state in file:line references.
+    - Say which module AGENTS.md rules the approach is constrained by.
+  tasks:
+    - Each task's verification is a real command from this repo (make lint, make test, make test-fedora, pnpm lint, pnpm test, pnpm build) or an observable behavior, never "should work".
+    - Order by dependency, smallest slice first when the work is repetitive.
+
+operations:
+  apply:
+    guidance:
+      - Run the linter for every directory the diff touches before finishing.
+      - Run claude-md-reviewer after planning and again before finishing the turn; resolve every CHANGES REQUIRED finding.
+      - Never commit or push without explicit approval. No AI attribution trailers in commit messages.
+  archive:
+    guidance:
+      - Confirm the module AGENTS.md files were updated if the change introduced a convention.
