@@ -20,6 +20,11 @@ import (
 	"databasus-backend/internal/util/logger"
 )
 
+const (
+	firstRecordOffset = physical_testing.FirstRecordOffset
+	fullLSNSpan       = physical_testing.FullLSNSpan
+)
+
 // Test_RunStartupSlotCleanup_DropsOrphanSlot is the end-to-end proof of the
 // "Databasus crashed mid-backup" path: the source keeps the per-backup slot and
 // the in-flight claim survives the crash. In single-instance mode the backup that
@@ -259,6 +264,47 @@ func Test_CleanOrphanWalForDatabase_WhenWalCoveredByChain_KeepsIt(t *testing.T) 
 	cleaner.cleanOrphanWalForDatabase(context.Background(), logger.GetLogger(), prereqs.DB.ID)
 
 	assert.True(t, walExists(t, covered.ID), "chain-covered WAL must never be caught by the orphan pass")
+}
+
+// A FULL taken right after a segment switch reports a start_lsn at
+// firstRecordOffset. The segment's own bounds come from its filename and are
+// file-aligned, so it starts below the FULL and must still be kept: it carries the
+// FULL's own start and stop positions.
+func Test_CleanOrphanWalForDatabase_WhenFullStartsMidSegment_KeepsBoundarySegment(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	physical_testing.CreateTestFullBackup(t, physical_testing.NewTestCompletedFullBackup(
+		prereqs.DB.ID, prereqs.Storage.ID, 1,
+		testLSN(1)+firstRecordOffset, testLSN(1)+firstRecordOffset+fullLSNSpan))
+
+	boundarySegment := physical_testing.CreateTestWalSegment(t, physical_testing.NewTestWalSegment(
+		prereqs.DB.ID, prereqs.Storage.ID, 1, "000000010000000000000001", testLSN(1), testLSN(2)))
+
+	cleaner := CreateTestPhysicalCleaner()
+	cleaner.cleanOrphanWalForDatabase(t.Context(), logger.GetLogger(), prereqs.DB.ID)
+
+	assert.True(t, walExists(t, boundarySegment.ID),
+		"the segment holding the FULL's start_lsn and stop_lsn must survive the orphan sweep")
+}
+
+// The counterpart of the boundary case: a segment that ends at or before the
+// earliest COMPLETED FULL's start_lsn holds nothing any retained backup replays,
+// so the sweep must still reclaim it.
+func Test_CleanOrphanWalForDatabase_WhenWalEndsBeforeEarliestFull_DeletesOrphan(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	physical_testing.CreateTestFullBackup(t, physical_testing.NewTestCompletedFullBackup(
+		prereqs.DB.ID, prereqs.Storage.ID, 1,
+		testLSN(4)+firstRecordOffset, testLSN(4)+firstRecordOffset+fullLSNSpan))
+
+	staleSegment := physical_testing.CreateTestWalSegment(t, physical_testing.NewTestWalSegment(
+		prereqs.DB.ID, prereqs.Storage.ID, 1, "000000010000000000000001", testLSN(1), testLSN(2)))
+
+	cleaner := CreateTestPhysicalCleaner()
+	cleaner.cleanOrphanWalForDatabase(t.Context(), logger.GetLogger(), prereqs.DB.ID)
+
+	assert.False(t, walExists(t, staleSegment.ID),
+		"WAL that ends below the earliest retained FULL's start is still reclaimable")
 }
 
 func Test_ReapAbandonedWalClaims_WhenClaimOlderThanGrace_DeletesIt(t *testing.T) {

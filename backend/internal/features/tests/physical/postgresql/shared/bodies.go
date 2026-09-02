@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
@@ -300,6 +301,61 @@ func RunWhenWalGapBeforeTargetTokenRequestReturns422(t *testing.T, version, imag
 	require.NoError(t, json.Unmarshal(response.Body, &body))
 	assert.Contains(t, body["error"], "wal gap",
 		"the gap must be reported so the user never burns a token on an unreachable target")
+}
+
+// A FULL's start_lsn sits inside the segment that carries it, so that segment's file-aligned start
+// is lower than the FULL's and the retention sweep must still keep it: it holds the bytes replay
+// begins from. No incremental is taken on purpose. An incremental moves the replay window past the
+// FULL's own boundary segment and hides whether the sweep kept it.
+func RunWhenOrphanSweepRunsAfterFullTargetPastFullStaysRestorable(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("streams WAL and runs the retention sweep against a real cluster; skipped in -short")
+	}
+
+	router, fixture := setupReplicationOnlyFixture(
+		t, version, image, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+
+	sourceConn := openSourceTestDBConn(t, fixture)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+	defer cancel()
+
+	createMarkerTable(t, ctx, sourceConn)
+	insertMarker(t, ctx, sourceConn, "before-full", "row-in-base-backup")
+
+	enablePhysicalBackupsViaAPI(t, router, fixture, true)
+
+	// Wait for the slot before writing anything: WAL produced before the supervisor claims the
+	// database is never streamed, and that hole at the head of the window would break the restore
+	// on its own, hiding whatever the sweep does.
+	waitForSlotPresent(t, postgresql_executor.OpenAdminConn(t, fixture),
+		fixture.DB.PostgresqlPhysical.ReplicationSlotName, 60*time.Second)
+
+	chain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
+
+	insertMarker(t, ctx, sourceConn, "after-full", "row-replayed-up-to-target")
+	streamPostFullSegments(t, ctx, router, sourceConn, fixture, chainTipStopLSN(t, chain), 2, 90*time.Second)
+
+	// A margin wider than the whole-second recovery_target_time truncation on either side keeps the
+	// target unambiguously inside the streamed range.
+	time.Sleep(2 * time.Second)
+	targetTime := time.Now().UTC()
+	time.Sleep(2 * time.Second)
+
+	insertMarker(t, ctx, sourceConn, "after-target", "row-after-target")
+
+	// Natural WAL rather than a forced switch: the segment covering the target has to fill and
+	// archive before the resolver counts it, and a switch would leave it partial.
+	_, err := postgresql_executor.GenerateWalActivity(ctx, sourceConn, 64*1024*1024)
+	require.NoError(t, err)
+
+	waitForTargetTimeReplayable(t, fixture.DB.ID, targetTime, 90*time.Second)
+
+	backuping_physical.RunOrphanWalCleanupForTest(t, fixture.DB.ID)
+
+	token := requestRestoreTokenViaAPI(t, router, fixture, &targetTime)
+	assert.NotEmpty(t, token,
+		"a target covered by archived WAL must stay restorable after the orphan sweep has run")
 }
 
 // RunWalSlotAppearsWhenBackupingStartsRemovedWhenDatabaseDeleted proves the WAL replication-slot

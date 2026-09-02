@@ -27,6 +27,10 @@ func Test_PhysicalRestore_WhenWalGapBeforeTarget_TokenRequestReturns422(t *testi
 	physicaltesting.RunWhenWalGapBeforeTargetTokenRequestReturns422(t, pgVersion, pgImage)
 }
 
+func Test_PhysicalRestore_WhenOrphanSweepRunsAfterFull_TargetPastFullStaysRestorable(t *testing.T) {
+	physicaltesting.RunWhenOrphanSweepRunsAfterFullTargetPastFullStaysRestorable(t, pgVersion, pgImage)
+}
+
 func Test_PhysicalWalStream_OnTimelineSwitch_CatalogsHistoryOnParentDatabaseID(t *testing.T) {
 	physicaltesting.RunWalStreamCatalogsHistoryOnTimelineSwitch(t, pgVersion, pgImage)
 }

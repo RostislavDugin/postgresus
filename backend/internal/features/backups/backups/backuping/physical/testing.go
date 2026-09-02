@@ -211,3 +211,15 @@ func StartPhysicalWalStreamSupervisorForTest(t *testing.T) context.CancelFunc {
 
 	return nil
 }
+
+// RunOrphanWalCleanupForTest sweeps one database, not every enabled one: the test
+// suite shares a metadata database across parallel packages, so a global pass
+// would reclaim WAL belonging to another package's fixtures. Run cannot serve
+// either — it is an infinite ticker that panics when called a second time in a
+// process, and waiting out its tick would tie the assertion to timing rather than
+// to sequence.
+func RunOrphanWalCleanupForTest(t *testing.T, databaseID uuid.UUID) {
+	t.Helper()
+
+	CreateTestPhysicalCleaner().cleanOrphanWalForDatabase(t.Context(), logger.GetLogger(), databaseID)
+}

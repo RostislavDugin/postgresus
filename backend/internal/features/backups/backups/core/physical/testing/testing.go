@@ -13,6 +13,14 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
+// Past the segment's long page header. A FULL's start_lsn carries this offset,
+// while a segment's own bounds are file-aligned.
+const FirstRecordOffset = 0x28
+
+// Wide enough to keep a test FULL's start_lsn and stop_lsn apart, narrow enough
+// that both stay inside the segment holding the start.
+const FullLSNSpan = 0x100
+
 func NewTestCompletedFullBackup(
 	databaseID, storageID uuid.UUID,
 	timelineID int,

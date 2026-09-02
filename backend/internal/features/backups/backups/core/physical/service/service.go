@@ -580,8 +580,11 @@ func (s *PhysicalBackupService) cascadeDelete(
 	return summary, nil
 }
 
-// deleteWalInSpanBudgeted removes WAL rows in the span oldest-LSN first, batched,
-// stopping when the byte budget is reached or the span is drained. Storage
+// deleteWalInSpanBudgeted removes only WAL rows lying fully inside the span. The
+// upper bound is the segment's end_lsn, not its start_lsn: a span ends at the
+// next chain's start_lsn, which sits inside a segment, and that straddling
+// segment carries the bytes the next chain replays from. Bounding on start_lsn
+// would delete it along with the chain being pruned. Storage
 // deletes are fail-closed: a transient DeleteFile error aborts the batch (the
 // rows survive and retry) rather than orphaning an object. lockRows takes a
 // row-level FOR UPDATE on each batch (orphan path, no anchor FULL to serialize
@@ -601,7 +604,7 @@ func (s *PhysicalBackupService) deleteWalInSpanBudgeted(
 
 		batchQuery := tx.
 			Where(
-				"database_id = ? AND timeline_id = ? AND start_lsn >= ?::pg_lsn AND start_lsn < ?::pg_lsn",
+				"database_id = ? AND timeline_id = ? AND start_lsn >= ?::pg_lsn AND end_lsn <= ?::pg_lsn",
 				databaseID, timelineID, span.Start.String(), span.End.String(),
 			).
 			Order("start_lsn ASC").

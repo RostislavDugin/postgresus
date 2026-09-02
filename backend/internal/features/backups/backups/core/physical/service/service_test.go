@@ -28,6 +28,11 @@ import (
 
 const segmentMB = 16
 
+const (
+	firstRecordOffset = physical_testing.FirstRecordOffset
+	fullLSNSpan       = physical_testing.FullLSNSpan
+)
+
 type serviceTestPrereqs struct {
 	storage  *storages.Storage
 	database *databases.Database
@@ -170,6 +175,43 @@ func Test_DeleteFull_WithDependents_CascadesEntireChainAndObjects(t *testing.T) 
 
 	survivingSuccessor, _ := physical_repositories.GetFullBackupRepository().FindByID(successor.ID)
 	assert.NotNil(t, survivingSuccessor, "successor chain on TL2 must be untouched")
+}
+
+// Pruning a chain deletes the WAL it anchored, up to where the next chain begins.
+// The next FULL starts at firstRecordOffset inside a segment, so that segment
+// begins below the boundary and holds the bytes the surviving chain replays from.
+// It belongs to the successor, not to the chain being pruned.
+func Test_DeleteFull_WhenSuccessorStartsMidSegment_KeepsSuccessorBoundarySegment(t *testing.T) {
+	prereqs := createServiceTestPrereqs(t)
+	databaseID := prereqs.database.ID
+	storageID := prereqs.storage.ID
+	service := physical_service.GetPhysicalBackupService()
+
+	prunedFull := physical_testing.CreateTestFullBackup(t,
+		physical_testing.NewTestCompletedFullBackup(databaseID, storageID, 1, lsn(0), lsn(1)))
+	physical_testing.CreateTestFullBackup(t,
+		physical_testing.NewTestCompletedFullBackup(databaseID, storageID, 1,
+			lsn(4)+firstRecordOffset, lsn(4)+firstRecordOffset+fullLSNSpan))
+
+	anchoredSegment := physical_testing.CreateTestWalSegment(t,
+		physical_testing.NewTestWalSegment(databaseID, storageID, 1, "000000010000000000000001", lsn(1), lsn(2)))
+	successorBoundarySegment := physical_testing.CreateTestWalSegment(t,
+		physical_testing.NewTestWalSegment(databaseID, storageID, 1, "000000010000000000000004", lsn(4), lsn(5)))
+
+	saveObject(t, prereqs.storage, *anchoredSegment.FileName)
+	saveObject(t, prereqs.storage, *successorBoundarySegment.FileName)
+
+	_, err := service.DeleteFull(t.Context(), prunedFull.ID, 1_000_000)
+	require.NoError(t, err)
+
+	reloadedAnchoredSegment, _ := physical_repositories.GetWalSegmentRepository().FindByID(anchoredSegment.ID)
+	assert.Nil(t, reloadedAnchoredSegment, "WAL the pruned chain anchored goes with it")
+
+	reloadedBoundarySegment, _ := physical_repositories.GetWalSegmentRepository().FindByID(successorBoundarySegment.ID)
+	assert.NotNil(t, reloadedBoundarySegment,
+		"the segment carrying the surviving FULL's start_lsn must outlive the pruned chain")
+	assert.True(t, objectExists(t, prereqs.storage, *successorBoundarySegment.FileName),
+		"its stored object must survive too")
 }
 
 func Test_GetDependentsSummary_ReturnsCountsWithoutDeleting(t *testing.T) {
