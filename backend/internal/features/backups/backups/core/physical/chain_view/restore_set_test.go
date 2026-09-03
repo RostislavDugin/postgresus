@@ -173,7 +173,7 @@ func Test_ResolveRestoreSet_WhenTargetBetweenIncrementals_StopsAtEarlierIncremen
 	assertWalFilenames(t, set, w2.WalFilename, w3.WalFilename, w4.WalFilename)
 }
 
-func Test_ResolveRestoreSet_WhenTargetDuringNewerFull_UsesOlderChainWalThroughTarget(t *testing.T) {
+func Test_ResolveRestoreSet_WhenTargetAfterNewerFullStopBeforeCompletion_UsesAllOlderChainWal(t *testing.T) {
 	t.Parallel()
 
 	prereqs := createChainViewTestPrereqs(t)
@@ -195,7 +195,7 @@ func Test_ResolveRestoreSet_WhenTargetDuringNewerFull_UsesOlderChainWalThroughTa
 		prereqs.storage.ID,
 		1,
 		lsnAt(2)+physical_testing.FirstRecordOffset,
-		lsnAt(3)+physical_testing.FirstRecordOffset,
+		lsnAt(2)+physical_testing.FirstRecordOffset+physical_testing.FullLSNSpan,
 	)
 	newerFull.CreatedAt = clock.at(5)
 	newerFull.CompletedAt = new(clock.at(10))
@@ -225,6 +225,14 @@ func Test_ResolveRestoreSet_WhenTargetDuringNewerFull_UsesOlderChainWalThroughTa
 		lsnAt(4),
 		clock.at(11),
 	)
+	walAfterTarget := seedWalSegment(
+		t,
+		prereqs,
+		"000000010000000000000004",
+		lsnAt(4),
+		lsnAt(5),
+		clock.at(12),
+	)
 
 	target := clock.at(7)
 
@@ -238,6 +246,7 @@ func Test_ResolveRestoreSet_WhenTargetDuringNewerFull_UsesOlderChainWalThroughTa
 		walBeforeNewerFull.WalFilename,
 		walAtNewerFullStart.WalFilename,
 		walCoveringTarget.WalFilename,
+		walAfterTarget.WalFilename,
 	)
 }
 

@@ -445,6 +445,58 @@ func Test_GenerateRestoreToken_WhenTargetReachable_ReturnsToken(t *testing.T) {
 	assert.NotEmpty(t, response.Token)
 }
 
+func Test_GenerateRestoreToken_WhenTargetDuringNewerFull_ReturnsToken(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+	base := time.Now().UTC().Add(-2 * time.Hour)
+
+	olderFull := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID,
+		prereqs.storage.ID,
+		1,
+		walmath.LSN(0),
+		walmath.LSN(segmentBytes),
+	)
+	olderFull.CreatedAt = base.Add(-time.Minute)
+	olderFull.CompletedAt = ptrTime(base)
+	physical_testing.CreateTestFullBackup(t, olderFull)
+
+	newerFull := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID,
+		prereqs.storage.ID,
+		1,
+		walmath.LSN(2*segmentBytes),
+		walmath.LSN(2*segmentBytes+physical_testing.FullLSNSpan),
+	)
+	newerFull.CreatedAt = base.Add(5 * time.Minute)
+	newerFull.CompletedAt = ptrTime(base.Add(10 * time.Minute))
+	physical_testing.CreateTestFullBackup(t, newerFull)
+
+	for walIndex := 1; walIndex <= 3; walIndex++ {
+		walSegment := physical_testing.NewTestWalSegment(
+			prereqs.database.ID,
+			prereqs.storage.ID,
+			1,
+			"00000001000000000000000"+string(rune('0'+walIndex)),
+			walmath.LSN(walIndex*segmentBytes),
+			walmath.LSN((walIndex+1)*segmentBytes),
+		)
+		walSegment.ReceivedAt = base.Add(time.Duration(3+walIndex*2) * time.Minute)
+		physical_testing.CreateTestWalSegment(t, walSegment)
+	}
+
+	targetTime := base.Add(7 * time.Minute)
+	var response backups_dto_physical.GenerateRestoreTokenResponse
+	test_utils.MakePostRequestAndUnmarshal(t, prereqs.router,
+		"/api/v1/backups/physical/database/"+prereqs.database.ID.String()+"/restore-token",
+		"Bearer "+prereqs.user.Token,
+		backups_dto_physical.GenerateRestoreTokenRequest{TargetTime: &targetTime},
+		http.StatusOK,
+		&response,
+	)
+
+	assert.NotEmpty(t, response.Token)
+}
+
 // Test_GenerateRestoreToken_WhenTargetPastWalGap_Returns422 verifies the gap is
 // caught at token-issue time (the restore set is resolved before a token is
 // minted), so the user never burns a token on an unreachable target.
