@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.11.0"
 ---
 
+## Humanizer preflight
+
+Before starting this workflow, read the sibling `../humanizer/SKILL.md` completely. This preflight is mandatory before any message or action. Apply the skill in embedded mode to every user-facing message and all prose written to OpenSpec artifacts. Preserve exact commands, code, paths, identifiers, schema keywords, templates, quotations, user-provided text, facts, scope, and technical meaning.
+
 Archive a completed change in the experimental workflow.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.

@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.11.0"
 ---
 
+## Humanizer preflight
+
+Before starting this workflow, read the sibling `../humanizer/SKILL.md` completely. This preflight is mandatory before any message or action. Apply the skill in embedded mode to every user-facing message and all prose written to OpenSpec artifacts. Preserve exact commands, code, paths, identifiers, schema keywords, templates, quotations, user-provided text, facts, scope, and technical meaning.
+
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, investigate the codebase, and run read-only commands or tools without confirmation, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create or update OpenSpec change artifacts (proposals, designs, specs) within a confirmed scope—that's capturing thinking, not implementing. Answering design or clarifying questions is never consent to write. Before the first write-capable action, name the artifacts or files you would change and what you would do, ask a direct yes/no question, and wait for the user's confirmation in a separate message. Confirmation covers only the scope you described; ask again before expanding it. For a new change, scaffold it first as described below.

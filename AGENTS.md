@@ -15,6 +15,14 @@ This root file holds the engineering philosophy that applies everywhere.
 
 ---
 
+## Mandatory Humanizer
+
+At the start of every turn, before sending any message or taking any action, read [`.agents/skills/humanizer/SKILL.md`](.agents/skills/humanizer/SKILL.md) completely. This applies to every request and every workflow without exception.
+
+Apply the skill in embedded mode to all agent-authored prose, including chat responses, plans, documentation, OpenSpec artifacts, review findings, commit messages, and pull request text. Run its draft, audit, and final pass internally, then emit only the final text. Preserve exact code, commands, paths, identifiers, schemas, required templates, quotations, and user-provided text unless the user asks to edit them. Humanization must not change facts, behavior, scope, or technical meaning.
+
+---
+
 ## Development environment
 
 Work happens inside the repo's [Dev Container](.devcontainer/devcontainer.json). The container ships Go, Node.js + pnpm, Docker-in-Docker, linters and matching VS Code extensions, so the toolchain is identical for every contributor. Ports `4005` (backend) and `5173` (Vite) are forwarded automatically. Don't install or rely on host-level SDKs — run `make`, `pnpm` and `docker` commands from inside the container.
@@ -59,12 +67,14 @@ Reread the diff with fresh eyes and **list** (don't silently apply) refactor sug
 
 ### Mandatory compliance review
 
-Every non-trivial change is audited twice by the [`claude-md-reviewer`](.claude/agents/claude-md-reviewer.md) subagent — against this document **and** the module doc for each area it touches (`backend/AGENTS.md`, `agent/verification/AGENTS.md`, `frontend/AGENTS.md`, `website/AGENTS.md`, `assets/readme/AGENTS.md`). The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
+Every non-trivial change is audited twice by the [`reviewer`](.claude/agents/reviewer.md) subagent — against this document **and** the module doc for each area it touches (`backend/AGENTS.md`, `agent/verification/AGENTS.md`, `frontend/AGENTS.md`, `website/AGENTS.md`, `assets/readme/AGENTS.md`). The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
 
 1. **After planning, before writing code** — it checks the proposed names, file placement, and any planned backward-compat shims while they're still cheap to change.
 2. **After implementing, before finishing the turn** — it checks the working-tree diff and runs the linter for each directory the diff touches.
 
 The reviewer is read-only: it reports findings, you apply the fixes. Resolve every `CHANGES REQUIRED` finding before moving on. Hooks in [`.claude/settings.json`](.claude/settings.json) prompt for both checkpoints, but the obligation is this rule, not the hook — honour it if hooks are disabled.
+
+> At both checkpoints, the reviewer also applies [the repository Humanizer skill](.agents/skills/humanizer/SKILL.md) to every agent-authored response, plan, document, OpenSpec artifact, review finding, commit or pull request text, and code comment available in scope. Before humanizing a code comment, it first checks whether clearer naming or a smaller function can remove the comment. It flags removable comments instead of rewriting them. Humanization must preserve facts, behavior, scope, and technical meaning.
 
 ### Naming
 

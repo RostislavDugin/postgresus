@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Before writing any code, invoke the claude-md-reviewer subagent in plan mode on the approved plan file. Resolve every CHANGES REQUIRED finding before implementing.\"}}'"
+            "command": "jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Before writing any code, invoke the reviewer subagent in plan mode on the approved plan file. Resolve every CHANGES REQUIRED finding before implementing. As part of the review, apply the repository Humanizer skill to all agent-authored prose in scope. Check whether each code comment can be removed through clearer naming or a smaller function before humanizing it.\"}}'"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/require-stop-review.sh\" compliance \"The working tree has unreviewed changes under backend/, agent/ or frontend/. Invoke the claude-md-reviewer subagent in implementation mode, then resolve every CHANGES REQUIRED finding before stopping. If it returns PASS, stop as normal.\""
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/require-stop-review.sh\" compliance \"The working tree has unreviewed changes. Invoke the reviewer subagent in implementation mode, then resolve every CHANGES REQUIRED finding before stopping. As part of the review, apply the repository Humanizer skill to all agent-authored prose in scope. Check whether each code comment can be removed through clearer naming or a smaller function before humanizing it. If it returns PASS, stop as normal.\""
           },
           {
             "type": "command",

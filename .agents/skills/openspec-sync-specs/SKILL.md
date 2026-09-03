@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.11.0"
 ---
 
+## Humanizer preflight
+
+Before starting this workflow, read the sibling `../humanizer/SKILL.md` completely. This preflight is mandatory before any message or action. Apply the skill in embedded mode to every user-facing message and all prose written to OpenSpec artifacts. Preserve exact commands, code, paths, identifiers, schema keywords, templates, quotations, user-provided text, facts, scope, and technical meaning.
+
 Sync delta specs from a change to main specs.
 
 This is an **agent-driven** operation - you will read delta specs and directly edit main specs to apply the changes. This allows intelligent merging (e.g., adding a scenario without copying the entire requirement).
