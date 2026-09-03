@@ -266,6 +266,37 @@ func Test_CleanOrphanWalForDatabase_WhenWalCoveredByChain_KeepsIt(t *testing.T) 
 	assert.True(t, walExists(t, covered.ID), "chain-covered WAL must never be caught by the orphan pass")
 }
 
+func Test_CleanOrphanWalForDatabase_WhenFirstFullInProgress_KeepsWalArchivedDuringBackup(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+
+	inProgressFull := physical_testing.CreateTestFullBackup(t, physical_testing.NewTestInProgressFullBackup(
+		prereqs.DB.ID,
+		prereqs.Storage.ID,
+		1,
+	))
+	physical_testing.CreateTestInFlightClaim(
+		t,
+		prereqs.DB.ID,
+		inProgressFull.ID,
+		physical_enums.PhysicalBackupTypeFull,
+	)
+
+	walArchivedDuringBackup := physical_testing.CreateTestWalSegment(t, physical_testing.NewTestWalSegment(
+		prereqs.DB.ID,
+		prereqs.Storage.ID,
+		1,
+		"000000010000000000000001",
+		testLSN(1),
+		testLSN(2),
+	))
+
+	cleaner := CreateTestPhysicalCleaner()
+	cleaner.cleanOrphanWalForDatabase(t.Context(), logger.GetLogger(), prereqs.DB.ID)
+
+	assert.True(t, walExists(t, walArchivedDuringBackup.ID),
+		"WAL archived while the first full is running must remain available when the full completes")
+}
+
 // A FULL taken right after a segment switch reports a start_lsn at
 // firstRecordOffset. The segment's own bounds come from its filename and are
 // file-aligned, so it starts below the FULL and must still be kept: it carries the

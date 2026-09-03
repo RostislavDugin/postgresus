@@ -156,6 +156,60 @@ func (s *PhysicalBackupService) DeleteWalSegmentsInSpan(
 	return deletedRows, deletedMB, nil
 }
 
+func (s *PhysicalBackupService) DeleteOrphanWalSegmentsInSpan(
+	ctx context.Context,
+	spec DeleteOrphanWalSegmentsSpec,
+) (int, float64, error) {
+	var deletedRows int
+	var deletedMB float64
+
+	txErr := storage.GetDb().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := physical_repositories.AcquireBackupAndOrphanCleanupLock(tx, spec.DatabaseID); err != nil {
+			return err
+		}
+
+		hasInFlightFull, err := physical_repositories.HasInFlightFullBackup(tx, spec.DatabaseID)
+		if err != nil {
+			return err
+		}
+		if hasInFlightFull {
+			return nil
+		}
+
+		hasAnchoringFull, err := physical_repositories.HasCompletedFullBackupCoveringWal(
+			tx,
+			spec.DatabaseID,
+			spec.TimelineID,
+			spec.Span.End,
+		)
+		if err != nil {
+			return err
+		}
+		if hasAnchoringFull {
+			return nil
+		}
+
+		rows, mb, _, err := s.deleteWalInSpanBudgeted(
+			ctx,
+			tx,
+			spec.DatabaseID,
+			spec.TimelineID,
+			spec.Span,
+			spec.WalByteBudgetMB,
+			true,
+		)
+		deletedRows = rows
+		deletedMB = mb
+
+		return err
+	})
+	if txErr != nil {
+		return 0, 0, txErr
+	}
+
+	return deletedRows, deletedMB, nil
+}
+
 // DeleteIncrementalCascade removes one incremental and every incremental that
 // descends from it (its children, their children, …), leaves first so the
 // RESTRICT FK on parent_incremental_backup_id is never violated. The chain's

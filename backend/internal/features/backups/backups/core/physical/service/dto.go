@@ -5,7 +5,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
 )
+
+type DeleteOrphanWalSegmentsSpec struct {
+	DatabaseID      uuid.UUID
+	TimelineID      int
+	Span            chain_view.LSNRange
+	WalByteBudgetMB float64
+}
 
 // PhysicalBackupListRow is one row of the merged, paginated backup list across
 // the FULL, incremental and committed-WAL tables. Type-only columns are NULL for

@@ -58,7 +58,17 @@ func (s *ChainViewService) ResolveRestoreSet(
 
 	incrementals, lastStopLSN, lastBackupTime := includedIncrementals(chain, targetTime)
 
-	walRun, reachableLSN, reachableTime := contiguousWalRun(chain.WalSegments, lastStopLSN, lastBackupTime)
+	restoreWalSegments, err := s.walSegmentRepository.FindByChainSpan(
+		databaseID,
+		chain.RootFull.TimelineID,
+		chain.Span.Start,
+		LSNMax,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	walRun, reachableLSN, reachableTime := contiguousWalRun(restoreWalSegments, lastStopLSN, lastBackupTime)
 
 	// A target later than the furthest point we can actually replay to means a
 	// WAL gap (or simply missing WAL) sits before it. Refuse loudly; the caller

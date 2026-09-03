@@ -35,6 +35,10 @@ func Test_PhysicalWalStream_OnTimelineSwitch_CatalogsHistoryOnParentDatabaseID(t
 	physicaltesting.RunWalStreamCatalogsHistoryOnTimelineSwitch(t, pgVersion, pgImage)
 }
 
+func Test_PhysicalBackup_AfterPromotion_ReanchorsIncrementalChain(t *testing.T) {
+	physicaltesting.RunPromotionReanchorsIncrementalChain(t, pgVersion, pgImage)
+}
+
 func Test_PhysicalRestore_BootViaEntrypointVolumeMount_RecoversBaseRows(t *testing.T) {
 	physicaltesting.RunBootViaEntrypointVolumeMountRecoversBaseRows(t, pgVersion, pgImage)
 }

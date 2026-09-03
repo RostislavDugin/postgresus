@@ -38,6 +38,8 @@ const (
 	PhysicalBackupErrorApplicationRestart       PhysicalBackupErrorReason = "APPLICATION_RESTART"
 	PhysicalBackupErrorSystemIdentifierMismatch PhysicalBackupErrorReason = "SYSTEM_IDENTIFIER_MISMATCH"
 	PhysicalBackupErrorTimelineRegression       PhysicalBackupErrorReason = "TIMELINE_REGRESSION"
+	PhysicalBackupErrorTimelineSwitchDetected   PhysicalBackupErrorReason = "TIMELINE_SWITCH_DETECTED"
+	PhysicalBackupErrorFailoverDuringBackup     PhysicalBackupErrorReason = "FAILOVER_DURING_BACKUP"
 	PhysicalBackupErrorManifestCorrupted        PhysicalBackupErrorReason = "MANIFEST_CORRUPTED"
 	PhysicalBackupErrorStartLsnOutsideTimeline  PhysicalBackupErrorReason = "START_LSN_OUTSIDE_TIMELINE_RANGE"
 

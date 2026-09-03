@@ -173,6 +173,74 @@ func Test_ResolveRestoreSet_WhenTargetBetweenIncrementals_StopsAtEarlierIncremen
 	assertWalFilenames(t, set, w2.WalFilename, w3.WalFilename, w4.WalFilename)
 }
 
+func Test_ResolveRestoreSet_WhenTargetDuringNewerFull_UsesOlderChainWalThroughTarget(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	clock := newRestoreClock()
+
+	olderFull := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID,
+		prereqs.storage.ID,
+		1,
+		lsnAt(0)+physical_testing.FirstRecordOffset,
+		lsnAt(1)+physical_testing.FirstRecordOffset,
+	)
+	olderFull.CreatedAt = clock.at(-5)
+	olderFull.CompletedAt = new(clock.at(0))
+	physical_testing.CreateTestFullBackup(t, olderFull)
+
+	newerFull := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID,
+		prereqs.storage.ID,
+		1,
+		lsnAt(2)+physical_testing.FirstRecordOffset,
+		lsnAt(3)+physical_testing.FirstRecordOffset,
+	)
+	newerFull.CreatedAt = clock.at(5)
+	newerFull.CompletedAt = new(clock.at(10))
+	physical_testing.CreateTestFullBackup(t, newerFull)
+
+	walBeforeNewerFull := seedWalSegment(
+		t,
+		prereqs,
+		"000000010000000000000001",
+		lsnAt(1),
+		lsnAt(2),
+		clock.at(4),
+	)
+	walAtNewerFullStart := seedWalSegment(
+		t,
+		prereqs,
+		"000000010000000000000002",
+		lsnAt(2),
+		lsnAt(3),
+		clock.at(6),
+	)
+	walCoveringTarget := seedWalSegment(
+		t,
+		prereqs,
+		"000000010000000000000003",
+		lsnAt(3),
+		lsnAt(4),
+		clock.at(11),
+	)
+
+	target := clock.at(7)
+
+	set, err := chain_view.GetChainViewService().ResolveRestoreSet(prereqs.database.ID, &target)
+	require.NoError(t, err)
+
+	assert.Equal(t, olderFull.ID, set.RootFull.ID)
+	assertWalFilenames(
+		t,
+		set,
+		walBeforeNewerFull.WalFilename,
+		walAtNewerFullStart.WalFilename,
+		walCoveringTarget.WalFilename,
+	)
+}
+
 func Test_ResolveRestoreSet_WhenWalGapBeforeTarget_ReturnsGapError(t *testing.T) {
 	t.Parallel()
 

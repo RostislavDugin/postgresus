@@ -163,39 +163,49 @@ func buildObjectName(
 	)
 }
 
-// verifyTimelineCompatibility gates a backup on the live timeline/cluster
-// verdict. FailoverDetected is the one kind FULL and INCR treat differently — a
-// FULL proceeds on the live TL while an INCR must re-anchor on a fresh FULL — so
-// the caller supplies onFailover; a nil onFailover treats failover as
-// non-breaking (FULL). canProceed=false means the caller returns refusal and stops.
-func verifyTimelineCompatibility(
+func verifyFullTimelineCompatibility(
 	ctx context.Context,
 	common CommonBackupSpec,
-	onFailover func(decision *TimelineDecision) (refusal PhysicalBackupResult, canProceed bool),
-) (refusal PhysicalBackupResult, canProceed bool) {
+) (refusal PhysicalBackupResult, liveTimelineID int, canProceed bool) {
 	conn, err := common.SourceDB.OpenInspectionConn(ctx, common.FieldEncryptor)
 	if err != nil {
 		return errorResult(physical_enums.PhysicalBackupErrorNetworkFailure,
-			"open inspection connection", err), false
+			"open inspection connection", err), 0, false
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
-	decision, err := CheckTimelineCompatibility(ctx, conn, common.SourceDB, common.FullRepo, common.HistoryRepo)
+	decision, err := CheckFullTimelineCompatibility(ctx, conn, common.SourceDB, common.FullRepo, common.HistoryRepo)
 	if err != nil {
 		return errorResult(physical_enums.PhysicalBackupErrorNetworkFailure,
-			"timeline compatibility check", err), false
+			"timeline compatibility check", err), 0, false
 	}
 
+	refusal, canProceed = timelineRefusalResult(decision, false)
+
+	return refusal, decision.LiveTimelineID, canProceed
+}
+
+func timelineRefusalResult(decision *TimelineDecision, refuseNewerTimeline bool) (PhysicalBackupResult, bool) {
 	switch decision.Kind {
 	case TimelineContinue:
 		return PhysicalBackupResult{}, true
 
 	case TimelineFailoverDetected:
-		if onFailover == nil {
+		if !refuseNewerTimeline {
 			return PhysicalBackupResult{}, true
 		}
 
-		return onFailover(decision)
+		reason := physical_enums.PhysicalBackupErrorTimelineSwitchDetected
+
+		return PhysicalBackupResult{
+			Status:      physical_enums.PhysicalBackupStatusChainBroken,
+			ErrorReason: &reason,
+			ErrorMessage: fmt.Sprintf(
+				"timeline switch detected: root FULL TL %d, live TL %d",
+				decision.ExpectedTimelineID, decision.LiveTimelineID,
+			),
+			CompletedAt: time.Now().UTC(),
+		}, false
 
 	case TimelineRegression:
 		reason := physical_enums.PhysicalBackupErrorTimelineRegression
@@ -205,7 +215,7 @@ func verifyTimelineCompatibility(
 			ErrorReason: &reason,
 			ErrorMessage: fmt.Sprintf(
 				"timeline regression: expected TL %d, live TL %d",
-				decision.ExpectedTLI, decision.ActualTLI,
+				decision.ExpectedTimelineID, decision.LiveTimelineID,
 			),
 			CompletedAt: time.Now().UTC(),
 		}, false
@@ -218,11 +228,109 @@ func verifyTimelineCompatibility(
 			ErrorReason: &reason,
 			ErrorMessage: fmt.Sprintf(
 				"system_identifier mismatch: catalog %s, live %s",
-				decision.ExpectedSysID, decision.ActualSysID,
+				decision.ExpectedSystemIdentifier, decision.LiveSystemIdentifier,
 			),
 			CompletedAt: time.Now().UTC(),
 		}, false
 	}
 
 	return PhysicalBackupResult{}, true
+}
+
+func recheckFullStreamFailure(
+	ctx context.Context,
+	common CommonBackupSpec,
+	preflightTimelineID int,
+	streamResult PhysicalBackupResult,
+) PhysicalBackupResult {
+	if ctx.Err() != nil || streamResult.Status == physical_enums.PhysicalBackupStatusCanceled {
+		return streamResult
+	}
+
+	decision, err := inspectTimelineAgainstExpected(ctx, common, preflightTimelineID)
+	if err != nil {
+		common.Logger.WarnContext(ctx, "cluster identity recheck failed after FULL stream failure", "error", err)
+
+		return streamResult
+	}
+
+	return classifyFullStreamFailureAfterIdentity(streamResult, preflightTimelineID, decision)
+}
+
+func classifyFullStreamFailureAfterIdentity(
+	streamResult PhysicalBackupResult,
+	preflightTimelineID int,
+	decision *TimelineDecision,
+) PhysicalBackupResult {
+	if decision.Kind == TimelineFailoverDetected {
+		reason := physical_enums.PhysicalBackupErrorFailoverDuringBackup
+
+		return PhysicalBackupResult{
+			Status:      physical_enums.PhysicalBackupStatusError,
+			ErrorReason: &reason,
+			ErrorMessage: fmt.Sprintf(
+				"timeline advanced during FULL: preflight TL %d, live TL %d",
+				preflightTimelineID,
+				decision.LiveTimelineID,
+			),
+			CompletedAt: time.Now().UTC(),
+		}
+	}
+
+	refusal, canProceed := timelineRefusalResult(decision, false)
+	if !canProceed {
+		return refusal
+	}
+
+	return streamResult
+}
+
+func recheckIncrementalStreamFailure(
+	ctx context.Context,
+	common CommonBackupSpec,
+	rootFullTimelineID int,
+	streamResult PhysicalBackupResult,
+) PhysicalBackupResult {
+	if ctx.Err() != nil || streamResult.Status == physical_enums.PhysicalBackupStatusCanceled {
+		return streamResult
+	}
+
+	decision, err := inspectTimelineAgainstExpected(ctx, common, rootFullTimelineID)
+	if err != nil {
+		common.Logger.WarnContext(ctx, "cluster identity recheck failed after incremental stream failure", "error", err)
+
+		return streamResult
+	}
+
+	return classifyIncrementalStreamFailureAfterIdentity(streamResult, decision)
+}
+
+func classifyIncrementalStreamFailureAfterIdentity(
+	streamResult PhysicalBackupResult,
+	decision *TimelineDecision,
+) PhysicalBackupResult {
+	refusal, canProceed := timelineRefusalResult(decision, true)
+	if !canProceed {
+		return refusal
+	}
+
+	return streamResult
+}
+
+func inspectTimelineAgainstExpected(
+	ctx context.Context,
+	common CommonBackupSpec,
+	expectedTimelineID int,
+) (*TimelineDecision, error) {
+	if common.timelineProbe != nil {
+		return common.timelineProbe(ctx, expectedTimelineID)
+	}
+
+	conn, err := common.SourceDB.OpenInspectionConn(ctx, common.FieldEncryptor)
+	if err != nil {
+		return nil, fmt.Errorf("open inspection connection: %w", err)
+	}
+	defer func() { _ = conn.Close(context.Background()) }()
+
+	return CheckIncrementalTimelineCompatibility(ctx, conn, common.SourceDB, expectedTimelineID)
 }

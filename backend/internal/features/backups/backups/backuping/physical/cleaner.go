@@ -526,8 +526,14 @@ func (c *PhysicalBackupCleaner) cleanOrphanWalForDatabase(
 		// never overlap, so no chain-covered WAL is ever caught.
 		span := chain_view.LSNRange{Start: segment.StartLSN, End: segment.EndLSN}
 
-		rows, mb, err := c.physicalBackupService.DeleteWalSegmentsInSpan(
-			ctx, databaseID, segment.TimelineID, span, budget,
+		rows, mb, err := c.physicalBackupService.DeleteOrphanWalSegmentsInSpan(
+			ctx,
+			physical_service.DeleteOrphanWalSegmentsSpec{
+				DatabaseID:      databaseID,
+				TimelineID:      segment.TimelineID,
+				Span:            span,
+				WalByteBudgetMB: budget,
+			},
 		)
 		if err != nil {
 			logger.ErrorContext(ctx, "failed to delete orphan wal segment",

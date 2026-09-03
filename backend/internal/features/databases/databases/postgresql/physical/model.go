@@ -810,10 +810,8 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 	return nil, errors.New("failed to generate unique username after 3 attempts")
 }
 
-// OpenInspectionConn opens a regular (non-replication) connection to the
-// source cluster. Used by the FULL/INCR executors for pre-flight checks
-// (timeline.CheckTimelineCompatibility), .history file reads, and
-// post-stream LSN validation.
+// Replication connections cannot run the SQL identity checks or read timeline
+// history files, so inspection uses PostgreSQL's regular protocol.
 func (p *PostgresqlPhysicalDatabase) OpenInspectionConn(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,

@@ -32,9 +32,7 @@ func (uc *CreateFullBackupUsecase) Execute(ctx context.Context, spec FullBackupS
 	}
 	defer creds.Remove()
 
-	// nil onFailover: a detected failover does not refuse a FULL — it proceeds on
-	// the live TL, and the scheduler observes the bumped TL across two FULL rows.
-	refusalResult, canProceed := verifyTimelineCompatibility(ctx, spec.CommonBackupSpec, nil)
+	refusalResult, preflightTimelineID, canProceed := verifyFullTimelineCompatibility(ctx, spec.CommonBackupSpec)
 	if !canProceed {
 		return refusalResult, nil
 	}
@@ -67,7 +65,7 @@ func (uc *CreateFullBackupUsecase) Execute(ctx context.Context, spec FullBackupS
 		}
 
 		if streamResult.Status != physical_enums.PhysicalBackupStatusCompleted {
-			result = streamResult
+			result = recheckFullStreamFailure(ctx, spec.CommonBackupSpec, preflightTimelineID, streamResult)
 			return nil
 		}
 

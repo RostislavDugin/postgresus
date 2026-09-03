@@ -6,13 +6,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
+	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
@@ -177,6 +181,78 @@ func RunWalStreamCatalogsHistoryOnTimelineSwitch(t *testing.T, version, image st
 	// The regression guard: the supervisor must catalog the timeline-2 history row on the parent
 	// databases.id. Pre-fix the FK violation drops it and the wait fails.
 	waitForTimelineHistoryOnParent(t, fixture, 2, 60*time.Second)
+}
+
+func RunPromotionReanchorsIncrementalChain(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("clones a standby, promotes it, and restores the replacement chain; skipped in -short")
+	}
+
+	primary, standby := containers.StartPhysicalPrimaryWithStandby(t, image)
+	router := newPhysicalTestRouter()
+	fixture := postgresql_executor.SetupPhysicalDBForScheduledBackupVersion(
+		t, standby.Host, standby.Port, version, postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+	)
+	target := prepareRestoreTarget(t, image)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+	defer cancel()
+
+	primaryConn := openConnAt(t, primary.Host, primary.Port)
+	standbyConn := openSourceTestDBConn(t, fixture)
+	createMarkerTable(t, ctx, primaryConn)
+	insertMarker(t, ctx, primaryConn, "before-promotion", "row-before-promotion")
+	waitForMarkerOnStandby(t, ctx, standbyConn, "before-promotion", 60*time.Second)
+
+	enablePhysicalBackupsViaAPI(t, router, fixture, true)
+	initialChain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
+	initialFullID := rootFullBackupID(t, initialChain)
+
+	PromoteStandby(t, ctx, standbyConn)
+	insertMarker(t, ctx, standbyConn, "after-promotion", "row-after-promotion")
+	_, err := postgresql_executor.GenerateWalActivity(ctx, standbyConn, 16*1024*1024)
+	require.NoError(t, err)
+	waitForTimelineHistoryOnParent(t, fixture, 2, 60*time.Second)
+	triggerIncrementalViaAPI(t, router, fixture)
+
+	deadline := time.Now().UTC().Add(4 * time.Minute)
+	var replacementFullID uuid.UUID
+	for time.Now().UTC().Before(deadline) {
+		incrementals, err := physical_repositories.GetIncrementalBackupRepository().FindAllByRootFull(initialFullID)
+		require.NoError(t, err)
+		fulls, err := physical_repositories.GetFullBackupRepository().FindCompletedNewestFirstByDatabase(fixture.DB.ID)
+		require.NoError(t, err)
+
+		hasTimelineRefusal := slices.ContainsFunc(
+			incrementals,
+			func(incremental *physical_models.PhysicalIncrementalBackup) bool {
+				return incremental.Status == physical_enums.PhysicalBackupStatusChainBroken &&
+					incremental.ErrorReason != nil &&
+					*incremental.ErrorReason == physical_enums.PhysicalBackupErrorTimelineSwitchDetected
+			},
+		)
+		if hasTimelineRefusal && len(fulls) >= 2 && fulls[0].TimelineID == 2 {
+			replacementFullID = fulls[0].ID
+
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+	require.NotEqual(
+		t,
+		uuid.Nil,
+		replacementFullID,
+		"promotion must refuse the stale incremental and complete a timeline-2 FULL",
+	)
+
+	backuping_physical.RunOrphanWalCleanupForTest(t, fixture.DB.ID)
+	bundle := downloadRestoreBundleViaAPI(t, router, fixture, nil)
+	reconstructCluster(t, target, router, image, bundle, nil)
+	startRestoredCluster(t, target, image)
+
+	restoredPhases := queryRestoredMarkerRows(t, target)
+	assert.ElementsMatch(t, []string{"before-promotion", "after-promotion"}, restoredPhases)
 }
 
 // RunBootViaEntrypointVolumeMountRecoversBaseRows reproduces the user's docker-compose flow: restore on

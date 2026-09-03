@@ -1,6 +1,7 @@
 package usecases_physical_postgresql
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
+type timelineIdentityProbe func(context.Context, int) (*TimelineDecision, error)
+
 type CommonBackupSpec struct {
 	SourceDB       *postgresql_physical.PostgresqlPhysicalDatabase
 	DatabaseName   string
@@ -27,6 +30,7 @@ type CommonBackupSpec struct {
 	FullRepo       *physical_repositories.PhysicalFullBackupRepository
 	HistoryRepo    *physical_repositories.PhysicalWalHistoryRepository
 	Logger         *slog.Logger
+	timelineProbe  timelineIdentityProbe
 
 	// ProgressListener, when set, receives the streamed size and elapsed time
 	// periodically during the backup so the row's size grows in near-real-time.
