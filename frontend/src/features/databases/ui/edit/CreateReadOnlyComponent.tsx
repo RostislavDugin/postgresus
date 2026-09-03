@@ -20,6 +20,8 @@ interface Props {
 
 const PRIVILEGES_TRUNCATE_LENGTH = 50;
 
+const FORCED_WAL_ROTATION_WARNING_SECONDS = 15;
+
 export const CreateReadOnlyComponent = ({
   database,
   onReadOnlyUserUpdated,
@@ -69,29 +71,50 @@ export const CreateReadOnlyComponent = ({
     return fullText.length > PRIVILEGES_TRUNCATE_LENGTH;
   };
 
-  const createReadOnlyUser = async () => {
+  const provisionAndApplyReplicationOnlyUserCredentials = async () => {
+    const response = await databaseApi.createReplicationOnlyUser(database);
+
+    if (database.postgresqlPhysical) {
+      database.postgresqlPhysical.username = response.username;
+      database.postgresqlPhysical.password = response.password;
+    }
+
+    if (!response.isForcedWalRotationAvailable) {
+      message.warning(
+        'This source would not grant EXECUTE on pg_switch_wal() to the new user, which ' +
+          'continuous WAL streaming needs to keep the recovery point close to the present. ' +
+          'Full and incremental backups work normally with these credentials.',
+        FORCED_WAL_ROTATION_WARNING_SECONDS,
+      );
+    }
+  };
+
+  const provisionAndApplyReadOnlyUserCredentials = async () => {
+    const response = await databaseApi.createReadOnlyUser(database);
+
+    if (isLogicalPostgres && database.postgresqlLogical) {
+      database.postgresqlLogical.username = response.username;
+      database.postgresqlLogical.password = response.password;
+    } else if (isMysql && database.mysql) {
+      database.mysql.username = response.username;
+      database.mysql.password = response.password;
+    } else if (isMariadb && database.mariadb) {
+      database.mariadb.username = response.username;
+      database.mariadb.password = response.password;
+    } else if (isMongodb && database.mongodb) {
+      database.mongodb.username = response.username;
+      database.mongodb.password = response.password;
+    }
+  };
+
+  const provisionRestrictedUser = async () => {
     setIsCreatingReadOnlyUser(true);
 
     try {
-      const response = isPhysicalPostgres
-        ? await databaseApi.createReplicationOnlyUser(database)
-        : await databaseApi.createReadOnlyUser(database);
-
-      if (isPhysicalPostgres && database.postgresqlPhysical) {
-        database.postgresqlPhysical.username = response.username;
-        database.postgresqlPhysical.password = response.password;
-      } else if (isLogicalPostgres && database.postgresqlLogical) {
-        database.postgresqlLogical.username = response.username;
-        database.postgresqlLogical.password = response.password;
-      } else if (isMysql && database.mysql) {
-        database.mysql.username = response.username;
-        database.mysql.password = response.password;
-      } else if (isMariadb && database.mariadb) {
-        database.mariadb.username = response.username;
-        database.mariadb.password = response.password;
-      } else if (isMongodb && database.mongodb) {
-        database.mongodb.username = response.username;
-        database.mongodb.password = response.password;
+      if (isPhysicalPostgres) {
+        await provisionAndApplyReplicationOnlyUserCredentials();
+      } else {
+        await provisionAndApplyReadOnlyUserCredentials();
       }
 
       onReadOnlyUserUpdated(database);
@@ -209,7 +232,7 @@ export const CreateReadOnlyComponent = ({
 
         <Button
           type="primary"
-          onClick={createReadOnlyUser}
+          onClick={provisionRestrictedUser}
           loading={isCreatingReadOnlyUser}
           disabled={isCreatingReadOnlyUser}
         >

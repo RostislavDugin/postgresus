@@ -14,6 +14,7 @@ const (
 	ConnErrWalSummaryDisabled       ConnectionErrorCode = "wal_summary_disabled"
 	ConnErrCustomTablespaces        ConnectionErrorCode = "custom_tablespaces"
 	ConnErrSystemIdentifierMismatch ConnectionErrorCode = "system_identifier_mismatch"
+	ConnErrNoWalSwitchPrivilege     ConnectionErrorCode = "no_wal_switch_privilege"
 )
 
 // ConnectionTestError carries a machine-readable Code for a classified connection failure.

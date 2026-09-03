@@ -102,31 +102,32 @@ func Test_TestConnection_OnPhysicalDatabase_DispatchesToReplicationConnection(t 
 }
 
 func Test_CreateReplicationOnlyUser_OnPhysicalDatabase_ReturnsCredentials(t *testing.T) {
-	for _, fx := range physicalFixtures() {
-		t.Run(fx.name, func(t *testing.T) {
+	for _, fixture := range physicalFixtures() {
+		t.Run(fixture.name, func(t *testing.T) {
 			router := createTestRouter()
 			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
 			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
 
-			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fx)
+			database := createPhysicalDatabaseInternalAPI(t, router, workspace.ID, owner.Token, fixture)
 			defer func() {
 				RemoveTestDatabase(t.Context(), database)
 				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 			}()
 
-			var response CreateReadOnlyUserResponse
+			var createReplicationOnlyUserResponse CreateReplicationOnlyUserResponse
 			test_utils.MakePostRequestAndUnmarshal(
 				t, router,
 				"/api/v1/databases/create-replication-only-user",
 				"Bearer "+owner.Token,
 				database,
 				http.StatusOK,
-				&response,
+				&createReplicationOnlyUserResponse,
 			)
 
-			assert.NotEmpty(t, response.Username)
-			assert.NotEmpty(t, response.Password)
-			assert.Contains(t, response.Username, "databasus-")
+			assert.NotEmpty(t, createReplicationOnlyUserResponse.Username)
+			assert.NotEmpty(t, createReplicationOnlyUserResponse.Password)
+			assert.Contains(t, createReplicationOnlyUserResponse.Username, "databasus-")
+			assert.True(t, createReplicationOnlyUserResponse.IsForcedWalRotationAvailable)
 		})
 	}
 }

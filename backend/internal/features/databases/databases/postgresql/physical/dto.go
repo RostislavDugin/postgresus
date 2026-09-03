@@ -6,3 +6,9 @@ type replicationSettings struct {
 	maxWalSenders       int
 	maxReplicationSlots int
 }
+
+type ReplicationOnlyUser struct {
+	Username                     string
+	Password                     string
+	IsForcedWalRotationAvailable bool
+}

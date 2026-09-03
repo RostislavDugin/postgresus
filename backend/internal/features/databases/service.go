@@ -875,35 +875,35 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 	ctx context.Context,
 	user *users_models.User,
 	database *Database,
-) (string, string, error) {
+) (*postgresql_physical.ReplicationOnlyUser, error) {
 	var usingDatabase *Database
 
 	if database.ID != uuid.Nil {
 		existingDatabase, err := s.dbRepository.FindByID(database.ID)
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 
 		if existingDatabase.WorkspaceID == nil {
-			return "", "", errors.New("cannot create user for database without workspace")
+			return nil, errors.New("cannot create user for database without workspace")
 		}
 
 		canManage, err := s.workspaceService.CanUserManageDBs(ctx, *existingDatabase.WorkspaceID, user)
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 		if !canManage {
-			return "", "", errors.New("insufficient permissions to manage this database")
+			return nil, errors.New("insufficient permissions to manage this database")
 		}
 
 		if database.WorkspaceID != nil && *existingDatabase.WorkspaceID != *database.WorkspaceID {
-			return "", "", errors.New("database does not belong to this workspace")
+			return nil, errors.New("database does not belong to this workspace")
 		}
 
 		existingDatabase.Update(database)
 
 		if err := existingDatabase.Validate(); err != nil {
-			return "", "", err
+			return nil, err
 		}
 
 		usingDatabase = existingDatabase
@@ -911,10 +911,10 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 		if database.WorkspaceID != nil {
 			canManage, err := s.workspaceService.CanUserManageDBs(ctx, *database.WorkspaceID, user)
 			if err != nil {
-				return "", "", err
+				return nil, err
 			}
 			if !canManage {
-				return "", "", errors.New("insufficient permissions to manage this workspace")
+				return nil, errors.New("insufficient permissions to manage this workspace")
 			}
 		}
 
@@ -922,13 +922,13 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 	}
 
 	if usingDatabase.Type != DatabaseTypePostgresPhysical {
-		return "", "", errors.New(
+		return nil, errors.New(
 			"replication-only user creation is only supported for POSTGRES_PHYSICAL databases",
 		)
 	}
 
 	if usingDatabase.PostgresqlPhysical == nil {
-		return "", "", errors.New("physical database details are missing")
+		return nil, errors.New("physical database details are missing")
 	}
 
 	tunnelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -942,15 +942,15 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 		Encryptor: s.fieldEncryptor,
 	})
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	defer tunneledDatabase.Close()
 
-	username, password, err := tunneledDatabase.GetDatabaseThroughTunnel().
+	createdUser, err := tunneledDatabase.GetDatabaseThroughTunnel().
 		PostgresqlPhysical.CreateReplicationOnlyUser(tunnelCtx, logger, s.fieldEncryptor)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	if usingDatabase.WorkspaceID != nil {
@@ -958,14 +958,14 @@ func (s *DatabaseService) CreateReplicationOnlyUser(
 			Message: fmt.Sprintf(
 				"Replication-only user created for database: %s (username: %s)",
 				usingDatabase.Name,
-				username,
+				createdUser.Username,
 			),
 			UserID:      &user.ID,
 			WorkspaceID: usingDatabase.WorkspaceID,
 		})
 	}
 
-	return username, password, nil
+	return createdUser, nil
 }
 
 // fillPhysicalLastBackupTimes populates LastBackupTime for physical databases,

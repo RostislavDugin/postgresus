@@ -701,7 +701,7 @@ func Test_ShouldSuggestReplicationOnlyUser_FalseForFreshlyCreatedReplicationUser
 			}
 
 			provisioner := newTestModel(t, fx.port())
-			username, password, err := provisioner.CreateReplicationOnlyUser(
+			createdUser, err := provisioner.CreateReplicationOnlyUser(
 				context.Background(), testLogger(), nil,
 			)
 			require.NoError(t, err)
@@ -711,13 +711,13 @@ func Test_ShouldSuggestReplicationOnlyUser_FalseForFreshlyCreatedReplicationUser
 				defer setupConn.Close(context.Background())
 				_, _ = setupConn.Exec(
 					context.Background(),
-					fmt.Sprintf(`DROP USER IF EXISTS "%s"`, username),
+					fmt.Sprintf(`DROP USER IF EXISTS "%s"`, createdUser.Username),
 				)
 			})
 
 			m := newTestModel(t, fx.port())
-			m.Username = username
-			m.Password = password
+			m.Username = createdUser.Username
+			m.Password = createdUser.Password
 
 			shouldSuggestReplicationOnlyUser, excessive, err := m.ShouldSuggestReplicationOnlyUser(
 				context.Background(),
@@ -782,14 +782,16 @@ func Test_CreateReplicationOnlyUser_HappyPath(t *testing.T) {
 
 			m := newTestModel(t, fx.port())
 
-			username, password, err := m.CreateReplicationOnlyUser(
+			createdUser, err := m.CreateReplicationOnlyUser(
 				context.Background(), testLogger(), nil,
 			)
 			require.NoError(t, err)
+
+			username := createdUser.Username
 			assert.True(t,
 				len(username) > len("databasus-") && username[:len("databasus-")] == "databasus-",
 				"username=%s", username)
-			assert.NotEmpty(t, password)
+			assert.NotEmpty(t, createdUser.Password)
 
 			t.Cleanup(func() {
 				setupConn := openTestConn(t, fx.port())
@@ -827,7 +829,7 @@ func Test_CreateReplicationOnlyUser_NewUserCanOpenReplicationConnection(t *testi
 			}
 
 			provisioner := newTestModel(t, fx.port())
-			username, password, err := provisioner.CreateReplicationOnlyUser(
+			createdUser, err := provisioner.CreateReplicationOnlyUser(
 				context.Background(), testLogger(), nil,
 			)
 			require.NoError(t, err)
@@ -837,7 +839,7 @@ func Test_CreateReplicationOnlyUser_NewUserCanOpenReplicationConnection(t *testi
 				defer setupConn.Close(context.Background())
 				_, _ = setupConn.Exec(
 					context.Background(),
-					fmt.Sprintf(`DROP USER IF EXISTS "%s"`, username),
+					fmt.Sprintf(`DROP USER IF EXISTS "%s"`, createdUser.Username),
 				)
 			})
 
@@ -846,7 +848,7 @@ func Test_CreateReplicationOnlyUser_NewUserCanOpenReplicationConnection(t *testi
 
 			dsn := fmt.Sprintf(
 				"host=%s port=%d user=%s password=%s dbname=postgres sslmode=disable replication=true",
-				config.GetEnv().TestLocalhost, portInt, username, password,
+				config.GetEnv().TestLocalhost, portInt, createdUser.Username, createdUser.Password,
 			)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -874,7 +876,7 @@ func Test_CreateReplicationOnlyUser_FailsWhenCurrentUserCannotCreateRole(t *test
 			m.Username = username
 			m.Password = password
 
-			_, _, err := m.CreateReplicationOnlyUser(context.Background(), testLogger(), nil)
+			_, err := m.CreateReplicationOnlyUser(context.Background(), testLogger(), nil)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "create roles")
 		})
@@ -982,10 +984,12 @@ func Test_CreateReplicationOnlyUser_OnSimulatedRds_GrantsRdsReplicationMembershi
 			createMarkerRole(t, setupConn, "rds_replication")
 
 			m := newTestModel(t, fx.port())
-			username, _, err := m.CreateReplicationOnlyUser(
+			createdUser, err := m.CreateReplicationOnlyUser(
 				context.Background(), testLogger(), nil,
 			)
 			require.NoError(t, err)
+
+			username := createdUser.Username
 
 			t.Cleanup(func() {
 				_, _ = setupConn.Exec(
