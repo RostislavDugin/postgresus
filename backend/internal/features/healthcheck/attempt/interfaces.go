@@ -21,7 +21,7 @@ type HealthcheckAttemptSender interface {
 type DatabaseService interface {
 	GetDatabaseByID(id uuid.UUID) (*databases.Database, error)
 
-	TestDatabaseConnectionDirect(ctx context.Context, database *databases.Database) error
+	TestTrustedDatabaseConnection(ctx context.Context, database *databases.Database) error
 
 	SetHealthStatus(
 		databaseID uuid.UUID,

@@ -89,7 +89,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 		// Setup mock database service
 		mockDatabaseService := &MockDatabaseService{}
-		mockDatabaseService.On("TestDatabaseConnectionDirect", database).
+		mockDatabaseService.On("TestTrustedDatabaseConnection", database).
 			Return(errors.New("test error"))
 		unavailableStatus := databases.HealthStatusUnavailable
 		mockDatabaseService.On("SetHealthStatus", database.ID, &unavailableStatus).
@@ -151,7 +151,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 			// Setup mock database service - connection fails but SetHealthStatus should not be called
 			mockDatabaseService := &MockDatabaseService{}
-			mockDatabaseService.On("TestDatabaseConnectionDirect", database).
+			mockDatabaseService.On("TestTrustedDatabaseConnection", database).
 				Return(errors.New("test error"))
 			mockDatabaseService.On("GetDatabaseByID", database.ID).
 				Return(database, nil)
@@ -220,7 +220,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 			// Setup mock database service
 			mockDatabaseService := &MockDatabaseService{}
-			mockDatabaseService.On("TestDatabaseConnectionDirect", database).
+			mockDatabaseService.On("TestTrustedDatabaseConnection", database).
 				Return(errors.New("test error"))
 			unavailableStatus := databases.HealthStatusUnavailable
 			mockDatabaseService.On("SetHealthStatus", database.ID, &unavailableStatus).
@@ -297,7 +297,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 		// Setup mock database service - connection succeeds
 		mockDatabaseService := &MockDatabaseService{}
-		mockDatabaseService.On("TestDatabaseConnectionDirect", database).Return(nil)
+		mockDatabaseService.On("TestTrustedDatabaseConnection", database).Return(nil)
 		availableStatus := databases.HealthStatusAvailable
 		mockDatabaseService.On("SetHealthStatus", database.ID, &availableStatus).
 			Return(nil)
@@ -359,7 +359,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 
 			// Setup mock database service - connection succeeds
 			mockDatabaseService := &MockDatabaseService{}
-			mockDatabaseService.On("TestDatabaseConnectionDirect", database).Return(nil)
+			mockDatabaseService.On("TestTrustedDatabaseConnection", database).Return(nil)
 			availableStatus := databases.HealthStatusAvailable
 			mockDatabaseService.On("SetHealthStatus", database.ID, &availableStatus).
 				Return(nil)
@@ -510,7 +510,7 @@ func Test_CheckDatabaseHealthUseCase(t *testing.T) {
 			mockSender.On("SendNotification", mock.Anything, mock.Anything).Return()
 
 			mockDatabaseService := &MockDatabaseService{}
-			mockDatabaseService.On("TestDatabaseConnectionDirect", database).
+			mockDatabaseService.On("TestTrustedDatabaseConnection", database).
 				Return(errors.New("replication connection refused"))
 			unavailableStatus := databases.HealthStatusUnavailable
 			mockDatabaseService.On("SetHealthStatus", database.ID, &unavailableStatus).Return(nil)

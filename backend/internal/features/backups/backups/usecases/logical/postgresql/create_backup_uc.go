@@ -367,7 +367,7 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlL
 		"-h", pg.Host,
 		"-p", strconv.Itoa(pg.Port),
 		"-U", pg.Username,
-		"-d", *pg.Database,
+		"-d", postgresql_shared.BuildDatabaseNameConninfo(*pg.Database),
 		"--verbose",
 	}
 

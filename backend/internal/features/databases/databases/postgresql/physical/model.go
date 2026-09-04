@@ -91,6 +91,10 @@ func (p *PostgresqlPhysicalDatabase) Validate() error {
 		return err
 	}
 
+	if err := p.ValidateNotEmbeddedTarget(); err != nil {
+		return err
+	}
+
 	switch p.BackupType {
 	case BackupTypeFullOnly, BackupTypeFullAndIncremental, BackupTypeFullIncrementalAndWalStream:
 	case "":
@@ -100,6 +104,16 @@ func (p *PostgresqlPhysicalDatabase) Validate() error {
 	}
 
 	return nil
+}
+
+func (p *PostgresqlPhysicalDatabase) ValidateNotEmbeddedTarget() error {
+	return postgresql_shared.ValidateNotEmbeddedTarget(postgresql_shared.EmbeddedTargetSpec{
+		Host:               p.Host,
+		Port:               p.Port,
+		IsPhysical:         true,
+		IsSSHTunnelEnabled: p.SshTunnel.IsEnabled,
+		SSHBastionHost:     p.SshTunnel.Host,
+	})
 }
 
 func (p *PostgresqlPhysicalDatabase) ValidateUpdate(old *PostgresqlPhysicalDatabase) error {

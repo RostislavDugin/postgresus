@@ -1151,6 +1151,12 @@ func Test_Validate_WhenLocalhostAndDatabasus_ReturnsError(t *testing.T) {
 			username: "postgres",
 			database: "databasus",
 		},
+		{
+			name:     "Unix socket with databasus db",
+			host:     "/tmp",
+			username: "postgres",
+			database: "databasus",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1165,7 +1171,7 @@ func Test_Validate_WhenLocalhostAndDatabasus_ReturnsError(t *testing.T) {
 			}
 
 			err := pgModel.Validate()
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), "backing up Databasus internal database is not allowed")
 			assert.Contains(t, err.Error(), "https://databasus.com/faq#backup-databasus")
 		})

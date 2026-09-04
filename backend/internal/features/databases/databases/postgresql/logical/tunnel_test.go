@@ -61,6 +61,19 @@ func Test_OpenTunnel_WhenTheTunnelIsDisabled_HandsBackTheSameDatabase(t *testing
 	assert.Same(t, database, tunneledDatabase.GetDatabaseThroughTunnel())
 }
 
+func Test_OpenTunnel_WhenTheStoredTargetIsEmbedded_ReturnsError(t *testing.T) {
+	databaseName := "databasus"
+	database := enabledTunnelDatabase()
+	database.Host = "/tmp"
+	database.Port = 5437
+	database.Database = &databaseName
+	database.SshTunnel.IsEnabled = false
+
+	_, err := OpenTunnel(t.Context(), OpenTunnelSpec{Database: database})
+
+	require.ErrorContains(t, err, "backing up Databasus internal database is not allowed")
+}
+
 func Test_OpenTunnel_WhenTheBastionIsUnreachable_ReturnsAnError(t *testing.T) {
 	database := enabledTunnelDatabase()
 	// RFC 5737 TEST-NET-1: routable nowhere, so this fails to connect rather than resolving.

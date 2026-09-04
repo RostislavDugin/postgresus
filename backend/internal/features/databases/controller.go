@@ -255,9 +255,11 @@ func (c *DatabaseController) TestDatabaseConnection(ctx *gin.Context) {
 // @Success 200
 // @Failure 400 {object} map[string]string
 // @Failure 401
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /databases/test-connection-direct [post]
 func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
-	_, ok := users_middleware.GetUserFromContext(ctx)
+	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -269,7 +271,7 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.TestDatabaseConnectionDirect(ctx.Request.Context(), &request); err != nil {
+	if err := c.databaseService.TestDatabaseConnectionDirect(ctx.Request.Context(), user, &request); err != nil {
 		respondConnectionTestError(ctx, err)
 		return
 	}
@@ -277,9 +279,22 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "connection successful"})
 }
 
-// respondConnectionTestError writes a 400 carrying the machine-readable code for a classified
-// connection failure (physical PostgreSQL), or a plain error message for any other failure.
 func respondConnectionTestError(ctx *gin.Context, err error) {
+	if errors.Is(err, ErrInsufficientPermissionsToTestDatabaseConnection) {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": ErrInsufficientPermissionsToTestDatabaseConnection.Error()})
+		return
+	}
+
+	if errors.Is(err, ErrDatabaseConnectionTargetLookup) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": ErrDatabaseConnectionTargetLookup.Error()})
+		return
+	}
+
+	if errors.Is(err, ErrDatabaseConnectionAuthorizationLookup) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": ErrDatabaseConnectionAuthorizationLookup.Error()})
+		return
+	}
+
 	if connErr, ok := errors.AsType[*postgresql_shared.ConnectionTestError](err); ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": connErr.Code})
 		return

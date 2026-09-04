@@ -36,6 +36,10 @@ func OpenTunnel(ctx context.Context, spec OpenTunnelSpec) (*TunneledDatabase, er
 		return &TunneledDatabase{}, nil
 	}
 
+	if err := validatePostgresqlTarget(spec.Database); err != nil {
+		return nil, err
+	}
+
 	// The copy carries the forwarded port and a disabled tunnel, so it must never reach Save.
 	databaseThroughTunnel := *spec.Database
 
@@ -65,6 +69,21 @@ func OpenTunnel(ctx context.Context, spec OpenTunnelSpec) (*TunneledDatabase, er
 	}
 
 	return tunneledDatabase, nil
+}
+
+func validatePostgresqlTarget(database *Database) error {
+	switch database.Type {
+	case DatabaseTypePostgresLogical:
+		if database.PostgresqlLogical != nil {
+			return database.PostgresqlLogical.ValidateNotEmbeddedTarget()
+		}
+	case DatabaseTypePostgresPhysical:
+		if database.PostgresqlPhysical != nil {
+			return database.PostgresqlPhysical.ValidateNotEmbeddedTarget()
+		}
+	}
+
+	return nil
 }
 
 func (t *TunneledDatabase) GetDatabaseThroughTunnel() *Database {

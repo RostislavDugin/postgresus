@@ -85,13 +85,13 @@ func buildConnString(
 	files *CredentialTempFiles,
 ) string {
 	connStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s",
-		getConnectHost(spec),
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		quoteConninfoValue(getConnectHost(spec)),
 		spec.Port,
-		spec.Username,
-		escapeConnStringValue(password),
-		dbName,
-		sslModeOrDefault(spec),
+		quoteConninfoValue(spec.Username),
+		quoteConninfoValue(password),
+		quoteConninfoValue(dbName),
+		quoteConninfoValue(string(sslModeOrDefault(spec))),
 	)
 
 	connStr += " default_query_exec_mode=simple_protocol standard_conforming_strings=on client_encoding=UTF8"
@@ -108,13 +108,13 @@ func buildPhysicalReplicationConnString(
 	files *CredentialTempFiles,
 ) string {
 	connStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s replication=true",
-		getConnectHost(spec),
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s replication=true",
+		quoteConninfoValue(getConnectHost(spec)),
 		spec.Port,
-		spec.Username,
-		escapeConnStringValue(password),
-		dbName,
-		sslModeOrDefault(spec),
+		quoteConninfoValue(spec.Username),
+		quoteConninfoValue(password),
+		quoteConninfoValue(dbName),
+		quoteConninfoValue(string(sslModeOrDefault(spec))),
 	)
 
 	return appendSslFilePaths(connStr, files)
@@ -204,15 +204,15 @@ func appendSslFilePaths(connStr string, files *CredentialTempFiles) string {
 	}
 
 	if files.ClientCertPath != "" {
-		connStr += fmt.Sprintf(" sslcert='%s'", escapeConnStringValue(files.ClientCertPath))
+		connStr += fmt.Sprintf(" sslcert=%s", quoteConninfoValue(files.ClientCertPath))
 	}
 
 	if files.ClientKeyPath != "" {
-		connStr += fmt.Sprintf(" sslkey='%s'", escapeConnStringValue(files.ClientKeyPath))
+		connStr += fmt.Sprintf(" sslkey=%s", quoteConninfoValue(files.ClientKeyPath))
 	}
 
 	if files.RootCertPath != "" {
-		connStr += fmt.Sprintf(" sslrootcert='%s'", escapeConnStringValue(files.RootCertPath))
+		connStr += fmt.Sprintf(" sslrootcert=%s", quoteConninfoValue(files.RootCertPath))
 	}
 
 	return connStr
@@ -285,9 +285,13 @@ func (f *CredentialTempFiles) writeCert(
 	return path, nil
 }
 
-func escapeConnStringValue(value string) string {
+func quoteConninfoValue(value string) string {
 	value = strings.ReplaceAll(value, `\`, `\\`)
 	value = strings.ReplaceAll(value, `'`, `\'`)
 
-	return value
+	return "'" + value + "'"
+}
+
+func BuildDatabaseNameConninfo(databaseName string) string {
+	return "dbname=" + quoteConninfoValue(databaseName)
 }

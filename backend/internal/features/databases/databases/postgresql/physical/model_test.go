@@ -107,6 +107,14 @@ func openTestConnAt(t *testing.T, host string, port int) *pgx.Conn {
 	return conn
 }
 
+func Test_Validate_EmbeddedPhysicalDatabase_ReturnsError(t *testing.T) {
+	physicalDatabase := newTestModelAt(t, "/tmp", 5437)
+
+	err := physicalDatabase.Validate()
+
+	require.ErrorContains(t, err, "backing up Databasus internal PostgreSQL cluster is not allowed")
+}
+
 func createTempUser(t *testing.T, conn *pgx.Conn, extraAttrs string) (string, string) {
 	t.Helper()
 

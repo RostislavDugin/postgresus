@@ -3,6 +3,7 @@ package databases
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"databasus-backend/internal/features/storages"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_models "databasus-backend/internal/features/users/models"
 	users_services "databasus-backend/internal/features/users/services"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
@@ -2137,6 +2139,293 @@ func getConnectionErrorCode(t *testing.T, body []byte) postgresql_shared.Connect
 	require.NoError(t, json.Unmarshal(body, &payload))
 
 	return payload.Code
+}
+
+func createDatabaseForDirectConnectionTest(
+	t *testing.T,
+	router *gin.Engine,
+	workspaceID uuid.UUID,
+	ownerToken string,
+) *Database {
+	t.Helper()
+
+	request := Database{
+		Name:              "Direct connection test database",
+		WorkspaceID:       &workspaceID,
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	var createdDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create",
+		"Bearer "+ownerToken,
+		request,
+		http.StatusCreated,
+		&createdDatabase,
+	)
+
+	t.Cleanup(func() {
+		RemoveTestDatabase(t.Context(), &createdDatabase)
+	})
+
+	return &createdDatabase
+}
+
+type connectionTestDatabaseStore struct {
+	databaseStore
+	database  *Database
+	findError error
+}
+
+func (s *connectionTestDatabaseStore) FindByID(_ uuid.UUID) (*Database, error) {
+	return s.database, s.findError
+}
+
+type connectionTestWorkspaceService struct {
+	workspaceService
+	permissionError error
+}
+
+func (s *connectionTestWorkspaceService) CanUserManageDBs(
+	_ context.Context,
+	_ uuid.UUID,
+	_ *users_models.User,
+) (bool, error) {
+	return false, s.permissionError
+}
+
+func createDirectConnectionErrorTestRouter(
+	databaseStore databaseStore,
+	workspaceService workspaceService,
+	user *users_models.User,
+) *gin.Engine {
+	service := &DatabaseService{
+		databaseStore,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		workspaceService,
+		nil,
+		nil,
+		nil,
+	}
+	controller := &DatabaseController{service, nil, nil}
+	router := gin.New()
+	router.POST("/api/v1/databases/test-connection-direct", func(ctx *gin.Context) {
+		ctx.Set("user", user)
+		controller.TestDatabaseConnectionDirect(ctx)
+	})
+
+	return router
+}
+
+func Test_TestDatabaseConnectionDirect_WhenSavedDatabaseLookupFails_ReturnsSanitizedError(t *testing.T) {
+	user := &users_models.User{ID: uuid.New(), Role: users_enums.UserRoleMember}
+	router := createDirectConnectionErrorTestRouter(
+		&connectionTestDatabaseStore{findError: errors.New("sensitive repository failure")},
+		&connectionTestWorkspaceService{},
+		user,
+	)
+	request := Database{ID: uuid.New()}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"",
+		request,
+		http.StatusInternalServerError,
+	)
+
+	assert.JSONEq(t, `{"error":"failed to load database connection target"}`, string(response.Body))
+}
+
+func Test_TestDatabaseConnectionDirect_WhenPermissionLookupFails_ReturnsSanitizedError(t *testing.T) {
+	workspaceID := uuid.New()
+	user := &users_models.User{ID: uuid.New(), Role: users_enums.UserRoleMember}
+	permissionError := errors.New("sensitive membership failure")
+	testCases := []struct {
+		name          string
+		databaseStore databaseStore
+		request       Database
+	}{
+		{
+			name:          "ad hoc database",
+			databaseStore: &connectionTestDatabaseStore{},
+			request:       Database{WorkspaceID: &workspaceID},
+		},
+		{
+			name: "saved database",
+			databaseStore: &connectionTestDatabaseStore{database: &Database{
+				ID:          uuid.New(),
+				WorkspaceID: &workspaceID,
+			}},
+			request: Database{ID: uuid.New()},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := createDirectConnectionErrorTestRouter(
+				testCase.databaseStore,
+				&connectionTestWorkspaceService{permissionError: permissionError},
+				user,
+			)
+
+			response := test_utils.MakePostRequest(
+				t,
+				router,
+				"/api/v1/databases/test-connection-direct",
+				"",
+				testCase.request,
+				http.StatusInternalServerError,
+			)
+
+			assert.JSONEq(t,
+				`{"error":"failed to verify database connection permissions"}`,
+				string(response.Body),
+			)
+		})
+	}
+}
+
+func Test_TestDatabaseConnectionDirect_WithoutWorkspace_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	request := Database{
+		Name:              "Direct connection test database",
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+user.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.JSONEq(t, `{"error":"workspaceId is required"}`, string(response.Body))
+}
+
+func Test_TestDatabaseConnectionDirect_ForUnauthorizedSavedDatabase_ReturnsForbidden(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		shouldAddToWorkspace bool
+		unauthorizedRole     users_enums.WorkspaceRole
+	}{
+		{
+			name:                 "workspace viewer",
+			shouldAddToWorkspace: true,
+			unauthorizedRole:     users_enums.WorkspaceRoleViewer,
+		},
+		{
+			name:                 "nonmember",
+			shouldAddToWorkspace: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Direct Test Workspace", owner, router)
+			t.Cleanup(func() {
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+			})
+
+			createdDatabase := createDatabaseForDirectConnectionTest(t, router, workspace.ID, owner.Token)
+			unauthorizedUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			if testCase.shouldAddToWorkspace {
+				workspaces_testing.AddMemberToWorkspace(
+					workspace,
+					unauthorizedUser,
+					testCase.unauthorizedRole,
+					owner.Token,
+					router,
+				)
+			}
+
+			createdDatabase.PostgresqlLogical.Host = "127.0.0.1"
+			createdDatabase.PostgresqlLogical.Port = 1
+			createdDatabase.PostgresqlLogical.Password = ""
+
+			response := test_utils.MakePostRequest(
+				t,
+				router,
+				"/api/v1/databases/test-connection-direct",
+				"Bearer "+unauthorizedUser.Token,
+				createdDatabase,
+				http.StatusForbidden,
+			)
+
+			assert.JSONEq(t,
+				`{"error":"insufficient permissions to test this database connection"}`,
+				string(response.Body),
+			)
+		})
+	}
+}
+
+func Test_TestDatabaseConnectionDirect_ForUnknownDatabase_ReturnsForbidden(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	request := Database{
+		ID:                uuid.New(),
+		Name:              "Unknown database",
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+user.Token,
+		request,
+		http.StatusForbidden,
+	)
+
+	assert.JSONEq(t,
+		`{"error":"insufficient permissions to test this database connection"}`,
+		string(response.Body),
+	)
+}
+
+func Test_TestDatabaseConnectionDirect_ForWorkspaceMember_ReturnsSuccess(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Direct Test Workspace", owner, router)
+	t.Cleanup(func() {
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	})
+
+	createdDatabase := createDatabaseForDirectConnectionTest(t, router, workspace.ID, owner.Token)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspaces_testing.AddMemberToWorkspace(
+		workspace,
+		member,
+		users_enums.WorkspaceRoleMember,
+		owner.Token,
+		router,
+	)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+member.Token,
+		createdDatabase,
+		http.StatusOK,
+	)
 }
 
 func Test_TestDatabaseConnectionDirect_ForWalStreamWhenRoleCannotSwitchWal_ReturnsNoWalSwitchPrivilegeCode(
