@@ -779,6 +779,28 @@ func waitForReplayableThroughLSN(t *testing.T, databaseID uuid.UUID, throughLSN 
 		throughLSN.String(), timeout, lastReachable.String())
 }
 
+// Reaching the target's LSN is not enough on its own: the resolver compares the
+// target against the receive time of the last segment in the contiguous run, so a
+// run that already extends past the target by LSN can still end at a segment
+// archived before it.
+func waitForTargetTimeReplayable(t *testing.T, databaseID uuid.UUID, targetTime time.Time, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().UTC().Add(timeout)
+
+	var lastErr error
+	for time.Now().UTC().Before(deadline) {
+		_, lastErr = chain_view.GetChainViewService().ResolveRestoreSet(databaseID, &targetTime)
+		if lastErr == nil {
+			return
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	t.Fatalf("target time %s never became restorable within %s: %v", targetTime, timeout, lastErr)
+}
+
 // seedChainAndStreamPastTarget seeds the marker table, builds FULL -> INCR -> INCR over the API, then
 // streams WAL past a captured target time (with a post-target row that must be dropped). It returns
 // the PITR target and the phases that must survive recovery to it - shared by the in-container and the

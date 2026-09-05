@@ -43,14 +43,11 @@ const (
 // the single seam through which the cleaner mutates catalog rows — the cleaner
 // never issues raw DELETEs.
 type PhysicalBackupService struct {
-	fullBackupRepository        *physical_repositories.PhysicalFullBackupRepository
-	incrementalBackupRepository *physical_repositories.PhysicalIncrementalBackupRepository
-	walSegmentRepository        *physical_repositories.PhysicalWalSegmentRepository
-	walHistoryRepository        *physical_repositories.PhysicalWalHistoryRepository
-	chainViewService            *chain_view.ChainViewService
-	storageService              *storages.StorageService
-	fieldEncryptor              util_encryption.FieldEncryptor
-	logger                      *slog.Logger
+	fullBackupRepository *physical_repositories.PhysicalFullBackupRepository
+	walSegmentRepository *physical_repositories.PhysicalWalSegmentRepository
+	storageService       *storages.StorageService
+	fieldEncryptor       util_encryption.FieldEncryptor
+	logger               *slog.Logger
 }
 
 // GetLatestCompletedFullBackup returns the most recent completed FULL backup for
@@ -156,6 +153,60 @@ func (s *PhysicalBackupService) DeleteWalSegmentsInSpan(
 	return deletedRows, deletedMB, nil
 }
 
+func (s *PhysicalBackupService) DeleteOrphanWalSegmentsInSpan(
+	ctx context.Context,
+	spec DeleteOrphanWalSegmentsSpec,
+) (int, float64, error) {
+	var deletedRows int
+	var deletedMB float64
+
+	txErr := storage.GetDb().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := physical_repositories.AcquireBackupAndOrphanCleanupLock(tx, spec.DatabaseID); err != nil {
+			return err
+		}
+
+		hasInFlightFull, err := physical_repositories.HasInFlightFullBackup(tx, spec.DatabaseID)
+		if err != nil {
+			return err
+		}
+		if hasInFlightFull {
+			return nil
+		}
+
+		hasAnchoringFull, err := physical_repositories.HasCompletedFullBackupCoveringWal(
+			tx,
+			spec.DatabaseID,
+			spec.TimelineID,
+			spec.Span.End,
+		)
+		if err != nil {
+			return err
+		}
+		if hasAnchoringFull {
+			return nil
+		}
+
+		rows, mb, _, err := s.deleteWalInSpanBudgeted(
+			ctx,
+			tx,
+			spec.DatabaseID,
+			spec.TimelineID,
+			spec.Span,
+			spec.WalByteBudgetMB,
+			true,
+		)
+		deletedRows = rows
+		deletedMB = mb
+
+		return err
+	})
+	if txErr != nil {
+		return 0, 0, txErr
+	}
+
+	return deletedRows, deletedMB, nil
+}
+
 // DeleteIncrementalCascade removes one incremental and every incremental that
 // descends from it (its children, their children, …), leaves first so the
 // RESTRICT FK on parent_incremental_backup_id is never violated. The chain's
@@ -247,32 +298,74 @@ func (s *PhysicalBackupService) DeleteWalSegment(
 // GetDependentsSummary counts a chain's dependents and total size without
 // deleting anything. Idempotent and read-only.
 func (s *PhysicalBackupService) GetDependentsSummary(rootFullBackupID uuid.UUID) (DependentsSummary, error) {
-	full, err := s.fullBackupRepository.FindByID(rootFullBackupID)
+	targetFull, err := s.fullBackupRepository.FindByID(rootFullBackupID)
 	if err != nil {
 		return DependentsSummary{}, err
 	}
-	if full == nil {
+	if targetFull == nil {
 		return DependentsSummary{}, ErrFullNotFound
 	}
 
-	span, err := s.chainViewService.GetChainSpan(rootFullBackupID)
-	if err != nil {
-		return DependentsSummary{}, err
-	}
+	var segments []*physical_models.PhysicalWalSegment
+	var incrementals []*physical_models.PhysicalIncrementalBackup
+	var historyFiles []*physical_models.PhysicalWalHistoryFile
+	var lockedFull physical_models.PhysicalFullBackup
 
-	segments, err := s.chainViewService.FindWalSegmentsInSpan(full.DatabaseID, full.TimelineID, span.Start, span.End)
-	if err != nil {
-		return DependentsSummary{}, err
-	}
+	transactionErr := storage.GetDb().Transaction(func(tx *gorm.DB) error {
+		if err := physical_repositories.AcquireBackupAndOrphanCleanupLock(tx, targetFull.DatabaseID); err != nil {
+			return err
+		}
 
-	incrementals, err := s.incrementalBackupRepository.FindAllByRootFull(rootFullBackupID)
-	if err != nil {
-		return DependentsSummary{}, err
-	}
+		lockErr := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", rootFullBackupID).
+			First(&lockedFull).Error
+		if errors.Is(lockErr, gorm.ErrRecordNotFound) {
+			return ErrFullNotFound
+		}
+		if lockErr != nil {
+			return lockErr
+		}
 
-	historyFiles, err := s.walHistoryRepository.FindAllByDatabase(full.DatabaseID)
-	if err != nil {
-		return DependentsSummary{}, err
+		walPlan, err := s.getFullRemovalWalPlan(tx, &lockedFull)
+		if err != nil {
+			return err
+		}
+		if walPlan.hasDeletableWal {
+			if err := selectWalSegmentsFullyContainedInSpan(
+				tx,
+				lockedFull.DatabaseID,
+				lockedFull.TimelineID,
+				walPlan.span,
+			).Find(&segments).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.
+			Where("root_full_backup_id = ?", rootFullBackupID).
+			Find(&incrementals).Error; err != nil {
+			return err
+		}
+
+		if walPlan.hasInFlightFull {
+			return nil
+		}
+
+		hasSurvivingFull, err := hasSurvivingCompletedFullOnTimeline(tx, &lockedFull)
+		if err != nil {
+			return err
+		}
+		if hasSurvivingFull {
+			return nil
+		}
+
+		return tx.
+			Where("database_id = ? AND timeline_id = ?", lockedFull.DatabaseID, lockedFull.TimelineID).
+			Find(&historyFiles).Error
+	})
+	if transactionErr != nil {
+		return DependentsSummary{}, transactionErr
 	}
 
 	summary := DependentsSummary{
@@ -281,8 +374,8 @@ func (s *PhysicalBackupService) GetDependentsSummary(rootFullBackupID uuid.UUID)
 		Incrementals:     len(incrementals),
 	}
 
-	if full.BackupSizeMb != nil {
-		summary.TotalSizeMB += *full.BackupSizeMb
+	if lockedFull.BackupSizeMb != nil {
+		summary.TotalSizeMB += *lockedFull.BackupSizeMb
 	}
 
 	for _, segment := range segments {
@@ -296,10 +389,8 @@ func (s *PhysicalBackupService) GetDependentsSummary(rootFullBackupID uuid.UUID)
 	}
 
 	for _, historyFile := range historyFiles {
-		if historyFile.TimelineID == full.TimelineID {
-			summary.HistoryFiles++
-			summary.TotalSizeMB += historyFile.CompressedSizeMb
-		}
+		summary.HistoryFiles++
+		summary.TotalSizeMB += historyFile.CompressedSizeMb
 	}
 
 	return summary, nil
@@ -511,15 +602,30 @@ func (s *PhysicalBackupService) cascadeDelete(
 ) (DeletedSummary, error) {
 	summary := DeletedSummary{RootFullBackupID: rootFullBackupID}
 
+	targetFull, err := s.fullBackupRepository.FindByID(rootFullBackupID)
+	if err != nil {
+		return DeletedSummary{}, err
+	}
+	if targetFull == nil {
+		return summary, nil
+	}
+
 	txErr := storage.GetDb().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var full physical_models.PhysicalFullBackup
+		if err := physical_repositories.AcquireBackupAndOrphanCleanupLock(
+			tx,
+			targetFull.DatabaseID,
+		); err != nil {
+			return err
+		}
+
+		var lockedFull physical_models.PhysicalFullBackup
 
 		// FOR UPDATE serializes with concurrent cleaner instances and the WAL
 		// uploader (which locks the same anchor FULL before its INSERT).
 		lockErr := tx.
 			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", rootFullBackupID).
-			First(&full).Error
+			First(&lockedFull).Error
 		if errors.Is(lockErr, gorm.ErrRecordNotFound) {
 			s.logger.DebugContext(ctx, "chain already deleted by peer", "root_full_backup_id", rootFullBackupID)
 
@@ -529,24 +635,48 @@ func (s *PhysicalBackupService) cascadeDelete(
 			return lockErr
 		}
 
-		span, err := s.chainViewService.GetChainSpan(rootFullBackupID)
+		var span chain_view.LSNRange
+		var hasDeletableWal bool
+		var err error
+
+		var hasInFlightFull bool
+		if keepFull {
+			hasInFlightFull, err = physical_repositories.HasInFlightFullBackup(tx, lockedFull.DatabaseID)
+			if err != nil {
+				return err
+			}
+			if !hasInFlightFull {
+				span, err = s.getWalOwnershipSpan(tx, &lockedFull)
+				hasDeletableWal = true
+			}
+		} else {
+			walPlan, planErr := s.getFullRemovalWalPlan(tx, &lockedFull)
+			if planErr != nil {
+				return planErr
+			}
+			span = walPlan.span
+			hasDeletableWal = walPlan.hasDeletableWal
+			hasInFlightFull = walPlan.hasInFlightFull
+		}
 		if err != nil {
 			return err
 		}
 
-		walRows, walBytes, budgetHit, err := s.deleteWalInSpanBudgeted(ctx,
-			tx, full.DatabaseID, full.TimelineID, span, walByteBudgetMB, false,
-		)
-		summary.WalSegments = walRows
-		summary.BytesDeletedMB = walBytes
-		if err != nil {
-			return err
-		}
+		if hasDeletableWal {
+			walRows, walBytes, budgetHit, err := s.deleteWalInSpanBudgeted(ctx,
+				tx, lockedFull.DatabaseID, lockedFull.TimelineID, span, walByteBudgetMB, false,
+			)
+			summary.WalSegments = walRows
+			summary.BytesDeletedMB = walBytes
+			if err != nil {
+				return err
+			}
 
-		if budgetHit {
-			// WAL budget exhausted before the chain emptied — commit the partial
-			// deletion; the next tick re-queries the now-oldest rows.
-			return nil
+			if budgetHit {
+				// WAL budget exhausted before the chain emptied — commit the partial
+				// deletion; the next tick re-queries the now-oldest rows.
+				return nil
+			}
 		}
 
 		incrementalCount, err := s.deleteIncrementals(ctx, tx, rootFullBackupID)
@@ -559,13 +689,15 @@ func (s *PhysicalBackupService) cascadeDelete(
 			return nil
 		}
 
-		historyCount, err := s.deleteOrphanedHistoryFiles(ctx, tx, &full)
-		summary.HistoryFiles = historyCount
-		if err != nil {
-			return err
+		if !hasInFlightFull {
+			historyCount, err := s.deleteOrphanedHistoryFiles(ctx, tx, &lockedFull)
+			summary.HistoryFiles = historyCount
+			if err != nil {
+				return err
+			}
 		}
 
-		if err := s.deleteFullArtifactAndRow(ctx, tx, &full); err != nil {
+		if err := s.deleteFullArtifactAndRow(ctx, tx, &lockedFull); err != nil {
 			return err
 		}
 
@@ -580,8 +712,125 @@ func (s *PhysicalBackupService) cascadeDelete(
 	return summary, nil
 }
 
-// deleteWalInSpanBudgeted removes WAL rows in the span oldest-LSN first, batched,
-// stopping when the byte budget is reached or the span is drained. Storage
+type fullRemovalWalPlan struct {
+	span            chain_view.LSNRange
+	hasDeletableWal bool
+	hasInFlightFull bool
+}
+
+func (s *PhysicalBackupService) getFullRemovalWalPlan(
+	database *gorm.DB,
+	full *physical_models.PhysicalFullBackup,
+) (fullRemovalWalPlan, error) {
+	hasInFlightFull, err := physical_repositories.HasInFlightFullBackup(database, full.DatabaseID)
+	if err != nil {
+		return fullRemovalWalPlan{}, err
+	}
+	if hasInFlightFull {
+		return fullRemovalWalPlan{hasInFlightFull: true}, nil
+	}
+
+	if full.StartLSN == nil {
+		return fullRemovalWalPlan{}, errors.New("cannot determine deletable WAL without FULL start_lsn")
+	}
+
+	var predecessorCount int64
+	if err := database.Model(&physical_models.PhysicalFullBackup{}).
+		Where(
+			"database_id = ? AND timeline_id = ? AND status = ? AND start_lsn IS NOT NULL AND start_lsn < ?::pg_lsn",
+			full.DatabaseID,
+			full.TimelineID,
+			physical_enums.PhysicalBackupStatusCompleted,
+			full.StartLSN.String(),
+		).
+		Count(&predecessorCount).Error; err != nil {
+		return fullRemovalWalPlan{}, err
+	}
+	if predecessorCount > 0 {
+		return fullRemovalWalPlan{}, nil
+	}
+
+	span, err := s.getWalOwnershipSpan(database, full)
+	if err != nil {
+		return fullRemovalWalPlan{}, err
+	}
+
+	return fullRemovalWalPlan{span: span, hasDeletableWal: true}, nil
+}
+
+func hasSurvivingCompletedFullOnTimeline(
+	database *gorm.DB,
+	full *physical_models.PhysicalFullBackup,
+) (bool, error) {
+	var survivingFullCount int64
+
+	if err := database.
+		Model(&physical_models.PhysicalFullBackup{}).
+		Where(
+			"database_id = ? AND timeline_id = ? AND status = ? AND id != ?",
+			full.DatabaseID,
+			full.TimelineID,
+			physical_enums.PhysicalBackupStatusCompleted,
+			full.ID,
+		).
+		Count(&survivingFullCount).Error; err != nil {
+		return false, err
+	}
+
+	return survivingFullCount > 0, nil
+}
+
+func (s *PhysicalBackupService) getWalOwnershipSpan(
+	database *gorm.DB,
+	full *physical_models.PhysicalFullBackup,
+) (chain_view.LSNRange, error) {
+	if full.StartLSN == nil {
+		return chain_view.LSNRange{}, errors.New("cannot determine WAL ownership without FULL start_lsn")
+	}
+
+	var successor physical_models.PhysicalFullBackup
+	findSuccessorErr := database.
+		Where(
+			"database_id = ? AND timeline_id = ? AND status = ? AND start_lsn > ?::pg_lsn",
+			full.DatabaseID,
+			full.TimelineID,
+			physical_enums.PhysicalBackupStatusCompleted,
+			full.StartLSN.String(),
+		).
+		Order("start_lsn ASC").
+		First(&successor).Error
+	if findSuccessorErr != nil && !errors.Is(findSuccessorErr, gorm.ErrRecordNotFound) {
+		return chain_view.LSNRange{}, findSuccessorErr
+	}
+
+	spanEnd := chain_view.LSNMax
+	if findSuccessorErr == nil && successor.StartLSN != nil {
+		spanEnd = *successor.StartLSN
+	}
+
+	return chain_view.LSNRange{Start: *full.StartLSN, End: spanEnd}, nil
+}
+
+func selectWalSegmentsFullyContainedInSpan(
+	database *gorm.DB,
+	databaseID uuid.UUID,
+	timelineID int,
+	span chain_view.LSNRange,
+) *gorm.DB {
+	return database.Where(
+		"database_id = ? AND timeline_id = ? AND start_lsn >= ?::pg_lsn AND end_lsn <= ?::pg_lsn",
+		databaseID,
+		timelineID,
+		span.Start.String(),
+		span.End.String(),
+	)
+}
+
+// deleteWalInSpanBudgeted removes only WAL rows lying fully inside the span. The
+// upper bound is the segment's end_lsn, not its start_lsn: a span ends at the
+// next chain's start_lsn, which sits inside a segment, and that straddling
+// segment carries the bytes the next chain replays from. Bounding on start_lsn
+// would delete it along with the chain being pruned. Storage
 // deletes are fail-closed: a transient DeleteFile error aborts the batch (the
 // rows survive and retry) rather than orphaning an object. lockRows takes a
 // row-level FOR UPDATE on each batch (orphan path, no anchor FULL to serialize
@@ -599,11 +848,7 @@ func (s *PhysicalBackupService) deleteWalInSpanBudgeted(
 	for {
 		var segments []*physical_models.PhysicalWalSegment
 
-		batchQuery := tx.
-			Where(
-				"database_id = ? AND timeline_id = ? AND start_lsn >= ?::pg_lsn AND start_lsn < ?::pg_lsn",
-				databaseID, timelineID, span.Start.String(), span.End.String(),
-			).
+		batchQuery := selectWalSegmentsFullyContainedInSpan(tx, databaseID, timelineID, span).
 			Order("start_lsn ASC").
 			Limit(maxWalDeleteBatchRows)
 
@@ -757,17 +1002,12 @@ func (s *PhysicalBackupService) deleteOrphanedHistoryFiles(
 	tx *gorm.DB,
 	full *physical_models.PhysicalFullBackup,
 ) (int, error) {
-	var survivingFulls int64
-
-	if err := tx.
-		Model(&physical_models.PhysicalFullBackup{}).
-		Where("database_id = ? AND timeline_id = ? AND status = ? AND id != ?",
-			full.DatabaseID, full.TimelineID, physical_enums.PhysicalBackupStatusCompleted, full.ID).
-		Count(&survivingFulls).Error; err != nil {
+	hasSurvivingFull, err := hasSurvivingCompletedFullOnTimeline(tx, full)
+	if err != nil {
 		return 0, err
 	}
 
-	if survivingFulls > 0 {
+	if hasSurvivingFull {
 		return 0, nil
 	}
 

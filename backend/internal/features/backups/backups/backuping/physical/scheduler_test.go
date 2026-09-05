@@ -37,8 +37,7 @@ func makeIncrementalDue(prereqs *backupPrereqs) {
 }
 
 // seedFullWithStatusAndAge persists a FULL of the given status, aged by ageHours,
-// so the cadence / chain-state decision tests are deterministic. Non-COMPLETED
-// fulls clear CompletedAt — only COMPLETED fulls anchor an extendable chain.
+// so the cadence and chain-state decision tests are deterministic.
 func seedFullWithStatusAndAge(
 	t *testing.T,
 	prereqs *backupPrereqs,
@@ -52,10 +51,6 @@ func seedFullWithStatusAndAge(
 
 	full.CreatedAt = time.Now().UTC().Add(-time.Duration(ageHours) * time.Hour)
 	full.Status = status
-
-	if status != physical_enums.PhysicalBackupStatusCompleted {
-		full.CompletedAt = nil
-	}
 
 	return physical_testing.CreateTestFullBackup(t, full)
 }
@@ -78,11 +73,244 @@ func seedIncrWithStatusAndAge(
 	incr.CreatedAt = time.Now().UTC().Add(-time.Duration(ageHours) * time.Hour)
 	incr.Status = status
 
-	if status != physical_enums.PhysicalBackupStatusCompleted {
-		incr.CompletedAt = nil
+	return physical_testing.CreateTestIncrementalBackup(t, incr)
+}
+
+func setFullErrorReason(
+	t *testing.T,
+	full *physical_models.PhysicalFullBackup,
+	reason physical_enums.PhysicalBackupErrorReason,
+) {
+	t.Helper()
+
+	full.ErrorReason = &reason
+	require.NoError(t, storage.GetDb().Save(full).Error)
+}
+
+func setIncrementalErrorReason(
+	t *testing.T,
+	incremental *physical_models.PhysicalIncrementalBackup,
+	reason physical_enums.PhysicalBackupErrorReason,
+) {
+	t.Helper()
+
+	incremental.ErrorReason = &reason
+	require.NoError(t, storage.GetDb().Save(incremental).Error)
+}
+
+func Test_DecideBackupKind_WhenIncrementalDetectsTimelineSwitch_SchedulesImmediateFull(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 1)
+	brokenIncremental := seedIncrWithStatusAndAge(
+		t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusChainBroken, 2, 0,
+	)
+	setIncrementalErrorReason(t, brokenIncremental, physical_enums.PhysicalBackupErrorTimelineSwitchDetected)
+
+	decision, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+
+	require.True(t, canSchedule)
+	require.Equal(t, physical_enums.PhysicalBackupTypeFull, decision.kind)
+	require.NotNil(t, decision.immediateTrigger)
+	require.Equal(t, brokenIncremental.ID, decision.immediateTrigger.backupID)
+}
+
+func Test_DecideBackupKind_WhenFullFailsDuringFailover_SchedulesImmediateFull(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	prereqs.Config.FullBackupInterval = intervals.Interval{Type: intervals.IntervalWeekly}
+	failedFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusError, 1, 0)
+	setFullErrorReason(t, failedFull, physical_enums.PhysicalBackupErrorFailoverDuringBackup)
+
+	decision, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+
+	require.True(t, canSchedule)
+	require.NotNil(t, decision.immediateTrigger)
+	require.Equal(t, failedFull.ID, decision.immediateTrigger.backupID)
+}
+
+func Test_ClaimAndInsert_WhenImmediateTriggerWasReplaced_RejectsStaleDecision(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	makeIncrementalDue(prereqs)
+	rootFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 1, 2)
+	brokenIncremental := seedIncrWithStatusAndAge(
+		t, prereqs, rootFull.ID, physical_enums.PhysicalBackupStatusChainBroken, 2, 1,
+	)
+	setIncrementalErrorReason(t, brokenIncremental, physical_enums.PhysicalBackupErrorTimelineSwitchDetected)
+
+	scheduler := CreateTestPhysicalScheduler()
+	staleDecision, canSchedule := scheduler.decideBackupKind(logger.GetLogger(), time.Now().UTC(), prereqs.Config)
+	require.True(t, canSchedule)
+
+	replacementFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusError, 3, 0)
+	replacementFull.CreatedAt = brokenIncremental.CompletedAt.Add(time.Second)
+	require.NoError(t, storage.GetDb().Save(replacementFull).Error)
+
+	claimed, err := scheduler.claimAndInsert(prereqs.Config, uuid.New(), staleDecision)
+
+	require.NoError(t, err)
+	require.False(t, claimed)
+}
+
+func Test_ClaimAndInsert_WhenMismatchAppearsAfterAutomaticDecision_RejectsStaleDecision(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	scheduler := CreateTestPhysicalScheduler()
+	automaticDecision, canSchedule := scheduler.decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+	require.True(t, canSchedule)
+
+	mismatchedFull := seedFullWithStatusAndAge(
+		t, prereqs, physical_enums.PhysicalBackupStatusChainBroken, 1, 0,
+	)
+	setFullErrorReason(t, mismatchedFull, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch)
+
+	claimed, err := scheduler.claimAndInsert(prereqs.Config, uuid.New(), automaticDecision)
+
+	require.NoError(t, err)
+	require.False(t, claimed)
+}
+
+func Test_ClaimAndInsert_WhenMismatchCommitsWhileClaimWaits_RejectsStaleAutomaticDecision(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	scheduler := CreateTestPhysicalScheduler()
+	automaticDecision, canSchedule := scheduler.decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+	require.True(t, canSchedule)
+
+	terminalTransaction := storage.GetDb().Begin()
+	require.NoError(t, terminalTransaction.Error)
+	t.Cleanup(func() { _ = terminalTransaction.Rollback().Error })
+
+	mismatchedFull := physical_testing.NewTestCompletedFullBackup(
+		prereqs.DB.ID,
+		prereqs.Storage.ID,
+		1,
+		testLSN(1),
+		testLSN(2),
+	)
+	mismatchReason := physical_enums.PhysicalBackupErrorSystemIdentifierMismatch
+	mismatchedFull.Status = physical_enums.PhysicalBackupStatusChainBroken
+	mismatchedFull.ErrorReason = &mismatchReason
+	require.NoError(t, terminalTransaction.Create(mismatchedFull).Error)
+
+	isOccupied, err := scheduler.inFlightRepo.Claim(terminalTransaction, physical_repositories.ClaimSpec{
+		DatabaseID: prereqs.DB.ID,
+		BackupType: physical_enums.PhysicalBackupTypeFull,
+		BackupID:   uuid.New(),
+	})
+	require.NoError(t, err)
+	require.True(t, isOccupied)
+
+	type claimResult struct {
+		isClaimed bool
+		err       error
+	}
+	claimResults := make(chan claimResult, 1)
+	go func() {
+		isClaimed, claimErr := scheduler.claimAndInsert(
+			prereqs.Config,
+			uuid.New(),
+			automaticDecision,
+		)
+		claimResults <- claimResult{isClaimed: isClaimed, err: claimErr}
+	}()
+
+	select {
+	case <-claimResults:
+		t.Fatal("automatic claim must wait for the pending terminal transaction")
+	case <-time.After(100 * time.Millisecond):
 	}
 
-	return physical_testing.CreateTestIncrementalBackup(t, incr)
+	require.NoError(t, terminalTransaction.Delete(
+		&physical_models.PhysicalInFlightBackup{},
+		"database_id = ?",
+		prereqs.DB.ID,
+	).Error)
+	require.NoError(t, terminalTransaction.Commit().Error)
+
+	result := <-claimResults
+	require.NoError(t, result.err)
+	require.False(t, result.isClaimed)
+
+	inFlightBackup, err := scheduler.inFlightRepo.FindByDatabaseID(prereqs.DB.ID)
+	require.NoError(t, err)
+	require.Nil(t, inFlightBackup)
+
+	inProgressFulls, err := scheduler.fullRepo.FindAllInProgress()
+	require.NoError(t, err)
+	for _, full := range inProgressFulls {
+		require.NotEqual(t, prereqs.DB.ID, full.DatabaseID)
+	}
+}
+
+func Test_DecideBackupKind_WhenSystemIdentifierMismatchUnresolved_SuppressesAutomaticBackup(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	failedFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusChainBroken, 1, 1)
+	setFullErrorReason(t, failedFull, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch)
+
+	_, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+
+	require.False(t, canSchedule)
+}
+
+func Test_DecideBackupKind_WhenSystemIdentifierMismatchUnresolved_AllowsForcedFull(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	failedFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusChainBroken, 1, 1)
+	setFullErrorReason(t, failedFull, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch)
+	requestedAt := time.Now().UTC()
+	prereqs.Config.ForceFullRequestedAt = &requestedAt
+
+	decision, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+
+	require.True(t, canSchedule)
+	require.Equal(t, physical_enums.PhysicalBackupTypeFull, decision.kind)
+	require.NotNil(t, decision.forceFullRequestedAt)
+}
+
+func Test_DecideBackupKind_WhenCompletedFullFollowsMismatch_ResumesAutomaticScheduling(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	prereqs.Config.FullBackupInterval = intervals.Interval{Type: intervals.IntervalHourly}
+	failedFull := seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusChainBroken, 1, 3)
+	setFullErrorReason(t, failedFull, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch)
+	seedFullWithStatusAndAge(t, prereqs, physical_enums.PhysicalBackupStatusCompleted, 2, 2)
+
+	decision, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+		logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+	)
+
+	require.True(t, canSchedule)
+	require.Equal(t, physical_enums.PhysicalBackupTypeFull, decision.kind)
+}
+
+func Test_DecideBackupKind_WhenUnsuccessfulFullFollowsMismatch_KeepsAutomaticSchedulingSuppressed(t *testing.T) {
+	for _, terminalStatus := range []physical_enums.PhysicalBackupStatus{
+		physical_enums.PhysicalBackupStatusError,
+		physical_enums.PhysicalBackupStatusCanceled,
+	} {
+		t.Run(string(terminalStatus), func(t *testing.T) {
+			prereqs := seedBackupPrereqs(t)
+			mismatchedFull := seedFullWithStatusAndAge(
+				t, prereqs, physical_enums.PhysicalBackupStatusChainBroken, 1, 3,
+			)
+			setFullErrorReason(t, mismatchedFull, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch)
+			seedFullWithStatusAndAge(t, prereqs, terminalStatus, 2, 2)
+
+			_, canSchedule := CreateTestPhysicalScheduler().decideBackupKind(
+				logger.GetLogger(), time.Now().UTC(), prereqs.Config,
+			)
+
+			require.False(t, canSchedule)
+		})
+	}
 }
 
 func Test_DecideBackupKind_WhenRecentlyCompletedFullAndIncrNotDue_SchedulesNothing(t *testing.T) {
@@ -406,6 +634,40 @@ func Test_ClaimAndInsert_WhenConcurrentClaimSameDatabase_OnlyOneSucceeds(t *test
 		}
 	}
 	assert.Equal(t, 1, inProgressForDB, "only the winning claim inserts a typed row")
+}
+
+func Test_ClaimAndInsert_WhenOrphanCleanupLockIsHeld_WaitsForTransaction(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	scheduler := CreateTestPhysicalScheduler()
+	cleanupTransaction := storage.GetDb().Begin()
+	require.NoError(t, cleanupTransaction.Error)
+	t.Cleanup(func() { _ = cleanupTransaction.Rollback().Error })
+	require.NoError(t, physical_repositories.AcquireBackupAndOrphanCleanupLock(cleanupTransaction, prereqs.DB.ID))
+
+	type claimResult struct {
+		isClaimed bool
+		err       error
+	}
+	claimResults := make(chan claimResult, 1)
+	go func() {
+		isClaimed, err := scheduler.claimAndInsert(
+			prereqs.Config,
+			uuid.New(),
+			backupDecision{kind: physical_enums.PhysicalBackupTypeFull},
+		)
+		claimResults <- claimResult{isClaimed: isClaimed, err: err}
+	}()
+
+	select {
+	case <-claimResults:
+		t.Fatal("FULL claim must wait while orphan cleanup holds the database lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	require.NoError(t, cleanupTransaction.Commit().Error)
+	result := <-claimResults
+	require.NoError(t, result.err)
+	require.True(t, result.isClaimed)
 }
 
 func Test_EvaluateConfig_WhenInFlightClaimExists_SkipsWithoutNewRow(t *testing.T) {

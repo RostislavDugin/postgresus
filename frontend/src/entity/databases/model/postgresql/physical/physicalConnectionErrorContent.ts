@@ -1,3 +1,4 @@
+import { quotePostgresqlIdentifier } from '../quotePostgresqlIdentifier';
 import { ConnectionErrorCode } from './ConnectionErrorCode';
 
 export interface PhysicalConnectionErrorTextRun {
@@ -65,12 +66,42 @@ export const physicalConnectionErrorContent: Record<
     title: 'User cannot run replication',
     summary:
       'The user connected but lacks the REPLICATION privilege that physical backups require.',
-    buildSteps: ({ username }) => [
-      { type: 'note', runs: [{ text: 'Grant it with the command below (run as a superuser).' }] },
-      { type: 'command', command: `ALTER ROLE ${username} REPLICATION;` },
-    ],
+    buildSteps: ({ username }) => {
+      const quotedUsername = quotePostgresqlIdentifier(username);
+
+      return [
+        { type: 'note', runs: [{ text: 'Grant it with the command below (run as a superuser).' }] },
+        { type: 'command', command: `ALTER ROLE ${quotedUsername} REPLICATION;` },
+      ];
+    },
     managedNote: ({ username }) =>
-      `On AWS RDS use GRANT rds_replication TO ${username}; on Azure / GCP enable replication for the role in the provider console.`,
+      `On AWS RDS use GRANT rds_replication TO ${quotePostgresqlIdentifier(username)}; on Azure / GCP enable replication for the role in the provider console.`,
+  },
+  [ConnectionErrorCode.NoWalSwitchPrivilege]: {
+    title: 'User cannot force a WAL segment switch',
+    summary:
+      'Continuous WAL streaming only uploads a segment once the source closes it, so on a rarely-written database the newest WAL stays on the source until the 16 MB segment fills. Forcing a switch on a timer is what keeps the recovery point between backups close to the present, and it needs EXECUTE on pg_switch_wal(). Full and incremental backups do not need it: they restore to the point each backup finished and replay no archived WAL.',
+    buildSteps: ({ username }) => {
+      const quotedUsername = quotePostgresqlIdentifier(username);
+
+      return [
+        { type: 'note', runs: [{ text: 'Grant it with the command below (run as a superuser).' }] },
+        {
+          type: 'command',
+          command: `GRANT EXECUTE ON FUNCTION pg_switch_wal() TO ${quotedUsername};`,
+        },
+        {
+          type: 'note',
+          runs: [
+            { text: 'Or switch the backup type to ' },
+            { text: 'Full + incremental', isBold: true },
+            { text: ', which does not replay archived WAL.' },
+          ],
+        },
+      ];
+    },
+    managedNote:
+      'On managed PostgreSQL (RDS / Azure / GCP) the function belongs to the platform superuser and a customer role cannot be granted EXECUTE on it, so continuous WAL streaming is unavailable there - use full + incremental backups instead.',
   },
   [ConnectionErrorCode.WalLevelInvalid]: {
     title: 'wal_level is too low',

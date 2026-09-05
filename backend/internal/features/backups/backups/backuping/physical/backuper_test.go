@@ -208,7 +208,7 @@ func Test_PersistFullResult_WhenClusterSizeUnmeasured_LeavesRawSizeMbNil(t *test
 	assert.Nil(t, persisted.RawSizeMb)
 }
 
-func Test_PersistFullResult_WhenErrorStatus_SkipsCompletionFieldsAndReleasesInFlight(t *testing.T) {
+func Test_PersistFullResult_WhenErrorStatus_RecordsTerminalTimeAndReleasesInFlight(t *testing.T) {
 	prereqs := seedBackupPrereqs(t)
 	backuper := CreateTestPhysicalBackuper(nil)
 
@@ -231,9 +231,27 @@ func Test_PersistFullResult_WhenErrorStatus_SkipsCompletionFieldsAndReleasesInFl
 	require.NotNil(t, persisted.ErrorReason)
 	assert.Equal(t, physical_enums.PhysicalBackupErrorPgBasebackupFailed, *persisted.ErrorReason)
 	assert.Nil(t, persisted.ManifestFileName, "completion-only fields must not be copied on a non-COMPLETED result")
-	assert.Nil(t, persisted.CompletedAt)
+	require.NotNil(t, persisted.CompletedAt)
 
 	assertInFlightReleased(t, prereqs.DB.ID)
+}
+
+func Test_PersistIncrementalResult_WhenErrorStatus_RecordsTerminalTime(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	backuper := CreateTestPhysicalBackuper(nil)
+	rootFull := seedCompletedRootFull(t, prereqs)
+	incremental := seedInProgressIncr(t, prereqs, rootFull.ID)
+	claimInFlight(t, prereqs.DB.ID, physical_enums.PhysicalBackupTypeIncremental, incremental.ID)
+
+	result := postgresql_executor.PhysicalBackupResult{
+		Status:      physical_enums.PhysicalBackupStatusChainBroken,
+		ErrorReason: new(physical_enums.PhysicalBackupErrorTimelineSwitchDetected),
+	}
+	require.NoError(t, backuper.persistIncrResult(incremental, result))
+
+	persistedIncremental, err := physical_repositories.GetIncrementalBackupRepository().FindByID(incremental.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persistedIncremental.CompletedAt)
 }
 
 func Test_PersistIncrementalResult_WhenCompleted_CopiesFieldsAndReleasesInFlight(t *testing.T) {

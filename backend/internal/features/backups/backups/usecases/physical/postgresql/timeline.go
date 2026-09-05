@@ -27,8 +27,6 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// TimelineDecisionKind discriminates the outcome of CheckTimelineCompatibility.
-// Continue is the green path; the other three are refusal branches.
 type TimelineDecisionKind int
 
 const (
@@ -38,76 +36,107 @@ const (
 	TimelineDifferentCluster
 )
 
-// TimelineDecision is a discriminated result. Only the fields belonging to
-// Kind are meaningful; the rest are zero.
 type TimelineDecision struct {
-	Kind TimelineDecisionKind
-
-	NewTLI int // TimelineFailoverDetected — promote-detected target TL
-
-	ExpectedTLI int // TimelineRegression
-	ActualTLI   int // TimelineRegression
-
-	ExpectedSysID string // TimelineDifferentCluster — db.SystemIdentifier
-	ActualSysID   string // TimelineDifferentCluster — live cluster system_identifier
+	Kind                     TimelineDecisionKind
+	ExpectedTimelineID       int
+	LiveTimelineID           int
+	ExpectedSystemIdentifier string
+	LiveSystemIdentifier     string
 }
 
-// CheckTimelineCompatibility validates the source cluster against the
-// catalog before spawning a FULL or INCR. Three refusal branches:
-// system_identifier mismatch (different cluster pointed at the same DB row),
-// timeline regression (live TL < newest known TL — never legitimate), and
-// failover detected (live TL > newest known TL — the new FULL must anchor a
-// fresh chain on the new TL). Continue means proceed.
-//
-// "newest known TL" is derived from GREATEST(MAX(full.timeline_id),
-// MAX(history.timeline_id)) per BACKUPING-SCHEDULER-PLAN.md §B step 1.
-// First-tick (no fulls, no history) returns Continue — the live TL seeds
-// the first FULL's timeline_id.
-func CheckTimelineCompatibility(
+type timelineComparison struct {
+	ExpectedSystemIdentifier *string
+	LiveTimelineID           int
+	LiveSystemIdentifier     string
+	ExpectedTimelineID       int
+}
+
+func CheckFullTimelineCompatibility(
 	ctx context.Context,
 	conn *pgx.Conn,
 	db *postgresql_physical.PostgresqlPhysicalDatabase,
 	fullRepo *physical_repositories.PhysicalFullBackupRepository,
 	historyRepo *physical_repositories.PhysicalWalHistoryRepository,
 ) (*TimelineDecision, error) {
-	liveTLI, liveSysID, err := readClusterIdentity(ctx, conn)
+	liveTimelineID, liveSystemIdentifier, err := readClusterIdentity(ctx, conn)
 	if err != nil {
 		return nil, err
 	}
 
-	if db.SystemIdentifier != nil && *db.SystemIdentifier != liveSysID {
-		return &TimelineDecision{
-			Kind:          TimelineDifferentCluster,
-			ExpectedSysID: *db.SystemIdentifier,
-			ActualSysID:   liveSysID,
-		}, nil
+	decision := decideTimelineCompatibility(timelineComparison{
+		ExpectedSystemIdentifier: db.SystemIdentifier,
+		LiveTimelineID:           liveTimelineID,
+		LiveSystemIdentifier:     liveSystemIdentifier,
+	})
+	if decision.Kind == TimelineDifferentCluster {
+		return decision, nil
 	}
 
-	knownTLI, err := newestKnownTimeline(db.ParentDatabaseID(), fullRepo, historyRepo)
+	knownTimelineID, err := newestKnownTimeline(db.ParentDatabaseID(), fullRepo, historyRepo)
 	if err != nil {
 		return nil, err
 	}
 
-	if knownTLI == 0 {
-		return &TimelineDecision{Kind: TimelineContinue}, nil
+	return decideTimelineCompatibility(timelineComparison{
+		ExpectedSystemIdentifier: db.SystemIdentifier,
+		LiveTimelineID:           liveTimelineID,
+		LiveSystemIdentifier:     liveSystemIdentifier,
+		ExpectedTimelineID:       knownTimelineID,
+	}), nil
+}
+
+func CheckIncrementalTimelineCompatibility(
+	ctx context.Context,
+	conn *pgx.Conn,
+	db *postgresql_physical.PostgresqlPhysicalDatabase,
+	rootFullTimelineID int,
+) (*TimelineDecision, error) {
+	liveTimelineID, liveSystemIdentifier, err := readClusterIdentity(ctx, conn)
+	if err != nil {
+		return nil, err
 	}
 
-	if liveTLI < knownTLI {
-		return &TimelineDecision{
-			Kind:        TimelineRegression,
-			ExpectedTLI: knownTLI,
-			ActualTLI:   liveTLI,
-		}, nil
+	return decideTimelineCompatibility(timelineComparison{
+		ExpectedSystemIdentifier: db.SystemIdentifier,
+		LiveTimelineID:           liveTimelineID,
+		LiveSystemIdentifier:     liveSystemIdentifier,
+		ExpectedTimelineID:       rootFullTimelineID,
+	}), nil
+}
+
+func decideTimelineCompatibility(comparison timelineComparison) *TimelineDecision {
+	decision := &TimelineDecision{
+		Kind:                     TimelineContinue,
+		ExpectedTimelineID:       comparison.ExpectedTimelineID,
+		LiveTimelineID:           comparison.LiveTimelineID,
+		LiveSystemIdentifier:     comparison.LiveSystemIdentifier,
+		ExpectedSystemIdentifier: "",
 	}
 
-	if liveTLI > knownTLI {
-		return &TimelineDecision{
-			Kind:   TimelineFailoverDetected,
-			NewTLI: liveTLI,
-		}, nil
+	if comparison.ExpectedSystemIdentifier != nil {
+		decision.ExpectedSystemIdentifier = *comparison.ExpectedSystemIdentifier
+		if *comparison.ExpectedSystemIdentifier != comparison.LiveSystemIdentifier {
+			decision.Kind = TimelineDifferentCluster
+
+			return decision
+		}
 	}
 
-	return &TimelineDecision{Kind: TimelineContinue}, nil
+	if comparison.ExpectedTimelineID == 0 {
+		return decision
+	}
+
+	if comparison.LiveTimelineID < comparison.ExpectedTimelineID {
+		decision.Kind = TimelineRegression
+
+		return decision
+	}
+
+	if comparison.LiveTimelineID > comparison.ExpectedTimelineID {
+		decision.Kind = TimelineFailoverDetected
+	}
+
+	return decision
 }
 
 // ValidateStartLsnAgainstHistory checks that startLSN falls inside the LSN

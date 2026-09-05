@@ -6,12 +6,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
+	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
@@ -178,6 +183,78 @@ func RunWalStreamCatalogsHistoryOnTimelineSwitch(t *testing.T, version, image st
 	waitForTimelineHistoryOnParent(t, fixture, 2, 60*time.Second)
 }
 
+func RunPromotionReanchorsIncrementalChain(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("clones a standby, promotes it, and restores the replacement chain; skipped in -short")
+	}
+
+	primary, standby := containers.StartPhysicalPrimaryWithStandby(t, image)
+	router := newPhysicalTestRouter()
+	fixture := postgresql_executor.SetupPhysicalDBForScheduledBackupVersion(
+		t, standby.Host, standby.Port, version, postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+	)
+	target := prepareRestoreTarget(t, image)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+	defer cancel()
+
+	primaryConn := openConnAt(t, primary.Host, primary.Port)
+	standbyConn := openSourceTestDBConn(t, fixture)
+	createMarkerTable(t, ctx, primaryConn)
+	insertMarker(t, ctx, primaryConn, "before-promotion", "row-before-promotion")
+	waitForMarkerOnStandby(t, ctx, standbyConn, "before-promotion", 60*time.Second)
+
+	enablePhysicalBackupsViaAPI(t, router, fixture, true)
+	initialChain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
+	initialFullID := rootFullBackupID(t, initialChain)
+
+	PromoteStandby(t, ctx, standbyConn)
+	insertMarker(t, ctx, standbyConn, "after-promotion", "row-after-promotion")
+	_, err := postgresql_executor.GenerateWalActivity(ctx, standbyConn, 16*1024*1024)
+	require.NoError(t, err)
+	waitForTimelineHistoryOnParent(t, fixture, 2, 60*time.Second)
+	triggerIncrementalViaAPI(t, router, fixture)
+
+	deadline := time.Now().UTC().Add(4 * time.Minute)
+	var replacementFullID uuid.UUID
+	for time.Now().UTC().Before(deadline) {
+		incrementals, err := physical_repositories.GetIncrementalBackupRepository().FindAllByRootFull(initialFullID)
+		require.NoError(t, err)
+		fulls, err := physical_repositories.GetFullBackupRepository().FindCompletedNewestFirstByDatabase(fixture.DB.ID)
+		require.NoError(t, err)
+
+		hasTimelineRefusal := slices.ContainsFunc(
+			incrementals,
+			func(incremental *physical_models.PhysicalIncrementalBackup) bool {
+				return incremental.Status == physical_enums.PhysicalBackupStatusChainBroken &&
+					incremental.ErrorReason != nil &&
+					*incremental.ErrorReason == physical_enums.PhysicalBackupErrorTimelineSwitchDetected
+			},
+		)
+		if hasTimelineRefusal && len(fulls) >= 2 && fulls[0].TimelineID == 2 {
+			replacementFullID = fulls[0].ID
+
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+	require.NotEqual(
+		t,
+		uuid.Nil,
+		replacementFullID,
+		"promotion must refuse the stale incremental and complete a timeline-2 FULL",
+	)
+
+	backuping_physical.RunOrphanWalCleanupForTest(t, fixture.DB.ID)
+	bundle := downloadRestoreBundleViaAPI(t, router, fixture, nil)
+	reconstructCluster(t, target, router, image, bundle, nil)
+	startRestoredCluster(t, target, image)
+
+	restoredPhases := queryRestoredMarkerRows(t, target)
+	assert.ElementsMatch(t, []string{"before-promotion", "after-promotion"}, restoredPhases)
+}
+
 // RunBootViaEntrypointVolumeMountRecoversBaseRows reproduces the user's docker-compose flow: restore on
 // the host in --combine-image mode, then serve the result through the postgres image's own entrypoint
 // with the output bind-mounted at the image VOLUME (the volume root on PG 18). The booted cluster must
@@ -300,6 +377,61 @@ func RunWhenWalGapBeforeTargetTokenRequestReturns422(t *testing.T, version, imag
 	require.NoError(t, json.Unmarshal(response.Body, &body))
 	assert.Contains(t, body["error"], "wal gap",
 		"the gap must be reported so the user never burns a token on an unreachable target")
+}
+
+// A FULL's start_lsn sits inside the segment that carries it, so that segment's file-aligned start
+// is lower than the FULL's and the retention sweep must still keep it: it holds the bytes replay
+// begins from. No incremental is taken on purpose. An incremental moves the replay window past the
+// FULL's own boundary segment and hides whether the sweep kept it.
+func RunWhenOrphanSweepRunsAfterFullTargetPastFullStaysRestorable(t *testing.T, version, image string) {
+	if testing.Short() {
+		t.Skip("streams WAL and runs the retention sweep against a real cluster; skipped in -short")
+	}
+
+	router, fixture := setupReplicationOnlyFixture(
+		t, version, image, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+
+	sourceConn := openSourceTestDBConn(t, fixture)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+	defer cancel()
+
+	createMarkerTable(t, ctx, sourceConn)
+	insertMarker(t, ctx, sourceConn, "before-full", "row-in-base-backup")
+
+	enablePhysicalBackupsViaAPI(t, router, fixture, true)
+
+	// Wait for the slot before writing anything: WAL produced before the supervisor claims the
+	// database is never streamed, and that hole at the head of the window would break the restore
+	// on its own, hiding whatever the sweep does.
+	waitForSlotPresent(t, postgresql_executor.OpenAdminConn(t, fixture),
+		fixture.DB.PostgresqlPhysical.ReplicationSlotName, 60*time.Second)
+
+	chain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
+
+	insertMarker(t, ctx, sourceConn, "after-full", "row-replayed-up-to-target")
+	streamPostFullSegments(t, ctx, router, sourceConn, fixture, chainTipStopLSN(t, chain), 2, 90*time.Second)
+
+	// A margin wider than the whole-second recovery_target_time truncation on either side keeps the
+	// target unambiguously inside the streamed range.
+	time.Sleep(2 * time.Second)
+	targetTime := time.Now().UTC()
+	time.Sleep(2 * time.Second)
+
+	insertMarker(t, ctx, sourceConn, "after-target", "row-after-target")
+
+	// Natural WAL rather than a forced switch: the segment covering the target has to fill and
+	// archive before the resolver counts it, and a switch would leave it partial.
+	_, err := postgresql_executor.GenerateWalActivity(ctx, sourceConn, 64*1024*1024)
+	require.NoError(t, err)
+
+	waitForTargetTimeReplayable(t, fixture.DB.ID, targetTime, 90*time.Second)
+
+	backuping_physical.RunOrphanWalCleanupForTest(t, fixture.DB.ID)
+
+	token := requestRestoreTokenViaAPI(t, router, fixture, &targetTime)
+	assert.NotEmpty(t, token,
+		"a target covered by archived WAL must stay restorable after the orphan sweep has run")
 }
 
 // RunWalSlotAppearsWhenBackupingStartsRemovedWhenDatabaseDeleted proves the WAL replication-slot

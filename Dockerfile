@@ -234,6 +234,12 @@ PGID=\${PGID:-999}
 
 CURRENT_UID=\$(id -u postgres)
 CURRENT_GID=\$(id -g postgres)
+PUID_OWNER=\$(getent passwd "\$PUID" | cut -d: -f1 || true)
+
+if [ -n "\$PUID_OWNER" ] && [ "\$PUID_OWNER" != "postgres" ]; then
+    echo "ERROR: PUID \$PUID is already assigned to user \$PUID_OWNER. Choose an unused UID for postgres."
+    exit 1
+fi
 
 if [ "\$CURRENT_GID" != "\$PGID" ]; then
     echo "Adjusting postgres group GID from \$CURRENT_GID to \$PGID..."
@@ -282,6 +288,7 @@ fi
 # Ensure proper ownership of data directory
 echo "Setting up data directory permissions..."
 mkdir -p /databasus-data/pgdata
+mkdir -p /databasus-data/pgsocket
 mkdir -p /databasus-data/temp
 mkdir -p /databasus-data/backups
 chown databasus:databasus /databasus-data
@@ -289,11 +296,13 @@ chown databasus:databasus /databasus-data
 # bind-mounted host directory can arrive without a group traversal bit.
 chmod g+x /databasus-data
 chown -R postgres:postgres /databasus-data/pgdata
+chown postgres:postgres /databasus-data/pgsocket
 chown -R databasus:databasus /databasus-data/temp /databasus-data/backups
 # Upgrade path: secret.key and instance.json may be owned by root or postgres
 # from older images. Re-own them so the non-root main process can read/write.
 chown databasus:databasus /databasus-data/secret.key /databasus-data/instance.json 2>/dev/null || true
 chmod 700 /databasus-data/temp
+chmod 700 /databasus-data/pgsocket
 
 # ========= Start Valkey (internal cache) =========
 echo "Configuring Valkey cache..."
@@ -325,28 +334,40 @@ if [ ! -s "/databasus-data/pgdata/PG_VERSION" ]; then
     gosu postgres \$PG_BIN/initdb -D /databasus-data/pgdata --encoding=UTF8 --locale=C.UTF-8
     
     # Configure PostgreSQL
-    echo "host all all 127.0.0.1/32 md5" >> /databasus-data/pgdata/pg_hba.conf
-    echo "local all all trust" >> /databasus-data/pgdata/pg_hba.conf
     echo "port = 5437" >> /databasus-data/pgdata/postgresql.conf
     echo "listen_addresses = 'localhost'" >> /databasus-data/pgdata/postgresql.conf
     echo "shared_buffers = 256MB" >> /databasus-data/pgdata/postgresql.conf
     echo "max_connections = 100" >> /databasus-data/pgdata/postgresql.conf
 fi
 
+cat > /databasus-data/pgdata/pg_hba.conf.new << 'PG_HBA'
+local all postgres peer
+local all all reject
+local replication all reject
+host all all 127.0.0.1/32 scram-sha-256
+host all all ::1/128 scram-sha-256
+host replication all 127.0.0.1/32 reject
+host replication all ::1/128 reject
+PG_HBA
+chown postgres:postgres /databasus-data/pgdata/pg_hba.conf.new
+chmod 600 /databasus-data/pgdata/pg_hba.conf.new
+mv /databasus-data/pgdata/pg_hba.conf.new /databasus-data/pgdata/pg_hba.conf
+
+INTERNAL_POSTGRES_PASSWORD=\$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')
+
 # Function to start PostgreSQL and wait for it to be ready
 start_postgres() {
     echo "Starting PostgreSQL..."
-    # -k /tmp: create Unix socket and lock file in /tmp instead of /var/run/postgresql/.
-    # On NAS systems (e.g. TrueNAS Scale), the ZFS-backed Docker overlay filesystem
-    # ignores chown/chmod on directories from image layers, so PostgreSQL gets
-    # "Permission denied" when creating .s.PGSQL.5437.lock in /var/run/postgresql/.
-    # All internal connections use TCP (-h localhost), so the socket location does not matter.
-    gosu postgres \$PG_BIN/postgres -D /databasus-data/pgdata -p 5437 -k /tmp &
+    gosu postgres \$PG_BIN/postgres \\
+        -D /databasus-data/pgdata \\
+        -p 5437 \\
+        -k /databasus-data/pgsocket \\
+        -c password_encryption=scram-sha-256 &
     POSTGRES_PID=\$!
     
     echo "Waiting for PostgreSQL to be ready..."
     for i in {1..30}; do
-        if gosu postgres \$PG_BIN/pg_isready -p 5437 -h localhost >/dev/null 2>&1; then
+        if gosu postgres \$PG_BIN/pg_isready -p 5437 -h /databasus-data/pgsocket >/dev/null 2>&1; then
             echo "PostgreSQL is ready!"
             return 0
         fi
@@ -403,26 +424,38 @@ fi
 
 # Create database and set password for postgres user
 echo "Setting up database and user..."
-gosu postgres \$PG_BIN/psql -p 5437 -h localhost -d postgres << 'SQL'
+gosu postgres \$PG_BIN/psql \\
+    -v ON_ERROR_STOP=1 \\
+    -v internal_postgres_password="\$INTERNAL_POSTGRES_PASSWORD" \\
+    -p 5437 \\
+    -h /databasus-data/pgsocket \\
+    -d postgres << 'SQL'
 
--- We use stub password, because internal DB is not exposed outside container
-ALTER USER postgres WITH PASSWORD 'Q1234567';
+ALTER USER postgres WITH PASSWORD :'internal_postgres_password';
 SELECT 'CREATE DATABASE databasus OWNER postgres'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'databasus')
 \\gexec
 \\q
 SQL
 
+if [ -z "\${DATABASE_DSN+x}" ]; then
+    export DATABASE_DSN="host=localhost user=postgres password=\$INTERNAL_POSTGRES_PASSWORD dbname=databasus port=5437 sslmode=disable"
+fi
+
 # ========= Refuse to start if legacy WAL backup data exists =========
 # The agent-based WAL_V1 backup type was removed. Existing installs with
 # WAL-mode databases must downgrade, manually remove them and then upgrade.
 echo "Checking for legacy WAL backup configuration..."
-WAL_CHECK_DSN="postgres://postgres:Q1234567@localhost:5437/databasus"
-
-WAL_CHECK_COL=\$(gosu databasus \$PG_BIN/psql "\$WAL_CHECK_DSN" -tA -c "SELECT 1 FROM information_schema.columns WHERE table_name='postgresql_databases' AND column_name='backup_type' LIMIT 1" 2>/dev/null || true)
+WAL_CHECK_COL=\$(gosu databasus env PGPASSWORD="\$INTERNAL_POSTGRES_PASSWORD" \\
+    \$PG_BIN/psql -h localhost -p 5437 -U postgres -d databasus -tA \\
+    -c "SELECT 1 FROM information_schema.columns WHERE table_name='postgresql_databases' AND column_name='backup_type' LIMIT 1" \\
+    2>/dev/null || true)
 
 if [ "\$WAL_CHECK_COL" = "1" ]; then
-    WAL_CHECK_ROW=\$(gosu databasus \$PG_BIN/psql "\$WAL_CHECK_DSN" -tA -c "SELECT 1 FROM postgresql_databases WHERE backup_type='WAL_V1' LIMIT 1" 2>/dev/null || true)
+    WAL_CHECK_ROW=\$(gosu databasus env PGPASSWORD="\$INTERNAL_POSTGRES_PASSWORD" \\
+        \$PG_BIN/psql -h localhost -p 5437 -U postgres -d databasus -tA \\
+        -c "SELECT 1 FROM postgresql_databases WHERE backup_type='WAL_V1' LIMIT 1" \\
+        2>/dev/null || true)
     if [ "\$WAL_CHECK_ROW" = "1" ]; then
         echo ""
         echo "=========================================="

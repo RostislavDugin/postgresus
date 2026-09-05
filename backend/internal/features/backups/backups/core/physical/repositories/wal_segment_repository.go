@@ -80,6 +80,12 @@ func (r *PhysicalWalSegmentRepository) FindByChainSpan(
 
 // Anti-join not covered by idx_physical_wal_segments_database_id_received_at;
 // expect a seq scan on physical_full_backups when invoked in bulk.
+//
+// The comparison anchors on the segment's end_lsn because a FULL's start_lsn is
+// a real recovery position a short way inside the segment that holds it, while a
+// segment's own bounds are derived from its filename and are file-aligned.
+// Comparing against start_lsn would classify that boundary segment as an orphan
+// and delete the WAL the FULL itself starts and stops in.
 func (r *PhysicalWalSegmentRepository) FindOrphans(
 	databaseID uuid.UUID,
 ) ([]*physical_models.PhysicalWalSegment, error) {
@@ -97,7 +103,7 @@ func (r *PhysicalWalSegmentRepository) FindOrphans(
 			    WHERE f.database_id = w.database_id
 			      AND f.timeline_id = w.timeline_id
 			      AND f.start_lsn IS NOT NULL
-			      AND f.start_lsn <= w.start_lsn
+			      AND f.start_lsn < w.end_lsn
 			      AND f.status = ?
 			  )
 			ORDER BY w.start_lsn ASC

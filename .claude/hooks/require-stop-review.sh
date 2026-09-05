@@ -12,7 +12,7 @@
 
 set -uo pipefail
 
-REVIEWED_SOURCE_DIRS=(backend agent frontend)
+REVIEWED_PATHS=(.)
 
 marker_prefix=${1:-}
 reason=${2:-}
@@ -27,15 +27,15 @@ cd "$project_dir" 2>/dev/null || exit 0
 
 git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
 
-changed_paths=$(git status --porcelain -- "${REVIEWED_SOURCE_DIRS[@]}" 2>/dev/null) || exit 0
+changed_paths=$(git status --porcelain -- "${REVIEWED_PATHS[@]}" 2>/dev/null) || exit 0
 [ -n "$changed_paths" ] || exit 0
 
 # `git diff` omits untracked files, so hash their contents separately. Without this an edit to a
 # newly created file would not change the hash, and its review round would be silently skipped.
 tree_hash=$(
   {
-    git diff HEAD -- "${REVIEWED_SOURCE_DIRS[@]}" 2>/dev/null
-    git ls-files --others --exclude-standard -z -- "${REVIEWED_SOURCE_DIRS[@]}" 2>/dev/null |
+    git diff HEAD -- "${REVIEWED_PATHS[@]}" 2>/dev/null
+    git ls-files --others --exclude-standard -z -- "${REVIEWED_PATHS[@]}" 2>/dev/null |
       xargs -0 -r sha256sum 2>/dev/null
   } | sha256sum | cut -d' ' -f1
 ) || exit 0

@@ -2,6 +2,7 @@ package backuping_physical
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -156,6 +157,12 @@ type backupDecision struct {
 	incrParentIncrID            *uuid.UUID
 	forceFullRequestedAt        *time.Time
 	forceIncrementalRequestedAt *time.Time
+	immediateTrigger            *backupTrigger
+}
+
+type backupTrigger struct {
+	kind     physical_enums.PhysicalBackupType
+	backupID uuid.UUID
 }
 
 // decideBackupKind picks FULL or INCR purely from catalog state and cadence, with
@@ -181,10 +188,16 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 		}, true
 	}
 
-	if backupConfig.ForceIncrementalRequestedAt != nil {
-		if decision, ok := s.decideForcedIncremental(logger, backupConfig); ok {
-			return decision, true
-		}
+	hasUnresolvedMismatch, err := hasUnresolvedSystemIdentifierMismatch(storage.GetDb(), backupConfig.DatabaseID)
+	if err != nil {
+		logger.Error("failed to inspect system identifier mismatch state", "error", err)
+
+		return backupDecision{}, false
+	}
+	if hasUnresolvedMismatch {
+		logger.Debug("automatic scheduling suppressed after system identifier mismatch")
+
+		return backupDecision{}, false
 	}
 
 	lastIncr, err := s.incrRepo.FindLastByDatabase(backupConfig.DatabaseID)
@@ -192,6 +205,16 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 		logger.Error("failed to find last incremental backup", "error", err)
 
 		return backupDecision{}, false
+	}
+
+	if decision, ok := decideImmediateReplacementFull(lastFull, lastIncr); ok {
+		return decision, true
+	}
+
+	if backupConfig.ForceIncrementalRequestedAt != nil {
+		if decision, ok := s.decideForcedIncremental(logger, backupConfig); ok {
+			return decision, true
+		}
 	}
 
 	if backupConfig.FullBackupInterval.ShouldTriggerBackup(now, createdAtOrNil(lastFull)) {
@@ -372,6 +395,10 @@ func (s *PhysicalBackupsScheduler) claimAndInsert(
 	claimed := false
 
 	txErr := storage.GetDb().Transaction(func(tx *gorm.DB) error {
+		if err := physical_repositories.AcquireBackupAndOrphanCleanupLock(tx, backupConfig.DatabaseID); err != nil {
+			return err
+		}
+
 		ok, claimErr := s.inFlightRepo.Claim(tx, physical_repositories.ClaimSpec{
 			DatabaseID: backupConfig.DatabaseID,
 			BackupType: decision.kind,
@@ -383,6 +410,30 @@ func (s *PhysicalBackupsScheduler) claimAndInsert(
 
 		if !ok {
 			return nil
+		}
+
+		if decision.forceFullRequestedAt == nil {
+			hasUnresolvedMismatch, err := hasUnresolvedSystemIdentifierMismatch(tx, backupConfig.DatabaseID)
+			if err != nil {
+				return err
+			}
+			if hasUnresolvedMismatch {
+				return errBackupDecisionSuperseded
+			}
+		}
+
+		if decision.immediateTrigger != nil {
+			isCurrent, err := isImmediateReplacementTriggerCurrent(
+				tx,
+				backupConfig.DatabaseID,
+				*decision.immediateTrigger,
+			)
+			if err != nil {
+				return err
+			}
+			if !isCurrent {
+				return errBackupDecisionSuperseded
+			}
 		}
 
 		claimed = true
@@ -407,11 +458,139 @@ func (s *PhysicalBackupsScheduler) claimAndInsert(
 			CreatedAt:                 now,
 		}).Error
 	})
+	if errors.Is(txErr, errBackupDecisionSuperseded) {
+		return false, nil
+	}
 	if txErr != nil {
 		return false, txErr
 	}
 
 	return claimed, nil
+}
+
+func decideImmediateReplacementFull(
+	lastFull *physical_models.PhysicalFullBackup,
+	lastIncr *physical_models.PhysicalIncrementalBackup,
+) (backupDecision, bool) {
+	if lastFull != nil && lastFull.Status == physical_enums.PhysicalBackupStatusError &&
+		hasFullBackupErrorReason(lastFull, physical_enums.PhysicalBackupErrorFailoverDuringBackup) {
+		return backupDecision{
+			kind:   physical_enums.PhysicalBackupTypeFull,
+			reason: "replacing FULL interrupted by failover",
+			immediateTrigger: &backupTrigger{
+				kind:     physical_enums.PhysicalBackupTypeFull,
+				backupID: lastFull.ID,
+			},
+		}, true
+	}
+
+	if !hasIncrementalBackupErrorReason(lastIncr, physical_enums.PhysicalBackupErrorTimelineSwitchDetected) ||
+		lastIncr.Status != physical_enums.PhysicalBackupStatusChainBroken ||
+		lastIncr.CompletedAt == nil {
+		return backupDecision{}, false
+	}
+
+	if lastFull != nil && lastFull.CreatedAt.After(*lastIncr.CompletedAt) {
+		return backupDecision{}, false
+	}
+
+	return backupDecision{
+		kind:   physical_enums.PhysicalBackupTypeFull,
+		reason: "re-anchoring after timeline switch",
+		immediateTrigger: &backupTrigger{
+			kind:     physical_enums.PhysicalBackupTypeIncremental,
+			backupID: lastIncr.ID,
+		},
+	}, true
+}
+
+func hasFullBackupErrorReason(
+	full *physical_models.PhysicalFullBackup,
+	reason physical_enums.PhysicalBackupErrorReason,
+) bool {
+	return full != nil && full.ErrorReason != nil && *full.ErrorReason == reason
+}
+
+func hasIncrementalBackupErrorReason(
+	incremental *physical_models.PhysicalIncrementalBackup,
+	reason physical_enums.PhysicalBackupErrorReason,
+) bool {
+	return incremental != nil && incremental.ErrorReason != nil && *incremental.ErrorReason == reason
+}
+
+func hasUnresolvedSystemIdentifierMismatch(db *gorm.DB, databaseID uuid.UUID) (bool, error) {
+	var state struct {
+		LatestMismatchAt      *time.Time
+		LatestCompletedFullAt *time.Time
+	}
+
+	err := db.Raw(`
+		SELECT
+			(
+				SELECT MAX(terminal_at)
+				FROM (
+					SELECT COALESCE(completed_at, created_at) AS terminal_at FROM physical_full_backups
+					WHERE database_id = ? AND error_reason = ?
+					UNION ALL
+					SELECT COALESCE(completed_at, created_at) AS terminal_at FROM physical_incremental_backups
+					WHERE database_id = ? AND error_reason = ?
+				) mismatches
+			) AS latest_mismatch_at,
+			(
+				SELECT MAX(completed_at) FROM physical_full_backups
+				WHERE database_id = ? AND status = ?
+			) AS latest_completed_full_at
+	`,
+		databaseID, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch,
+		databaseID, physical_enums.PhysicalBackupErrorSystemIdentifierMismatch,
+		databaseID, physical_enums.PhysicalBackupStatusCompleted,
+	).Scan(&state).Error
+	if err != nil {
+		return false, err
+	}
+
+	return state.LatestMismatchAt != nil &&
+		(state.LatestCompletedFullAt == nil || !state.LatestCompletedFullAt.After(*state.LatestMismatchAt)), nil
+}
+
+func isImmediateReplacementTriggerCurrent(
+	tx *gorm.DB,
+	databaseID uuid.UUID,
+	trigger backupTrigger,
+) (bool, error) {
+	hasUnresolvedMismatch, err := hasUnresolvedSystemIdentifierMismatch(tx, databaseID)
+	if err != nil || hasUnresolvedMismatch {
+		return false, err
+	}
+
+	var lastFull physical_models.PhysicalFullBackup
+	fullErr := tx.Where("database_id = ?", databaseID).Order("created_at DESC").First(&lastFull).Error
+	if fullErr != nil && !errors.Is(fullErr, gorm.ErrRecordNotFound) {
+		return false, fullErr
+	}
+
+	if trigger.kind == physical_enums.PhysicalBackupTypeFull {
+		return fullErr == nil && lastFull.ID == trigger.backupID &&
+			lastFull.Status == physical_enums.PhysicalBackupStatusError &&
+			hasFullBackupErrorReason(&lastFull, physical_enums.PhysicalBackupErrorFailoverDuringBackup), nil
+	}
+
+	var lastIncr physical_models.PhysicalIncrementalBackup
+	if err := tx.Where("database_id = ?", databaseID).Order("created_at DESC").First(&lastIncr).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if lastIncr.ID != trigger.backupID || lastIncr.CompletedAt == nil ||
+		lastIncr.Status != physical_enums.PhysicalBackupStatusChainBroken ||
+		!hasIncrementalBackupErrorReason(&lastIncr, physical_enums.PhysicalBackupErrorTimelineSwitchDetected) {
+		return false, nil
+	}
+
+	return errors.Is(fullErr, gorm.ErrRecordNotFound) || !lastFull.CreatedAt.After(*lastIncr.CompletedAt), nil
 }
 
 // recoverInFlightBackupsOnRestart reconciles the IN_PROGRESS backups the DB still

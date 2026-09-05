@@ -27,7 +27,7 @@ type MockDatabaseService struct {
 	mock.Mock
 }
 
-func (m *MockDatabaseService) TestDatabaseConnectionDirect(
+func (m *MockDatabaseService) TestTrustedDatabaseConnection(
 	ctx context.Context,
 	database *databases.Database,
 ) error {

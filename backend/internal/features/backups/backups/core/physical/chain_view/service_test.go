@@ -26,6 +26,11 @@ import (
 
 const segmentBytes = 16 * 1024 * 1024
 
+const (
+	firstRecordOffset = physical_testing.FirstRecordOffset
+	fullLSNSpan       = physical_testing.FullLSNSpan
+)
+
 type chainViewTestPrereqs struct {
 	user      *users_dto.SignInResponseDTO
 	workspace *workspaces_models.Workspace
@@ -371,6 +376,37 @@ func Test_FindWalOrphansByDatabase_WhenWalOutsideAllChainSpans_ReturnsOrphan(t *
 	require.Len(t, orphans, 1,
 		"WAL before the only FULL's start_lsn has no chain anchor and is an orphan")
 	assert.Equal(t, orphanSeg.ID, orphans[0].WalSegment.ID)
+}
+
+// A FULL whose start_lsn lands exactly on a segment boundary is the one alignment
+// where comparing it against a segment's start_lsn happens to be right. Real FULLs
+// start at firstRecordOffset into the segment, so the segment that physically
+// holds the FULL's start and stop positions begins below it and is not an orphan.
+func Test_FindWalOrphansByDatabase_WhenFullStartsMidSegment_BoundarySegmentIsNotOrphan(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	databaseID := prereqs.database.ID
+
+	physical_testing.CreateTestFullBackup(t,
+		physical_testing.NewTestCompletedFullBackup(
+			databaseID, prereqs.storage.ID, 1,
+			walmath.LSN(4*segmentBytes+firstRecordOffset),
+			walmath.LSN(4*segmentBytes+firstRecordOffset+fullLSNSpan),
+		))
+
+	physical_testing.CreateTestWalSegment(t,
+		physical_testing.NewTestWalSegment(
+			databaseID, prereqs.storage.ID, 1, "000000010000000000000004",
+			walmath.LSN(4*segmentBytes), walmath.LSN(5*segmentBytes),
+		))
+
+	service := chain_view.GetChainViewService()
+
+	orphans, err := service.FindWalOrphansByDatabase(databaseID)
+	require.NoError(t, err)
+	assert.Empty(t, orphans,
+		"the segment carrying the FULL's own start_lsn is referenced by that FULL")
 }
 
 func Test_FindWalGapsInChain_WhenMultipleGapsExist_ReturnsAllGaps(t *testing.T) {

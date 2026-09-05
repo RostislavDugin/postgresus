@@ -91,6 +91,10 @@ func (p *PostgresqlPhysicalDatabase) Validate() error {
 		return err
 	}
 
+	if err := p.ValidateNotEmbeddedTarget(); err != nil {
+		return err
+	}
+
 	switch p.BackupType {
 	case BackupTypeFullOnly, BackupTypeFullAndIncremental, BackupTypeFullIncrementalAndWalStream:
 	case "":
@@ -100,6 +104,16 @@ func (p *PostgresqlPhysicalDatabase) Validate() error {
 	}
 
 	return nil
+}
+
+func (p *PostgresqlPhysicalDatabase) ValidateNotEmbeddedTarget() error {
+	return postgresql_shared.ValidateNotEmbeddedTarget(postgresql_shared.EmbeddedTargetSpec{
+		Host:               p.Host,
+		Port:               p.Port,
+		IsPhysical:         true,
+		IsSSHTunnelEnabled: p.SshTunnel.IsEnabled,
+		SSHBastionHost:     p.SshTunnel.Host,
+	})
 }
 
 func (p *PostgresqlPhysicalDatabase) ValidateUpdate(old *PostgresqlPhysicalDatabase) error {
@@ -715,24 +729,21 @@ func (p *PostgresqlPhysicalDatabase) ShouldSuggestReplicationOnlyUser(
 	return len(excessive) > 0, excessive, nil
 }
 
-// CreateReplicationOnlyUser provisions a fresh role with exactly
-// LOGIN + REPLICATION (or its cloud equivalent). Mirrors logical's
-// CreateReadOnlyUser but trivially smaller — physical doesn't need schema /
-// table grants. Cloud-aware: each platform grants replication differently
-// and some (Azure / GCP) require operator action in the console first.
+// Managed platforms grant replication through platform roles and may withhold EXECUTE on
+// pg_switch_wal(), so the two capabilities are negotiated independently.
 func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 	ctx context.Context,
 	logger *slog.Logger,
 	encryptor encryption.FieldEncryptor,
-) (string, string, error) {
+) (*ReplicationOnlyUser, error) {
 	conn, err := openConn(ctx, p, encryptor)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to connect to cluster: %w", err)
+		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
 	}
 	defer closeConnQuietly(ctx, conn, logger)
 
 	if err := assertCanCreateRole(ctx, conn); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	platform := detectPlatform(ctx, conn)
@@ -744,7 +755,7 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 
 		tx, err := conn.Begin(ctx)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to begin transaction: %w", err)
+			return nil, fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
 		isCommitted := false
@@ -764,11 +775,16 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 			if strings.Contains(err.Error(), "already exists") && attempt < maxRetries-1 {
 				continue
 			}
-			return "", "", fmt.Errorf("failed to create user: %w", err)
+			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
 
 		if err := grantReplication(ctx, tx, baseUsername, platform); err != nil {
-			return "", "", err
+			return nil, err
+		}
+
+		isWalSwitchGranted, err := grantWalSwitchIfPermitted(ctx, tx, baseUsername)
+		if err != nil {
+			return nil, err
 		}
 
 		var verifyName string
@@ -777,25 +793,39 @@ func (p *PostgresqlPhysicalDatabase) CreateReplicationOnlyUser(
 			`SELECT rolname FROM pg_roles WHERE rolname = $1`,
 			baseUsername,
 		).Scan(&verifyName); err != nil {
-			return "", "", fmt.Errorf("failed to verify user creation: %w", err)
+			return nil, fmt.Errorf("failed to verify user creation: %w", err)
 		}
 
 		if err := tx.Commit(ctx); err != nil {
-			return "", "", fmt.Errorf("failed to commit transaction: %w", err)
+			return nil, fmt.Errorf("failed to commit transaction: %w", err)
 		}
 		isCommitted = true
 
 		logger.InfoContext(ctx, "replication-only user created", "username", baseUsername, "platform", platform)
-		return baseUsername, newPassword, nil
+
+		if !isWalSwitchGranted {
+			logger.WarnContext(
+				ctx,
+				"source refused the pg_switch_wal grant; continuous wal streaming is unavailable for this user",
+				"username",
+				baseUsername,
+				"platform",
+				platform,
+			)
+		}
+
+		return &ReplicationOnlyUser{
+			Username:                     baseUsername,
+			Password:                     newPassword,
+			IsForcedWalRotationAvailable: isWalSwitchGranted,
+		}, nil
 	}
 
-	return "", "", errors.New("failed to generate unique username after 3 attempts")
+	return nil, errors.New("failed to generate unique username after 3 attempts")
 }
 
-// OpenInspectionConn opens a regular (non-replication) connection to the
-// source cluster. Used by the FULL/INCR executors for pre-flight checks
-// (timeline.CheckTimelineCompatibility), .history file reads, and
-// post-stream LSN validation.
+// Replication connections cannot run the SQL identity checks or read timeline
+// history files, so inspection uses PostgreSQL's regular protocol.
 func (p *PostgresqlPhysicalDatabase) OpenInspectionConn(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
@@ -851,6 +881,30 @@ func (p *PostgresqlPhysicalDatabase) checkReplicationReadiness(
 
 	if p.BackupType.IsRequireWalSummary() && settings.summarizeWal != "on" {
 		return &postgresql_shared.ConnectionTestError{Code: postgresql_shared.ConnErrWalSummaryDisabled}
+	}
+
+	// Continuous streaming promises a recovery point between backups, and only a
+	// finalized segment is uploaded. Without pg_switch_wal a quiet source leaves its
+	// newest WAL local until the segment fills, so the promise cannot be kept.
+	if p.BackupType.IsWalStreaming() {
+		canRotate, err := canForceWalRotation(ctx, conn, p.Username)
+		if err != nil {
+			return err
+		}
+
+		if !canRotate {
+			quotedUsername := pgx.Identifier{p.Username}.Sanitize()
+
+			return &postgresql_shared.ConnectionTestError{
+				Code: postgresql_shared.ConnErrNoWalSwitchPrivilege,
+				Message: fmt.Sprintf(
+					"user %s cannot force a WAL segment switch, so the recovery point between backups "+
+						"would advance only as segments fill. Run GRANT EXECUTE ON FUNCTION pg_switch_wal() TO %s "+
+						"on the source, or choose a backup type that does not replay archived WAL",
+					quotedUsername, quotedUsername,
+				),
+			}
+		}
 	}
 
 	if p.SystemIdentifier != nil {

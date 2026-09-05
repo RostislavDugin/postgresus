@@ -154,7 +154,7 @@ func (uc *CheckDatabaseHealthUseCase) healthcheckDatabase(
 
 	// A database being down is the condition this probe exists to detect, and the caller reports it
 	// too, so it is a tolerated finding here rather than something needing attention.
-	if err := uc.databaseService.TestDatabaseConnectionDirect(ctx, database); err != nil {
+	if err := uc.databaseService.TestTrustedDatabaseConnection(ctx, database); err != nil {
 		healthStatus = databases.HealthStatusUnavailable
 
 		logger.WarnContext(ctx, "database healthcheck probe failed", "error", err)

@@ -25,6 +25,12 @@ type TunneledDatabase struct {
 // Ctx bounds opening the tunnel; the forwarder then lives until Close. With the tunnel disabled
 // this still returns a usable wrapper around the original, so callers never branch.
 func OpenTunnel(ctx context.Context, spec OpenTunnelSpec) (*TunneledDatabase, error) {
+	if spec.Database != nil {
+		if err := spec.Database.ValidateNotEmbeddedTarget(); err != nil {
+			return nil, err
+		}
+	}
+
 	if spec.Database == nil || !spec.Database.SshTunnel.IsEnabled {
 		return &TunneledDatabase{original: spec.Database, databaseThroughTunnel: spec.Database}, nil
 	}

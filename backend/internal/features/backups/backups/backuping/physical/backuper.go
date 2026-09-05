@@ -434,13 +434,13 @@ func (b *PhysicalBackuper) persistFullResult(
 		fullBackup.ManifestEncryptionSalt = nilOrPtr(backupResult.ManifestEncryptionSalt)
 		fullBackup.ManifestEncryptionIV = nilOrPtr(backupResult.ManifestEncryptionIV)
 
-		completed := backupResult.CompletedAt
-		if completed.IsZero() {
-			completed = time.Now().UTC()
-		}
-
-		fullBackup.CompletedAt = &completed
 	}
+
+	completedAt := backupResult.CompletedAt
+	if completedAt.IsZero() {
+		completedAt = time.Now().UTC()
+	}
+	fullBackup.CompletedAt = &completedAt
 
 	return b.saveTerminalResultIfInProgress(
 		fullBackup.DatabaseID,
@@ -484,13 +484,13 @@ func (b *PhysicalBackuper) persistIncrResult(
 		incrBackup.ManifestEncryptionSalt = nilOrPtr(backupResult.ManifestEncryptionSalt)
 		incrBackup.ManifestEncryptionIV = nilOrPtr(backupResult.ManifestEncryptionIV)
 
-		completed := backupResult.CompletedAt
-		if completed.IsZero() {
-			completed = time.Now().UTC()
-		}
-
-		incrBackup.CompletedAt = &completed
 	}
+
+	completedAt := backupResult.CompletedAt
+	if completedAt.IsZero() {
+		completedAt = time.Now().UTC()
+	}
+	incrBackup.CompletedAt = &completedAt
 
 	return b.saveTerminalResultIfInProgress(
 		incrBackup.DatabaseID,

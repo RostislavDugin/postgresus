@@ -9,6 +9,7 @@ export enum ConnectionErrorCode {
   NoWalSenders = 'no_wal_senders',
   NoReplicationSlots = 'no_replication_slots',
   WalSummaryDisabled = 'wal_summary_disabled',
+  NoWalSwitchPrivilege = 'no_wal_switch_privilege',
   CustomTablespaces = 'custom_tablespaces',
   SystemIdentifierMismatch = 'system_identifier_mismatch',
 }

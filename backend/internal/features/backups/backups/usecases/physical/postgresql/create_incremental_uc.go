@@ -43,7 +43,7 @@ func (uc *CreateIncrementalBackupUsecase) Execute(
 	}
 	defer creds.Remove()
 
-	refusalResult, canProceed := verifyIncrTimelineCompatibility(ctx, spec)
+	refusalResult, rootFullTimelineID, canProceed := verifyIncrTimelineCompatibility(ctx, spec)
 	if !canProceed {
 		return refusalResult, nil
 	}
@@ -102,7 +102,12 @@ func (uc *CreateIncrementalBackupUsecase) Execute(
 		}
 
 		if streamResult.Status != physical_enums.PhysicalBackupStatusCompleted {
-			result = streamResult
+			result = recheckIncrementalStreamFailure(
+				ctx,
+				spec.CommonBackupSpec,
+				rootFullTimelineID,
+				streamResult,
+			)
 			return nil
 		}
 
@@ -130,28 +135,42 @@ func (uc *CreateIncrementalBackupUsecase) Execute(
 	return result, nil
 }
 
-// verifyIncrTimelineCompatibility gates an INCR on timeline/cluster
-// compatibility. Unlike a FULL, an INCR cannot extend across a timeline switch —
-// a detected failover is chain-killing, and the chain must re-anchor on a fresh
-// FULL on the new TL.
 func verifyIncrTimelineCompatibility(
 	ctx context.Context,
 	spec IncrementalBackupSpec,
-) (PhysicalBackupResult, bool) {
-	return verifyTimelineCompatibility(ctx, spec.CommonBackupSpec,
-		func(decision *TimelineDecision) (PhysicalBackupResult, bool) {
-			reason := physical_enums.PhysicalBackupErrorTimelineRegression
+) (PhysicalBackupResult, int, bool) {
+	rootFull, err := spec.FullRepo.FindByID(spec.Backup.RootFullBackupID)
+	if err != nil {
+		return errorResult(physical_enums.PhysicalBackupErrorNetworkFailure, "load root FULL", err), 0, false
+	}
 
-			return PhysicalBackupResult{
-				Status:      physical_enums.PhysicalBackupStatusChainBroken,
-				ErrorReason: &reason,
-				ErrorMessage: fmt.Sprintf(
-					"timeline switch detected (live TL %d > known TL): incremental refused, new FULL required",
-					decision.NewTLI,
-				),
-				CompletedAt: time.Now().UTC(),
-			}, false
-		})
+	if rootFull == nil || rootFull.Status != physical_enums.PhysicalBackupStatusCompleted {
+		reason := physical_enums.PhysicalBackupErrorParentManifestMissing
+
+		return PhysicalBackupResult{
+			Status:       physical_enums.PhysicalBackupStatusChainBroken,
+			ErrorReason:  &reason,
+			ErrorMessage: "root FULL is missing or incomplete",
+			CompletedAt:  time.Now().UTC(),
+		}, 0, false
+	}
+
+	conn, err := spec.SourceDB.OpenInspectionConn(ctx, spec.FieldEncryptor)
+	if err != nil {
+		return errorResult(physical_enums.PhysicalBackupErrorNetworkFailure,
+			"open inspection connection", err), 0, false
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	decision, err := CheckIncrementalTimelineCompatibility(ctx, conn, spec.SourceDB, rootFull.TimelineID)
+	if err != nil {
+		return errorResult(physical_enums.PhysicalBackupErrorNetworkFailure,
+			"timeline compatibility check", err), 0, false
+	}
+
+	refusalResult, canProceed := timelineRefusalResult(decision, true)
+
+	return refusalResult, rootFull.TimelineID, canProceed
 }
 
 // runSummarizerPreCheck opens an inspection connection and resolves the

@@ -215,11 +215,12 @@ func (c *DatabaseController) GetDatabases(ctx *gin.Context) {
 
 // TestDatabaseConnection
 // @Summary Test database connection
-// @Description Test connection to an existing database configuration
+// @Description Test connection to an existing database configuration. A physical PostgreSQL source is refused with a machine-readable code, including no_wal_switch_privilege when the backup type is FULL_INCREMENTAL_WAL_STREAM and the credentials cannot execute pg_switch_wal().
 // @Tags databases
+// @Produce json
 // @Param id path string true "Database ID"
 // @Success 200
-// @Failure 400
+// @Failure 400 {object} map[string]string
 // @Failure 401
 // @Failure 500
 // @Router /databases/{id}/test-connection [post]
@@ -246,16 +247,19 @@ func (c *DatabaseController) TestDatabaseConnection(ctx *gin.Context) {
 
 // TestDatabaseConnectionDirect
 // @Summary Test database connection directly
-// @Description Test connection to a database configuration without saving it
+// @Description Test connection to a database configuration without saving it. A physical PostgreSQL source is refused with a machine-readable code, including no_wal_switch_privilege when the backup type is FULL_INCREMENTAL_WAL_STREAM and the credentials cannot execute pg_switch_wal().
 // @Tags databases
 // @Accept json
+// @Produce json
 // @Param request body Database true "Database configuration to test"
 // @Success 200
-// @Failure 400
+// @Failure 400 {object} map[string]string
 // @Failure 401
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /databases/test-connection-direct [post]
 func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
-	_, ok := users_middleware.GetUserFromContext(ctx)
+	user, ok := users_middleware.GetUserFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -267,7 +271,7 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.databaseService.TestDatabaseConnectionDirect(ctx.Request.Context(), &request); err != nil {
+	if err := c.databaseService.TestDatabaseConnectionDirect(ctx.Request.Context(), user, &request); err != nil {
 		respondConnectionTestError(ctx, err)
 		return
 	}
@@ -275,9 +279,22 @@ func (c *DatabaseController) TestDatabaseConnectionDirect(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "connection successful"})
 }
 
-// respondConnectionTestError writes a 400 carrying the machine-readable code for a classified
-// connection failure (physical PostgreSQL), or a plain error message for any other failure.
 func respondConnectionTestError(ctx *gin.Context, err error) {
+	if errors.Is(err, ErrInsufficientPermissionsToTestDatabaseConnection) {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": ErrInsufficientPermissionsToTestDatabaseConnection.Error()})
+		return
+	}
+
+	if errors.Is(err, ErrDatabaseConnectionTargetLookup) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": ErrDatabaseConnectionTargetLookup.Error()})
+		return
+	}
+
+	if errors.Is(err, ErrDatabaseConnectionAuthorizationLookup) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": ErrDatabaseConnectionAuthorizationLookup.Error()})
+		return
+	}
+
 	if connErr, ok := errors.AsType[*postgresql_shared.ConnectionTestError](err); ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": connErr.Code})
 		return
@@ -469,13 +486,13 @@ func (c *DatabaseController) CreateReadOnlyUser(ctx *gin.Context) {
 
 // CreateReplicationOnlyUser
 // @Summary Create replication-only database user (PostgreSQL physical only)
-// @Description Provision a fresh PostgreSQL role with LOGIN + REPLICATION (or its cloud equivalent on RDS / Azure / GCP) and nothing more. Refuses for database types other than POSTGRES_PHYSICAL.
+// @Description Provision a fresh PostgreSQL role with LOGIN + REPLICATION (or its cloud equivalent on RDS / Azure / GCP) plus EXECUTE on pg_switch_wal() where the source allows it, and nothing more. isForcedWalRotationAvailable reports whether the created role can force a WAL segment switch, which the FULL_INCREMENTAL_WAL_STREAM backup type requires. Refuses for database types other than POSTGRES_PHYSICAL.
 // @Tags databases
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param request body Database true "Database configuration (must be POSTGRES_PHYSICAL)"
-// @Success 200 {object} CreateReadOnlyUserResponse
+// @Success 200 {object} CreateReplicationOnlyUserResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
@@ -493,14 +510,15 @@ func (c *DatabaseController) CreateReplicationOnlyUser(ctx *gin.Context) {
 		return
 	}
 
-	username, password, err := c.databaseService.CreateReplicationOnlyUser(ctx.Request.Context(), user, &request)
+	createdUser, err := c.databaseService.CreateReplicationOnlyUser(ctx.Request.Context(), user, &request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, CreateReadOnlyUserResponse{
-		Username: username,
-		Password: password,
+	ctx.JSON(http.StatusOK, CreateReplicationOnlyUserResponse{
+		Username:                     createdUser.Username,
+		Password:                     createdUser.Password,
+		IsForcedWalRotationAvailable: createdUser.IsForcedWalRotationAvailable,
 	})
 }

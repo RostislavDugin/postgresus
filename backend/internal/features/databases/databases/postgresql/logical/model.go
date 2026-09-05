@@ -112,19 +112,8 @@ func (p *PostgresqlLogicalDatabase) Validate() error {
 		return err
 	}
 
-	// Prevent Databasus from backing up itself
-	// Databasus runs an internal PostgreSQL instance that should not be backed up through the UI
-	// because it would expose internal metadata to non-system administrators.
-	// To properly backup Databasus, see: https://databasus.com/faq#backup-databasus
-	// Only a remote bastion relaxes it: there a loopback address names a database on the bastion,
-	// whereas a bastion on this machine would forward straight back to the instance being guarded.
-	if !p.isReachedThroughARemoteBastion() &&
-		p.Database != nil &&
-		isLocalhostAddress(p.Host) &&
-		strings.EqualFold(*p.Database, "databasus") {
-		return errors.New(
-			"backing up Databasus internal database is not allowed. To backup Databasus itself, see https://databasus.com/faq#backup-databasus",
-		)
+	if err := p.ValidateNotEmbeddedTarget(); err != nil {
+		return err
 	}
 
 	return nil
@@ -896,6 +885,21 @@ func (p *PostgresqlLogicalDatabase) CreateReadOnlyUser(
 	return "", "", errors.New("failed to generate unique username after 3 attempts")
 }
 
+func (p *PostgresqlLogicalDatabase) ValidateNotEmbeddedTarget() error {
+	databaseName := ""
+	if p.Database != nil {
+		databaseName = *p.Database
+	}
+
+	return postgresql_shared.ValidateNotEmbeddedTarget(postgresql_shared.EmbeddedTargetSpec{
+		Host:               p.Host,
+		Port:               p.Port,
+		DatabaseName:       databaseName,
+		IsSSHTunnelEnabled: p.SshTunnel.IsEnabled,
+		SSHBastionHost:     p.SshTunnel.Host,
+	})
+}
+
 func (p *PostgresqlLogicalDatabase) validateSslConfig() error {
 	return postgresql_shared.ValidateSslConfig(
 		p.SslMode,
@@ -987,29 +991,4 @@ func extractSupabaseProjectID(username string) string {
 		return after
 	}
 	return ""
-}
-
-func (p *PostgresqlLogicalDatabase) isReachedThroughARemoteBastion() bool {
-	return p.SshTunnel.IsEnabled && !isLocalhostAddress(p.SshTunnel.Host)
-}
-
-func isLocalhostAddress(host string) bool {
-	localhostHosts := []string{
-		"localhost",
-		"127.0.0.1",
-		"172.17.0.1",
-		"host.docker.internal",
-		"::1",     // IPv6 loopback (equivalent to 127.0.0.1)
-		"::",      // IPv6 all interfaces (equivalent to 0.0.0.0)
-		"0.0.0.0", // IPv4 all interfaces
-	}
-
-	for _, localhostHost := range localhostHosts {
-		if strings.EqualFold(host, localhostHost) {
-			return true
-		}
-	}
-
-	// The entire 127.0.0.0/8 loopback range, not just 127.0.0.1
-	return strings.HasPrefix(host, "127.")
 }

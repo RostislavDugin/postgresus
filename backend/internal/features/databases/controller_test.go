@@ -3,6 +3,7 @@ package databases
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +34,7 @@ import (
 	"databasus-backend/internal/features/storages"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_middleware "databasus-backend/internal/features/users/middleware"
+	users_models "databasus-backend/internal/features/users/models"
 	users_services "databasus-backend/internal/features/users/services"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
@@ -2067,4 +2070,535 @@ func Test_CreateDatabase_WhenThePhysicalClusterIsBehindABastion_PassesTheReplica
 	assert.NotNil(t, response.PostgresqlPhysical.SystemIdentifier,
 		"the cluster identity must be carried back too, or the manifest records a zero identifier")
 	assert.NotNil(t, response.PostgresqlPhysical.WalSegmentSizeBytes)
+}
+
+func openFixtureConn(t *testing.T, fixture physicalFixture) *pgx.Conn {
+	t.Helper()
+
+	dsn := fmt.Sprintf(
+		"host=%s port=%s user=testuser password=testpassword dbname=postgres sslmode=disable",
+		config.GetEnv().TestLocalhost, fixture.port(),
+	)
+
+	conn, err := pgx.Connect(t.Context(), dsn)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+
+	return conn
+}
+
+func createReplicationRole(t *testing.T, conn *pgx.Conn, canForceWalRotation bool) (string, string) {
+	t.Helper()
+
+	username := "databasus-ct-" + uuid.New().String()[:8]
+	password := "Temp1234!Pwd"
+
+	_, err := conn.Exec(t.Context(),
+		fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s' LOGIN REPLICATION`, username, password))
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, _ = conn.Exec(context.Background(), fmt.Sprintf(`DROP USER IF EXISTS "%s"`, username))
+	})
+
+	if canForceWalRotation {
+		_, err := conn.Exec(t.Context(),
+			fmt.Sprintf(`GRANT EXECUTE ON FUNCTION pg_switch_wal() TO "%s"`, username))
+		require.NoError(t, err)
+	}
+
+	return username, password
+}
+
+type physicalDatabaseRequestSpec struct {
+	workspaceID uuid.UUID
+	fixture     physicalFixture
+	username    string
+	password    string
+	backupType  postgresql_physical.BackupType
+}
+
+func buildPhysicalDatabaseRequestFor(t *testing.T, spec physicalDatabaseRequestSpec) Database {
+	t.Helper()
+
+	request := buildPhysicalDatabaseRequest(t, spec.workspaceID, spec.fixture)
+	request.PostgresqlPhysical.Username = spec.username
+	request.PostgresqlPhysical.Password = spec.password
+	request.PostgresqlPhysical.BackupType = spec.backupType
+
+	return request
+}
+
+func getConnectionErrorCode(t *testing.T, body []byte) postgresql_shared.ConnectionErrorCode {
+	t.Helper()
+
+	var payload struct {
+		Code postgresql_shared.ConnectionErrorCode `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+
+	return payload.Code
+}
+
+func createDatabaseForDirectConnectionTest(
+	t *testing.T,
+	router *gin.Engine,
+	workspaceID uuid.UUID,
+	ownerToken string,
+) *Database {
+	t.Helper()
+
+	request := Database{
+		Name:              "Direct connection test database",
+		WorkspaceID:       &workspaceID,
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	var createdDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/databases/create",
+		"Bearer "+ownerToken,
+		request,
+		http.StatusCreated,
+		&createdDatabase,
+	)
+
+	t.Cleanup(func() {
+		RemoveTestDatabase(t.Context(), &createdDatabase)
+	})
+
+	return &createdDatabase
+}
+
+type connectionTestDatabaseStore struct {
+	databaseStore
+	database  *Database
+	findError error
+}
+
+func (s *connectionTestDatabaseStore) FindByID(_ uuid.UUID) (*Database, error) {
+	return s.database, s.findError
+}
+
+type connectionTestWorkspaceService struct {
+	workspaceService
+	permissionError error
+}
+
+func (s *connectionTestWorkspaceService) CanUserManageDBs(
+	_ context.Context,
+	_ uuid.UUID,
+	_ *users_models.User,
+) (bool, error) {
+	return false, s.permissionError
+}
+
+func createDirectConnectionErrorTestRouter(
+	databaseStore databaseStore,
+	workspaceService workspaceService,
+	user *users_models.User,
+) *gin.Engine {
+	service := &DatabaseService{
+		databaseStore,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		workspaceService,
+		nil,
+		nil,
+		nil,
+	}
+	controller := &DatabaseController{service, nil, nil}
+	router := gin.New()
+	router.POST("/api/v1/databases/test-connection-direct", func(ctx *gin.Context) {
+		ctx.Set("user", user)
+		controller.TestDatabaseConnectionDirect(ctx)
+	})
+
+	return router
+}
+
+func Test_TestDatabaseConnectionDirect_WhenSavedDatabaseLookupFails_ReturnsSanitizedError(t *testing.T) {
+	user := &users_models.User{ID: uuid.New(), Role: users_enums.UserRoleMember}
+	router := createDirectConnectionErrorTestRouter(
+		&connectionTestDatabaseStore{findError: errors.New("sensitive repository failure")},
+		&connectionTestWorkspaceService{},
+		user,
+	)
+	request := Database{ID: uuid.New()}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"",
+		request,
+		http.StatusInternalServerError,
+	)
+
+	assert.JSONEq(t, `{"error":"failed to load database connection target"}`, string(response.Body))
+}
+
+func Test_TestDatabaseConnectionDirect_WhenPermissionLookupFails_ReturnsSanitizedError(t *testing.T) {
+	workspaceID := uuid.New()
+	user := &users_models.User{ID: uuid.New(), Role: users_enums.UserRoleMember}
+	permissionError := errors.New("sensitive membership failure")
+	testCases := []struct {
+		name          string
+		databaseStore databaseStore
+		request       Database
+	}{
+		{
+			name:          "ad hoc database",
+			databaseStore: &connectionTestDatabaseStore{},
+			request:       Database{WorkspaceID: &workspaceID},
+		},
+		{
+			name: "saved database",
+			databaseStore: &connectionTestDatabaseStore{database: &Database{
+				ID:          uuid.New(),
+				WorkspaceID: &workspaceID,
+			}},
+			request: Database{ID: uuid.New()},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := createDirectConnectionErrorTestRouter(
+				testCase.databaseStore,
+				&connectionTestWorkspaceService{permissionError: permissionError},
+				user,
+			)
+
+			response := test_utils.MakePostRequest(
+				t,
+				router,
+				"/api/v1/databases/test-connection-direct",
+				"",
+				testCase.request,
+				http.StatusInternalServerError,
+			)
+
+			assert.JSONEq(t,
+				`{"error":"failed to verify database connection permissions"}`,
+				string(response.Body),
+			)
+		})
+	}
+}
+
+func Test_TestDatabaseConnectionDirect_WithoutWorkspace_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	request := Database{
+		Name:              "Direct connection test database",
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+user.Token,
+		request,
+		http.StatusBadRequest,
+	)
+
+	assert.JSONEq(t, `{"error":"workspaceId is required"}`, string(response.Body))
+}
+
+func Test_TestDatabaseConnectionDirect_ForUnauthorizedSavedDatabase_ReturnsForbidden(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		shouldAddToWorkspace bool
+		unauthorizedRole     users_enums.WorkspaceRole
+	}{
+		{
+			name:                 "workspace viewer",
+			shouldAddToWorkspace: true,
+			unauthorizedRole:     users_enums.WorkspaceRoleViewer,
+		},
+		{
+			name:                 "nonmember",
+			shouldAddToWorkspace: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Direct Test Workspace", owner, router)
+			t.Cleanup(func() {
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+			})
+
+			createdDatabase := createDatabaseForDirectConnectionTest(t, router, workspace.ID, owner.Token)
+			unauthorizedUser := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			if testCase.shouldAddToWorkspace {
+				workspaces_testing.AddMemberToWorkspace(
+					workspace,
+					unauthorizedUser,
+					testCase.unauthorizedRole,
+					owner.Token,
+					router,
+				)
+			}
+
+			createdDatabase.PostgresqlLogical.Host = "127.0.0.1"
+			createdDatabase.PostgresqlLogical.Port = 1
+			createdDatabase.PostgresqlLogical.Password = ""
+
+			response := test_utils.MakePostRequest(
+				t,
+				router,
+				"/api/v1/databases/test-connection-direct",
+				"Bearer "+unauthorizedUser.Token,
+				createdDatabase,
+				http.StatusForbidden,
+			)
+
+			assert.JSONEq(t,
+				`{"error":"insufficient permissions to test this database connection"}`,
+				string(response.Body),
+			)
+		})
+	}
+}
+
+func Test_TestDatabaseConnectionDirect_ForUnknownDatabase_ReturnsForbidden(t *testing.T) {
+	router := createTestRouter()
+	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	request := Database{
+		ID:                uuid.New(),
+		Name:              "Unknown database",
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
+
+	response := test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+user.Token,
+		request,
+		http.StatusForbidden,
+	)
+
+	assert.JSONEq(t,
+		`{"error":"insufficient permissions to test this database connection"}`,
+		string(response.Body),
+	)
+}
+
+func Test_TestDatabaseConnectionDirect_ForWorkspaceMember_ReturnsSuccess(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Direct Test Workspace", owner, router)
+	t.Cleanup(func() {
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	})
+
+	createdDatabase := createDatabaseForDirectConnectionTest(t, router, workspace.ID, owner.Token)
+	member := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspaces_testing.AddMemberToWorkspace(
+		workspace,
+		member,
+		users_enums.WorkspaceRoleMember,
+		owner.Token,
+		router,
+	)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		"/api/v1/databases/test-connection-direct",
+		"Bearer "+member.Token,
+		createdDatabase,
+		http.StatusOK,
+	)
+}
+
+func Test_TestDatabaseConnectionDirect_ForWalStreamWhenRoleCannotSwitchWal_ReturnsNoWalSwitchPrivilegeCode(
+	t *testing.T,
+) {
+	for _, fixture := range physicalFixtures() {
+		t.Run(fixture.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+			username, password := createReplicationRole(t, openFixtureConn(t, fixture), false)
+
+			request := buildPhysicalDatabaseRequestFor(t, physicalDatabaseRequestSpec{
+				workspaceID: workspace.ID,
+				fixture:     fixture,
+				username:    username,
+				password:    password,
+				backupType:  postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+			})
+
+			connectionTestResponse := test_utils.MakePostRequest(
+				t, router,
+				"/api/v1/databases/test-connection-direct",
+				"Bearer "+owner.Token,
+				request,
+				http.StatusBadRequest,
+			)
+
+			assert.Equal(t,
+				postgresql_shared.ConnErrNoWalSwitchPrivilege,
+				getConnectionErrorCode(t, connectionTestResponse.Body))
+		})
+	}
+}
+
+func Test_TestDatabaseConnectionDirect_ForWalStreamWhenRoleCanSwitchWal_ReturnsSuccess(t *testing.T) {
+	for _, fixture := range physicalFixtures() {
+		t.Run(fixture.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+			username, password := createReplicationRole(t, openFixtureConn(t, fixture), true)
+
+			request := buildPhysicalDatabaseRequestFor(t, physicalDatabaseRequestSpec{
+				workspaceID: workspace.ID,
+				fixture:     fixture,
+				username:    username,
+				password:    password,
+				backupType:  postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+			})
+
+			test_utils.MakePostRequest(
+				t, router,
+				"/api/v1/databases/test-connection-direct",
+				"Bearer "+owner.Token,
+				request,
+				http.StatusOK,
+			)
+		})
+	}
+}
+
+// A saved streaming database whose source revoked the privilege afterwards is the only way
+// this state reaches an existing row, since creating it now is refused.
+func Test_TestDatabaseConnection_WhenTheSourceRevokedTheWalSwitchPrivilege_ReturnsNoWalSwitchPrivilegeCode(
+	t *testing.T,
+) {
+	for _, fixture := range physicalFixtures() {
+		t.Run(fixture.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+			conn := openFixtureConn(t, fixture)
+			username, password := createReplicationRole(t, conn, true)
+
+			request := buildPhysicalDatabaseRequestFor(t, physicalDatabaseRequestSpec{
+				workspaceID: workspace.ID,
+				fixture:     fixture,
+				username:    username,
+				password:    password,
+				backupType:  postgresql_physical.BackupTypeFullIncrementalAndWalStream,
+			})
+
+			createDatabaseResponse := workspaces_testing.MakeAPIRequest(
+				router, "POST", "/api/v1/databases/create", "Bearer "+owner.Token, request,
+			)
+			require.Equal(t, http.StatusCreated, createDatabaseResponse.Code,
+				"create failed: %s", createDatabaseResponse.Body.String())
+
+			var database Database
+			require.NoError(t, json.Unmarshal(createDatabaseResponse.Body.Bytes(), &database))
+			defer func() {
+				RemoveTestDatabase(t.Context(), &database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+			}()
+
+			_, err := conn.Exec(t.Context(),
+				fmt.Sprintf(`REVOKE EXECUTE ON FUNCTION pg_switch_wal() FROM "%s"`, username))
+			require.NoError(t, err)
+
+			connectionTestResponse := test_utils.MakePostRequest(
+				t, router,
+				"/api/v1/databases/"+database.ID.String()+"/test-connection",
+				"Bearer "+owner.Token,
+				nil,
+				http.StatusBadRequest,
+			)
+
+			assert.Equal(t,
+				postgresql_shared.ConnErrNoWalSwitchPrivilege,
+				getConnectionErrorCode(t, connectionTestResponse.Body))
+		})
+	}
+}
+
+func Test_UpdateDatabase_RaisingToWalStreamWhenRoleCannotSwitchWal_ReturnsNoWalSwitchPrivilegeCode(
+	t *testing.T,
+) {
+	for _, fixture := range physicalFixtures() {
+		t.Run(fixture.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+			username, password := createReplicationRole(t, openFixtureConn(t, fixture), false)
+
+			request := buildPhysicalDatabaseRequestFor(t, physicalDatabaseRequestSpec{
+				workspaceID: workspace.ID,
+				fixture:     fixture,
+				username:    username,
+				password:    password,
+				backupType:  postgresql_physical.BackupTypeFullAndIncremental,
+			})
+
+			createDatabaseResponse := workspaces_testing.MakeAPIRequest(
+				router, "POST", "/api/v1/databases/create", "Bearer "+owner.Token, request,
+			)
+			require.Equal(t, http.StatusCreated, createDatabaseResponse.Code,
+				"create failed: %s", createDatabaseResponse.Body.String())
+
+			var database Database
+			require.NoError(t, json.Unmarshal(createDatabaseResponse.Body.Bytes(), &database))
+			defer func() {
+				RemoveTestDatabase(t.Context(), &database)
+				workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+			}()
+
+			database.PostgresqlPhysical.Password = password
+			database.PostgresqlPhysical.BackupType = postgresql_physical.BackupTypeFullIncrementalAndWalStream
+
+			updateDatabaseResponse := workspaces_testing.MakeAPIRequest(
+				router, "POST", "/api/v1/databases/update", "Bearer "+owner.Token, database,
+			)
+
+			require.Equal(t, http.StatusBadRequest, updateDatabaseResponse.Code,
+				"expected refusal, got: %s", updateDatabaseResponse.Body.String())
+
+			var updateDatabaseErrorResponse struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(updateDatabaseResponse.Body.Bytes(), &updateDatabaseErrorResponse))
+
+			// Create and update surface only Error(), so this path shows the remedy sentence
+			// rather than the machine-readable code the test-connection endpoints return.
+			assert.Contains(t, updateDatabaseErrorResponse.Error,
+				"GRANT EXECUTE ON FUNCTION pg_switch_wal()")
+			assert.Contains(t, updateDatabaseErrorResponse.Error,
+				pgx.Identifier{username}.Sanitize())
+		})
+	}
 }
