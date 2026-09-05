@@ -27,15 +27,18 @@ FROM --platform=$BUILDPLATFORM golang:1.26.3 AS backend-build
 # Make TARGET args available early so tools built here match the final image arch
 ARG TARGETOS
 ARG TARGETARCH
+ARG GOOSE_VERSION=v3.27.3
 
 # Install Go public tools needed in runtime. Use `go build` for goose so the
 # binary is compiled for the target architecture instead of downloading a
 # prebuilt binary which may have the wrong architecture (causes exec format
 # errors on ARM).
-RUN git clone --depth 1 --branch v3.27.1 https://github.com/pressly/goose.git /tmp/goose && \
+RUN git clone --depth 1 --branch "$GOOSE_VERSION" https://github.com/pressly/goose.git /tmp/goose && \
   cd /tmp/goose/cmd/goose && \
+  go get golang.org/x/crypto@v0.55.0 && \
   GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-  go build -o /usr/local/bin/goose . && \
+  go build -ldflags "-X main.version=${GOOSE_VERSION}+databasus.1" \
+  -o /usr/local/bin/goose . && \
   rm -rf /tmp/goose
 RUN go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
