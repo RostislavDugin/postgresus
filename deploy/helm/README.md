@@ -414,7 +414,7 @@ extraVolumeMounts:
 ```
 
 > **Not supported by design:** `runAsNonRoot: true` and dropping **all**
-> capabilities. The entrypoint must start as root to handle PUID/PGID remapping,
+> capabilities. The entrypoint must start as root to remap service accounts,
 > volume `chown` and PostgreSQL `initdb`, then drops to a non-root user with
 > `gosu` (which requires `SETUID`/`SETGID`). See the note in `values.yaml`
 > next to `podSecurityContext`.

@@ -401,6 +401,34 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h2 id="docker-storage-permissions">Права Docker-хранилища</h2>
+
+              <p>
+                Для большинства установок подходят ID из образа. Меняйте их,
+                только если bind mount, CIFS или NFS требуют конкретного числового
+                владельца. Допустимы десятичные значения от <code>1</code> до{" "}
+                <code>4294967294</code>; пустые значения отклоняются.
+              </p>
+
+              <table>
+                <thead><tr><th>Переменная</th><th>По умолчанию</th><th>Учетная запись</th></tr></thead>
+                <tbody>
+                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Пользователь Databasus</td></tr>
+                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Основная группа Databasus</td></tr>
+                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Пользователь PostgreSQL</td></tr>
+                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Основная группа PostgreSQL</td></tr>
+                </tbody>
+              </table>
+
+              <p>
+                Не объединяйте точки монтирования приложения с pgdata. Сценарий
+                запуска работает с правами root внутри пространства имен,
+                настраивает обе учетные записи и сбрасывает привилегии через{" "}
+                <code>gosu</code>. Для изоляции на хосте используйте Docker без
+                прав root или пространство имен пользователей; произвольное
+                значение Docker <code>user:</code> не поддерживается.
+              </p>
+
               <h2 id="telemetry">Телеметрия</h2>
 
               <p>

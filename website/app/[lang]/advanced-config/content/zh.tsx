@@ -383,6 +383,29 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h2 id="docker-storage-permissions">Docker 存储权限</h2>
+
+              <p>
+                大多数安装应保留镜像内置 ID。只有 bind mount、CIFS 或 NFS 共享要求特定数字所有者时才需要修改。可用值是{" "}
+                <code>1</code> 到 <code>4294967294</code> 的十进制整数；空值会被拒绝。
+              </p>
+
+              <table>
+                <thead><tr><th>变量</th><th>默认值</th><th>账户</th></tr></thead>
+                <tbody>
+                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Databasus 用户</td></tr>
+                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Databasus 主组</td></tr>
+                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>PostgreSQL 用户</td></tr>
+                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>PostgreSQL 主组</td></tr>
+                </tbody>
+              </table>
+
+              <p>
+                请将应用 mount 与 pgdata 分开。Entrypoint 会先以 namespace 内的 root 身份启动，准备两个账户，再通过{" "}
+                <code>gosu</code> 降低权限。若要隔离宿主机，请使用 rootless Docker 或 user namespace；不支持任意 Docker{" "}
+                <code>user:</code> 覆盖。
+              </p>
+
               <h2 id="telemetry">遥测</h2>
 
               <p>

@@ -414,6 +414,34 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h2 id="docker-storage-permissions">Permissions du stockage Docker</h2>
+
+              <p>
+                La plupart des installations doivent conserver les ID intégrés à
+                l&apos;image. Modifiez-les uniquement si un bind mount ou un
+                partage CIFS ou NFS impose un propriétaire numérique précis. Les
+                entiers décimaux de <code>1</code> à <code>4294967294</code> sont
+                acceptés ; les valeurs vides sont refusées.
+              </p>
+
+              <table>
+                <thead><tr><th>Variable</th><th>Valeur par défaut</th><th>Compte</th></tr></thead>
+                <tbody>
+                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Utilisateur Databasus</td></tr>
+                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Groupe principal Databasus</td></tr>
+                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Utilisateur PostgreSQL</td></tr>
+                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Groupe principal PostgreSQL</td></tr>
+                </tbody>
+              </table>
+
+              <p>
+                Séparez les mounts de l&apos;application de pgdata. L&apos;entrypoint
+                démarre comme root dans son namespace, prépare les deux comptes,
+                puis réduit ses privilèges avec <code>gosu</code>. Utilisez Docker
+                rootless ou un user namespace pour isoler l&apos;hôte ; les valeurs
+                Docker <code>user:</code> arbitraires ne sont pas prises en charge.
+              </p>
+
               <h2 id="telemetry">Télémétrie</h2>
 
               <p>

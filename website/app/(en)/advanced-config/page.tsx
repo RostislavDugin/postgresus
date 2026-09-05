@@ -398,6 +398,34 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h2 id="docker-storage-permissions">Docker storage permissions</h2>
+
+              <p>
+                Most installations should keep the baked IDs. Set these variables
+                only when a bind mount, CIFS share or NFS export requires specific
+                numeric ownership. Values must be base-10 integers from{" "}
+                <code>1</code> through <code>4294967294</code>; empty values are
+                rejected.
+              </p>
+
+              <table>
+                <thead><tr><th>Variable</th><th>Default</th><th>Account</th></tr></thead>
+                <tbody>
+                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Databasus user</td></tr>
+                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Databasus primary group</td></tr>
+                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>PostgreSQL user</td></tr>
+                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>PostgreSQL primary group</td></tr>
+                </tbody>
+              </table>
+
+              <p>
+                Keep application-owned mounts separate from pgdata. The entrypoint
+                starts as namespace root, prepares both accounts, then drops
+                privileges with <code>gosu</code>. Use rootless Docker or a user
+                namespace for host isolation; arbitrary Docker <code>user:</code>{" "}
+                overrides are unsupported.
+              </p>
+
               <h2 id="telemetry">Telemetry</h2>
 
               <p>
