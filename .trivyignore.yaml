@@ -1,0 +1,23 @@
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - Dockerfile
+    statement: >-
+      The final image creates postgres and databasus users, then start.sh drops
+      the application process to databasus with gosu. The entrypoint must start
+      as root to remap PUID and PGID values, prepare the mounted data directory,
+      and initialize PostgreSQL. A Dockerfile USER directive would break startup.
+
+vulnerabilities:
+  - id: CVE-2026-56854
+    paths:
+      - app/assets/tools/x64/mongodb/bin/mongodump
+      - app/assets/tools/x64/mongodb/bin/mongorestore
+      - app/assets/tools/arm/mongodb/bin/mongodump
+      - app/assets/tools/arm/mongodb/bin/mongorestore
+    statement: >-
+      MongoDB Database Tools 100.16.1 include golang.org/x/crypto as an indirect
+      dependency, but these binaries do not contain the affected ssh.NewServerConn
+      server symbol. Trivy reports the module version without checking symbol
+      reachability. Reassess when MongoDB publishes tools built with x/crypto 0.55.0.
+    expired_at: 2026-10-05

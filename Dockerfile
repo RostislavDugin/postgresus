@@ -27,15 +27,18 @@ FROM --platform=$BUILDPLATFORM golang:1.26.3 AS backend-build
 # Make TARGET args available early so tools built here match the final image arch
 ARG TARGETOS
 ARG TARGETARCH
+ARG GOOSE_VERSION=v3.27.3
 
 # Install Go public tools needed in runtime. Use `go build` for goose so the
 # binary is compiled for the target architecture instead of downloading a
 # prebuilt binary which may have the wrong architecture (causes exec format
 # errors on ARM).
-RUN git clone --depth 1 --branch v3.27.1 https://github.com/pressly/goose.git /tmp/goose && \
+RUN git clone --depth 1 --branch "$GOOSE_VERSION" https://github.com/pressly/goose.git /tmp/goose && \
   cd /tmp/goose/cmd/goose && \
+  go get golang.org/x/crypto@v0.55.0 && \
   GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-  go build -o /usr/local/bin/goose . && \
+  go build -ldflags "-X main.version=${GOOSE_VERSION}+databasus.1" \
+  -o /usr/local/bin/goose . && \
   rm -rf /tmp/goose
 RUN go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
@@ -156,27 +159,24 @@ RUN --mount=type=bind,source=assets/tools,target=/ctx/tools,readonly \
              /app/assets/tools/*/mariadb/*/bin/* \
              /app/assets/tools/*/mongodb/bin/*
 
-# postgres owns PGDATA inside the user's mounted /databasus-data volume, so its UID has
-# to stay stable across releases instead of whatever the postgresql-17 package assigns.
-# Hosts that need a different owner set PUID/PGID, which start.sh applies.
 RUN set -eux; \
     groupmod -g 999 postgres; \
     usermod -u 999 postgres; \
-    # Renumbering rewrites the account, not the directories the package already created, so
-    # they would keep IDs that resolve to nothing until some later install reuses them.
     chown -R postgres:postgres \
       /var/lib/postgresql /etc/postgresql /var/log/postgresql /run/postgresql; \
     mkdir -p /databasus-data/pgdata; \
     chown -R postgres:postgres /databasus-data/pgdata
 
-# databasus owns everything in /databasus-data except PGDATA, so like postgres above it needs
-# IDs that stay stable across releases for hosts that bind-mount the volume. postgres joins
-# the group as a supplementary member rather than sharing a primary group, because it has to
-# traverse the volume root to reach PGDATA and PUID/PGID renumber its primary group at startup.
+# PostgreSQL traverses the shared data root through the Databasus group.
 RUN set -eux; \
     groupadd -g 65532 databasus; \
     useradd -r -s /usr/sbin/nologin -u 65532 -g databasus databasus; \
     usermod -aG databasus postgres
+
+ENV DATABASUS_PUID=65532 \
+    DATABASUS_PGID=65532 \
+    POSTGRES_PUID=999 \
+    POSTGRES_PGID=999
 
 WORKDIR /app
 
@@ -210,15 +210,15 @@ COPY .env.example /.env
 COPY <<EOF /app/start.sh
 #!/bin/bash
 set -e
+export TMPDIR=/tmp
 
-# Check for legacy postgresus-data volume mount
 if [ -d "/postgresus-data" ] && [ "\$(ls -A /postgresus-data 2>/dev/null)" ]; then
     echo ""
     echo "=========================================="
     echo "ERROR: Legacy volume detected!"
     echo "=========================================="
     echo ""
-    echo "You are using the \`postgresus-data\` folder. It seems you changed the image name from Postgresus to Databasus without changing the volume."
+    echo "You are using the /postgresus-data folder. It seems you changed the image name from Postgresus to Databasus without changing the volume."
     echo ""
     echo "Please either:"
     echo "  1. Switch back to image rostislavdugin/postgresus:latest (supported until ~Dec 2026)"
@@ -228,28 +228,11 @@ if [ -d "/postgresus-data" ] && [ "\$(ls -A /postgresus-data 2>/dev/null)" ]; th
     exit 1
 fi
 
-# ========= Adjust postgres user UID/GID =========
-PUID=\${PUID:-999}
-PGID=\${PGID:-999}
-
-CURRENT_UID=\$(id -u postgres)
-CURRENT_GID=\$(id -g postgres)
-PUID_OWNER=\$(getent passwd "\$PUID" | cut -d: -f1 || true)
-
-if [ -n "\$PUID_OWNER" ] && [ "\$PUID_OWNER" != "postgres" ]; then
-    echo "ERROR: PUID \$PUID is already assigned to user \$PUID_OWNER. Choose an unused UID for postgres."
-    exit 1
-fi
-
-if [ "\$CURRENT_GID" != "\$PGID" ]; then
-    echo "Adjusting postgres group GID from \$CURRENT_GID to \$PGID..."
-    groupmod -o -g "\$PGID" postgres
-fi
-
-if [ "\$CURRENT_UID" != "\$PUID" ]; then
-    echo "Adjusting postgres user UID from \$CURRENT_UID to \$PUID..."
-    usermod -o -u "\$PUID" postgres
-fi
+# ========= Configure service identities =========
+[ "\$(id -g postgres)" = "\$POSTGRES_PGID" ] || groupmod -g "\$POSTGRES_PGID" postgres
+[ "\$(id -g databasus)" = "\$DATABASUS_PGID" ] || groupmod -g "\$DATABASUS_PGID" databasus
+[ "\$(id -u postgres)" = "\$POSTGRES_PUID" ] || usermod -u "\$POSTGRES_PUID" postgres
+[ "\$(id -u databasus)" = "\$DATABASUS_PUID" ] || usermod -u "\$DATABASUS_PUID" databasus
 
 # PostgreSQL 17 binary paths
 PG_BIN="/usr/lib/postgresql/17/bin"
@@ -287,22 +270,13 @@ fi
 
 # Ensure proper ownership of data directory
 echo "Setting up data directory permissions..."
-mkdir -p /databasus-data/pgdata
-mkdir -p /databasus-data/pgsocket
-mkdir -p /databasus-data/temp
-mkdir -p /databasus-data/backups
-chown databasus:databasus /databasus-data
-# postgres reaches pgdata through this directory as a member of the databasus group, and a
-# bind-mounted host directory can arrive without a group traversal bit.
-chmod g+x /databasus-data
-chown -R postgres:postgres /databasus-data/pgdata
-chown postgres:postgres /databasus-data/pgsocket
-chown -R databasus:databasus /databasus-data/temp /databasus-data/backups
-# Upgrade path: secret.key and instance.json may be owned by root or postgres
-# from older images. Re-own them so the non-root main process can read/write.
+mkdir -p /databasus-data/{pgdata,pgsocket,temp,backups}
+chown databasus:databasus /databasus-data 2>/dev/null || true
+chmod g+x /databasus-data 2>/dev/null || true
+chown postgres:postgres /databasus-data/pgdata /databasus-data/pgsocket 2>/dev/null || true
+chown databasus:databasus /databasus-data/temp /databasus-data/backups 2>/dev/null || true
 chown databasus:databasus /databasus-data/secret.key /databasus-data/instance.json 2>/dev/null || true
-chmod 700 /databasus-data/temp
-chmod 700 /databasus-data/pgsocket
+chmod 700 /databasus-data/temp /databasus-data/pgsocket 2>/dev/null || true
 
 # ========= Start Valkey (internal cache) =========
 echo "Configuring Valkey cache..."
@@ -442,9 +416,6 @@ if [ -z "\${DATABASE_DSN+x}" ]; then
     export DATABASE_DSN="host=localhost user=postgres password=\$INTERNAL_POSTGRES_PASSWORD dbname=databasus port=5437 sslmode=disable"
 fi
 
-# ========= Refuse to start if legacy WAL backup data exists =========
-# The agent-based WAL_V1 backup type was removed. Existing installs with
-# WAL-mode databases must downgrade, manually remove them and then upgrade.
 echo "Checking for legacy WAL backup configuration..."
 WAL_CHECK_COL=\$(gosu databasus env PGPASSWORD="\$INTERNAL_POSTGRES_PASSWORD" \\
     \$PG_BIN/psql -h localhost -p 5437 -U postgres -d databasus -tA \\
