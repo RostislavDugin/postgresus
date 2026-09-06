@@ -33,7 +33,7 @@ var physicalBackuper = &PhysicalBackuper{
 	backups_config_physical.GetBackupConfigService(),
 	storages.GetStorageService(),
 	notifiers.GetNotifierService(),
-	tasks_cancellation.GetTaskCancelManager(),
+	tasks_cancellation.GetRegistry(),
 	encryption_secrets.GetSecretKeyService(),
 	logger.GetLogger(),
 	postgresql_executor.NewCreateFullBackupUsecase(),
@@ -48,7 +48,7 @@ var physicalBackupsScheduler = &PhysicalBackupsScheduler{
 	physical_repositories.GetInFlightBackupRepository(),
 	backups_config_physical.GetBackupConfigService(),
 	chain_view.GetChainViewService(),
-	tasks_cancellation.GetTaskCancelManager(),
+	tasks_cancellation.GetRequester(),
 	physicalBackuper,
 	atomicTime{},
 	logger.GetLogger(),
@@ -78,7 +78,7 @@ var physicalWalStreamSupervisor = &PhysicalWalStreamSupervisor{
 	physical_repositories.GetWalHistoryRepository(),
 	physical_repositories.GetWalStreamerRepository(),
 	notifiers.GetNotifierService(),
-	tasks_cancellation.GetTaskCancelManager(),
+	tasks_cancellation.GetRegistry(),
 	encryption_secrets.GetSecretKeyService(),
 	encryption.GetFieldEncryptor(),
 	logger.GetLogger(),
@@ -103,7 +103,7 @@ var physicalSlotCleanupListener = postgresql_executor.NewPhysicalSlotCleanupList
 
 var physicalBackupCanceller = NewPhysicalBackupCanceller(
 	physical_repositories.GetInFlightBackupRepository(),
-	tasks_cancellation.GetTaskCancelManager(),
+	tasks_cancellation.GetRequester(),
 	logger.GetLogger(),
 )
 
@@ -112,7 +112,7 @@ func GetPhysicalBackupCanceller() *PhysicalBackupCanceller { return physicalBack
 var physicalBackupCancellationListener = &PhysicalBackupCancellationListener{
 	physicalBackupCanceller,
 	physical_repositories.GetWalStreamerRepository(),
-	tasks_cancellation.GetTaskCancelManager(),
+	tasks_cancellation.GetRequester(),
 	logger.GetLogger(),
 }
 

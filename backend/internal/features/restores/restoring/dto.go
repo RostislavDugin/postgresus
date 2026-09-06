@@ -13,3 +13,10 @@ type RestoreDatabaseCache struct {
 	MariadbDatabase           *mariadb.MariadbDatabase                      `json:"mariadbDatabase,omitzero"`
 	MongodbDatabase           *mongodb.MongodbDatabase                      `json:"mongodbDatabase,omitzero"`
 }
+
+func (c *RestoreDatabaseCache) HasDatabaseConfiguration() bool {
+	return c.PostgresqlLogicalDatabase != nil ||
+		c.MysqlDatabase != nil ||
+		c.MariadbDatabase != nil ||
+		c.MongodbDatabase != nil
+}

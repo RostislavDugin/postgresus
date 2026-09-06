@@ -63,7 +63,7 @@ func (s *VerificationScheduler) Run(ctx context.Context) {
 				tickLogger.ErrorContext(ctx, "failed to reap stale verification runs", "error", err)
 			}
 
-			if err := s.sweepCanceledByDisabledConfig(ctx, tickLogger); err != nil {
+			if err := s.cancelAutomaticVerificationsForDisabledSchedules(ctx, tickLogger); err != nil {
 				tickLogger.ErrorContext(ctx, "failed to cancel verifications for disabled configs", "error", err)
 			}
 		}
@@ -235,10 +235,12 @@ func (s *VerificationScheduler) reapStaleRuns(ctx context.Context, logger *slog.
 	return nil
 }
 
-// sweepCanceledByDisabledConfig sends no notification
-// — disable is user-initiated, not a failure.
-func (s *VerificationScheduler) sweepCanceledByDisabledConfig(ctx context.Context, logger *slog.Logger) error {
-	rows, err := s.repo.FindNonTerminalForDisabledConfigs()
+// Disabling a schedule is user initiated, so cancellation does not send a failure notification.
+func (s *VerificationScheduler) cancelAutomaticVerificationsForDisabledSchedules(
+	ctx context.Context,
+	logger *slog.Logger,
+) error {
+	rows, err := s.repo.GetNonTerminalAutomaticVerificationsForDisabledSchedules()
 	if err != nil {
 		return err
 	}

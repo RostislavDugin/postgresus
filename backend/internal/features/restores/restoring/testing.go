@@ -21,9 +21,42 @@ import (
 	tasks_cancellation "databasus-backend/internal/features/tasks/cancellation"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 )
+
+type failingRestoreMetadataStore struct {
+	err error
+}
+
+func NewFailingRestoreMetadataStore(providerError error) cache.Store {
+	return failingRestoreMetadataStore{err: providerError}
+}
+
+func (s failingRestoreMetadataStore) Get(context.Context, string) ([]byte, bool, error) {
+	return nil, false, s.err
+}
+
+func (s failingRestoreMetadataStore) Set(context.Context, cache.Entry) error {
+	return s.err
+}
+
+func (s failingRestoreMetadataStore) CreateIfAbsent(context.Context, cache.Entry) (bool, error) {
+	return false, s.err
+}
+
+func (s failingRestoreMetadataStore) ReadAndDelete(context.Context, string) ([]byte, bool, error) {
+	return nil, false, s.err
+}
+
+func (s failingRestoreMetadataStore) Delete(context.Context, string) error {
+	return s.err
+}
+
+func (s failingRestoreMetadataStore) Clear(context.Context) error {
+	return s.err
+}
 
 func CreateTestRouter() *gin.Engine {
 	router := workspaces_testing.CreateTestRouter(
@@ -47,7 +80,7 @@ func CreateTestRestorer() *Restorer {
 		logger.GetLogger(),
 		usecases.GetRestoreBackupUsecase(),
 		restoreDatabaseCache,
-		tasks_cancellation.GetTaskCancelManager(),
+		tasks_cancellation.GetRegistry(),
 	}
 }
 
@@ -62,7 +95,7 @@ func CreateTestRestorerWithUsecase(usecase restores_core.RestoreBackupUsecase) *
 		logger.GetLogger(),
 		usecase,
 		restoreDatabaseCache,
-		tasks_cancellation.GetTaskCancelManager(),
+		tasks_cancellation.GetRegistry(),
 	}
 }
 

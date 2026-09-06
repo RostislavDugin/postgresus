@@ -6,29 +6,86 @@ Defines the supported Docker account settings and the real-container filesystem 
 
 ## Requirements
 
-### Requirement: Docker service IDs have image defaults
+### Requirement: Docker services share one configurable runtime identity
 
-The Docker image SHALL declare `DATABASUS_PUID=65532`, `DATABASUS_PGID=65532`, `POSTGRES_PUID=999`, and `POSTGRES_PGID=999`. A container SHALL inherit these values without ordinary installation configuration. Operators SHALL be able to override each service account with free numeric IDs accepted by the image.
+The Docker image SHALL run Databasus and embedded PostgreSQL under one non-root operating-system account named `databasus`. Operators MAY set its numeric identity with `PUID` and `PGID`. Each supplied value SHALL be a non-zero decimal Linux ID within the supported system range.
 
-#### Scenario: Container uses image defaults
+When an override is absent, startup SHALL select that ID independently from the existing PostgreSQL data owner, then the mounted backup or data-root owner and finally `999`. Root ownership SHALL NOT be selected automatically.
 
-- **WHEN** an operator starts the image without identity overrides
-- **THEN** the container environment contains the four image defaults
-- **AND** the Databasus and PostgreSQL accounts use those IDs
+#### Scenario: Fresh installation uses the fallback identity
 
-#### Scenario: Operator supplies free custom IDs
+- **WHEN** an operator starts the image without identity overrides or existing non-root ownership
+- **THEN** all bundled services run as user ID `999` and group ID `999` under the account name `databasus`
 
-- **WHEN** an operator supplies free numeric IDs through the four supported variables
-- **THEN** the container starts with each service account using its configured user and primary group IDs
+#### Scenario: Existing data determines the identity
 
-### Requirement: Service accounts remain isolated
+- **WHEN** an existing PostgreSQL data directory has a non-root numeric owner and `PUID` or `PGID` is absent
+- **THEN** startup uses the corresponding owner ID before considering other mounts or the fallback
 
-The Databasus and PostgreSQL accounts SHALL have distinct user IDs and primary groups. PostgreSQL MAY receive access needed to traverse the shared data root. The Databasus account SHALL NOT gain access to PostgreSQL private data or its private socket.
+#### Scenario: Operator supplies identity overrides
 
-#### Scenario: Databasus account reads PostgreSQL private paths
+- **WHEN** an operator supplies valid `PUID` and `PGID` values
+- **THEN** all bundled services run with those numeric IDs
 
-- **WHEN** the Databasus account attempts to read the embedded database tree or private socket
-- **THEN** filesystem permissions reject the operation
+#### Scenario: Operator overrides one identity value
+
+- **WHEN** an operator supplies either `PUID` or `PGID` and mounted data provides the other numeric ID
+- **THEN** startup combines the explicit value with the automatically selected counterpart
+
+#### Scenario: Operator supplies an invalid identity
+
+- **WHEN** `PUID` or `PGID` is empty, non-numeric, zero or outside the supported range
+- **THEN** the container exits before starting its services
+- **AND** the log identifies the invalid variable
+
+### Requirement: Startup validates storage through required operations
+
+Startup SHALL attempt to prepare the data root, PostgreSQL data, PostgreSQL socket, temporary and backup paths with the selected identity and required modes. A failed ownership or mode change SHALL NOT stop startup when the selected account can still perform every required operation.
+
+Startup SHALL run the main Databasus binary with `--test-storage` under the selected account before starting PostgreSQL or the Databasus application. The storage probe SHALL save a unique file through the configured local storage and remove that file through the same storage path. Startup SHALL also verify the operations required for PostgreSQL data, its socket and Databasus control files. A failed check SHALL stop startup before PostgreSQL or the Databasus application runs. Startup SHALL NOT start or wait for a separate cache service.
+
+#### Scenario: Filesystem denies metadata changes but permits operations
+
+- **WHEN** a mounted filesystem rejects ownership or mode changes but the selected account can perform all required operations
+- **THEN** the container starts successfully
+
+#### Scenario: Selected identity creates missing service directories
+
+- **WHEN** container root cannot create a required directory but the selected account can create it
+- **THEN** startup creates the directory as the selected account and continues
+
+#### Scenario: Backup publication is not permitted
+
+- **WHEN** the selected account cannot publish a file from the temporary path to the backup path
+- **THEN** the container exits before starting the application
+- **AND** the English error names the affected path, required operation, effective user and group IDs and `https://databasus.com/advanced-config/#docker-storage-permissions`
+
+#### Scenario: Mounted path is read-only
+
+- **WHEN** any required mounted path is read-only
+- **THEN** the container exits before starting PostgreSQL or the Databasus application
+- **AND** the log provides the same identity and documentation details
+
+#### Scenario: Data root cannot create control files
+
+- **WHEN** temporary, backup, PostgreSQL data and socket paths are writable but the data root cannot create a control file
+- **THEN** the container exits before starting PostgreSQL or the Databasus application
+- **AND** the English error identifies the data root and required operation
+
+#### Scenario: Container starts its bundled services
+
+- **WHEN** storage validation succeeds
+- **THEN** startup proceeds directly to embedded PostgreSQL and the Databasus application without a cache-service readiness step
+
+### Requirement: Existing Docker data remains usable after an image update
+
+The current image SHALL start with persistent data created by versions `v3.54.0`, `v3.55.0`, `v3.55.1`, and `v3.56.0` when the mounted filesystem permits the selected account's required operations. Startup SHALL preserve the metadata database, secret key, application log, existing backup files, resumable nested WAL queues, and the existing PostgreSQL cluster. It SHALL prepare an existing WAL queue recursively and verify directory creation plus non-mutating file opens under the selected account before PostgreSQL or the Databasus application starts.
+
+#### Scenario: Existing installation is updated
+
+- **WHEN** an operator replaces one of the covered earlier images with the current image without adding identity settings
+- **THEN** the current container becomes healthy
+- **AND** the metadata database, secret key, application log, existing backup, nested WAL queue, and PostgreSQL data remain available
 
 ### Requirement: Container preserves incompatible-data startup guards
 
@@ -50,7 +107,7 @@ The container SHALL refuse startup when it detects data at the deprecated Postgr
 
 The repository SHALL provide `make test-filesystems` as the single entry point for the Docker filesystem suite. It SHALL build or accept a local candidate image and run the same cases locally and in a dedicated GitHub Actions job. The job SHALL build and load its own candidate without publishing or transferring it.
 
-Each positive case SHALL start the real container and perform create, write, read, and remove operations directly under the responsible service account. Each negative case SHALL assert the container or filesystem operation failure. Every case SHALL clean its containers, volumes, networks, mounts, and temporary files.
+Each positive case SHALL start the real container and invoke `databasus --test-storage`, which uses the public local-storage save and delete methods. Each negative case SHALL assert the startup failure and its actionable error. Every case SHALL clean its containers, volumes, networks, mounts, and temporary files.
 
 #### Scenario: Developer runs the complete suite
 
@@ -69,27 +126,31 @@ Each positive case SHALL start the real container and perform create, write, rea
 
 ### Requirement: The matrix covers supported mount behavior
 
-The suite SHALL cover a bind-mounted data root, a Docker named volume, separate application, temporary, backup, and PostgreSQL mounts, default and custom service IDs, rejected permission layouts, CIFS numeric ownership, and NFS root squash. It SHALL test only the current candidate image and SHALL NOT include version-to-version upgrade fixtures.
-
-The repository SHALL keep an inventory of open and closed Docker filesystem and permission reports. Each report that crosses the shipped container boundary SHALL map to an executable case. Each exclusion SHALL state why the report does not exercise that boundary.
+The suite SHALL cover an ext4 bind-mounted data root, a Docker named volume, separate temporary, backup, and PostgreSQL mounts, automatic and explicit runtime IDs, rejected backup and data-root permission layouts, CIFS numeric ownership and forced file modes, writable NFS with root squash, and upgrades from the covered earlier images. It SHALL verify one non-root numeric identity for all bundled services, bootstrap and runtime PostgreSQL authentication, and restrictive modes for generated credential files.
 
 #### Scenario: Local Docker storage layouts
 
-- **WHEN** the candidate uses a bind mount, named volume, or separate mounts
-- **THEN** the container becomes healthy and both service accounts can perform their required file operations
+- **WHEN** the candidate uses an ext4 bind mount, named volume, or separate mounts
+- **THEN** the container becomes healthy and the storage command saves and deletes its probe
+
+#### Scenario: Temporary and backup paths use different filesystems
+
+- **WHEN** the temporary and backup paths have different device IDs
+- **THEN** `LocalStorage.SaveFile` succeeds through its supported cross-filesystem path and `LocalStorage.DeleteFile` removes the probe
 
 #### Scenario: CIFS maps numeric ownership
 
-- **WHEN** a real CIFS fixture presents a mounted path with the configured Databasus identity
-- **THEN** the container becomes healthy and the Databasus account can perform its required file operations
+- **WHEN** a real CIFS fixture presents root ownership, numeric group ownership `999`, directory mode `0770`, and mount-enforced file modes
+- **THEN** the container becomes healthy and completes the storage command
+- **AND** startup skips the root user ID and writes through group `999`
 
-#### Scenario: NFS backup storage denies ownership changes to container root
+#### Scenario: NFS data storage denies ownership changes to container root
 
-- **WHEN** a root-squashed NFS fixture is already writable by the configured service identities
-- **THEN** the container becomes healthy with its backup path on NFS
-- **AND** both accounts can perform their required file operations on their assigned mounts
+- **WHEN** a root-squashed NFS data root has no backups directory, rejects ownership and mode changes, remains writable by the selected identity, and local mounts provide PostgreSQL and temporary storage
+- **THEN** the selected identity creates the backups directory and the container becomes healthy
+- **AND** the storage command succeeds without requiring ownership changes
 
 #### Scenario: Mounted path denies required access
 
-- **WHEN** a mounted path does not permit an operation required by its service account
-- **THEN** the container or the direct account-level probe fails
+- **WHEN** a mounted path does not permit an operation required by the selected identity
+- **THEN** startup fails with the documented actionable error

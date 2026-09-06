@@ -57,21 +57,6 @@ services:
     container_name: backend-db-test
     shm_size: 10gb
 
-  # Valkey for caching
-  backend-valkey:
-    image: valkey/valkey:9.0.1-alpine
-    ports:
-      - "${VALKEY_PORT}:6379"
-    volumes:
-      - /data
-    container_name: backend-valkey
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
   # VictoriaLogs for external logging
   backend-victoria-logs:
     image: victoriametrics/victoria-logs:latest
@@ -251,4 +236,3 @@ services:
           fi
           sleep 10
         done
-

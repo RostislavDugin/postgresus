@@ -43,7 +43,7 @@ jobs:
       - name: Install golangci-lint
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install swag for swagger generation
         run: go install github.com/swaggo/swag/cmd/swag@v1.16.4
@@ -182,7 +182,7 @@ jobs:
       - name: Install golangci-lint
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run golangci-lint
         run: |
@@ -293,11 +293,6 @@ jobs:
           # Wait for test database (postgres listens on 5432 inside the container)
           timeout 60 bash -c 'until docker exec backend-db-test pg_isready -U postgres; do sleep 2; done'
 
-          # Wait for Valkey (cache)
-          echo "Waiting for Valkey..."
-          timeout 60 bash -c 'until docker exec backend-valkey valkey-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
-          echo "Valkey is ready!"
-
           # 5004 = shared logical-postgres-16 fixture; 5007-5008 = shared physical-postgres 17/18
           # primary sources. The per-version, no-summary, tablespace, mTLS and restore-target
           # physical containers — like the per-version logical PG tests — run on testcontainers and
@@ -319,10 +314,11 @@ jobs:
         run: |
           cd backend
           go install github.com/pressly/goose/v3/cmd/goose@v3.27.1
-          export PATH="$(go env GOPATH)/bin:$PATH"
+          go_binary_directory="$(go env GOPATH)/bin"
+          export PATH="${go_binary_directory}:${PATH}"
           set -a && . ../.env && set +a
-          # cleanup_test_db creates databasus_w0..w{workers-1}, flushes Valkey, and
-          # resets the test PG containers. Then migrate each slot DB so every
+          # cleanup_test_db creates databasus_w0..w{workers-1} and resets the test PG
+          # containers. Then migrate each slot DB so every
           # parallel `go test` worker connects to a migrated metadata DB.
           go run ./cmd/cleanup_test_db
           for i in $(seq 0 $((TEST_PARALLEL_WORKERS - 1))); do
@@ -339,8 +335,8 @@ jobs:
           # Ryuk stays disabled to match backend/Makefile's `test` target, so CI and local runs
           # share one code path.
           TESTCONTAINERS_RYUK_DISABLED: "true"
-          # Each package runs in its own metadata DB + Valkey logical DB, so
-          # packages run in parallel; -p must equal the provisioned worker count.
+          # Each package runs in its own metadata DB, so packages run in parallel.
+          # -p must equal the provisioned worker count.
           TEST_PARALLEL_WORKERS: "8"
         run: |
           cd backend
@@ -738,7 +734,7 @@ jobs:
         id: current_version
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "current_version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+          echo "current_version=${LATEST_TAG#v}" >> "$GITHUB_OUTPUT"
           echo "Current version: ${LATEST_TAG#v}"
 
       - name: Analyze commits and determine version bump
@@ -752,7 +748,7 @@ jobs:
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
             COMMITS=$(git log --pretty=format:"%s" --no-merges)
           else
-            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" --no-merges)
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" --no-merges)
           fi
 
           echo "Analyzing commits:"
@@ -794,15 +790,15 @@ jobs:
             BUMP_TYPE="none"
           fi
 
-          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
 
           if [ "$BUMP_TYPE" != "none" ]; then
             NEW_VERSION=$(npx semver -i $BUMP_TYPE $CURRENT_VERSION)
-            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "New version will be: $NEW_VERSION"
           else
-            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
             echo "No version bump needed"
           fi
 
@@ -1053,7 +1049,7 @@ jobs:
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
             COMMITS=$(git log --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
           else
-            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
           fi
 
           # Build the changelog with real newlines (NL) instead of \n literals
@@ -1081,24 +1077,33 @@ jobs:
                 TEMP="${COMMIT_MSG#FEATURE}"
                 TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
                 if [[ "$TEMP" == \(* ]]; then
-                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
-                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  AREA="${TEMP%%)*}"
+                  AREA="${AREA#(}"
+                  DESC="${TEMP#*)}"
+                  DESC="${DESC#:}"
+                  DESC="${DESC#"${DESC%%[![:space:]]*}"}"
                   FEATURES="${FEATURES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               elif [[ "$COMMIT_MSG" == FIX* ]]; then
                 TEMP="${COMMIT_MSG#FIX}"
                 TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
                 if [[ "$TEMP" == \(* ]]; then
-                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
-                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  AREA="${TEMP%%)*}"
+                  AREA="${AREA#(}"
+                  DESC="${TEMP#*)}"
+                  DESC="${DESC#:}"
+                  DESC="${DESC#"${DESC%%[![:space:]]*}"}"
                   FIXES="${FIXES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               elif [[ "$COMMIT_MSG" == REFACTOR* ]]; then
                 TEMP="${COMMIT_MSG#REFACTOR}"
                 TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
                 if [[ "$TEMP" == \(* ]]; then
-                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
-                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  AREA="${TEMP%%)*}"
+                  AREA="${AREA#(}"
+                  DESC="${TEMP#*)}"
+                  DESC="${DESC#:}"
+                  DESC="${DESC#"${DESC%%[![:space:]]*}"}"
                   REFACTORS="${REFACTORS}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))${NL}"
                 fi
               fi

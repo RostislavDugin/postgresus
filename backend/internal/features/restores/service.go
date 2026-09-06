@@ -28,18 +28,18 @@ import (
 )
 
 type RestoreService struct {
-	backupService        *backups_services.LogicalBackupService
-	restoreRepository    *restores_core.RestoreRepository
-	storageService       *storages.StorageService
-	backupConfigService  *backups_config_logical.BackupConfigService
-	restoreBackupUsecase *usecases.RestoreBackupUsecase
-	databaseService      *databases.DatabaseService
-	logger               *slog.Logger
-	workspaceService     *workspaces_services.WorkspaceService
-	auditLogService      *audit_logs.AuditLogService
-	fieldEncryptor       encryption.FieldEncryptor
-	diskService          *disk.DiskService
-	taskCancelManager    *tasks_cancellation.TaskCancelManager
+	backupService             *backups_services.LogicalBackupService
+	restoreRepository         *restores_core.RestoreRepository
+	storageService            *storages.StorageService
+	backupConfigService       *backups_config_logical.BackupConfigService
+	restoreBackupUsecase      *usecases.RestoreBackupUsecase
+	databaseService           *databases.DatabaseService
+	logger                    *slog.Logger
+	workspaceService          *workspaces_services.WorkspaceService
+	auditLogService           *audit_logs.AuditLogService
+	fieldEncryptor            encryption.FieldEncryptor
+	diskService               *disk.DiskService
+	taskCancellationRequester *tasks_cancellation.Requester
 }
 
 func (s *RestoreService) OnBeforeBackupRemove(backup *backups_core_logical.LogicalBackup) error {
@@ -237,7 +237,7 @@ func (s *RestoreService) CancelRestore(
 		return errors.New("restore is not in progress")
 	}
 
-	if err := s.taskCancelManager.CancelTask(restoreID); err != nil {
+	if err := s.taskCancellationRequester.RequestCancellation(ctx, restoreID); err != nil {
 		return err
 	}
 

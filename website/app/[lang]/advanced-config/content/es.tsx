@@ -414,29 +414,48 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Permisos del almacenamiento Docker</h2>
 
               <p>
-                La mayoría de las instalaciones debe conservar los ID de la imagen.
-                Cámbielos solo si un bind mount o un recurso CIFS o NFS exige un
-                propietario numérico concreto. Se aceptan enteros decimales de{" "}
-                <code>1</code> a <code>4294967294</code>; los valores vacíos se
-                rechazan.
+                Databasus suele tomar los ID numéricos del usuario y del grupo
+                del directorio pgdata existente, después del mount de copias de
+                seguridad o de la raíz de datos y, como último recurso, usa{" "}
+                <code>999</code>. Configure <code>PUID</code> o <code>PGID</code>{" "}
+                solo si esa selección automática no sirve para su bind mount,
+                recurso CIFS o exportación NFS. Deben ser enteros decimales de{" "}
+                <code>1</code> a <code>4294967294</code>.
               </p>
 
               <table>
-                <thead><tr><th>Variable</th><th>Valor predeterminado</th><th>Cuenta</th></tr></thead>
+                <thead><tr><th>Variable</th><th>Valor automático</th><th>Cuenta</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Usuario de Databasus</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Grupo principal de Databasus</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Usuario de PostgreSQL</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Grupo principal de PostgreSQL</td></tr>
+                  <tr><td><code>PUID</code></td><td>Propietario del mount o <code>999</code></td><td>Usuario <code>databasus</code></td></tr>
+                  <tr><td><code>PGID</code></td><td>Grupo del mount o <code>999</code></td><td>Grupo principal <code>databasus</code></td></tr>
                 </tbody>
               </table>
 
               <p>
-                Mantenga los mounts de la aplicación separados de pgdata. El
-                entrypoint empieza como root dentro de su namespace, prepara
-                ambas cuentas y reduce privilegios con <code>gosu</code>. Use
-                Docker rootless o un user namespace para aislar el host; no se
-                admiten valores arbitrarios de Docker <code>user:</code>.
+                Databasus y PostgreSQL usan la misma cuenta del sistema
+                operativo sin privilegios root, llamada <code>databasus</code>.
+              </p>
+
+              <p>
+                El entrypoint comienza como root dentro del contenedor para
+                elegir los ID e intentar ejecutar <code>chown</code> y{" "}
+                <code>chmod</code>. Después comprueba todo el ciclo de archivos
+                como <code>databasus</code>. Un mount puede funcionar aunque
+                rechace cambios de propietario o modo. No se admite un valor
+                arbitrario de Docker <code>user:</code>.
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                Las cuatro variables anteriores para servicios separados se
+                eliminaron de forma deliberada. Quítelas de la configuración al
+                actualizar. Si los ID elegidos automáticamente no pueden acceder
+                a un mount, el inicio se detiene e indica la operación fallida y
+                el enlace a esta documentación.
               </p>
 
               <h2 id="telemetry">Telemetría</h2>

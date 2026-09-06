@@ -38,13 +38,13 @@ import (
 //   - CANCELED: neither COMPLETED nor CHAIN_BROKEN; the chain it belonged to stays
 //     extendable and resumes on cadence — no immediate auto-retry.
 type PhysicalBackupsScheduler struct {
-	fullRepo            *physical_repositories.PhysicalFullBackupRepository
-	incrRepo            *physical_repositories.PhysicalIncrementalBackupRepository
-	inFlightRepo        *physical_repositories.PhysicalInFlightBackupRepository
-	backupConfigService *backups_config_physical.BackupConfigService
-	chainViewService    *chain_view.ChainViewService
-	taskCancelManager   *tasks_cancellation.TaskCancelManager
-	backuper            *PhysicalBackuper
+	fullRepo                  *physical_repositories.PhysicalFullBackupRepository
+	incrRepo                  *physical_repositories.PhysicalIncrementalBackupRepository
+	inFlightRepo              *physical_repositories.PhysicalInFlightBackupRepository
+	backupConfigService       *backups_config_physical.BackupConfigService
+	chainViewService          *chain_view.ChainViewService
+	taskCancellationRequester *tasks_cancellation.Requester
+	backuper                  *PhysicalBackuper
 
 	lastTickTime atomicTime
 	logger       *slog.Logger
@@ -683,7 +683,7 @@ func (s *PhysicalBackupsScheduler) failOrphanedBackup(
 
 	// Best-effort cancel of any locally-registered task; harmless if none
 	// (a fresh process holds no registrations).
-	if err := s.taskCancelManager.CancelTask(backupID); err != nil {
+	if err := s.taskCancellationRequester.RequestCancellation(ctx, backupID); err != nil {
 		logger.ErrorContext(ctx, "failed to cancel orphaned backup task", "error", err)
 	}
 

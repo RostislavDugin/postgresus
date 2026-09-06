@@ -18,7 +18,10 @@ import (
 
 var backupRepository = &backups_core_logical.BackupRepository{}
 
-var taskCancelManager = tasks_cancellation.GetTaskCancelManager()
+var (
+	taskCancellationRegistry  = tasks_cancellation.GetRegistry()
+	taskCancellationRequester = tasks_cancellation.GetRequester()
+)
 
 var backupCleaner = &BackupCleaner{
 	backupRepository,
@@ -38,7 +41,7 @@ var backuper = &Backuper{
 	backups_config_logical.GetBackupConfigService(),
 	storages.GetStorageService(),
 	notifiers.GetNotifierService(),
-	taskCancelManager,
+	taskCancellationRegistry,
 	logger.GetLogger(),
 	usecases_logical.GetCreateBackupUsecase(),
 }
@@ -46,7 +49,7 @@ var backuper = &Backuper{
 var backupsScheduler = &BackupsScheduler{
 	backupRepository,
 	backups_config_logical.GetBackupConfigService(),
-	taskCancelManager,
+	taskCancellationRequester,
 	databases.GetDatabaseService(),
 	time.Now().UTC(),
 	logger.GetLogger(),

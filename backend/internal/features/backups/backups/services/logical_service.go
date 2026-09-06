@@ -47,12 +47,12 @@ type LogicalBackupService struct {
 
 	backupRemoveListeners []backups_core_logical.BackupRemoveListener
 
-	workspaceService       *workspaces_services.WorkspaceService
-	auditLogService        *audit_logs.AuditLogService
-	taskCancelManager      *task_cancellation.TaskCancelManager
-	downloadTokenService   *download_token.Service
-	backupSchedulerService *backuping_logical.BackupsScheduler
-	backupCleaner          *backuping_logical.BackupCleaner
+	workspaceService          *workspaces_services.WorkspaceService
+	auditLogService           *audit_logs.AuditLogService
+	taskCancellationRequester *task_cancellation.Requester
+	downloadTokenService      *download_token.Service
+	backupSchedulerService    *backuping_logical.BackupsScheduler
+	backupCleaner             *backuping_logical.BackupCleaner
 }
 
 func (s *LogicalBackupService) AddBackupRemoveListener(listener backups_core_logical.BackupRemoveListener) {
@@ -256,7 +256,7 @@ func (s *LogicalBackupService) CancelBackup(
 		return errors.New("backup is not in progress")
 	}
 
-	if err := s.taskCancelManager.CancelTask(backupID); err != nil {
+	if err := s.taskCancellationRequester.RequestCancellation(ctx, backupID); err != nil {
 		return err
 	}
 
@@ -459,7 +459,7 @@ func (s *LogicalBackupService) ReleaseDownloadLock(ctx context.Context, userID u
 }
 
 func (s *LogicalBackupService) IsDownloadInProgress(userID uuid.UUID) bool {
-	return s.downloadTokenService.IsDownloadInProgress(userID)
+	return s.downloadTokenService.IsDownloadInProgress(context.Background(), userID)
 }
 
 func (s *LogicalBackupService) deleteDbBackups(ctx context.Context, databaseID uuid.UUID) error {

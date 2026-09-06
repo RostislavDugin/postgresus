@@ -20,12 +20,12 @@ import (
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	util_logger "databasus-backend/internal/util/logger"
 )
 
 func Test_BackupExecuted_NotificationSent(t *testing.T) {
-	cache_utils.ClearAllCache()
+	cache.GetStore().Clear(t.Context())
 	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
 	router := CreateTestRouter()
 	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", user, router)

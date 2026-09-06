@@ -52,7 +52,6 @@ import (
 	verification_runs "databasus-backend/internal/features/verification/runs"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	"databasus-backend/internal/middleware"
-	cache_utils "databasus-backend/internal/util/cache"
 	env_utils "databasus-backend/internal/util/env"
 	files_utils "databasus-backend/internal/util/files"
 	"databasus-backend/internal/util/logger"
@@ -76,23 +75,23 @@ func main() {
 		return
 	}
 
+	commandLineOptions := parseCommandLineOptions()
 	ctx := context.Background()
 	log := logger.GetLogger()
 
-	cache_utils.TestCacheConnection()
-
-	log.Info("clearing cache")
-
-	err := cache_utils.ClearAllCache()
-	if err != nil {
-		log.Error("failed to clear cache", "error", err)
-		logger.ExitAfterFlush(1)
+	if commandLineOptions.shouldTestStorage {
+		storageTestCommand := newStorageTestCommand(log, storageTestCommandWriters{
+			standardOutput: os.Stdout,
+			errorOutput:    os.Stderr,
+		})
+		logger.ExitAfterFlush(storageTestCommand.SaveAndDeleteProbe(ctx))
+		return
 	}
 
 	runMigrations(log)
 
 	// create directories that used for backups and restore
-	err = files_utils.EnsureDirectories([]string{
+	err := files_utils.EnsureDirectories([]string{
 		config.GetEnv().TempFolder,
 		config.GetEnv().DataFolder,
 	})
@@ -113,7 +112,7 @@ func main() {
 		logger.ExitAfterFlush(1)
 	}
 
-	resetPasswordIfRequested(ctx, log)
+	resetPasswordIfRequested(ctx, log, commandLineOptions)
 
 	go generateSwaggerDocs(log)
 
@@ -146,26 +145,48 @@ func main() {
 	startServerWithGracefulShutdown(log, ginApp)
 }
 
-func resetPasswordIfRequested(ctx context.Context, log *slog.Logger) {
-	audit_logs.SetupDependencies()
+type commandLineOptions struct {
+	shouldTestStorage  bool
+	newPassword        string
+	passwordResetEmail string
+}
 
+func parseCommandLineOptions() commandLineOptions {
+	shouldTestStorage := flag.Bool("test-storage", false, "Save and delete a local storage probe")
 	newPassword := flag.String("new-password", "", "Set a new password for the user")
-	email := flag.String("email", "", "Email of the user to reset password")
-
+	passwordResetEmail := flag.String("email", "", "Email of the user to reset password")
 	flag.Parse()
 
-	if *newPassword == "" {
+	return commandLineOptions{
+		shouldTestStorage:  *shouldTestStorage,
+		newPassword:        *newPassword,
+		passwordResetEmail: *passwordResetEmail,
+	}
+}
+
+func resetPasswordIfRequested(
+	ctx context.Context,
+	log *slog.Logger,
+	commandLineOptions commandLineOptions,
+) {
+	if commandLineOptions.newPassword == "" {
 		return
 	}
 
+	audit_logs.SetupDependencies()
 	log.InfoContext(ctx, "found reset password command, resetting password")
 
-	if *email == "" {
+	if commandLineOptions.passwordResetEmail == "" {
 		log.InfoContext(ctx, "no email provided, pass one via --email=\"some@email.com\"")
 		logger.ExitAfterFlush(1)
 	}
 
-	resetPassword(ctx, *email, *newPassword, log)
+	resetPassword(
+		ctx,
+		commandLineOptions.passwordResetEmail,
+		commandLineOptions.newPassword,
+		log,
+	)
 }
 
 func resetPassword(ctx context.Context, email, newPassword string, log *slog.Logger) {

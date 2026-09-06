@@ -21,7 +21,7 @@ import (
 	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	"databasus-backend/internal/storage"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 )
@@ -86,7 +86,7 @@ type BackupTestFixture struct {
 func CreateBackupTestFixture(t *testing.T, workspaceName string) *BackupTestFixture {
 	t.Helper()
 
-	if err := cache_utils.ClearAllCache(); err != nil {
+	if err := cache.GetStore().Clear(t.Context()); err != nil {
 		t.Fatalf("clear cache before backup fixture: %v", err)
 	}
 
@@ -151,7 +151,7 @@ func CreateTestBackuper() *Backuper {
 		backups_config_logical.GetBackupConfigService(),
 		storages.GetStorageService(),
 		notifiers.GetNotifierService(),
-		taskCancelManager,
+		taskCancellationRegistry,
 		logger.GetLogger(),
 		usecases_logical.GetCreateBackupUsecase(),
 	}
@@ -166,7 +166,7 @@ func CreateTestBackuperWithUseCase(useCase backups_core_logical.CreateBackupUsec
 		backups_config_logical.GetBackupConfigService(),
 		storages.GetStorageService(),
 		notifiers.GetNotifierService(),
-		taskCancelManager,
+		taskCancellationRegistry,
 		logger.GetLogger(),
 		useCase,
 	}
@@ -183,7 +183,7 @@ func CreateTestSchedulerWithBackuper(backuper *Backuper) *BackupsScheduler {
 	return &BackupsScheduler{
 		backupRepository,
 		backups_config_logical.GetBackupConfigService(),
-		taskCancelManager,
+		taskCancellationRequester,
 		databases.GetDatabaseService(),
 		time.Now().UTC(),
 		logger.GetLogger(),
@@ -240,14 +240,7 @@ func WaitForBackupCompletion(
 	t.Logf("WaitForBackupCompletion: timeout waiting for backup to complete")
 }
 
-// StartSchedulerForTest starts the BackupsScheduler in a goroutine for testing.
-// The scheduler subscribes to task completions and manages backup lifecycle.
-// Returns a context cancel function that should be deferred to stop the scheduler.
-//
-// PubSubManager.Subscribe handshakes with Valkey before returning, so we
-// don't need to sleep here waiting for the subscription to register. Poll
-// the scheduler's hasRun flag instead to be sure Run() has entered its
-// loop before the caller proceeds.
+// Polling hasRun prevents the caller from racing scheduler startup without relying on a timing delay.
 func StartSchedulerForTest(t *testing.T, scheduler *BackupsScheduler) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 

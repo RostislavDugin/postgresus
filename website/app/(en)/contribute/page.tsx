@@ -214,8 +214,6 @@ export default function ContributePage() {
 
               <h2 id="how-to-create-pr">How to create a pull request?</h2>
 
-              <p>We use gitflow approach.</p>
-
               <ol>
                 <li>Create a new branch from main</li>
                 <li>Make changes</li>
@@ -223,27 +221,6 @@ export default function ContributePage() {
                 <li>Wait for review</li>
                 <li>Merge pull request</li>
               </ol>
-
-              <h3 id="commit-naming">Commit naming convention</h3>
-
-              <p>
-                Commits should be named in the following format depending on the
-                type of change:
-              </p>
-
-              <ul>
-                <li>
-                  <code>FEATURE (area): What was done</code>
-                </li>
-                <li>
-                  <code>FIX (area): What was fixed</code>
-                </li>
-                <li>
-                  <code>REFACTOR (area): What was refactored</code>
-                </li>
-              </ul>
-
-              <p>To see examples, look at commit history in main branch.</p>
 
               <h3 id="branch-naming">Branch naming convention</h3>
 

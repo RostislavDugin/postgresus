@@ -1121,7 +1121,7 @@ func occupyUserStreamSlot(t *testing.T, userID uuid.UUID) {
 	t.Helper()
 
 	restoreTokenService := backups_download.GetRestoreTokenService()
-	if err := restoreTokenService.AcquireSlot(userID); err != nil {
+	if err := restoreTokenService.AcquireSlot(t.Context(), userID); err != nil {
 		t.Fatalf("occupy stream slot: %v", err)
 	}
 

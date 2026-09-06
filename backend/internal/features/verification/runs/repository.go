@@ -273,7 +273,10 @@ func (r *VerificationRepository) FindRunningByAgent(
 	return verifications, err
 }
 
-func (r *VerificationRepository) FindNonTerminalForDisabledConfigs() ([]*RestoreVerification, error) {
+func (r *VerificationRepository) GetNonTerminalAutomaticVerificationsForDisabledSchedules() (
+	[]*RestoreVerification,
+	error,
+) {
 	verifications := make([]*RestoreVerification, 0)
 
 	err := storage.GetDb().
@@ -281,8 +284,9 @@ func (r *VerificationRepository) FindNonTerminalForDisabledConfigs() ([]*Restore
 		Select("v.*").
 		Joins("JOIN backup_verification_configs c ON c.database_id = v.database_id").
 		Where(
-			"c.is_scheduled_verification_enabled = ? AND v.status IN ?",
+			"c.is_scheduled_verification_enabled = ? AND v.trigger IN ? AND v.status IN ?",
 			false,
+			[]VerificationTrigger{VerificationTriggerScheduled, VerificationTriggerAfterBackup},
 			[]VerificationStatus{VerificationStatusPending, VerificationStatusRunning},
 		).
 		Scan(&verifications).Error

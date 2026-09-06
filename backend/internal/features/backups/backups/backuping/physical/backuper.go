@@ -32,21 +32,21 @@ import (
 // PhysicalBackuper drives a FULL or INCR through the postgresql executor.
 // The scheduler invokes MakeBackup directly in a goroutine.
 type PhysicalBackuper struct {
-	databaseService     *databases.DatabaseService
-	fieldEncryptor      util_encryption.FieldEncryptor
-	workspaceService    *workspaces_services.WorkspaceService
-	fullRepo            *physical_repositories.PhysicalFullBackupRepository
-	incrRepo            *physical_repositories.PhysicalIncrementalBackupRepository
-	inFlightRepo        *physical_repositories.PhysicalInFlightBackupRepository
-	historyRepo         *physical_repositories.PhysicalWalHistoryRepository
-	backupConfigService *backups_config_physical.BackupConfigService
-	storageService      *storages.StorageService
-	notificationSender  NotificationSender
-	taskCancelManager   *tasks_cancellation.TaskCancelManager
-	secretKeyService    *encryption_secrets.SecretKeyService
-	logger              *slog.Logger
-	fullExecutor        FullBackupExecutor
-	incrExecutor        IncrementalBackupExecutor
+	databaseService          *databases.DatabaseService
+	fieldEncryptor           util_encryption.FieldEncryptor
+	workspaceService         *workspaces_services.WorkspaceService
+	fullRepo                 *physical_repositories.PhysicalFullBackupRepository
+	incrRepo                 *physical_repositories.PhysicalIncrementalBackupRepository
+	inFlightRepo             *physical_repositories.PhysicalInFlightBackupRepository
+	historyRepo              *physical_repositories.PhysicalWalHistoryRepository
+	backupConfigService      *backups_config_physical.BackupConfigService
+	storageService           *storages.StorageService
+	notificationSender       NotificationSender
+	taskCancellationRegistry *tasks_cancellation.Registry
+	secretKeyService         *encryption_secrets.SecretKeyService
+	logger                   *slog.Logger
+	fullExecutor             FullBackupExecutor
+	incrExecutor             IncrementalBackupExecutor
 }
 
 func (b *PhysicalBackuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNotifier bool) {
@@ -97,8 +97,8 @@ func (b *PhysicalBackuper) runFullBackup(
 	// Detached from the caller so a finished HTTP request cannot cancel a running backup; the
 	// caller's ctx stays in use for logging, which is what carries request_id and user_id.
 	executionCtx, cancel := context.WithCancel(context.Background())
-	b.taskCancelManager.RegisterTask(fullBackup.ID, cancel)
-	defer b.taskCancelManager.UnregisterTask(fullBackup.ID)
+	b.taskCancellationRegistry.RegisterTask(fullBackup.ID, cancel)
+	defer b.taskCancellationRegistry.UnregisterTask(fullBackup.ID)
 
 	rawSizeMb := b.getSourceClusterSizeMb(executionCtx, logger, backupCtx.Database)
 
@@ -193,8 +193,8 @@ func (b *PhysicalBackuper) runIncrementalBackup(
 	}
 
 	executionCtx, cancel := context.WithCancel(context.Background())
-	b.taskCancelManager.RegisterTask(incrBackup.ID, cancel)
-	defer b.taskCancelManager.UnregisterTask(incrBackup.ID)
+	b.taskCancellationRegistry.RegisterTask(incrBackup.ID, cancel)
+	defer b.taskCancellationRegistry.UnregisterTask(incrBackup.ID)
 
 	incrBackupSpec := postgresql_executor.IncrementalBackupSpec{
 		CommonBackupSpec: postgresql_executor.CommonBackupSpec{

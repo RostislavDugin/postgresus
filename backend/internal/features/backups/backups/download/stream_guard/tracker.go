@@ -5,9 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/valkey-io/valkey-go"
 
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 )
 
 const (
@@ -22,44 +21,53 @@ const (
 )
 
 type Tracker struct {
-	cache *cache_utils.CacheUtil[string]
+	locks *cache.JSONStore[string]
 }
 
-func NewTracker(client valkey.Client) *Tracker {
+func NewTracker(store cache.Store) *Tracker {
 	return &Tracker{
-		cache: cache_utils.NewCacheUtil[string](client, downloadLockPrefix),
+		locks: cache.NewJSONStore[string](store, downloadLockPrefix),
 	}
 }
 
-func (t *Tracker) AcquireDownloadLock(userID uuid.UUID) error {
-	key := userID.String()
-
-	existingLock := t.cache.Get(key)
-	if existingLock != nil {
+func (t *Tracker) AcquireDownloadLock(ctx context.Context, userID uuid.UUID) error {
+	isCreated, err := t.locks.CreateIfAbsent(
+		ctx,
+		cache.ExpiringValue[string]{
+			Key:      userID.String(),
+			Value:    downloadLockValue,
+			Lifetime: downloadLockTTL,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if !isCreated {
 		return ErrDownloadAlreadyInProgress
 	}
-
-	value := downloadLockValue
-	t.cache.SetWithExpiration(key, &value, downloadLockTTL)
 
 	return nil
 }
 
-func (t *Tracker) RefreshDownloadLock(ctx context.Context, userID uuid.UUID) {
-	key := userID.String()
-	value := downloadLockValue
-	t.cache.SetWithExpiration(key, &value, downloadLockTTL)
+func (t *Tracker) RefreshDownloadLock(ctx context.Context, userID uuid.UUID) error {
+	return t.locks.SetWithLifetime(ctx, cache.ExpiringValue[string]{
+		Key:      userID.String(),
+		Value:    downloadLockValue,
+		Lifetime: downloadLockTTL,
+	})
 }
 
-func (t *Tracker) ReleaseDownloadLock(ctx context.Context, userID uuid.UUID) {
-	key := userID.String()
-	t.cache.Invalidate(key)
+func (t *Tracker) ReleaseDownloadLock(ctx context.Context, userID uuid.UUID) error {
+	return t.locks.Delete(ctx, userID.String())
 }
 
-func (t *Tracker) IsDownloadInProgress(userID uuid.UUID) bool {
-	key := userID.String()
-	existingLock := t.cache.Get(key)
-	return existingLock != nil
+func (t *Tracker) IsDownloadInProgress(ctx context.Context, userID uuid.UUID) (bool, error) {
+	existingLock, err := t.locks.Get(ctx, userID.String())
+	if err != nil {
+		return false, err
+	}
+
+	return existingLock != nil, nil
 }
 
 func GetDownloadHeartbeatInterval() time.Duration {

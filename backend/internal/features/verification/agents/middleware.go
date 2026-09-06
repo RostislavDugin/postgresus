@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"databasus-backend/internal/util/ratelimiter"
 )
 
 const (
@@ -33,14 +35,24 @@ func (s *AgentService) RequireAgentAuth() gin.HandlerFunc {
 			return
 		}
 
-		isAllowed, rateLimitErr := s.rateLimiter.CheckLimit(
-			agentID.String(), rateLimitAgentEndpoint,
-			rateLimitAgentMax, rateLimitAgentWindow,
+		isAllowed, rateLimitErr := s.rateLimiter.RecordAttemptAndCheckIsAllowed(
+			ctx.Request.Context(),
+			ratelimiter.Attempt{
+				Scope:      rateLimitAgentEndpoint,
+				Identifier: agentID.String(),
+				Limit:      rateLimitAgentMax,
+				Window:     rateLimitAgentWindow,
+			},
 		)
 		if rateLimitErr != nil {
 			s.logger.ErrorContext(ctx.Request.Context(), "verification agent rate limit check failed",
-				"error", rateLimitErr, "agent_id", agentID, "client_ip", clientIP)
-		} else if !isAllowed {
+				"error", rateLimitErr)
+			ctx.AbortWithStatusJSON(http.StatusTooManyRequests,
+				gin.H{"error": "too many requests"})
+
+			return
+		}
+		if !isAllowed {
 			s.logger.WarnContext(ctx.Request.Context(), "verification agent per-agent rate limit hit",
 				"agent_id", agentID, "client_ip", clientIP)
 			ctx.AbortWithStatusJSON(http.StatusTooManyRequests,

@@ -7,7 +7,7 @@ metadata:
     {{- include "databasus.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "databasus.fullname" . }}-headless
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "databasus.selectorLabels" . | nindent 6 }}

@@ -26,16 +26,16 @@ import (
 const partialBackupCleanupTimeout = 30 * time.Second
 
 type Backuper struct {
-	databaseService     *databases.DatabaseService
-	fieldEncryptor      util_encryption.FieldEncryptor
-	workspaceService    *workspaces_services.WorkspaceService
-	backupRepository    *backups_core_logical.BackupRepository
-	backupConfigService *backups_config_logical.BackupConfigService
-	storageService      *storages.StorageService
-	notificationSender  backups_core_logical.NotificationSender
-	backupCancelManager *tasks_cancellation.TaskCancelManager
-	logger              *slog.Logger
-	createBackupUseCase backups_core_logical.CreateBackupUsecase
+	databaseService          *databases.DatabaseService
+	fieldEncryptor           util_encryption.FieldEncryptor
+	workspaceService         *workspaces_services.WorkspaceService
+	backupRepository         *backups_core_logical.BackupRepository
+	backupConfigService      *backups_config_logical.BackupConfigService
+	storageService           *storages.StorageService
+	notificationSender       backups_core_logical.NotificationSender
+	taskCancellationRegistry *tasks_cancellation.Registry
+	logger                   *slog.Logger
+	createBackupUseCase      backups_core_logical.CreateBackupUsecase
 }
 
 func (b *Backuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNotifier bool) {
@@ -67,8 +67,8 @@ func (b *Backuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNot
 
 	// Detached from the caller so a finished HTTP request cannot cancel a running backup.
 	executionCtx, cancel := context.WithCancel(context.Background())
-	b.backupCancelManager.RegisterTask(backup.ID, cancel)
-	defer b.backupCancelManager.UnregisterTask(backup.ID)
+	b.taskCancellationRegistry.RegisterTask(backup.ID, cancel)
+	defer b.taskCancellationRegistry.UnregisterTask(backup.ID)
 
 	storage, err := b.storageService.GetStorageByID(executionCtx, *backupConfig.StorageID)
 	if err != nil {

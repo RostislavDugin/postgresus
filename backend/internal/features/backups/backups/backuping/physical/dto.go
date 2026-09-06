@@ -57,3 +57,8 @@ type chainAlert struct {
 	Heading string
 	Message string
 }
+
+type CancelInFlightBackupSpec struct {
+	DatabaseID uuid.UUID
+	BackupID   uuid.UUID
+}

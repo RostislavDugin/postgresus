@@ -34,7 +34,7 @@ import (
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_models "databasus-backend/internal/features/workspaces/models"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	util_encryption "databasus-backend/internal/util/encryption"
 	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/testing/containers"
@@ -389,7 +389,7 @@ func Test_RestoreBackup_DiskSpaceValidation(t *testing.T) {
 }
 
 func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
-	cache_utils.ClearAllCache()
+	cache.GetStore().Clear(t.Context())
 	tasks_cancellation.SetupDependencies()
 
 	user := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
@@ -422,7 +422,7 @@ func Test_CancelRestore_InProgressRestore_SuccessfullyCancelled(t *testing.T) {
 		notifiers.RemoveTestNotifier(notifier)
 		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 
-		cache_utils.ClearAllCache()
+		cache.GetStore().Clear(t.Context())
 	}()
 
 	backups_config_logical.EnableBackupsForTestDatabase(t.Context(), database.ID, storage)

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/valkey-io/valkey-go"
 
 	"databasus-backend/internal/features/backups/backups/download/stream_guard"
+	"databasus-backend/internal/util/cache"
 )
 
 // Service issues and consumes single-use tokens authorizing a physical restore
@@ -22,10 +22,10 @@ type Service struct {
 	logger *slog.Logger
 }
 
-func NewService(guard *stream_guard.Guard, client valkey.Client, logger *slog.Logger) *Service {
+func NewService(guard *stream_guard.Guard, cacheStore cache.Store, logger *slog.Logger) *Service {
 	return &Service{
 		guard,
-		newStore(client),
+		newStore(cacheStore),
 		logger,
 	}
 }
@@ -37,17 +37,19 @@ func (s *Service) GenerateRestoreToken(
 	databaseID, userID uuid.UUID,
 	targetTime *time.Time,
 ) (string, error) {
-	if s.IsDownloadInProgress(userID) {
+	if s.IsDownloadInProgress(ctx, userID) {
 		return "", stream_guard.ErrDownloadAlreadyInProgress
 	}
 
 	token := stream_guard.GenerateSecureToken()
 
-	s.store.issue(token, &Token{
+	if err := s.store.issue(ctx, token, Token{
 		DatabaseID: databaseID,
 		UserID:     userID,
 		TargetTime: targetTime,
-	})
+	}); err != nil {
+		return "", err
+	}
 
 	s.logger.InfoContext(ctx, "generated restore token", "database_id", databaseID, "user_id", userID)
 
@@ -61,17 +63,19 @@ func (s *Service) GenerateBackupRestoreToken(
 	ctx context.Context,
 	databaseID, userID, backupID uuid.UUID,
 ) (string, error) {
-	if s.IsDownloadInProgress(userID) {
+	if s.IsDownloadInProgress(ctx, userID) {
 		return "", stream_guard.ErrDownloadAlreadyInProgress
 	}
 
 	token := stream_guard.GenerateSecureToken()
 
-	s.store.issue(token, &Token{
+	if err := s.store.issue(ctx, token, Token{
 		DatabaseID: databaseID,
 		UserID:     userID,
 		BackupID:   &backupID,
-	})
+	}); err != nil {
+		return "", err
+	}
 
 	s.logger.InfoContext(ctx, "generated backup restore token",
 		"database_id", databaseID, "user_id", userID, "backup_id", backupID)
@@ -93,12 +97,15 @@ func (s *Service) ValidateAndConsumeRestoreToken(
 	ctx context.Context,
 	token string,
 ) (*Token, error) {
-	restoreToken := s.store.consume(token)
+	restoreToken, err := s.store.consume(ctx, token)
+	if err != nil {
+		return nil, err
+	}
 	if restoreToken == nil {
 		return nil, errors.New("invalid or expired restore token")
 	}
 
-	if err := s.AcquireSlot(restoreToken.UserID); err != nil {
+	if err := s.AcquireSlot(ctx, restoreToken.UserID); err != nil {
 		return nil, err
 	}
 

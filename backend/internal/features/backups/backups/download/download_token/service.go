@@ -30,7 +30,7 @@ func NewService(guard *stream_guard.Guard, logger *slog.Logger) *Service {
 }
 
 func (s *Service) Generate(ctx context.Context, backupID, userID uuid.UUID) (string, error) {
-	if s.IsDownloadInProgress(userID) {
+	if s.IsDownloadInProgress(ctx, userID) {
 		return "", stream_guard.ErrDownloadAlreadyInProgress
 	}
 
@@ -74,7 +74,7 @@ func (s *Service) ValidateAndConsume(
 		return nil, errors.New("token expired")
 	}
 
-	if err := s.AcquireSlot(downloadToken.UserID); err != nil {
+	if err := s.AcquireSlot(ctx, downloadToken.UserID); err != nil {
 		return nil, err
 	}
 

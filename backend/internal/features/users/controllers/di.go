@@ -2,12 +2,14 @@ package users_controllers
 
 import (
 	users_services "databasus-backend/internal/features/users/services"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/logger"
+	"databasus-backend/internal/util/ratelimiter"
 )
 
 var userController = &UserController{
 	users_services.GetUserService(),
-	cache_utils.NewRateLimiter(cache_utils.GetValkeyClient()),
+	ratelimiter.GetCounter(),
+	logger.GetLogger(),
 }
 
 var settingsController = &SettingsController{

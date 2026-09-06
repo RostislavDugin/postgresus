@@ -2,9 +2,8 @@
 
 # Databasus verification image: the official Postgres image plus a curated set of
 # common extensions, so a dump's CREATE EXTENSION statements succeed when the
-# agent restores a backup for verification (issue #619 PostGIS, plus auxiliary
-# extensions like pg_stat_kcache / set_user). This mirrors how the agent already
-# uses timescale/timescaledb for TimescaleDB. Built per PG major and published as
+# agent restores a backup for verification. This mirrors how the agent uses
+# timescale/timescaledb for TimescaleDB. Built per PG major and published as
 # databasus/verification-postgres:<major>.
 #
 # BASE_IMAGE is digest-pinned by CI (postgres:<major>@sha256:...). The tag-only
@@ -14,21 +13,21 @@ ARG BASE_IMAGE=postgres:${PG_MAJOR}
 
 FROM ${BASE_IMAGE}
 
-# ARGs declared before FROM are not visible in the build stage — redeclare it.
+# ARGs declared before FROM are not visible in the build stage, so redeclare it.
 ARG PG_MAJOR
 
 # Extensions whose CREATE EXTENSION works once the files are present, plus the
 # Tier-2 monitoring extensions that additionally need shared_preload_libraries
 # (set below). The official image already configures the apt.postgresql.org repo
-# these packages come from, so every entry must be installable from PGDG apt for
-# all majors 12-18 (verified). A missing package fails the build loudly rather
-# than silently shipping a half-populated image — important because the agent
-# tolerates missing extensions at restore time, so a thinned image would mark
-# such backups "verified" without actually exercising the extension.
+# these packages come from. Every entry must be installable from PGDG apt for all
+# majors 12-18. DocumentDB is installed separately because PGDG only packages it
+# for majors 15-18. A missing package fails the build because the agent tolerates
+# missing extensions at restore time and could otherwise verify an incomplete
+# restore.
 #
 # Intentionally NOT bundled: topn (Citus), pg_hashids, anonymizer
 # (postgresql_anonymizer) and pg_stat_monitor (Percona). PGDG apt does not
-# package these — they need source builds or Percona's own repo. Add them via
+# package these. They need source builds or Percona's own repo. Add them via
 # that route (not this list) if verification coverage for them is ever required.
 ARG EXTENSION_PACKAGES="\
 postgresql-${PG_MAJOR}-postgis-3 \
@@ -40,6 +39,7 @@ postgresql-${PG_MAJOR}-partman \
 postgresql-${PG_MAJOR}-repack \
 postgresql-${PG_MAJOR}-hypopg \
 postgresql-${PG_MAJOR}-hll \
+postgresql-${PG_MAJOR}-cron \
 postgresql-${PG_MAJOR}-set-user \
 postgresql-${PG_MAJOR}-pgaudit \
 postgresql-${PG_MAJOR}-ip4r \
@@ -59,13 +59,23 @@ postgresql-pltcl-${PG_MAJOR}"
 # Postgres refuse to start. Appending to the initdb sample means every fresh
 # PGDATA (the verification container is ephemeral) inherits it; the agent does not
 # pass -c shared_preload_libraries, so this value stands at runtime.
-ARG PRELOAD_LIBRARIES="pg_stat_statements,pg_stat_kcache,pg_qualstats,pg_wait_sampling,pgaudit,set_user"
+ARG PRELOAD_LIBRARIES="pg_stat_statements,pg_cron,pg_stat_kcache,pg_qualstats,pg_wait_sampling,pgaudit,set_user"
 
 # Root is the base image's user; the official entrypoint still gosu-drops to the
 # postgres user before exec, so the agent's hardened runtime is unchanged.
 RUN set -eux; \
+    version_specific_extension_packages=""; \
+    version_specific_preload_libraries=""; \
+    case "${PG_MAJOR}" in \
+        15|16|17|18) \
+            version_specific_extension_packages="postgresql-${PG_MAJOR}-documentdb"; \
+            version_specific_preload_libraries=",pg_documentdb_core,pg_documentdb" \
+            ;; \
+    esac; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ${EXTENSION_PACKAGES}; \
+    apt-get install -y --no-install-recommends \
+        ${EXTENSION_PACKAGES} ${version_specific_extension_packages}; \
     rm -rf /var/lib/apt/lists/*; \
-    printf "shared_preload_libraries = '%s'\n" "${PRELOAD_LIBRARIES}" \
+    printf "shared_preload_libraries = '%s'\n" \
+        "${PRELOAD_LIBRARIES}${version_specific_preload_libraries}" \
         >> "/usr/share/postgresql/${PG_MAJOR}/postgresql.conf.sample"

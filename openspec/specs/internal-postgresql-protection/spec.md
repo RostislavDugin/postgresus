@@ -164,24 +164,31 @@ Scheduled healthchecks SHALL test a database already loaded by the system withou
 - **WHEN** an HTTP caller requests a direct connection test
 - **THEN** the system uses the workspace-authorized path rather than the trusted healthcheck path
 
-### Requirement: The embedded PostgreSQL instance is isolated from the application account
+### Requirement: The embedded PostgreSQL instance stays private under the shared runtime account
 
-The embedded PostgreSQL server SHALL create its Unix socket in a directory accessible only to the PostgreSQL operating-system account. Local socket authentication SHALL allow that account through peer authentication and SHALL reject other operating-system accounts. Loopback TCP connections SHALL require SCRAM authentication, and replication connections to the embedded cluster SHALL be rejected.
+The embedded PostgreSQL server SHALL run under the same non-root operating-system account as the Databasus application. During bootstrap only, peer mapping SHALL allow that account to administer the PostgreSQL role named `postgres`. After bootstrap, Unix-socket database login SHALL be rejected. Loopback TCP connections SHALL require SCRAM authentication with the generated credential and replication connections to the embedded cluster SHALL be rejected.
+
+The embedded PostgreSQL port SHALL remain unpublished by the image.
 
 #### Scenario: Application account opens the private socket
 
-- **WHEN** the Databasus application account attempts to connect through the embedded Unix socket
-- **THEN** filesystem permissions or PostgreSQL authentication rejects the connection
+- **WHEN** the Databasus application account attempts a Unix-socket database login after bootstrap
+- **THEN** PostgreSQL authentication rejects the connection
 
-#### Scenario: PostgreSQL account performs startup administration
+#### Scenario: Shared runtime account performs startup administration
 
-- **WHEN** the PostgreSQL operating-system account connects through the private socket during startup
-- **THEN** peer authentication permits the administrative connection
+- **WHEN** the shared `databasus` operating-system account connects as role `postgres` during startup
+- **THEN** the temporary peer mapping permits the administrative connection
 
 #### Scenario: Loopback TCP connection without the generated password
 
 - **WHEN** any process connects to the embedded PostgreSQL server over loopback TCP without the current generated password
 - **THEN** SCRAM authentication rejects the connection
+
+#### Scenario: Application uses the generated password
+
+- **WHEN** Databasus connects to the embedded PostgreSQL server over loopback with the generated password
+- **THEN** PostgreSQL accepts the connection
 
 #### Scenario: Replication connection to the embedded cluster
 
@@ -221,24 +228,3 @@ An operator-supplied connection string that points back to the embedded database
 - **WHEN** the operator explicitly supplies the previously published fixed connection string for the embedded database
 - **THEN** the application cannot authenticate after startup rotates the internal role's password
 - **AND** the operator must remove that explicit value so startup can supply the generated credential
-
-### Requirement: PostgreSQL and application accounts cannot share a UID
-
-Container startup SHALL reject a requested PostgreSQL UID that already belongs to another account in the image. A free custom UID SHALL remain supported.
-
-#### Scenario: PostgreSQL UID collides with the application account
-
-- **WHEN** the operator sets the PostgreSQL UID to the Databasus application account's UID
-- **THEN** the container exits with a non-zero status before starting PostgreSQL
-- **AND** the error identifies the conflicting account without exposing a secret
-
-#### Scenario: PostgreSQL UID collides with another system account
-
-- **WHEN** the requested PostgreSQL UID belongs to any non-PostgreSQL account in the image
-- **THEN** the container exits with a non-zero status
-
-#### Scenario: Free custom PostgreSQL UID
-
-- **WHEN** the operator supplies an unused UID and group ID for PostgreSQL
-- **THEN** the container starts successfully with PostgreSQL running under that UID
-- **AND** the Databasus application account still cannot access the private socket

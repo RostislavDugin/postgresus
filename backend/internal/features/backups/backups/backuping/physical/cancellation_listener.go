@@ -11,14 +11,14 @@ import (
 )
 
 type PhysicalBackupCancellationListener struct {
-	canceller         *PhysicalBackupCanceller
-	walStreamerRepo   *physical_repositories.PhysicalWalStreamerRepository
-	taskCancelManager *tasks_cancellation.TaskCancelManager
-	logger            *slog.Logger
+	canceller                 *PhysicalBackupCanceller
+	walStreamerRepo           *physical_repositories.PhysicalWalStreamerRepository
+	taskCancellationRequester *tasks_cancellation.Requester
+	logger                    *slog.Logger
 }
 
 func (l *PhysicalBackupCancellationListener) OnBackupsDisabled(ctx context.Context, databaseID uuid.UUID) {
-	l.canceller.CancelInFlightForDatabase(databaseID)
+	l.canceller.CancelInFlightForDatabase(ctx, databaseID)
 	l.cancelStreamingAndDeleteStreamerRow(ctx, databaseID)
 }
 
@@ -27,7 +27,7 @@ func (l *PhysicalBackupCancellationListener) OnWalStreamingDisabled(ctx context.
 }
 
 func (l *PhysicalBackupCancellationListener) OnBeforeDatabaseRemove(ctx context.Context, databaseID uuid.UUID) error {
-	l.canceller.CancelInFlightForDatabase(databaseID)
+	l.canceller.CancelInFlightForDatabase(ctx, databaseID)
 	l.cancelStreamingAndDeleteStreamerRow(ctx, databaseID)
 
 	return nil
@@ -41,7 +41,7 @@ func (l *PhysicalBackupCancellationListener) cancelStreamingAndDeleteStreamerRow
 ) {
 	logger := l.logger.With("database_id", databaseID)
 
-	if err := l.taskCancelManager.CancelTask(databaseID); err != nil {
+	if err := l.taskCancellationRequester.RequestCancellation(ctx, databaseID); err != nil {
 		logger.ErrorContext(ctx, "failed to cancel wal streamer task", "error", err)
 	}
 

@@ -11,19 +11,16 @@ import (
 	"databasus-backend/internal/features/restores/usecases"
 	"databasus-backend/internal/features/storages"
 	tasks_cancellation "databasus-backend/internal/features/tasks/cancellation"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 )
 
 var restoreRepository = &restores_core.RestoreRepository{}
 
-var restoreDatabaseCache = cache_utils.NewCacheUtil[RestoreDatabaseCache](
-	cache_utils.GetValkeyClient(),
-	"restore_db:",
-)
+var restoreDatabaseCache = cache.NewJSONStore[RestoreDatabaseCache](cache.GetStore(), "restore_db")
 
-var restoreCancelManager = tasks_cancellation.GetTaskCancelManager()
+var taskCancellationRegistry = tasks_cancellation.GetRegistry()
 
 var restorer = &Restorer{
 	databases.GetDatabaseService(),
@@ -35,7 +32,7 @@ var restorer = &Restorer{
 	logger.GetLogger(),
 	usecases.GetRestoreBackupUsecase(),
 	restoreDatabaseCache,
-	restoreCancelManager,
+	taskCancellationRegistry,
 }
 
 var restoresScheduler = &RestoresScheduler{

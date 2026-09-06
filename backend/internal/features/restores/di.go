@@ -32,7 +32,7 @@ var (
 		audit_logs.GetAuditLogService(),
 		encryption.GetFieldEncryptor(),
 		disk.GetDiskService(),
-		tasks_cancellation.GetTaskCancelManager(),
+		tasks_cancellation.GetRequester(),
 	}
 )
 

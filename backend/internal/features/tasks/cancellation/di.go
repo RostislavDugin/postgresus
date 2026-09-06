@@ -4,23 +4,34 @@ import (
 	"context"
 	"sync"
 
-	"github.com/google/uuid"
-
-	cache_utils "databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/logger"
+	"databasus-backend/internal/util/pubsub"
 )
 
-var taskCancelManager = &TaskCancelManager{
-	sync.RWMutex{},
-	make(map[uuid.UUID]context.CancelFunc),
-	cache_utils.NewPubSubManager(),
-	logger.GetLogger(),
+var (
+	taskCancellationRegistry  = NewRegistry()
+	taskCancellationRequester = NewRequester(pubsub.GetBroker(), logger.GetLogger())
+	taskCancellationListener  = NewListener(
+		pubsub.GetBroker(),
+		taskCancellationRegistry,
+		logger.GetLogger(),
+	)
+)
+
+func GetRegistry() *Registry {
+	return taskCancellationRegistry
 }
 
-func GetTaskCancelManager() *TaskCancelManager {
-	return taskCancelManager
+func GetRequester() *Requester {
+	return taskCancellationRequester
+}
+
+func GetListener() *Listener {
+	return taskCancellationListener
 }
 
 var SetupDependencies = sync.OnceFunc(func() {
-	taskCancelManager.StartSubscription()
+	if err := taskCancellationListener.Start(context.Background()); err != nil {
+		panic(err)
+	}
 })

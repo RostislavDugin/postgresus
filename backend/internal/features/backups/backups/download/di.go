@@ -6,7 +6,7 @@ import (
 	"databasus-backend/internal/features/backups/backups/download/restore_token"
 	"databasus-backend/internal/features/backups/backups/download/stream_guard"
 	"databasus-backend/internal/features/storages"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	util_encryption "databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 )
@@ -23,15 +23,15 @@ var (
 )
 
 func init() {
-	valkeyClient := cache_utils.GetValkeyClient()
+	cacheStore := cache.GetStore()
 
 	guard := stream_guard.NewGuard(
-		stream_guard.NewTracker(valkeyClient),
+		stream_guard.NewTracker(cacheStore),
 		logger.GetLogger(),
 	)
 
 	downloadTokenService = download_token.NewService(guard, logger.GetLogger())
-	restoreTokenService = restore_token.NewService(guard, valkeyClient, logger.GetLogger())
+	restoreTokenService = restore_token.NewService(guard, cacheStore, logger.GetLogger())
 	downloadTokenBackgroundService = download_token.NewBackgroundService(downloadTokenService, logger.GetLogger())
 
 	restoreStreamWriter = restore_stream.NewWriter(

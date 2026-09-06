@@ -16,52 +16,55 @@ import (
 	restores_core "databasus-backend/internal/features/restores/core"
 	"databasus-backend/internal/features/storages"
 	tasks_cancellation "databasus-backend/internal/features/tasks/cancellation"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 	util_encryption "databasus-backend/internal/util/encryption"
 )
 
 type Restorer struct {
-	databaseService      *databases.DatabaseService
-	backupService        *backups_services.LogicalBackupService
-	fieldEncryptor       util_encryption.FieldEncryptor
-	restoreRepository    *restores_core.RestoreRepository
-	backupConfigService  *backups_config_logical.BackupConfigService
-	storageService       *storages.StorageService
-	logger               *slog.Logger
-	restoreBackupUsecase restores_core.RestoreBackupUsecase
-	cacheUtil            *cache_utils.CacheUtil[RestoreDatabaseCache]
-	restoreCancelManager *tasks_cancellation.TaskCancelManager
+	databaseService          *databases.DatabaseService
+	backupService            *backups_services.LogicalBackupService
+	fieldEncryptor           util_encryption.FieldEncryptor
+	restoreRepository        *restores_core.RestoreRepository
+	backupConfigService      *backups_config_logical.BackupConfigService
+	storageService           *storages.StorageService
+	logger                   *slog.Logger
+	restoreBackupUsecase     restores_core.RestoreBackupUsecase
+	restoreDatabaseCache     *cache.JSONStore[RestoreDatabaseCache]
+	taskCancellationRegistry *tasks_cancellation.Registry
 }
 
-func (r *Restorer) MakeRestore(ctx context.Context, restoreID uuid.UUID) {
+type restoreMetadataLookup struct {
+	restoreID             uuid.UUID
+	fallbackDatabaseCache *RestoreDatabaseCache
+}
+
+func (r *Restorer) MakeRestore(
+	ctx context.Context,
+	restoreID uuid.UUID,
+	fallbackDatabaseCache *RestoreDatabaseCache,
+) {
 	logger := r.logger.With("restore_id", restoreID)
-
-	// Get and delete cached DB credentials atomically
-	dbCache := r.cacheUtil.GetAndDelete(restoreID.String())
-
-	if dbCache == nil {
-		// Cache miss - fail immediately
-		restore, err := r.restoreRepository.FindByID(restoreID)
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to get restore by ID after cache miss", "error", err)
-			return
-		}
-
-		errMsg := "Database credentials expired or missing from cache (most likely due to instance restart)"
-		restore.FailMessage = &errMsg
-		restore.Status = restores_core.RestoreStatusFailed
-
-		if err := r.restoreRepository.Save(restore); err != nil {
-			logger.ErrorContext(ctx, "failed to save restore after cache miss", "error", err)
-		}
-
-		logger.ErrorContext(ctx, "restore failed: cache miss")
-		return
-	}
 
 	restore, err := r.restoreRepository.FindByID(restoreID)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to get restore by ID", "error", err)
+		return
+	}
+
+	databaseCache := r.getRestoreDatabaseCache(ctx, restoreMetadataLookup{
+		restoreID:             restore.ID,
+		fallbackDatabaseCache: fallbackDatabaseCache,
+	}, logger)
+	if !databaseCache.HasDatabaseConfiguration() {
+		failMessage := "Database credentials expired or missing from cache (most likely due to instance restart)"
+		restore.FailMessage = &failMessage
+		restore.Status = restores_core.RestoreStatusFailed
+		if err := r.restoreRepository.Save(restore); err != nil {
+			logger.ErrorContext(ctx, "failed to save restore after missing metadata", "error", err)
+		}
+
+		logger.ErrorContext(ctx, "restore failed because database credentials are missing")
+
 		return
 	}
 
@@ -92,8 +95,8 @@ func (r *Restorer) MakeRestore(ctx context.Context, restoreID uuid.UUID) {
 
 	// Detached from the caller so a finished HTTP request cannot cancel a running restore.
 	executionCtx, cancel := context.WithCancel(context.Background())
-	r.restoreCancelManager.RegisterTask(restore.ID, cancel)
-	defer r.restoreCancelManager.UnregisterTask(restore.ID)
+	r.taskCancellationRegistry.RegisterTask(restore.ID, cancel)
+	defer r.taskCancellationRegistry.UnregisterTask(restore.ID)
 
 	storage, err := r.storageService.GetStorageByID(executionCtx, *backupConfig.StorageID)
 	if err != nil {
@@ -106,10 +109,10 @@ func (r *Restorer) MakeRestore(ctx context.Context, restoreID uuid.UUID) {
 	// Create restoring database from cached credentials
 	restoringToDB := &databases.Database{
 		Type:              database.Type,
-		PostgresqlLogical: dbCache.PostgresqlLogicalDatabase,
-		Mysql:             dbCache.MysqlDatabase,
-		Mariadb:           dbCache.MariadbDatabase,
-		Mongodb:           dbCache.MongodbDatabase,
+		PostgresqlLogical: databaseCache.PostgresqlLogicalDatabase,
+		Mysql:             databaseCache.MysqlDatabase,
+		Mariadb:           databaseCache.MariadbDatabase,
+		Mongodb:           databaseCache.MongodbDatabase,
 	}
 
 	// The restore target is the only endpoint this function connects to, so one tunnel covers
@@ -156,8 +159,8 @@ func (r *Restorer) MakeRestore(ctx context.Context, restoreID uuid.UUID) {
 	// IsExcludeExtensions is a transient choice carried on the target config from the restore
 	// request; IsSkipUserMappings is a persisted property of the source database being restored.
 	restoreOptions := restores_core.RestoreOptions{}
-	if dbCache.PostgresqlLogicalDatabase != nil {
-		restoreOptions.IsExcludeExtensions = dbCache.PostgresqlLogicalDatabase.IsExcludeExtensions
+	if databaseCache.PostgresqlLogicalDatabase != nil {
+		restoreOptions.IsExcludeExtensions = databaseCache.PostgresqlLogicalDatabase.IsExcludeExtensions
 	}
 	if database.PostgresqlLogical != nil {
 		restoreOptions.IsSkipUserMappings = database.PostgresqlLogical.IsSkipUserMappings
@@ -231,4 +234,23 @@ func (r *Restorer) MakeRestore(ctx context.Context, restoreID uuid.UUID) {
 
 	logger.InfoContext(ctx, fmt.Sprintf("restore finished in %d ms", restore.RestoreDurationMs),
 		"backup_id", backup.ID)
+}
+
+func (r *Restorer) getRestoreDatabaseCache(
+	ctx context.Context,
+	lookup restoreMetadataLookup,
+	logger *slog.Logger,
+) *RestoreDatabaseCache {
+	databaseCache, err := r.restoreDatabaseCache.ReadAndDelete(ctx, lookup.restoreID.String())
+	if err != nil {
+		logger.WarnContext(ctx, "failed to read restore metadata from cache", "error", err)
+	}
+	if databaseCache != nil {
+		return databaseCache
+	}
+	if lookup.fallbackDatabaseCache != nil {
+		return lookup.fallbackDatabaseCache
+	}
+
+	return &RestoreDatabaseCache{}
 }
