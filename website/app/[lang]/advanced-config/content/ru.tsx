@@ -404,29 +404,47 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Права Docker-хранилища</h2>
 
               <p>
-                Для большинства установок подходят ID из образа. Меняйте их,
-                только если bind mount, CIFS или NFS требуют конкретного числового
-                владельца. Допустимы десятичные значения от <code>1</code> до{" "}
-                <code>4294967294</code>; пустые значения отклоняются.
+                Обычно Databasus берет числовые ID пользователя и группы у
+                существующего каталога pgdata, затем проверяет mount с бекапами
+                и корневой каталог данных. Если подходящего владельца нет,
+                используется <code>999</code>. Задавайте <code>PUID</code> или{" "}
+                <code>PGID</code>, только когда автоматический выбор не подходит
+                для вашего bind mount, CIFS или NFS. Допустимы десятичные значения
+                от <code>1</code> до <code>4294967294</code>.
               </p>
 
               <table>
-                <thead><tr><th>Переменная</th><th>По умолчанию</th><th>Учетная запись</th></tr></thead>
+                <thead><tr><th>Переменная</th><th>Автоматическое значение</th><th>Учетная запись</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Пользователь Databasus</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Основная группа Databasus</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Пользователь PostgreSQL</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Основная группа PostgreSQL</td></tr>
+                  <tr><td><code>PUID</code></td><td>Владелец mount или <code>999</code></td><td>Пользователь <code>databasus</code></td></tr>
+                  <tr><td><code>PGID</code></td><td>Группа mount или <code>999</code></td><td>Основная группа <code>databasus</code></td></tr>
                 </tbody>
               </table>
 
               <p>
-                Не объединяйте точки монтирования приложения с pgdata. Сценарий
-                запуска работает с правами root внутри пространства имен,
-                настраивает обе учетные записи и сбрасывает привилегии через{" "}
-                <code>gosu</code>. Для изоляции на хосте используйте Docker без
-                прав root или пространство имен пользователей; произвольное
+                Databasus, PostgreSQL и Valkey работают под одной учетной записью
+                ОС без прав root с именем <code>databasus</code>.
+              </p>
+
+              <p>
+                Entrypoint запускается с правами root внутри контейнера, выбирает
+                ID и пробует выполнить <code>chown</code> и <code>chmod</code>.
+                После этого он проверяет полный цикл работы с файлами от имени{" "}
+                <code>databasus</code>. Mount может работать, даже если файловая
+                система запрещает менять владельца или режим. Произвольное
                 значение Docker <code>user:</code> не поддерживается.
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                Четыре прежние переменные для отдельных сервисов удалены
+                сознательно. При обновлении уберите их из конфигурации. Если
+                автоматически выбранным ID не хватает прав, контейнер остановится
+                и укажет неудавшуюся операцию вместе со ссылкой на эту инструкцию.
               </p>
 
               <h2 id="telemetry">Телеметрия</h2>

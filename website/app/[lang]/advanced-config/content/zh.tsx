@@ -386,24 +386,38 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Docker 存储权限</h2>
 
               <p>
-                大多数安装应保留镜像内置 ID。只有 bind mount、CIFS 或 NFS 共享要求特定数字所有者时才需要修改。可用值是{" "}
-                <code>1</code> 到 <code>4294967294</code> 的十进制整数；空值会被拒绝。
+                Databasus 通常先使用现有 pgdata 目录的用户和组 ID，再检查备份 mount 或数据根目录，最后使用{" "}
+                <code>999</code>。只有自动选择不适合你的 bind mount、CIFS 共享或 NFS 导出时，才需要设置{" "}
+                <code>PUID</code> 或 <code>PGID</code>。值必须是从 <code>1</code> 到{" "}
+                <code>4294967294</code> 的十进制整数。
               </p>
 
               <table>
-                <thead><tr><th>变量</th><th>默认值</th><th>账户</th></tr></thead>
+                <thead><tr><th>变量</th><th>自动值</th><th>账户</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Databasus 用户</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Databasus 主组</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>PostgreSQL 用户</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>PostgreSQL 主组</td></tr>
+                  <tr><td><code>PUID</code></td><td>mount 所有者或 <code>999</code></td><td><code>databasus</code> 用户</td></tr>
+                  <tr><td><code>PGID</code></td><td>mount 组或 <code>999</code></td><td><code>databasus</code> 主组</td></tr>
                 </tbody>
               </table>
 
               <p>
-                请将应用 mount 与 pgdata 分开。Entrypoint 会先以 namespace 内的 root 身份启动，准备两个账户，再通过{" "}
-                <code>gosu</code> 降低权限。若要隔离宿主机，请使用 rootless Docker 或 user namespace；不支持任意 Docker{" "}
-                <code>user:</code> 覆盖。
+                Databasus、PostgreSQL 和 Valkey 使用同一个名为 <code>databasus</code> 的无 root 权限操作系统账户。
+              </p>
+
+              <p>
+                Entrypoint 先以容器内的 root 身份启动，用于选择 ID 并尝试执行 <code>chown</code> 和{" "}
+                <code>chmod</code>。随后，它会以 <code>databasus</code> 身份检查完整的文件生命周期。即使 mount
+                拒绝更改所有者或模式，只要实际文件操作成功，容器仍可运行。不支持任意 Docker <code>user:</code> 覆盖。
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                之前用于不同服务的四个变量已被有意删除。升级时请从配置中移除这些变量。如果自动选择的 ID
+                无法访问 mount，启动会停止，并显示失败的操作以及本文档链接。
               </p>
 
               <h2 id="telemetry">遥测</h2>

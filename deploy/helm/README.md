@@ -374,6 +374,11 @@ The app does **not** automount the ServiceAccount token by default
 A restricted-PSS values example wiring seccomp, no privilege escalation, AppArmor,
 a dedicated ServiceAccount and a read-only root filesystem:
 
+Databasus, PostgreSQL and Valkey run under one non-root operating-system account
+named `databasus`. The image normally selects the numeric IDs from mounted data
+and falls back to `999:999`. If the volume requires different IDs, set `PUID`
+and `PGID` through `extraEnv`.
+
 ```yaml
 # hardened-values.yaml
 serviceAccount:
@@ -414,10 +419,10 @@ extraVolumeMounts:
 ```
 
 > **Not supported by design:** `runAsNonRoot: true` and dropping **all**
-> capabilities. The entrypoint must start as root to remap service accounts,
-> volume `chown` and PostgreSQL `initdb`, then drops to a non-root user with
-> `gosu` (which requires `SETUID`/`SETGID`). See the note in `values.yaml`
-> next to `podSecurityContext`.
+> capabilities. The entrypoint must start as root to remap the `databasus`
+> account, attempt volume `chown` and run PostgreSQL `initdb`, then drops to
+> that account with `gosu` (which requires `SETUID`/`SETGID`). See the note in
+> `values.yaml` next to `podSecurityContext`.
 
 ## Upgrade
 

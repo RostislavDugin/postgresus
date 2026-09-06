@@ -407,29 +407,48 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Permissões do armazenamento Docker</h2>
 
               <p>
-                A maioria das instalações deve manter os IDs da imagem. Altere-os
-                apenas quando um bind mount ou compartilhamento CIFS ou NFS exigir
-                propriedade numérica específica. São aceitos inteiros decimais de{" "}
-                <code>1</code> a <code>4294967294</code>; valores vazios são
-                rejeitados.
+                O Databasus normalmente usa os IDs numéricos do usuário e do
+                grupo do diretório pgdata existente, depois do mount de backups
+                ou da raiz de dados e, por fim, usa <code>999</code>. Defina{" "}
+                <code>PUID</code> ou <code>PGID</code> apenas quando essa escolha
+                automática não servir para seu bind mount, compartilhamento CIFS
+                ou exportação NFS. Os valores devem ser inteiros decimais de{" "}
+                <code>1</code> a <code>4294967294</code>.
               </p>
 
               <table>
-                <thead><tr><th>Variável</th><th>Padrão</th><th>Conta</th></tr></thead>
+                <thead><tr><th>Variável</th><th>Valor automático</th><th>Conta</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Usuário do Databasus</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Grupo principal do Databasus</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Usuário do PostgreSQL</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Grupo principal do PostgreSQL</td></tr>
+                  <tr><td><code>PUID</code></td><td>Proprietário do mount ou <code>999</code></td><td>Usuário <code>databasus</code></td></tr>
+                  <tr><td><code>PGID</code></td><td>Grupo do mount ou <code>999</code></td><td>Grupo principal <code>databasus</code></td></tr>
                 </tbody>
               </table>
 
               <p>
-                Mantenha os mounts do aplicativo separados do pgdata. O entrypoint
-                começa como root dentro do namespace, prepara as duas contas e
-                reduz privilégios com <code>gosu</code>. Use Docker rootless ou
-                um user namespace para isolar o host; valores arbitrários de
-                Docker <code>user:</code> não são aceitos.
+                Databasus, PostgreSQL e Valkey usam a mesma conta do sistema
+                operacional sem privilégios root chamada <code>databasus</code>.
+              </p>
+
+              <p>
+                O entrypoint começa como root dentro do contêiner para escolher
+                os IDs e tentar executar <code>chown</code> e <code>chmod</code>.
+                Em seguida, ele verifica todo o ciclo de arquivos como{" "}
+                <code>databasus</code>. Um mount pode funcionar mesmo que recuse
+                mudanças de proprietário ou modo. Um valor arbitrário de Docker{" "}
+                <code>user:</code> não é aceito.
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                As quatro variáveis anteriores específicas de cada serviço foram
+                removidas de propósito. Remova-as da configuração ao atualizar.
+                Se os IDs automáticos não conseguirem acessar um mount, a
+                inicialização será interrompida e mostrará a operação que falhou
+                e o link para esta documentação.
               </p>
 
               <h2 id="telemetry">Telemetria</h2>

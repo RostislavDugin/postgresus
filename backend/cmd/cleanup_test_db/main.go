@@ -12,9 +12,8 @@
 //     with "permission denied for schema public".
 //
 // Reads the test DSN through config (config.GetEnv() auto-swaps DatabaseDsn to
-// TestDatabaseDsn when IsTesting is true). IsTesting is detected from os.Args
-// containing the substring "test" - the binary path "cleanup_test_db" satisfies
-// that. Renaming the binary or its directory will break detection.
+// TestDatabaseDsn when IsTesting is true). The executable name cleanup_test_db
+// selects that mode.
 package main
 
 import (
@@ -48,7 +47,7 @@ func main() {
 
 	env := config.GetEnv()
 	if !env.IsTesting {
-		log.Error("cleanup_test_db must run with IsTesting=true (binary name must contain 'test')")
+		log.Error("cleanup_test_db must run with IsTesting=true")
 		os.Exit(1)
 	}
 

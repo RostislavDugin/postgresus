@@ -169,12 +169,7 @@ func loadEnvVariables() {
 		env.ShowDbInstallationVerificationLogs = true
 	}
 
-	for _, arg := range os.Args {
-		if strings.Contains(arg, "test") {
-			env.IsTesting = true
-			break
-		}
-	}
+	env.IsTesting = isTestProcess(os.Args)
 
 	if env.IsTesting {
 		if env.TestDatabaseDsn == "" {
@@ -265,6 +260,18 @@ func unsetEmptyEnvVars() {
 			_ = os.Unsetenv(key)
 		}
 	}
+}
+
+func isTestProcess(arguments []string) bool {
+	if len(arguments) == 0 {
+		return false
+	}
+
+	executableName := filepath.Base(arguments[0])
+	return strings.HasSuffix(executableName, ".test") ||
+		strings.HasSuffix(executableName, ".test.exe") ||
+		executableName == "cleanup_test_db" ||
+		executableName == "cleanup_test_db.exe"
 }
 
 // slotLockConn holds the system-DB connection whose session owns this worker's

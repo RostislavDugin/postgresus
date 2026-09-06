@@ -417,29 +417,50 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Permissions du stockage Docker</h2>
 
               <p>
-                La plupart des installations doivent conserver les ID intégrés à
-                l&apos;image. Modifiez-les uniquement si un bind mount ou un
-                partage CIFS ou NFS impose un propriétaire numérique précis. Les
-                entiers décimaux de <code>1</code> à <code>4294967294</code> sont
-                acceptés ; les valeurs vides sont refusées.
+                Databasus prend normalement les ID numériques de l&apos;utilisateur
+                et du groupe dans le répertoire pgdata existant, puis dans le
+                mount des sauvegardes ou la racine des données. À défaut, il
+                utilise <code>999</code>. Définissez <code>PUID</code> ou{" "}
+                <code>PGID</code> uniquement si ce choix automatique ne convient
+                pas à votre bind mount, partage CIFS ou export NFS. Les valeurs
+                doivent être des entiers décimaux de <code>1</code> à{" "}
+                <code>4294967294</code>.
               </p>
 
               <table>
-                <thead><tr><th>Variable</th><th>Valeur par défaut</th><th>Compte</th></tr></thead>
+                <thead><tr><th>Variable</th><th>Valeur automatique</th><th>Compte</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Utilisateur Databasus</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Groupe principal Databasus</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>Utilisateur PostgreSQL</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>Groupe principal PostgreSQL</td></tr>
+                  <tr><td><code>PUID</code></td><td>Propriétaire du mount ou <code>999</code></td><td>Utilisateur <code>databasus</code></td></tr>
+                  <tr><td><code>PGID</code></td><td>Groupe du mount ou <code>999</code></td><td>Groupe principal <code>databasus</code></td></tr>
                 </tbody>
               </table>
 
               <p>
-                Séparez les mounts de l&apos;application de pgdata. L&apos;entrypoint
-                démarre comme root dans son namespace, prépare les deux comptes,
-                puis réduit ses privilèges avec <code>gosu</code>. Utilisez Docker
-                rootless ou un user namespace pour isoler l&apos;hôte ; les valeurs
-                Docker <code>user:</code> arbitraires ne sont pas prises en charge.
+                Databasus, PostgreSQL et Valkey utilisent le même compte du
+                système d&apos;exploitation sans privilèges root, nommé{" "}
+                <code>databasus</code>.
+              </p>
+
+              <p>
+                L&apos;entrypoint démarre comme root dans le conteneur pour choisir
+                les ID et tenter <code>chown</code> et <code>chmod</code>. Il
+                vérifie ensuite tout le cycle des fichiers sous le compte{" "}
+                <code>databasus</code>. Un mount peut fonctionner même s&apos;il
+                refuse les changements de propriétaire ou de mode. Une valeur
+                Docker <code>user:</code> arbitraire n&apos;est pas prise en charge.
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                Les quatre anciennes variables propres aux différents services
+                ont été supprimées volontairement. Retirez-les de votre
+                configuration lors de la mise à jour. Si les ID automatiques ne
+                peuvent pas accéder à un mount, le démarrage s&apos;arrête et
+                indique l&apos;opération en échec ainsi que le lien vers cette page.
               </p>
 
               <h2 id="telemetry">Télémétrie</h2>

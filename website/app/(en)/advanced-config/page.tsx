@@ -401,29 +401,45 @@ export default function AdvancedConfigPage() {
               <h2 id="docker-storage-permissions">Docker storage permissions</h2>
 
               <p>
-                Most installations should keep the baked IDs. Set these variables
-                only when a bind mount, CIFS share or NFS export requires specific
-                numeric ownership. Values must be base-10 integers from{" "}
-                <code>1</code> through <code>4294967294</code>; empty values are
-                rejected.
+                Databasus normally selects its numeric user and group IDs from an
+                existing pgdata directory, then from the backups mount or data
+                root, and finally uses <code>999</code>. Set <code>PUID</code> or{" "}
+                <code>PGID</code> only when that automatic choice does not fit your
+                bind mount, CIFS share, or NFS export. Values must be base-10
+                integers from <code>1</code> through <code>4294967294</code>.
               </p>
 
               <table>
-                <thead><tr><th>Variable</th><th>Default</th><th>Account</th></tr></thead>
+                <thead><tr><th>Variable</th><th>Automatic value</th><th>Account</th></tr></thead>
                 <tbody>
-                  <tr><td><code>DATABASUS_PUID</code></td><td><code>65532</code></td><td>Databasus user</td></tr>
-                  <tr><td><code>DATABASUS_PGID</code></td><td><code>65532</code></td><td>Databasus primary group</td></tr>
-                  <tr><td><code>POSTGRES_PUID</code></td><td><code>999</code></td><td>PostgreSQL user</td></tr>
-                  <tr><td><code>POSTGRES_PGID</code></td><td><code>999</code></td><td>PostgreSQL primary group</td></tr>
+                  <tr><td><code>PUID</code></td><td>Mounted owner or <code>999</code></td><td><code>databasus</code> user</td></tr>
+                  <tr><td><code>PGID</code></td><td>Mounted group or <code>999</code></td><td><code>databasus</code> primary group</td></tr>
                 </tbody>
               </table>
 
               <p>
-                Keep application-owned mounts separate from pgdata. The entrypoint
-                starts as namespace root, prepares both accounts, then drops
-                privileges with <code>gosu</code>. Use rootless Docker or a user
-                namespace for host isolation; arbitrary Docker <code>user:</code>{" "}
-                overrides are unsupported.
+                Databasus, PostgreSQL, and Valkey use the same non-root operating-system
+                account named <code>databasus</code>.
+              </p>
+
+              <p>
+                The entrypoint starts as root inside the container to select the
+                IDs and attempt <code>chown</code> and <code>chmod</code>. It then
+                checks the actual file lifecycle as <code>databasus</code>. A mount
+                can work even if it rejects metadata changes. An arbitrary Docker{" "}
+                <code>user:</code> override is not supported.
+              </p>
+
+              <pre><code>{`ERROR: Databasus cannot write to local storage paths /databasus-data/temp and /databasus-data/backups as UID 999 and GID 999.
+Required operation: save a file through local storage.
+Set PUID and PGID or fix the mounted directory permissions: https://databasus.com/advanced-config/#docker-storage-permissions
+Details: permission denied`}</code></pre>
+
+              <p>
+                The previous four service-specific identity variables were
+                deliberately removed. Remove them from your configuration when
+                upgrading. If the automatic IDs cannot access a mount, startup
+                stops with the failed operation and this documentation link.
               </p>
 
               <h2 id="telemetry">Telemetry</h2>

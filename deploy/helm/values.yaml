@@ -77,8 +77,9 @@ service:
   headless:
     enabled: true
 # Security context for the pod (e.g. fsGroup for volume permissions)
-# NOTE: The entrypoint runs as root to bootstrap PostgreSQL and Valkey,
-# then drops privileges to a non-root user via gosu. Do not set
+# NOTE: The entrypoint runs as root to select PUID/PGID, prepare volumes and
+# bootstrap PostgreSQL. Databasus, PostgreSQL and Valkey then run as the same
+# non-root `databasus` account through gosu. Do not set
 # runAsNonRoot or runAsUser here -- it will prevent the container from starting.
 podSecurityContext: {}
 

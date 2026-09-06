@@ -1,10 +1,4 @@
-# Docker Storage Compatibility Specification
-
-## Purpose
-
-Defines the supported Docker account settings and the real-container filesystem tests that prevent storage permission changes from breaking common installation layouts.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Docker services share one configurable runtime identity
 
@@ -82,21 +76,7 @@ The current image SHALL start with persistent data created by versions `v3.54.0`
 - **THEN** the current container becomes healthy
 - **AND** the metadata database, secret key, application log, existing backup, nested WAL queue, and PostgreSQL data remain available
 
-### Requirement: Container preserves incompatible-data startup guards
-
-The container SHALL refuse startup when it detects data at the deprecated Postgresus mount location or a metadata database containing a PostgreSQL configuration with backup type `WAL_V1`.
-
-#### Scenario: Postgresus data directory is mounted
-
-- **WHEN** the deprecated Postgresus mount location exists and contains data
-- **THEN** the container exits before starting its services
-- **AND** its log identifies the unsupported directory
-
-#### Scenario: WAL_V1 configuration exists
-
-- **WHEN** the metadata database contains a PostgreSQL configuration whose backup type is `WAL_V1`
-- **THEN** the container exits before starting the Databasus application
-- **AND** its log identifies the unsupported backup type
+## MODIFIED Requirements
 
 ### Requirement: One filesystem suite runs locally and in CI
 
@@ -149,3 +129,17 @@ The suite SHALL cover an ext4 bind-mounted data root, a Docker named volume, sep
 
 - **WHEN** a mounted path does not permit an operation required by the selected identity
 - **THEN** startup fails with the documented actionable error
+
+## REMOVED Requirements
+
+### Requirement: Docker service IDs have image defaults
+
+**Reason**: One runtime account and automatic mounted-data discovery replace four independent image defaults.
+
+**Migration**: Remove the four old variables. Set `PUID` and `PGID` only when automatic selection does not fit the mounted filesystem.
+
+### Requirement: Service accounts remain isolated
+
+**Reason**: Bundled services now use one non-root operating-system account.
+
+**Migration**: Set `PUID` and `PGID` only when automatic selection is unsuitable.
