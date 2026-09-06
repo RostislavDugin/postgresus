@@ -166,9 +166,9 @@ Scheduled healthchecks SHALL test a database already loaded by the system withou
 
 ### Requirement: The embedded PostgreSQL instance stays private under the shared runtime account
 
-The embedded PostgreSQL server SHALL run under the same non-root operating-system account as the Databasus application and Valkey. During bootstrap only, peer mapping SHALL allow that account to administer the PostgreSQL role named `postgres`. After bootstrap, Unix-socket database login SHALL be rejected. Loopback TCP connections SHALL require SCRAM authentication with the generated credential, and replication connections to the embedded cluster SHALL be rejected.
+The embedded PostgreSQL server SHALL run under the same non-root operating-system account as the Databasus application. During bootstrap only, peer mapping SHALL allow that account to administer the PostgreSQL role named `postgres`. After bootstrap, Unix-socket database login SHALL be rejected. Loopback TCP connections SHALL require SCRAM authentication with the generated credential and replication connections to the embedded cluster SHALL be rejected.
 
-The embedded PostgreSQL and Valkey ports SHALL remain unpublished by the image.
+The embedded PostgreSQL port SHALL remain unpublished by the image.
 
 #### Scenario: Application account opens the private socket
 

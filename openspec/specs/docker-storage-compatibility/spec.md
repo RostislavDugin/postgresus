@@ -8,9 +8,9 @@ Defines the supported Docker account settings and the real-container filesystem 
 
 ### Requirement: Docker services share one configurable runtime identity
 
-The Docker image SHALL run Databasus, embedded PostgreSQL, and Valkey under one non-root operating-system account named `databasus`. Operators MAY set its numeric identity with `PUID` and `PGID`. Each supplied value SHALL be a non-zero decimal Linux ID within the supported system range.
+The Docker image SHALL run Databasus and embedded PostgreSQL under one non-root operating-system account named `databasus`. Operators MAY set its numeric identity with `PUID` and `PGID`. Each supplied value SHALL be a non-zero decimal Linux ID within the supported system range.
 
-When an override is absent, startup SHALL select that ID independently from the existing PostgreSQL data owner, then the mounted backup or data-root owner, and finally `999`. Root ownership SHALL NOT be selected automatically.
+When an override is absent, startup SHALL select that ID independently from the existing PostgreSQL data owner, then the mounted backup or data-root owner and finally `999`. Root ownership SHALL NOT be selected automatically.
 
 #### Scenario: Fresh installation uses the fallback identity
 
@@ -34,15 +34,15 @@ When an override is absent, startup SHALL select that ID independently from the 
 
 #### Scenario: Operator supplies an invalid identity
 
-- **WHEN** `PUID` or `PGID` is empty, non-numeric, zero, or outside the supported range
+- **WHEN** `PUID` or `PGID` is empty, non-numeric, zero or outside the supported range
 - **THEN** the container exits before starting its services
 - **AND** the log identifies the invalid variable
 
 ### Requirement: Startup validates storage through required operations
 
-Startup SHALL attempt to prepare the data root, PostgreSQL data, PostgreSQL socket, temporary, and backup paths with the selected identity and required modes. A failed ownership or mode change SHALL NOT stop startup when the selected account can still perform every required operation.
+Startup SHALL attempt to prepare the data root, PostgreSQL data, PostgreSQL socket, temporary and backup paths with the selected identity and required modes. A failed ownership or mode change SHALL NOT stop startup when the selected account can still perform every required operation.
 
-Startup SHALL start Valkey and wait for readiness before running the main Databasus binary with `--test-storage` under the selected account. The command SHALL save a unique file through `LocalStorage.SaveFile` and remove it through `LocalStorage.DeleteFile`. Startup SHALL also verify the operations required for PostgreSQL data, its socket, and Databasus control files. A failed check SHALL stop startup before PostgreSQL or the Databasus application runs.
+Startup SHALL run the main Databasus binary with `--test-storage` under the selected account before starting PostgreSQL or the Databasus application. The storage probe SHALL save a unique file through the configured local storage and remove that file through the same storage path. Startup SHALL also verify the operations required for PostgreSQL data, its socket and Databasus control files. A failed check SHALL stop startup before PostgreSQL or the Databasus application runs. Startup SHALL NOT start or wait for a separate cache service.
 
 #### Scenario: Filesystem denies metadata changes but permits operations
 
@@ -58,7 +58,7 @@ Startup SHALL start Valkey and wait for readiness before running the main Databa
 
 - **WHEN** the selected account cannot publish a file from the temporary path to the backup path
 - **THEN** the container exits before starting the application
-- **AND** the English error names the affected path, required operation, effective user and group IDs, and `https://databasus.com/advanced-config/#docker-storage-permissions`
+- **AND** the English error names the affected path, required operation, effective user and group IDs and `https://databasus.com/advanced-config/#docker-storage-permissions`
 
 #### Scenario: Mounted path is read-only
 
@@ -68,9 +68,14 @@ Startup SHALL start Valkey and wait for readiness before running the main Databa
 
 #### Scenario: Data root cannot create control files
 
-- **WHEN** temporary, backup, PostgreSQL data, and socket paths are writable but the data root cannot create a control file
+- **WHEN** temporary, backup, PostgreSQL data and socket paths are writable but the data root cannot create a control file
 - **THEN** the container exits before starting PostgreSQL or the Databasus application
 - **AND** the English error identifies the data root and required operation
+
+#### Scenario: Container starts its bundled services
+
+- **WHEN** storage validation succeeds
+- **THEN** startup proceeds directly to embedded PostgreSQL and the Databasus application without a cache-service readiness step
 
 ### Requirement: Existing Docker data remains usable after an image update
 
