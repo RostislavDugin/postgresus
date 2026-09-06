@@ -43,13 +43,8 @@ func (d *DiscordNotifier) Send(
 		return fmt.Errorf("failed to decrypt webhook URL: %w", err)
 	}
 
-	fullMessage := notification.Heading
-	if notification.Message != "" {
-		fullMessage = fmt.Sprintf("%s\n\n%s", notification.Heading, notification.Message)
-	}
-
 	payload := map[string]any{
-		"content": fullMessage,
+		"content": buildAndTruncateContent(notification),
 	}
 
 	jsonPayload, err := json.Marshal(payload)
@@ -83,6 +78,20 @@ func (d *DiscordNotifier) Send(
 	}
 
 	return nil
+}
+
+func buildAndTruncateContent(notification notifier_models.Notification) string {
+	content := notification.Heading
+	if notification.Message != "" {
+		content = fmt.Sprintf("%s\n\n%s", notification.Heading, notification.Message)
+	}
+
+	contentRunes := []rune(content)
+	if len(contentRunes) > maxContentRunes {
+		return string(contentRunes[:maxContentRunes])
+	}
+
+	return content
 }
 
 func (d *DiscordNotifier) HideSensitiveData() {
