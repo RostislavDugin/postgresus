@@ -31,7 +31,9 @@ Then open `http://localhost:4005` in your browser.
 | `image.tag`        | Image tag          | `latest`                    |
 | `image.pullPolicy` | Image pull policy  | `Always`                    |
 | `imagePullSecrets` | Image pull secrets | `[]`                        |
-| `replicaCount`     | Number of replicas | `1`                         |
+
+The chart always renders one application replica because transient cache,
+publish-subscribe and rate-limit state is process-local.
 
 ### Custom Root CA
 
@@ -374,7 +376,7 @@ The app does **not** automount the ServiceAccount token by default
 A restricted-PSS values example wiring seccomp, no privilege escalation, AppArmor,
 a dedicated ServiceAccount and a read-only root filesystem:
 
-Databasus, PostgreSQL and Valkey run under one non-root operating-system account
+Databasus and PostgreSQL run under one non-root operating-system account
 named `databasus`. The image normally selects the numeric IDs from mounted data
 and falls back to `999:999`. If the volume requires different IDs, set `PUID`
 and `PGID` through `extraEnv`.

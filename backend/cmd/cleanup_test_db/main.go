@@ -30,7 +30,6 @@ import (
 	gormLogger "gorm.io/gorm/logger"
 
 	"databasus-backend/internal/config"
-	cache_utils "databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/logger"
 )
 
@@ -51,11 +50,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := resetValkey(log); err != nil {
-		log.Error("failed to reset Valkey", "error", err)
-		os.Exit(1)
-	}
-
 	if err := resetMetadataDb(log, env); err != nil {
 		log.Error("failed to reset metadata DB", "error", err)
 		os.Exit(1)
@@ -65,22 +59,6 @@ func main() {
 		log.Error("failed to reset test PG containers", "error", err)
 		os.Exit(1)
 	}
-}
-
-// resetValkey wipes every key so each `make test` starts from a clean cache.
-// Without this, a -failfast'd previous run can leave in-flight backup claims and
-// other state that breaks the next run's scheduler assumptions.
-func resetValkey(log *slog.Logger) error {
-	log.Info("resetting Valkey")
-
-	// FLUSHALL, not ClearAllCache: parallel test workers each use their own Valkey
-	// logical DB (0..pool-1), so a per-DB clear would leave the others dirty.
-	if err := cache_utils.FlushAll(); err != nil {
-		return fmt.Errorf("flush cache: %w", err)
-	}
-
-	log.Info("valkey reset complete")
-	return nil
 }
 
 // resetMetadataDb drops and recreates the metadata DB for every test worker slot

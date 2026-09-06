@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	restores_core "databasus-backend/internal/features/restores/core"
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 )
 
 const jobName = "restore_scheduler"
@@ -21,13 +21,17 @@ const (
 )
 
 type RestoresScheduler struct {
-	restoreRepository *restores_core.RestoreRepository
-	lastCheckTime     time.Time
-	logger            *slog.Logger
-	restorer          *Restorer
-	cacheUtil         *cache_utils.CacheUtil[RestoreDatabaseCache]
+	restoreRepository    *restores_core.RestoreRepository
+	lastCheckTime        time.Time
+	logger               *slog.Logger
+	restorer             restoreExecutor
+	restoreDatabaseCache *cache.JSONStore[RestoreDatabaseCache]
 
 	hasRun atomic.Bool
+}
+
+type restoreExecutor interface {
+	MakeRestore(ctx context.Context, restoreID uuid.UUID, databaseCache *RestoreDatabaseCache)
 }
 
 func (s *RestoresScheduler) Run(ctx context.Context) {
@@ -72,35 +76,18 @@ func (s *RestoresScheduler) IsSchedulerRunning() bool {
 func (s *RestoresScheduler) StartRestore(
 	ctx context.Context,
 	restoreID uuid.UUID,
-	dbCache *RestoreDatabaseCache,
+	databaseCache *RestoreDatabaseCache,
 ) error {
-	// If dbCache not provided, try to fetch from DB (for backward compatibility/testing)
-	if dbCache == nil {
-		restore, err := s.restoreRepository.FindByID(restoreID)
-		if err != nil {
-			s.logger.Error(
-				"Failed to find restore by ID",
-				"restore_id",
-				restoreID,
-				"error",
-				err,
-			)
-			return err
-		}
-
-		// Create cache DTO from restore (may be nil if not in DB)
-		dbCache = &RestoreDatabaseCache{
-			PostgresqlLogicalDatabase: restore.PostgresqlLogicalDatabase,
-			MysqlDatabase:             restore.MysqlDatabase,
-			MariadbDatabase:           restore.MariadbDatabase,
-			MongodbDatabase:           restore.MongodbDatabase,
-		}
+	if err := s.restoreDatabaseCache.SetWithLifetime(ctx, cache.ExpiringValue[RestoreDatabaseCache]{
+		Key:      restoreID.String(),
+		Value:    *databaseCache,
+		Lifetime: time.Hour,
+	}); err != nil {
+		s.logger.WarnContext(ctx, "failed to cache restore metadata", "restore_id", restoreID, "error", err)
 	}
 
-	// Cache database credentials with 1-hour expiration
-	s.cacheUtil.SetWithExpiration(restoreID.String(), dbCache, 1*time.Hour)
-
-	go s.restorer.MakeRestore(ctx, restoreID)
+	executionContext := context.WithoutCancel(ctx)
+	go s.restorer.MakeRestore(executionContext, restoreID, databaseCache)
 
 	s.logger.InfoContext(ctx, "triggered restore", "restore_id", restoreID)
 

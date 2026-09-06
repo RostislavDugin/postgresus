@@ -846,7 +846,7 @@ func Test_BackupSlot_DroppedAfterCancelledMidRun(t *testing.T) {
 
 			if exists {
 				slotObserved.Store(true)
-				_ = tasks_cancellation.GetTaskCancelManager().CancelTask(fixture.BackupID)
+				_ = tasks_cancellation.GetRequester().RequestCancellation(context.Background(), fixture.BackupID)
 				return
 			}
 		}

@@ -155,9 +155,14 @@ assert_storage_permission_failure() {
     grep -Fq "Required operation:" <<<"${container_logs}"
     grep -Fq "Set PUID and PGID or fix the mounted directory permissions:" <<<"${container_logs}"
     grep -Fq "https://databasus.com/advanced-config/#docker-storage-permissions" <<<"${container_logs}"
-    grep -Fq "Valkey is ready!" <<<"${container_logs}"
-    ! grep -Fq "Starting PostgreSQL..." <<<"${container_logs}"
-    ! grep -Fq "Starting Databasus application..." <<<"${container_logs}"
+    if grep -Fq "Starting PostgreSQL..." <<<"${container_logs}"; then
+        echo "PostgreSQL started after a failed storage check" >&2
+        return 1
+    fi
+    if grep -Fq "Starting Databasus application..." <<<"${container_logs}"; then
+        echo "Databasus started after a failed storage check" >&2
+        return 1
+    fi
     assert_no_storage_probe_remains "${container_name}"
 }
 
@@ -189,7 +194,6 @@ assert_single_runtime_identity() {
     local container_name="$1"
     local runtime_gid
     local runtime_uid
-    local service_name
     local service_pid
 
     runtime_uid="$(docker exec "${container_name}" id -u databasus)"
@@ -205,13 +209,11 @@ assert_single_runtime_identity() {
     [[ "$(docker exec "${container_name}" stat -c %u /proc/1)" == "${runtime_uid}" ]]
     [[ "$(docker exec "${container_name}" stat -c %g /proc/1)" == "${runtime_gid}" ]]
 
-    for service_name in postgres valkey-server; do
-        service_pid="$(docker exec "${container_name}" /bin/sh -eu -c '
-            pidof "$1" | cut -d" " -f1
-        ' sh "${service_name}")"
-        [[ "$(docker exec "${container_name}" stat -c %u "/proc/${service_pid}")" == "${runtime_uid}" ]]
-        [[ "$(docker exec "${container_name}" stat -c %g "/proc/${service_pid}")" == "${runtime_gid}" ]]
-    done
+    service_pid="$(docker exec "${container_name}" /bin/sh -eu -c '
+        pidof postgres | cut -d" " -f1
+    ')"
+    [[ "$(docker exec "${container_name}" stat -c %u "/proc/${service_pid}")" == "${runtime_uid}" ]]
+    [[ "$(docker exec "${container_name}" stat -c %g "/proc/${service_pid}")" == "${runtime_gid}" ]]
 }
 
 assert_postgresql_runtime_authentication() {

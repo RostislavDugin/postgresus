@@ -418,7 +418,7 @@ export default function AdvancedConfigPage() {
               </table>
 
               <p>
-                Databasus, PostgreSQL, and Valkey use the same non-root operating-system
+                Databasus and PostgreSQL use the same non-root operating-system
                 account named <code>databasus</code>.
               </p>
 

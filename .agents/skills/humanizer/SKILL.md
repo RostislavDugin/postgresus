@@ -9,7 +9,7 @@ description: |
   voice, negative parallelisms, and filler phrases.
 license: MIT
 metadata:
-  version: "2.10.0"
+  version: "2.10.1"
 ---
 
 # Humanizer: Remove AI Writing Patterns
@@ -380,6 +380,10 @@ Before delivering text, ask of each noun: "Where can the reader find what this m
 > The `invite_friend_button` button has an empty label.
 
 This rule applies to all prose, including chat responses, not only repository documents.
+
+### 35. Oxford commas
+
+**Rule:** Do not put a comma before the coordinating conjunction in a list of three or more items. Write "red, white and blue," not "red, white, and blue." Restructure the sentence if omitting the comma would make the list ambiguous. Preserve punctuation in quotations, code and user-provided text unless the user asks to edit it.
 
 ## DETECTION GUIDANCE
 

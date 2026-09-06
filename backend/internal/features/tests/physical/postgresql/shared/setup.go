@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	backuping_physical "databasus-backend/internal/features/backups/backups/backuping/physical"
-	cache_utils "databasus-backend/internal/util/cache"
 )
 
 // Setup starts the single-instance production wiring the whole suite drives through the HTTP
@@ -19,7 +18,6 @@ import (
 // slot. The returned func tears them down after m.Run(). Each version package calls this in its own
 // TestMain, so the two majors run with fully isolated control planes.
 func Setup() func() {
-	_ = cache_utils.ClearAllCache()
 	backuping_physical.SetupDependencies()
 
 	stopScheduler := backuping_physical.StartPhysicalSchedulerForTest(&testing.T{})

@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	backuping_logical "databasus-backend/internal/features/backups/backups/backuping/logical"
 	"databasus-backend/internal/features/disk"
 	verification_agents "databasus-backend/internal/features/verification/agents"
 	verification_runs "databasus-backend/internal/features/verification/runs"
 	"databasus-backend/internal/storage"
-	cache_utils "databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -31,18 +29,6 @@ func (s *HealthcheckService) IsHealthy(ctx context.Context) error {
 // Each branch is a degradation the probe exists to surface. Returning the reason to the caller only
 // answers "is it healthy now"; logging it is what leaves a history to read afterwards.
 func (s *HealthcheckService) performHealthCheck(ctx context.Context) error {
-	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	client := cache_utils.GetValkeyClient()
-	pingResult := client.Do(pingCtx, client.B().Ping().Build())
-	if pingResult.Error() != nil {
-		s.logger.WarnContext(ctx, "healthcheck degraded: cannot connect to valkey",
-			"error", pingResult.Error())
-
-		return errors.New("cannot connect to valkey")
-	}
-
 	diskUsage, err := s.diskService.GetDiskUsage(ctx)
 	if err != nil {
 		s.logger.WarnContext(ctx, "healthcheck degraded: cannot get disk usage", "error", err)

@@ -2,8 +2,8 @@ package verification_agents
 
 import (
 	audit_logs "databasus-backend/internal/features/audit_logs"
-	cache_utils "databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/logger"
+	"databasus-backend/internal/util/ratelimiter"
 )
 
 var agentRepository = &AgentRepository{}
@@ -11,7 +11,7 @@ var agentRepository = &AgentRepository{}
 var agentService = &AgentService{
 	agentRepository,
 	audit_logs.GetAuditLogService(),
-	cache_utils.NewRateLimiter(cache_utils.GetValkeyClient()),
+	ratelimiter.GetCounter(),
 	logger.GetLogger(),
 	nil,
 }

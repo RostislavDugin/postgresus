@@ -9,18 +9,12 @@ import (
 	"testing"
 
 	"databasus-backend/internal/features/restores/restoring"
-	cache_utils "databasus-backend/internal/util/cache"
 )
 
-// Setup clears this worker's Valkey logical DB and installs the in-process
-// restorer the per-engine tests drive through the API. It returns a teardown
-// to run from each engine package's TestMain so every parallel test binary
-// runs against its own isolated control plane.
+// Setup installs the in-process restorer the per-engine tests drive through the API. It returns a
+// teardown to run from each engine package's TestMain so every parallel test binary runs against
+// its own isolated control plane.
 func Setup() func() {
-	// Best-effort clean slate for this worker's Valkey logical DB; a stale key
-	// here is harmless because each worker uses its own DB and namespace.
-	_ = cache_utils.ClearAllCache()
-
 	restorer := restoring.CreateTestRestorer()
 	cancelRestore := restoring.StartRestorerForTest(&testing.T{}, restorer)
 

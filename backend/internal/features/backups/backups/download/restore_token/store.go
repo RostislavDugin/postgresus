@@ -1,12 +1,12 @@
 package restore_token
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/valkey-io/valkey-go"
 
-	cache_utils "databasus-backend/internal/util/cache"
+	"databasus-backend/internal/util/cache"
 )
 
 const restoreTokenPrefix = "physical_restore_token:"
@@ -37,26 +37,26 @@ type Token struct {
 	BackupID *uuid.UUID `json:"backupId"`
 }
 
-// store holds issued restore tokens in Valkey. Consuming via GETDEL makes
-// single-use atomic across instances: two concurrent stream requests can never
-// both consume the same token, which a DB find-then-mark-used path cannot
-// guarantee without extra locking.
 type store struct {
-	cache *cache_utils.CacheUtil[Token]
+	tokens *cache.JSONStore[Token]
 }
 
-func newStore(client valkey.Client) *store {
+func newStore(cacheStore cache.Store) *store {
 	return &store{
-		cache: cache_utils.NewCacheUtil[Token](client, restoreTokenPrefix),
+		tokens: cache.NewJSONStore[Token](cacheStore, restoreTokenPrefix),
 	}
 }
 
-func (s *store) issue(token string, restoreToken *Token) {
-	s.cache.SetWithExpiration(token, restoreToken, restoreTokenTTL)
+func (s *store) issue(ctx context.Context, token string, restoreToken Token) error {
+	return s.tokens.SetWithLifetime(ctx, cache.ExpiringValue[Token]{
+		Key:      token,
+		Value:    restoreToken,
+		Lifetime: restoreTokenTTL,
+	})
 }
 
 // consume atomically reads and deletes the token, returning nil when it is
 // missing, expired, or already consumed.
-func (s *store) consume(token string) *Token {
-	return s.cache.GetAndDelete(token)
+func (s *store) consume(ctx context.Context, token string) (*Token, error) {
+	return s.tokens.ReadAndDelete(ctx, token)
 }

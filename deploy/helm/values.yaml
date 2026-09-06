@@ -10,9 +10,6 @@ image:
 
 imagePullSecrets: []
 
-# StatefulSet configuration
-replicaCount: 1
-
 # RootCA setup, need name of secret in same namespace
 customRootCA: ""
 
@@ -48,7 +45,7 @@ extraEnvFrom: []
 
 # Extra volumes and volume mounts for the databasus container.
 # Use emptyDir mounts here to satisfy `securityContext.readOnlyRootFilesystem: true`
-# -- PostgreSQL and Valkey need writable /tmp, sockets and runtime dirs.
+# -- PostgreSQL needs writable /tmp, sockets and runtime dirs.
 extraVolumes: []
 # - name: tmp
 #   emptyDir: {}
@@ -78,7 +75,7 @@ service:
     enabled: true
 # Security context for the pod (e.g. fsGroup for volume permissions)
 # NOTE: The entrypoint runs as root to select PUID/PGID, prepare volumes and
-# bootstrap PostgreSQL. Databasus, PostgreSQL and Valkey then run as the same
+# bootstrap PostgreSQL. Databasus and PostgreSQL then run as the same
 # non-root `databasus` account through gosu. Do not set
 # runAsNonRoot or runAsUser here -- it will prevent the container from starting.
 podSecurityContext: {}

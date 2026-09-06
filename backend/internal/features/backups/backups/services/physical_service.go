@@ -212,7 +212,10 @@ func (s *PhysicalBackupService) CancelBackup(ctx context.Context, user *users_mo
 		return ErrBackupNotInProgress
 	}
 
-	cancelled, err := s.canceller.CancelInFlightBackup(databaseID, backupID)
+	cancelled, err := s.canceller.CancelInFlightBackup(ctx, backuping_physical.CancelInFlightBackupSpec{
+		DatabaseID: databaseID,
+		BackupID:   backupID,
+	})
 	if err != nil {
 		return err
 	}
@@ -395,7 +398,7 @@ func (s *PhysicalBackupService) writeRestoreStream(
 }
 
 func (s *PhysicalBackupService) deleteFull(ctx context.Context, full *physical_models.PhysicalFullBackup) error {
-	s.stopInFlightForDelete(full.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
+	s.stopInFlightForDelete(ctx, full.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
 		if inFlightBackupID == full.ID {
 			return true
 		}
@@ -420,7 +423,7 @@ func (s *PhysicalBackupService) deleteIncremental(
 	ctx context.Context,
 	target *physical_models.PhysicalIncrementalBackup,
 ) error {
-	s.stopInFlightForDelete(target.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
+	s.stopInFlightForDelete(ctx, target.DatabaseID, func(inFlightBackupID uuid.UUID) bool {
 		if inFlightBackupID == target.ID {
 			return true
 		}
@@ -446,12 +449,14 @@ func (s *PhysicalBackupService) deleteIncremental(
 // stops before its row disappears. Best-effort: lookup failures are logged, not
 // fatal — a stale claim expires on its own and the delete proceeds.
 func (s *PhysicalBackupService) stopInFlightForDelete(
+	ctx context.Context,
 	databaseID uuid.UUID,
 	willDelete func(inFlightBackupID uuid.UUID) bool,
 ) {
 	claim, err := s.inFlightBackupRepository.FindByDatabaseID(databaseID)
 	if err != nil {
-		s.logger.Error("failed to look up in-flight backup for delete", "database_id", databaseID, "error", err)
+		s.logger.ErrorContext(ctx, "failed to look up in-flight backup for delete",
+			"database_id", databaseID, "error", err)
 
 		return
 	}
@@ -461,7 +466,7 @@ func (s *PhysicalBackupService) stopInFlightForDelete(
 	}
 
 	if willDelete(claim.BackupID) {
-		s.canceller.CancelInFlightForDatabase(databaseID)
+		s.canceller.CancelInFlightForDatabase(ctx, databaseID)
 	}
 }
 

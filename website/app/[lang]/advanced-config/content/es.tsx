@@ -432,7 +432,7 @@ export default function AdvancedConfigPage() {
               </table>
 
               <p>
-                Databasus, PostgreSQL y Valkey usan la misma cuenta del sistema
+                Databasus y PostgreSQL usan la misma cuenta del sistema
                 operativo sin privilegios root, llamada <code>databasus</code>.
               </p>
 

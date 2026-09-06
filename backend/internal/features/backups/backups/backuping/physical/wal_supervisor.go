@@ -33,17 +33,17 @@ import (
 // heartbeat table: every tick CAS-claims the databases that are unclaimed /
 // FAILED / stale, so exactly one process streams a given database at a time.
 type PhysicalWalStreamSupervisor struct {
-	databaseService     *databases.DatabaseService
-	backupConfigService *backups_config_physical.BackupConfigService
-	storageService      *storages.StorageService
-	walSegmentRepo      *physical_repositories.PhysicalWalSegmentRepository
-	historyRepo         *physical_repositories.PhysicalWalHistoryRepository
-	walStreamerRepo     *physical_repositories.PhysicalWalStreamerRepository
-	notificationSender  NotificationSender
-	taskCancelManager   *tasks_cancellation.TaskCancelManager
-	secretKeyService    *encryption_secrets.SecretKeyService
-	fieldEncryptor      util_encryption.FieldEncryptor
-	logger              *slog.Logger
+	databaseService          *databases.DatabaseService
+	backupConfigService      *backups_config_physical.BackupConfigService
+	storageService           *storages.StorageService
+	walSegmentRepo           *physical_repositories.PhysicalWalSegmentRepository
+	historyRepo              *physical_repositories.PhysicalWalHistoryRepository
+	walStreamerRepo          *physical_repositories.PhysicalWalStreamerRepository
+	notificationSender       NotificationSender
+	taskCancellationRegistry *tasks_cancellation.Registry
+	secretKeyService         *encryption_secrets.SecretKeyService
+	fieldEncryptor           util_encryption.FieldEncryptor
+	logger                   *slog.Logger
 
 	chainAlertMinInterval time.Duration
 
@@ -254,7 +254,7 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 	}
 
 	// Derive from the supervisor's run ctx so a process shutdown cancels every
-	// streamer; the per-DB cancel (registered with TaskCancelManager + stored on
+	// streamer; the per-DB cancel (registered with the task cancellation registry and stored on
 	// runningStreamer) handles targeted teardown on disable / demote / db-remove.
 	streamerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -264,7 +264,7 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		watchDir: filepath.Join(config.GetEnv().DataFolder, "wal-queue", db.ID.String()),
 	}
 
-	s.taskCancelManager.RegisterTask(db.ID, func() {
+	s.taskCancellationRegistry.RegisterTask(db.ID, func() {
 		streamer.shouldRemoveWatchDir.Store(true)
 		cancel()
 	})
@@ -299,7 +299,7 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 	go func() {
 		defer close(done)
 		defer tunneledDatabase.Close()
-		defer s.taskCancelManager.UnregisterTask(db.ID)
+		defer s.taskCancellationRegistry.UnregisterTask(db.ID)
 		defer s.removeWatchDirIfRequested(logger, streamer)
 
 		if err := supervisor.Run(streamerCtx); err != nil {

@@ -52,7 +52,6 @@ import (
 	verification_runs "databasus-backend/internal/features/verification/runs"
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	"databasus-backend/internal/middleware"
-	cache_utils "databasus-backend/internal/util/cache"
 	env_utils "databasus-backend/internal/util/env"
 	files_utils "databasus-backend/internal/util/files"
 	"databasus-backend/internal/util/logger"
@@ -89,20 +88,10 @@ func main() {
 		return
 	}
 
-	cache_utils.TestCacheConnection()
-
-	log.Info("clearing cache")
-
-	err := cache_utils.ClearAllCache()
-	if err != nil {
-		log.Error("failed to clear cache", "error", err)
-		logger.ExitAfterFlush(1)
-	}
-
 	runMigrations(log)
 
 	// create directories that used for backups and restore
-	err = files_utils.EnsureDirectories([]string{
+	err := files_utils.EnsureDirectories([]string{
 		config.GetEnv().TempFolder,
 		config.GetEnv().DataFolder,
 	})

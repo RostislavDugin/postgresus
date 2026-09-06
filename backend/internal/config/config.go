@@ -27,10 +27,8 @@ const (
 )
 
 const (
-	// defaultTestParallelWorkers is the number of parallel test workers, used
-	// when TEST_PARALLEL_WORKERS is unset. Each worker gets its own metadata DB
-	// and Valkey logical DB, so this must stay <= 16 (Valkey's default logical DB
-	// count) and equal to the `go test -p` value.
+	// defaultTestParallelWorkers must equal the `go test -p` value so every running package can
+	// claim an isolated metadata database.
 	defaultTestParallelWorkers = 8
 
 	// testSlotAdvisoryLockBase is the first pg_advisory_lock key reserved for
@@ -51,22 +49,7 @@ type EnvVariables struct {
 	DatabaseDsn         string `env:"DATABASE_DSN"          required:"true"`
 	TestDatabaseDsn     string `env:"TEST_DATABASE_DSN"`
 	TestParallelWorkers int    `env:"TEST_PARALLEL_WORKERS"`
-	// Internal Valkey
-	ValkeyHost     string `env:"VALKEY_HOST"     required:"true"`
-	ValkeyPort     string `env:"VALKEY_PORT"     required:"true"`
-	ValkeyUsername string `env:"VALKEY_USERNAME"`
-	ValkeyPassword string `env:"VALKEY_PASSWORD"`
-	ValkeyIsSsl    bool   `env:"VALKEY_IS_SSL"   required:"true"`
-
-	// Per-worker test isolation (computed, only set under `go test`): each test
-	// binary claims a slot 0..TestParallelWorkers-1 that selects its own metadata DB
-	// (DatabaseDsn is rewritten to dbname=<base>_w{slot}), its own Valkey logical
-	// DB (ValkeySelectDB), and a cache-key namespace ("w{slot}:"). All zero/empty in
-	// production.
-	ValkeySelectDB int
-	CacheNamespace string
-
-	TestLocalhost string `env:"TEST_LOCALHOST"`
+	TestLocalhost       string `env:"TEST_LOCALHOST"`
 
 	ShowDbInstallationVerificationLogs bool `env:"SHOW_DB_INSTALLATION_VERIFICATION_LOGS"`
 
@@ -185,9 +168,9 @@ func loadEnvVariables() {
 
 		// Only a real `go test` binary claims a per-worker slot; the cleanup_test_db
 		// command and any other tool run with IsTesting=true must operate on all
-		// slots, so they keep the base test DSN and default Valkey DB.
+		// slots, so they keep the base test DSN.
 		if strings.Contains(os.Args[0], ".test") {
-			applyTestWorkerSlot()
+			claimTestWorkerSlotAndSelectMetadataDatabase()
 		}
 	}
 
@@ -210,16 +193,6 @@ func loadEnvVariables() {
 
 	if env.TestLocalhost == "" {
 		env.TestLocalhost = "localhost"
-	}
-
-	// Valkey
-	if env.ValkeyHost == "" {
-		log.Error("VALKEY_HOST is empty")
-		logger.ExitAfterFlush(1)
-	}
-	if env.ValkeyPort == "" {
-		log.Error("VALKEY_PORT is empty")
-		logger.ExitAfterFlush(1)
 	}
 
 	// Store the data and temp folders one level below the root
@@ -283,10 +256,7 @@ func isTestProcess(arguments []string) bool {
 //nolint:unused // assigned-only: keeps the advisory-lock connection alive for the process lifetime
 var slotLockConn *sql.Conn
 
-// applyTestWorkerSlot claims a free slot for this test binary and rewrites the
-// env so the worker runs fully isolated: its own metadata DB, Valkey logical DB,
-// and registry namespace.
-func applyTestWorkerSlot() {
+func claimTestWorkerSlotAndSelectMetadataDatabase() {
 	baseDbName, _, err := RewriteDbName(env.TestDatabaseDsn, systemDbName)
 	if err != nil {
 		log.Error("could not parse TEST_DATABASE_DSN for slot isolation", "error", err)
@@ -303,8 +273,6 @@ func applyTestWorkerSlot() {
 	}
 
 	env.DatabaseDsn = slotDsn
-	env.ValkeySelectDB = slot
-	env.CacheNamespace = fmt.Sprintf("w%d:", slot)
 
 	log.Info("claimed test worker slot", "slot", slot, "db", slotDbName)
 }

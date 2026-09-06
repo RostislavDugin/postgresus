@@ -18,11 +18,11 @@ func newTestCancellationListener() *PhysicalBackupCancellationListener {
 	return &PhysicalBackupCancellationListener{
 		NewPhysicalBackupCanceller(
 			physical_repositories.GetInFlightBackupRepository(),
-			tasks_cancellation.GetTaskCancelManager(),
+			tasks_cancellation.GetRequester(),
 			logger.GetLogger(),
 		),
 		physical_repositories.GetWalStreamerRepository(),
-		tasks_cancellation.GetTaskCancelManager(),
+		tasks_cancellation.GetRequester(),
 		logger.GetLogger(),
 	}
 }

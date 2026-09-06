@@ -1,12 +1,18 @@
 package users_controllers
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
@@ -15,8 +21,47 @@ import (
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_services "databasus-backend/internal/features/users/services"
 	users_testing "databasus-backend/internal/features/users/testing"
+	"databasus-backend/internal/util/ratelimiter"
 	test_utils "databasus-backend/internal/util/testing"
 )
+
+type failingRateLimitCounter struct {
+	err error
+}
+
+func (c failingRateLimitCounter) RecordAttemptAndCheckIsAllowed(
+	context.Context,
+	ratelimiter.Attempt,
+) (bool, error) {
+	return false, c.err
+}
+
+func Test_SignIn_WhenRateLimiterFails_RejectsWithoutLoggingEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var logOutput bytes.Buffer
+	controller := &UserController{
+		userService: nil,
+		rateLimiter: failingRateLimitCounter{err: errors.New("counter failed")},
+		logger:      slog.New(slog.NewTextHandler(&logOutput, nil)),
+	}
+	router := gin.New()
+	router.POST("/users/signin", controller.SignIn)
+
+	email := "private@example.com"
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/users/signin",
+		strings.NewReader(`{"email":"`+email+`","password":"password"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusTooManyRequests, response.Code)
+	assert.NotContains(t, logOutput.String(), email)
+}
 
 func Test_SignUpUser_WithValidData_UserCreated(t *testing.T) {
 	router := createUserTestRouter()

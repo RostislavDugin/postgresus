@@ -1,6 +1,7 @@
 package backuping_physical
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -16,28 +17,28 @@ import (
 // listener, the database-remove listener, and the user-facing cancel/delete
 // endpoints.
 type PhysicalBackupCanceller struct {
-	inFlightRepo      *physical_repositories.PhysicalInFlightBackupRepository
-	taskCancelManager *tasks_cancellation.TaskCancelManager
-	logger            *slog.Logger
+	inFlightRepo              *physical_repositories.PhysicalInFlightBackupRepository
+	taskCancellationRequester *tasks_cancellation.Requester
+	logger                    *slog.Logger
 }
 
 func NewPhysicalBackupCanceller(
 	inFlightRepo *physical_repositories.PhysicalInFlightBackupRepository,
-	taskCancelManager *tasks_cancellation.TaskCancelManager,
+	taskCancellationRequester *tasks_cancellation.Requester,
 	logger *slog.Logger,
 ) *PhysicalBackupCanceller {
-	return &PhysicalBackupCanceller{inFlightRepo, taskCancelManager, logger}
+	return &PhysicalBackupCanceller{inFlightRepo, taskCancellationRequester, logger}
 }
 
 // CancelInFlightForDatabase cancels whatever backup the database currently holds
 // in flight, whichever it is. Use it for teardown (config disable, db removal)
 // where any running backup must stop. A no claim is a no-op.
-func (c *PhysicalBackupCanceller) CancelInFlightForDatabase(databaseID uuid.UUID) {
+func (c *PhysicalBackupCanceller) CancelInFlightForDatabase(ctx context.Context, databaseID uuid.UUID) {
 	logger := c.logger.With("database_id", databaseID)
 
 	claim, err := c.inFlightRepo.FindByDatabaseID(databaseID)
 	if err != nil {
-		logger.Error("failed to look up in-flight backup for cancel", "error", err)
+		logger.ErrorContext(ctx, "failed to look up in-flight backup for cancellation", "error", err)
 
 		return
 	}
@@ -46,7 +47,10 @@ func (c *PhysicalBackupCanceller) CancelInFlightForDatabase(databaseID uuid.UUID
 		return
 	}
 
-	c.cancelClaim(logger, databaseID, claim.BackupID)
+	c.cancelClaim(ctx, logger, CancelInFlightBackupSpec{
+		DatabaseID: databaseID,
+		BackupID:   claim.BackupID,
+	})
 }
 
 // CancelInFlightBackup cancels the database's in-flight backup only when the
@@ -54,27 +58,36 @@ func (c *PhysicalBackupCanceller) CancelInFlightForDatabase(databaseID uuid.UUID
 // cancelled, so a delete path can tell "I stopped the running backup" from
 // "nothing was running for this row". Scoping by backupID avoids stopping a
 // newer backup that took the claim after the targeted one finished.
-func (c *PhysicalBackupCanceller) CancelInFlightBackup(databaseID, backupID uuid.UUID) (bool, error) {
-	claim, err := c.inFlightRepo.FindByDatabaseID(databaseID)
+func (c *PhysicalBackupCanceller) CancelInFlightBackup(
+	ctx context.Context,
+	spec CancelInFlightBackupSpec,
+) (bool, error) {
+	claim, err := c.inFlightRepo.FindByDatabaseID(spec.DatabaseID)
 	if err != nil {
 		return false, err
 	}
 
-	if claim == nil || claim.BackupID != backupID {
+	if claim == nil || claim.BackupID != spec.BackupID {
 		return false, nil
 	}
 
-	c.cancelClaim(c.logger.With("database_id", databaseID), databaseID, backupID)
+	c.cancelClaim(ctx, c.logger.With("database_id", spec.DatabaseID), spec)
 
 	return true, nil
 }
 
-func (c *PhysicalBackupCanceller) cancelClaim(logger *slog.Logger, databaseID, backupID uuid.UUID) {
-	if err := c.taskCancelManager.CancelTask(backupID); err != nil {
-		logger.Error("failed to cancel in-flight backup task", "backup_id", backupID, "error", err)
+func (c *PhysicalBackupCanceller) cancelClaim(
+	ctx context.Context,
+	logger *slog.Logger,
+	spec CancelInFlightBackupSpec,
+) {
+	if err := c.taskCancellationRequester.RequestCancellation(ctx, spec.BackupID); err != nil {
+		logger.ErrorContext(ctx, "failed to request in-flight backup cancellation",
+			"backup_id", spec.BackupID, "error", err)
 	}
 
-	if err := c.inFlightRepo.ReleaseOwned(databaseID, backupID); err != nil {
-		logger.Error("failed to release in-flight claim", "backup_id", backupID, "error", err)
+	if err := c.inFlightRepo.ReleaseOwned(spec.DatabaseID, spec.BackupID); err != nil {
+		logger.ErrorContext(ctx, "failed to release in-flight claim",
+			"backup_id", spec.BackupID, "error", err)
 	}
 }

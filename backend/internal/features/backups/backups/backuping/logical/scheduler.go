@@ -25,10 +25,10 @@ const (
 )
 
 type BackupsScheduler struct {
-	backupRepository    *backups_core_logical.BackupRepository
-	backupConfigService *backups_config_logical.BackupConfigService
-	taskCancelManager   *task_cancellation.TaskCancelManager
-	databaseService     *databases.DatabaseService
+	backupRepository          *backups_core_logical.BackupRepository
+	backupConfigService       *backups_config_logical.BackupConfigService
+	taskCancellationRequester *task_cancellation.Requester
+	databaseService           *databases.DatabaseService
 
 	lastBackupTime time.Time
 	logger         *slog.Logger
@@ -313,9 +313,9 @@ func (s *BackupsScheduler) failBackupsInProgress(ctx context.Context, logger *sl
 	}
 
 	for _, backup := range backupsInProgress {
-		if err := s.taskCancelManager.CancelTask(backup.ID); err != nil {
+		if err := s.taskCancellationRequester.RequestCancellation(ctx, backup.ID); err != nil {
 			logger.ErrorContext(ctx,
-				"failed to cancel backup via task cancel manager",
+				"failed to request backup cancellation",
 				"backup_id",
 				backup.ID,
 				"error",

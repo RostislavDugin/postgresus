@@ -345,34 +345,6 @@ prepare_and_verify_storage() {
     gosu databasus /app/main --test-storage
 }
 
-configure_and_start_valkey() {
-    echo "Configuring Valkey cache..."
-    cat > /tmp/valkey.conf <<'VALKEY_CONFIG'
-port 6379
-bind 127.0.0.1
-protected-mode yes
-save ""
-maxmemory 256mb
-maxmemory-policy allkeys-lru
-VALKEY_CONFIG
-
-    echo "Starting Valkey..."
-    gosu databasus valkey-server /tmp/valkey.conf &
-
-    echo "Waiting for Valkey to be ready..."
-    local valkey_readiness_attempt
-    for ((valkey_readiness_attempt = 1; valkey_readiness_attempt <= 30; valkey_readiness_attempt++)); do
-        if gosu databasus valkey-cli ping >/dev/null 2>&1; then
-            echo "Valkey is ready!"
-            return
-        fi
-        sleep 1
-    done
-
-    echo "ERROR: Valkey did not become ready." >&2
-    return 1
-}
-
 initialize_postgresql_cluster() {
     if [ -s /databasus-data/pgdata/PG_VERSION ]; then
         return
@@ -615,7 +587,6 @@ main() {
     reject_legacy_postgresus_volume
     configure_runtime_identity
     generate_frontend_runtime_configuration
-    configure_and_start_valkey
     prepare_and_verify_storage
     bootstrap_postgresql
     reject_legacy_wal_configuration

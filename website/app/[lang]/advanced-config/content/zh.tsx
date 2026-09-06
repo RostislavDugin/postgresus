@@ -401,7 +401,7 @@ export default function AdvancedConfigPage() {
               </table>
 
               <p>
-                Databasus、PostgreSQL 和 Valkey 使用同一个名为 <code>databasus</code> 的无 root 权限操作系统账户。
+                Databasus 和 PostgreSQL 使用同一个名为 <code>databasus</code> 的无 root 权限操作系统账户。
               </p>
 
               <p>

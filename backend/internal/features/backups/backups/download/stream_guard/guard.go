@@ -23,20 +23,33 @@ func NewGuard(
 	return &Guard{tracker, logger}
 }
 
-func (g *Guard) IsDownloadInProgress(userID uuid.UUID) bool {
-	return g.tracker.IsDownloadInProgress(userID)
+func (g *Guard) IsDownloadInProgress(ctx context.Context, userID uuid.UUID) bool {
+	isInProgress, err := g.tracker.IsDownloadInProgress(ctx, userID)
+	if err != nil {
+		g.logger.ErrorContext(ctx, "failed to read stream lock", "error", err)
+
+		return true
+	}
+
+	return isInProgress
 }
 
 func (g *Guard) RefreshDownloadLock(ctx context.Context, userID uuid.UUID) {
-	g.tracker.RefreshDownloadLock(ctx, userID)
+	if err := g.tracker.RefreshDownloadLock(ctx, userID); err != nil {
+		g.logger.ErrorContext(ctx, "failed to refresh stream lock", "error", err)
+	}
 }
 
 func (g *Guard) ReleaseDownloadLock(ctx context.Context, userID uuid.UUID) {
-	g.tracker.ReleaseDownloadLock(ctx, userID)
+	if err := g.tracker.ReleaseDownloadLock(ctx, userID); err != nil {
+		g.logger.ErrorContext(ctx, "failed to release stream lock", "error", err)
+
+		return
+	}
+
 	g.logger.InfoContext(ctx, "released stream lock", "user_id", userID)
 }
 
-// AcquireSlot takes the per-user single-stream lock.
-func (g *Guard) AcquireSlot(userID uuid.UUID) error {
-	return g.tracker.AcquireDownloadLock(userID)
+func (g *Guard) AcquireSlot(ctx context.Context, userID uuid.UUID) error {
+	return g.tracker.AcquireDownloadLock(ctx, userID)
 }

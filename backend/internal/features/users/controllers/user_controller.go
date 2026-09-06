@@ -2,6 +2,7 @@ package users_controllers
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,13 +13,14 @@ import (
 	users_errors "databasus-backend/internal/features/users/errors"
 	user_middleware "databasus-backend/internal/features/users/middleware"
 	users_services "databasus-backend/internal/features/users/services"
-	cache_utils "databasus-backend/internal/util/cache"
 	cloudflare_turnstile "databasus-backend/internal/util/cloudflare_turnstile"
+	"databasus-backend/internal/util/ratelimiter"
 )
 
 type UserController struct {
 	userService *users_services.UserService
-	rateLimiter *cache_utils.RateLimiter
+	rateLimiter ratelimiter.Counter
+	logger      *slog.Logger
 }
 
 func (c *UserController) RegisterRoutes(router *gin.RouterGroup) {
@@ -141,8 +143,14 @@ func (c *UserController) SignIn(ctx *gin.Context) {
 		}
 	}
 
-	allowed, _ := c.rateLimiter.CheckLimit(request.Email, "signin", 10, 1*time.Minute)
-	if !allowed {
+	isAllowed, err := c.rateLimiter.RecordAttemptAndCheckIsAllowed(
+		ctx.Request.Context(),
+		ratelimiter.Attempt{Scope: "signin", Identifier: request.Email, Limit: 10, Window: time.Minute},
+	)
+	if err != nil {
+		c.logger.ErrorContext(ctx.Request.Context(), "failed to evaluate sign-in rate limit", "error", err)
+	}
+	if err != nil || !isAllowed {
 		ctx.JSON(
 			http.StatusTooManyRequests,
 			gin.H{"error": "Rate limit exceeded. Please try again later."},
@@ -438,13 +446,19 @@ func (c *UserController) SendResetPasswordCode(ctx *gin.Context) {
 		}
 	}
 
-	allowed, _ := c.rateLimiter.CheckLimit(
-		request.Email,
-		"reset-password",
-		3,
-		1*time.Hour,
+	isAllowed, err := c.rateLimiter.RecordAttemptAndCheckIsAllowed(
+		ctx.Request.Context(),
+		ratelimiter.Attempt{
+			Scope:      "reset-password",
+			Identifier: request.Email,
+			Limit:      3,
+			Window:     time.Hour,
+		},
 	)
-	if !allowed {
+	if err != nil {
+		c.logger.ErrorContext(ctx.Request.Context(), "failed to evaluate password reset rate limit", "error", err)
+	}
+	if err != nil || !isAllowed {
 		ctx.JSON(
 			http.StatusTooManyRequests,
 			gin.H{"error": "Rate limit exceeded. Please try again later."},
@@ -452,7 +466,7 @@ func (c *UserController) SendResetPasswordCode(ctx *gin.Context) {
 		return
 	}
 
-	err := c.userService.SendResetPasswordCode(ctx.Request.Context(), request.Email)
+	err = c.userService.SendResetPasswordCode(ctx.Request.Context(), request.Email)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

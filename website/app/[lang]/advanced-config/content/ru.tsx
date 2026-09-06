@@ -422,7 +422,7 @@ export default function AdvancedConfigPage() {
               </table>
 
               <p>
-                Databasus, PostgreSQL и Valkey работают под одной учетной записью
+                Databasus и PostgreSQL работают под одной учетной записью
                 ОС без прав root с именем <code>databasus</code>.
               </p>
 

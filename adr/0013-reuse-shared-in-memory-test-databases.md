@@ -129,3 +129,9 @@ pub/sub channels.
 - `backend/internal/config/config.go` (`applyTestWorkerSlot` / `claimTestWorkerSlot`)
 - `backend/internal/features/backups/backups/backuping/nodes/registry.go`
 - `backend/Makefile`
+
+## Replacement note (2026-09-06)
+
+Valkey-backed test state was replaced by a process-local cache, publish-subscribe provider and
+rate-limiting provider. Each test binary now owns that transient state. Worker slots still isolate
+the shared metadata databases.

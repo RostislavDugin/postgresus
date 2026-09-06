@@ -110,15 +110,14 @@ ENV CONTAINER_ARCH=$TARGETARCH
 ENV ENV_MODE=production
 
 # ========= Install all apt packages in a single layer =========
-# Base packages + PostgreSQL 17 (pgdg repo) + Valkey (greensec repo) + rclone, in
-# one RUN to minimise layer count and cache-export overhead.
+# Base packages, PostgreSQL 17 and rclone share one RUN to minimise layer count
+# and cache-export overhead.
 #
 #   - wget: build-only — fetches the repo signing keys, then purged at the end of
 #     this RUN (see the "minimal attack surface" note on the runtime stage above).
 #   - Repo keys: scoped signed-by keyrings, not the deprecated global apt-key trust
 #     store, so a compromised repo key cannot vouch for any other repository.
 #   - Codename: hardcoded "bookworm" (base image is pinned), so no lsb-release.
-#   - Valkey: bound to localhost only — never exposed outside the container.
 #   - Default cluster: the app runs its own cluster from /databasus-data/pgdata, so
 #     the one the package creates at 17/main is never read. Dropped inside this RUN
 #     so its data files never reach a layer; the server binaries under
@@ -132,12 +131,8 @@ RUN set -eux; \
     wget -qO /usr/share/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc; \
     echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list; \
-    wget -qO /usr/share/keyrings/greensec.github.io-valkey-debian.key \
-      https://greensec.github.io/valkey-debian/public.key; \
-    echo "deb [signed-by=/usr/share/keyrings/greensec.github.io-valkey-debian.key] https://greensec.github.io/valkey-debian/repo bookworm main" \
-      > /etc/apt/sources.list.d/valkey-debian.list; \
     apt-get update; \
-    apt-get install -y --no-install-recommends postgresql-17 valkey; \
+    apt-get install -y --no-install-recommends postgresql-17; \
     pg_dropcluster --stop 17 main; \
     apt-get purge -y --auto-remove wget; \
     rm -rf /var/lib/apt/lists/*

@@ -61,3 +61,9 @@ A per-user lock caps each user to one in-flight operation of each kind so one te
 ## References
 
 - [ADR-0004](./0004-focus-on-streaming-chunk-by-chunk-with-backpressure.md) — chunk-streaming with backpressure (the memory-safety foundation this scheduling sits on top of).
+
+## Replacement note (2026-09-06)
+
+Databasus now supports one application process per installation. Valkey-backed runtime state was
+replaced by a process-local cache, publish-subscribe provider and rate-limiting provider. The
+multi-node coordination decision above remains as historical context.
