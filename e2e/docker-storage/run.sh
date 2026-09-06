@@ -94,7 +94,7 @@ wait_for_log() {
     local required_log_line="$2"
 
     for ((log_attempt = 1; log_attempt <= 60; log_attempt++)); do
-        if docker logs "${container_name}" 2>&1 | grep -Fq "${required_log_line}"; then
+        if docker logs "${container_name}" 2>&1 | grep -F "${required_log_line}" >/dev/null; then
             return
         fi
         sleep 1
@@ -187,7 +187,7 @@ assert_storage_command_saves_and_deletes_probe() {
     local container_name="$1"
 
     docker exec --user databasus "${container_name}" \
-        databasus --test-storage 2>&1 | grep -Fxq "storage test passed"
+        databasus --test-storage 2>&1 | grep -Fx "storage test passed" >/dev/null
 }
 
 assert_single_runtime_identity() {
@@ -370,12 +370,12 @@ run_invalid_ids() {
     for invalid_value in "" 0 abc 4294967295 18446744073709551617; do
         container_name="databasus-storage-invalid-id-${run_id}-${RANDOM}"
         start_failing_databasus "${container_name}" --env "PUID=${invalid_value}"
-        docker logs "${container_name}" 2>&1 | grep -Fq "ERROR: PUID must be a non-zero decimal Linux ID"
+        docker logs "${container_name}" 2>&1 | grep -F "ERROR: PUID must be a non-zero decimal Linux ID" >/dev/null
     done
 
     container_name="databasus-storage-colliding-id-${run_id}"
     start_failing_databasus "${container_name}" --env PUID=1
-    docker logs "${container_name}" 2>&1 | grep -Fq "belongs to account"
+    docker logs "${container_name}" 2>&1 | grep -F "belongs to account" >/dev/null
 }
 
 run_bind_root() {
@@ -457,8 +457,8 @@ run_wrong_owner() {
         --env PGID=999 \
         --volume "${data_root}:/databasus-data"
     assert_storage_permission_failure "${container_name}"
-    docker logs "${container_name}" 2>&1 | grep -Fq \
-        "Required operation: save a file through local storage."
+    docker logs "${container_name}" 2>&1 | grep -F \
+        "Required operation: save a file through local storage." >/dev/null
 }
 
 run_unwritable_data_root() {
@@ -480,8 +480,8 @@ run_unwritable_data_root() {
         --env PGID=999 \
         --volume "${data_root}:/databasus-data"
     assert_storage_permission_failure "${container_name}"
-    docker logs "${container_name}" 2>&1 | grep -Fq \
-        "Required operation: create, read, and remove a required file."
+    docker logs "${container_name}" 2>&1 | grep -F \
+        "Required operation: create, read, and remove a required file." >/dev/null
 }
 
 run_network_prerequisites() {
@@ -770,7 +770,7 @@ run_legacy_directory_guard() {
         --volume "${volume_name}:/legacy" "${databasus_image}" \
         -c 'printf legacy > /legacy/marker'
     start_failing_databasus "${container_name}" --volume "${volume_name}:/postgresus-data"
-    docker logs "${container_name}" 2>&1 | grep -Fq "ERROR: Legacy volume detected!"
+    docker logs "${container_name}" 2>&1 | grep -F "ERROR: Legacy volume detected!" >/dev/null
 }
 
 run_case() {
