@@ -172,6 +172,23 @@ func (m *MysqlDatabase) GetRawDbSizeMb(
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
+	mysqlConnection, err := db.Conn(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to acquire MySQL connection: %w", err)
+	}
+	defer func() {
+		if closeErr := mysqlConnection.Close(); closeErr != nil {
+			logger.ErrorContext(ctx, "failed to release MySQL connection", "error", closeErr)
+		}
+	}()
+
+	if m.Version != tools.MysqlVersion57 {
+		_, err = mysqlConnection.ExecContext(ctx, "SET SESSION information_schema_stats_expiry = 0")
+		if err != nil {
+			return 0, fmt.Errorf("failed to disable MySQL statistics cache: %w", err)
+		}
+	}
+
 	const query = `
 		SELECT COALESCE(SUM(data_length + index_length), 0) / (1024 * 1024)
 		FROM information_schema.tables
@@ -179,7 +196,7 @@ func (m *MysqlDatabase) GetRawDbSizeMb(
 	`
 
 	var sizeMB float64
-	if err := db.QueryRowContext(ctx, query, *m.Database).Scan(&sizeMB); err != nil {
+	if err := mysqlConnection.QueryRowContext(ctx, query, *m.Database).Scan(&sizeMB); err != nil {
 		return 0, fmt.Errorf("failed to query MySQL database size: %w", err)
 	}
 

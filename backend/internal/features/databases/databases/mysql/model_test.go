@@ -6,11 +6,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
@@ -76,6 +78,16 @@ func Test_MysqlModel_AcrossSupportedVersions(t *testing.T) {
 			t.Run("Test_TestConnection_WhenViewLacksShowView_ReturnsErrorUntilShowViewIsGranted", func(t *testing.T) {
 				testTestConnectionViewLacksShowView(t, endpoint, dbVersion.version)
 			})
+
+			t.Run("Test_GetRawDbSizeMb_Mysql_ReturnsPositiveSize", func(t *testing.T) {
+				testGetRawDbSizeMbReturnsPositiveSize(t, endpoint, dbVersion.version)
+			})
+
+			if dbVersion.version == tools.MysqlVersion80 {
+				t.Run("Test_GetRawDbSizeMb_WhenMysqlStatisticsCacheIsWarm_ReturnsCurrentSize", func(t *testing.T) {
+					testGetRawDbSizeMbWhenMysqlStatisticsCacheIsWarmReturnsCurrentSize(t, endpoint)
+				})
+			}
 
 			if dbVersion.hasRoles {
 				t.Run("Test_TestConnection_WhenBackupPrivilegesComeFromActiveRole_Success", func(t *testing.T) {
@@ -770,8 +782,12 @@ type MysqlContainer struct {
 	DB       *sqlx.DB
 }
 
-func Test_GetRawDbSizeMb_Mysql_ReturnsPositiveSize(t *testing.T) {
-	container := connectToMysqlContainer(t, "mysql:8.0", tools.MysqlVersion80)
+func testGetRawDbSizeMbReturnsPositiveSize(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version tools.MysqlVersion,
+) {
+	container := connectToMysqlEndpoint(t, endpoint, version)
 	defer container.DB.Close()
 
 	tableName := fmt.Sprintf("size_test_%s", uuid.New().String()[:8])
@@ -802,6 +818,82 @@ func Test_GetRawDbSizeMb_Mysql_ReturnsPositiveSize(t *testing.T) {
 	sizeMB, err := mysqlModel.GetRawDbSizeMb(t.Context(), logger, nil)
 	assert.NoError(t, err)
 	assert.Greater(t, sizeMB, 0.0, "raw db size should be > 0 after inserting data")
+}
+
+func testGetRawDbSizeMbWhenMysqlStatisticsCacheIsWarmReturnsCurrentSize(
+	t *testing.T,
+	endpoint containers.Endpoint,
+) {
+	container := connectToMysqlEndpoint(t, endpoint, tools.MysqlVersion80)
+	t.Cleanup(func() {
+		assert.NoError(t, container.DB.Close())
+	})
+
+	tableName := fmt.Sprintf("cached_size_test_%s", uuid.New().String()[:8])
+	_, err := container.DB.Exec(fmt.Sprintf(
+		"CREATE TABLE `%s` (id INT AUTO_INCREMENT PRIMARY KEY, payload VARBINARY(8000) NOT NULL)",
+		tableName,
+	))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, cleanupErr := container.DB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`", tableName))
+		assert.NoError(t, cleanupErr)
+	})
+
+	_, err = container.DB.Exec("SET GLOBAL information_schema_stats_expiry = 86400")
+	require.NoError(t, err)
+
+	_, err = container.DB.Exec(fmt.Sprintf(
+		"INSERT INTO `%s` (payload) VALUES (REPEAT('x', 8000))",
+		tableName,
+	))
+	require.NoError(t, err)
+
+	_, err = container.DB.Exec("ANALYZE TABLE `" + tableName + "`")
+	require.NoError(t, err)
+
+	mysqlModel := createMysqlModel(container)
+	mysqlModel.Username = containers.MysqlUsername
+	mysqlModel.Password = containers.MysqlPassword
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	initialSizeMB, err := mysqlModel.GetRawDbSizeMb(t.Context(), logger, nil)
+	require.NoError(t, err)
+
+	for range 13 {
+		_, err = container.DB.Exec(fmt.Sprintf(
+			"INSERT INTO `%[1]s` (payload) SELECT payload FROM `%[1]s`",
+			tableName,
+		))
+		require.NoError(t, err)
+	}
+
+	freshStatisticsConnection, err := container.DB.Connx(t.Context())
+	require.NoError(t, err)
+	defer freshStatisticsConnection.Close()
+
+	_, err = freshStatisticsConnection.ExecContext(
+		t.Context(),
+		"SET SESSION information_schema_stats_expiry = 0",
+	)
+	require.NoError(t, err)
+
+	var currentSizeMB float64
+	require.Eventually(t, func() bool {
+		err = freshStatisticsConnection.QueryRowxContext(t.Context(), `
+			SELECT COALESCE(SUM(data_length + index_length), 0) / (1024 * 1024)
+			FROM information_schema.tables
+			WHERE table_schema = ?
+		`, container.Database).Scan(&currentSizeMB)
+
+		return err == nil && currentSizeMB > initialSizeMB+16
+	}, 20*time.Second, 100*time.Millisecond)
+	require.NoError(t, err)
+
+	reportedSizeMB, err := mysqlModel.GetRawDbSizeMb(t.Context(), logger, nil)
+	require.NoError(t, err)
+
+	assert.InDelta(t, currentSizeMB, reportedSizeMB, 1.0)
 }
 
 func Test_HideSensitiveData_WhenCalled_ClearsPasswordAndPreservesOtherFields(t *testing.T) {
