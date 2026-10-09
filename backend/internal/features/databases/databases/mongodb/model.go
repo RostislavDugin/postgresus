@@ -655,6 +655,8 @@ func mapMongodbVersion(major, minor string) (tools.MongodbVersion, error) {
 		return tools.MongodbVersion7, nil
 	case "8":
 		return tools.MongodbVersion8, nil
+	case "9":
+		return tools.MongodbVersion9, nil
 	default:
 		return "", fmt.Errorf(
 			"unsupported MongoDB version: %s.%s (supported: 4.2+, 5.x, 6.x, 7.x, 8.x, 9.x)",
