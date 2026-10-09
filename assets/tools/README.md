@@ -84,7 +84,7 @@ MariaDB ships three client tiers, mapped to server versions in
 - `12.3` (modern) serves every line from 10.2 through 12.x.
 - `13.0` serves the 13 line, which the 12.3 client predates.
 
-MongoDB Database Tools are version 100.18.0 across all arches and are
+MongoDB Database Tools are version 100.19.1 across all arches and are
 backward-compatible with all supported server versions (4.2 – 9.0). MongoDB
 4.0 is not supported (wire version 7, requires older mongodump).
 
