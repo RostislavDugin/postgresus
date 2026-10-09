@@ -32,6 +32,7 @@ var mongodbModelVersions = []mongodbModelVersion{
 	{"MongoDB 6.0", tools.MongodbVersion6, "mongo:6.0"},
 	{"MongoDB 7.0", tools.MongodbVersion7, "mongo:7.0"},
 	{"MongoDB 8.2", tools.MongodbVersion8, "mongo:8.2.3-noble"},
+	{"MongoDB 9.0", tools.MongodbVersion9, "mongo:9.0.2-noble"},
 }
 
 // Test_MongodbModel_AcrossSupportedVersions boots each MongoDB version once and runs every matrix
@@ -831,8 +832,8 @@ func Test_MapMongodbVersion_VersionMatrix_ReturnsExpected(t *testing.T) {
 		{"5.0 supported", "5", "0", false, tools.MongodbVersion5, ""},
 		{"6.0 supported", "6", "0", false, tools.MongodbVersion6, ""},
 		{"7.0 supported", "7", "0", false, tools.MongodbVersion7, ""},
-		{"8.0 supported", "8", "0", false, tools.MongodbVersion8, ""},
-		{"9.0 rejected", "9", "0", true, "", "supported: 4.2+"},
+		{"9.0 supported", "9", "0", false, tools.MongodbVersion9, ""},
+		{"10.0 rejected", "10", "0", true, "", "supported: 4.2+"},
 	}
 
 	for _, tc := range cases {

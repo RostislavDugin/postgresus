@@ -19,6 +19,7 @@ const (
 	MongodbVersion6 MongodbVersion = "6"
 	MongodbVersion7 MongodbVersion = "7"
 	MongodbVersion8 MongodbVersion = "8"
+	MongodbVersion9 MongodbVersion = "9"
 )
 
 type MongodbExecutable string
@@ -30,7 +31,7 @@ const (
 
 // GetMongodbExecutable returns the absolute path to a MongoDB Database Tools
 // binary. The tools are version-agnostic — a single client supports all
-// supported server versions (4.2 – 8.x).
+// supported server versions (4.2 – 9.x).
 func GetMongodbExecutable(executable MongodbExecutable) string {
 	return filepath.Join(getMongodbBinDir(), string(executable))
 }
@@ -67,6 +68,7 @@ func IsMongodbBackupVersionHigherThanRestoreVersion(
 		MongodbVersion6: 6,
 		MongodbVersion7: 7,
 		MongodbVersion8: 8,
+		MongodbVersion9: 9,
 	}
 	return versionOrder[backupVersion] > versionOrder[restoreVersion]
 }
@@ -92,6 +94,9 @@ func GetMongodbVersionEnum(version string) MongodbVersion {
 		return MongodbVersion7
 	case "8":
 		return MongodbVersion8
+	case "9":
+		return MongodbVersion9
+
 	default:
 		panic(fmt.Sprintf("unsupported mongodb major version: %s", major))
 	}

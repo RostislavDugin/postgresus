@@ -84,7 +84,7 @@ export default function MongodbBackupPage() {
               "Supervision de l'état des connexions MongoDB",
               "Auto-hébergé via Docker",
               "Open source et gratuit",
-              "Prise en charge de MongoDB 4, 5, 6, 7 et 8",
+              "Prise en charge de MongoDB 4, 5, 6, 7, 8 et 9",
               "Compression gzip des archives BSON",
               "Chiffrement AES-256-GCM des fichiers de backup",
               "Prise en charge de MongoDB Atlas et des replica sets",
@@ -130,7 +130,7 @@ export default function MongodbBackupPage() {
                 name: "Quelles versions de MongoDB Databasus prend-il en charge ?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Databasus prend en charge les versions 4, 5, 6, 7 et 8 de MongoDB. Tous les backups utilisent l'outil natif mongodump avec les options --archive et --gzip pour produire des archives BSON compressées et efficaces, restaurables avec mongorestore.",
+                  text: "Databasus prend en charge les versions 4, 5, 6, 7, 8 et 9 de MongoDB. Tous les backups utilisent l'outil natif mongodump avec les options --archive et --gzip pour produire des archives BSON compressées et efficaces, restaurables avec mongorestore.",
                 },
               },
               {
@@ -551,7 +551,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  MongoDB 4, 5, 6, 7 et 8 sont pris en charge. Databasus utilise
+                  MongoDB 4, 5, 6, 7, 8 et 9 sont pris en charge. Databasus utilise
                   l&apos;outil natif mongodump pour chaque version afin de
                   garantir une compatibilité totale avec votre base documentaire
                 </p>
@@ -818,6 +818,9 @@ export default function MongodbBackupPage() {
                     <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
                       MongoDB 8
                     </span>
+                    <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
+                      MongoDB 9
+                    </span>
                   </div>
                 </div>
               </div>
@@ -908,7 +911,7 @@ export default function MongodbBackupPage() {
             <FaqItem
               number="4"
               question="Quelles versions de MongoDB Databasus prend-il en charge ?"
-              answer="Databasus prend en charge les versions 4, 5, 6, 7 et 8 de MongoDB. Tous les backups utilisent l'outil natif mongodump avec les options --archive et --gzip pour produire des archives BSON compressées et efficaces. Les archives peuvent être restaurées avec mongorestore vers toute version MongoDB compatible, ce qui simplifie les migrations entre versions."
+              answer="Databasus prend en charge les versions 4, 5, 6, 7, 8 et 9 de MongoDB. Tous les backups utilisent l'outil natif mongodump avec les options --archive et --gzip pour produire des archives BSON compressées et efficaces. Les archives peuvent être restaurées avec mongorestore vers toute version MongoDB compatible, ce qui simplifie les migrations entre versions."
             />
             <FaqItem
               number="5"

@@ -84,7 +84,7 @@ export default function MongodbBackupPage() {
               "Мониторинг доступности подключения к MongoDB",
               "Self-hosted установка через Docker",
               "Открытый исходный код, бесплатно",
-              "Поддержка MongoDB 4, 5, 6, 7 и 8",
+              "Поддержка MongoDB 4, 5, 6, 7, 8 и 9",
               "Сжатие BSON-архивов через gzip",
               "Шифрование файлов бекапов AES-256-GCM",
               "Поддержка MongoDB Atlas и replica set",
@@ -130,7 +130,7 @@ export default function MongodbBackupPage() {
                 name: "Какие версии MongoDB поддерживает Databasus?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Databasus поддерживает MongoDB версий 4, 5, 6, 7 и 8. Все бекапы делаются родным инструментом mongodump с флагами --archive и --gzip: получаются компактные сжатые BSON-архивы, которые восстанавливаются через mongorestore.",
+                  text: "Databasus поддерживает MongoDB версий 4, 5, 6, 7, 8 и 9. Все бекапы делаются родным инструментом mongodump с флагами --archive и --gzip: получаются компактные сжатые BSON-архивы, которые восстанавливаются через mongorestore.",
                 },
               },
               {
@@ -548,7 +548,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  Поддерживаются MongoDB 4, 5, 6, 7 и 8. Для каждой версии
+                  Поддерживаются MongoDB 4, 5, 6, 7, 8 и 9. Для каждой версии
                   Databasus использует родной mongodump — это дает полную
                   совместимость с вашей документной базой
                 </p>
@@ -809,6 +809,9 @@ export default function MongodbBackupPage() {
                     <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
                       MongoDB 8
                     </span>
+                    <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
+                      MongoDB 9
+                    </span>
                   </div>
                 </div>
               </div>
@@ -899,7 +902,7 @@ export default function MongodbBackupPage() {
             <FaqItem
               number="4"
               question="Какие версии MongoDB поддерживает Databasus?"
-              answer="Databasus поддерживает MongoDB версий 4, 5, 6, 7 и 8. Все бекапы делаются родным инструментом mongodump с флагами --archive и --gzip: получаются компактные сжатые BSON-архивы. Их можно восстановить через mongorestore на любую совместимую версию MongoDB, что упрощает миграции между версиями."
+              answer="Databasus поддерживает MongoDB версий 4, 5, 6, 7, 8 и 9. Все бекапы делаются родным инструментом mongodump с флагами --archive и --gzip: получаются компактные сжатые BSON-архивы. Их можно восстановить через mongorestore на любую совместимую версию MongoDB, что упрощает миграции между версиями."
             />
             <FaqItem
               number="5"

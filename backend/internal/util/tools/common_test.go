@@ -71,7 +71,7 @@ func Test_RunClients_WhenTheClientCannotStart_ReportsAFailure(t *testing.T) {
 
 func Test_RunClients_WithNoReleaseLineToHoldTheBundleTo_OnlyRequiresTheClientToStart(t *testing.T) {
 	binDir := t.TempDir()
-	writeFakeClient(t, binDir, "mongodump", "mongodump version: 100.16.1")
+	writeFakeClient(t, binDir, "mongodump", "mongodump version: 100.18.0")
 
 	errs := runClients(binDir, []string{"mongodump"}, "", nil)
 	if len(errs) != 0 {

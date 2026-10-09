@@ -20,7 +20,7 @@ matrix grew to **18 engine/major combinations**:
 - PostgreSQL: 12, 13, 14, 15, 16, 17, 18 (7 majors)
 - MySQL: 5.7, 8, 9 (3 majors)
 - MariaDB: 10, 11, 12 (3 majors)
-- MongoDB: 4.2+, 5, 6, 7, 8 (5 majors)
+- MongoDB: 4.2+, 5, 6, 7, 8, 9 (6 majors)
 
 At that size the build-time install model fell over:
 

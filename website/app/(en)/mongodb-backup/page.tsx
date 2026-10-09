@@ -84,7 +84,7 @@ export default function MongodbBackupPage() {
               "MongoDB connection health monitoring",
               "Self-hosted via Docker",
               "Open source and free",
-              "Support for MongoDB 4, 5, 6, 7 and 8",
+              "Support for MongoDB 4, 5, 6, 7, 8 and 9",
               "BSON archive compression with gzip",
               "AES-256-GCM encryption for backup files",
               "MongoDB Atlas and replica set support",
@@ -130,7 +130,7 @@ export default function MongodbBackupPage() {
                 name: "Which MongoDB versions does Databasus support?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Databasus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives that can be restored with mongorestore.",
+                  text: "Databasus supports MongoDB versions 4, 5, 6, 7, 8 and 9. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives that can be restored with mongorestore.",
                 },
               },
               {
@@ -544,7 +544,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  MongoDB 4, 5, 6, 7 and 8 are supported. Databasus uses the
+                  MongoDB 4, 5, 6, 7, 8 and 9 are supported. Databasus uses the
                   native mongodump tool for each version to ensure full
                   compatibility with your document database
                 </p>
@@ -803,6 +803,9 @@ export default function MongodbBackupPage() {
                     <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
                       MongoDB 8
                     </span>
+                    <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
+                      MongoDB 9
+                    </span>
                   </div>
                 </div>
               </div>
@@ -893,7 +896,7 @@ export default function MongodbBackupPage() {
             <FaqItem
               number="4"
               question="Which MongoDB versions does Databasus support?"
-              answer="Databasus supports MongoDB versions 4, 5, 6, 7 and 8. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives. The archives can be restored using mongorestore to any compatible MongoDB version, making migrations between versions straightforward."
+              answer="Databasus supports MongoDB versions 4, 5, 6, 7, 8 and 9. All backups use the native mongodump tool with --archive and --gzip flags for efficient, compressed BSON archives. The archives can be restored using mongorestore to any compatible MongoDB version, making migrations between versions straightforward."
             />
             <FaqItem
               number="5"
