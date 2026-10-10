@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -110,6 +111,7 @@ func (s *UserService) SignUp(ctx context.Context, request *users_dto.SignUpReque
 
 	user, err := s.createAccountClaimingEmptyInstance(
 		ctx,
+		s.checkExternalRegistrationAllowed,
 		func(isTakingTheInstance bool) *users_models.User {
 			return buildRegisteredUser(request, hashedPasswordStr, isTakingTheInstance)
 		},
@@ -127,6 +129,11 @@ func (s *UserService) SignUp(ctx context.Context, request *users_dto.SignUpReque
 	s.writeInstanceClaimedAuditLog(ctx, user)
 
 	return user, nil
+}
+
+// Counted in runes, as the min=8 binding on the request DTOs counts them.
+func isPasswordLongEnough(password string) bool {
+	return utf8.RuneCountInString(password) >= users_models.MinPasswordLength
 }
 
 func isBootstrapAdminTaken(err error) bool {
@@ -321,6 +328,10 @@ func (s *UserService) ChangeUserPasswordByEmail(ctx context.Context, email, newP
 }
 
 func (s *UserService) ChangeUserPassword(ctx context.Context, userID uuid.UUID, newPassword string) error {
+	if !isPasswordLongEnough(newPassword) {
+		return users_errors.ErrPasswordTooShort
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash new password: %w", err)
@@ -703,17 +714,20 @@ func (s *UserService) checkExternalRegistrationAllowed(ctx context.Context) erro
 	return nil
 }
 
-// Both entry points that insert a new account share this path. An instance
+// Every entry point that inserts a new account shares this path. An instance
 // holding no account hands the account the administrator role and records it as
-// the bootstrap administrator, and the question is asked before the registration
-// policy rather than inside the insert, because an empty instance whose policy
-// forbids registration would otherwise never gain an administrator at all.
+// the bootstrap administrator, and the question is asked before the ordinary-
+// account check rather than inside the insert, because an empty instance whose
+// policy forbids registration would otherwise never gain an administrator at all.
 //
 // Losing the race for that record is not a failure: the partial unique index
 // admits one flagged account, so the loser is built again as an ordinary
-// account - now under the registration policy it was allowed to skip.
+// account - now under the check it was allowed to skip. Registration passes the
+// registration policy as that check; the host console passes one that always
+// allows.
 func (s *UserService) createAccountClaimingEmptyInstance(
 	ctx context.Context,
+	checkOrdinaryAccountAllowed func(ctx context.Context) error,
 	build func(isTakingTheInstance bool) *users_models.User,
 ) (*users_models.User, error) {
 	isTakingTheInstance, err := s.isInstanceUnclaimed()
@@ -722,7 +736,7 @@ func (s *UserService) createAccountClaimingEmptyInstance(
 	}
 
 	if !isTakingTheInstance {
-		if err := s.checkExternalRegistrationAllowed(ctx); err != nil {
+		if err := checkOrdinaryAccountAllowed(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -740,7 +754,7 @@ func (s *UserService) createAccountClaimingEmptyInstance(
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	if err := s.checkExternalRegistrationAllowed(ctx); err != nil {
+	if err := checkOrdinaryAccountAllowed(ctx); err != nil {
 		return nil, err
 	}
 
@@ -1061,6 +1075,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 
 	newUser, err := s.createAccountClaimingEmptyInstance(
 		ctx,
+		s.checkExternalRegistrationAllowed,
 		func(isTakingTheInstance bool) *users_models.User {
 			return buildOAuthUser(email, name, githubOAuthID, googleOAuthID, isTakingTheInstance)
 		},

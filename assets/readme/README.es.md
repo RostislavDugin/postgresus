@@ -277,6 +277,14 @@ docker exec -it databasus ./main --list-admins
 
 La salida nombra cada cuenta de administrador con su correo electrónico, nombre visible, fecha de creación y estado de actividad, y marca la que la instancia reconoce como su administrador. No imprime ninguna contraseña ni su hash.
 
+Para dar de alta una cuenta sin registrarse en el navegador, por ejemplo desde un script de despliegue, créela desde la consola:
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` admite `admin` o `member`, la contraseña necesita al menos 8 caracteres y `--name` fija, si lo desea, el nombre visible. En una instancia que todavía no tiene ninguna cuenta, la primera debe usar `--role=admin` y pasa a administrar la instancia. Repetir el comando para la misma cuenta no cambia nada, así que puede incluirlo en cada despliegue; para cambiar la contraseña, use `--new-password`.
+
 ### 💾 Respaldar el propio Databasus
 
 Después de instalarlo, conviene también <a href="https://databasus.com/es/faq/#backup-databasus">respaldar su propio Databasus</a> o, al menos, copiar la clave secreta que se usa para el cifrado (bastan 30 segundos). Así podrá restaurar desde sus copias cifradas si pierde el acceso al servidor con Databasus o si este se corrompe.

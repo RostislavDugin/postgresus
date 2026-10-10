@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "重置密码 - Databasus 文档",
   description:
-    "了解如何使用内置命令行工具在 Databasus 中重置用户密码。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
+    "了解如何使用内置命令行工具在 Databasus 中重置用户密码、列出管理员和创建账户。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
   keywords: [
     "Databasus 重置密码",
     "重置用户密码",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "重置密码 - Databasus 文档",
     description:
-      "了解如何使用内置命令行工具在 Databasus 中重置用户密码。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
+      "了解如何使用内置命令行工具在 Databasus 中重置用户密码、列出管理员和创建账户。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
     type: "article",
     url: getLocalizedUrl("zh", "password"),
     locale: OG_LOCALES.zh,
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "重置密码 - Databasus 文档",
     description:
-      "了解如何使用内置命令行工具在 Databasus 中重置用户密码。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
+      "了解如何使用内置命令行工具在 Databasus 中重置用户密码、列出管理员和创建账户。为你的 PostgreSQL 备份系统提供快速安全的密码找回方式。",
   },
   alternates: {
     canonical: getLocalizedUrl("zh", "password"),
@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -131,8 +132,8 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong>：新密码。请确保密码足够
-                  安全，包含字母、数字和特殊字符。
+                  <strong>--new-password</strong>：新密码，至少 8
+                  个字符。请确保密码足够安全，包含字母、数字和特殊字符。
                 </li>
                 <li>
                   <strong>--email</strong>：要重置密码的账户邮箱（例如{" "}
@@ -162,6 +163,55 @@ export default function PasswordResetPage() {
               <p>
                 输出会列出每个管理员账户的邮箱、显示名称、创建日期和活动状态，并标记实例所认可的管理员。不会输出任何密码、密码哈希或令牌。如果实例上还没有人创建账户，命令会提示该实例没有管理员。
               </p>
+
+              <h2 id="create-user">通过控制台创建账户</h2>
+
+              <p>
+                如果不想在浏览器里注册，比如要用部署脚本开通账户，可以在运行
+                Databasus 的服务器上直接创建：
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={createUserCommand} lang="zh" />
+                </div>
+              </div>
+
+              <p>命令接受以下参数：</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong>：新账户的邮箱，必须是有效的邮箱地址。
+                </li>
+                <li>
+                  <strong>--password</strong>：新账户的密码，至少 8 个字符。
+                </li>
+                <li>
+                  <strong>--role</strong>：<code>admin</code> 或{" "}
+                  <code>member</code>。
+                </li>
+                <li>
+                  <strong>--name</strong>：可选的显示名称。不传时，账户名取邮箱中{" "}
+                  <code>@</code> 之前的部分。
+                </li>
+              </ul>
+
+              <p>
+                账户创建后立即生效，无论是否开放注册，都可以用这个邮箱和密码登录。如果实例上还没有任何账户，新建的账户就是该实例的管理员，所以第一个账户必须使用{" "}
+                <code>--role=admin</code>
+                。之后用这种方式创建的管理员只是普通管理员。
+              </p>
+
+              <p>
+                对同一角色的已有账户再次运行命令会成功结束，但不做任何改动，所以部署流程可以在每次上线时都运行它。这时密码也不会改变：要更换密码，请使用上面的{" "}
+                <code>--new-password</code>{" "}
+                重置命令。如果该邮箱属于另一角色的账户、已停用或仍在邀请中的账户，或者通过
+                Google 或 GitHub 登录的账户，命令会失败，也不做任何改动。
+              </p>
+
               <h2 id="disable-two-factor">不再要求登录验证码</h2>
 
               <p>

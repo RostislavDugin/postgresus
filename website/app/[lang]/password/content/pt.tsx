@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "Redefinir senha - Documentação do Databasus",
   description:
-    "Aprenda a redefinir senhas de usuários no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
+    "Aprenda a redefinir senhas de usuários, listar administradores e criar contas no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
   keywords: [
     "redefinir senha Databasus",
     "redefinir senha de usuário",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Redefinir senha - Documentação do Databasus",
     description:
-      "Aprenda a redefinir senhas de usuários no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
+      "Aprenda a redefinir senhas de usuários, listar administradores e criar contas no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
     type: "article",
     url: getLocalizedUrl("pt", "password"),
     locale: OG_LOCALES.pt,
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Redefinir senha - Documentação do Databasus",
     description:
-      "Aprenda a redefinir senhas de usuários no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
+      "Aprenda a redefinir senhas de usuários, listar administradores e criar contas no Databasus com a ferramenta de linha de comando integrada. Recuperação de senha rápida e segura para o seu sistema de backup PostgreSQL.",
   },
   alternates: {
     canonical: getLocalizedUrl("pt", "password"),
@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -137,9 +138,9 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong>: a nova senha. Garanta que é
-                  segura e contém uma mistura de letras, números e caracteres
-                  especiais.
+                  <strong>--new-password</strong>: a nova senha, com pelo menos
+                  8 caracteres. Garanta que é segura e contém uma mistura de
+                  letras, números e caracteres especiais.
                 </li>
                 <li>
                   <strong>--email</strong>: o endereço de email da conta cuja
@@ -176,6 +177,66 @@ export default function PasswordResetPage() {
                 instância onde ninguém criou uma conta ainda, ela informa que a
                 instância não tem administrador.
               </p>
+
+              <h2 id="create-user">Criar uma conta pelo console</h2>
+
+              <p>
+                Para criar uma conta sem passar pelo cadastro no navegador, por
+                exemplo a partir de um script de deploy, execute o comando no
+                servidor onde o Databasus está rodando:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={createUserCommand} lang="pt" />
+                </div>
+              </div>
+
+              <p>O comando aceita os seguintes parâmetros:</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong>: o endereço de e-mail da nova conta.
+                  Precisa ser um endereço válido.
+                </li>
+                <li>
+                  <strong>--password</strong>: a senha da nova conta, com pelo
+                  menos 8 caracteres.
+                </li>
+                <li>
+                  <strong>--role</strong>: <code>admin</code> ou{" "}
+                  <code>member</code>.
+                </li>
+                <li>
+                  <strong>--name</strong>: um nome de exibição opcional. Sem
+                  ele, a conta recebe como nome a parte do endereço antes do{" "}
+                  <code>@</code>.
+                </li>
+              </ul>
+
+              <p>
+                A conta já nasce ativa e entra com esse endereço e essa senha,
+                mesmo que o cadastro aberto esteja desligado. Em uma instância
+                que ainda não tem nenhuma conta, a conta criada passa a
+                administrar a instância, por isso a primeira precisa usar{" "}
+                <code>--role=admin</code>. Administradores criados assim mais
+                tarde são administradores comuns.
+              </p>
+
+              <p>
+                Rodar o comando de novo para uma conta que já existe com o mesmo
+                papel termina com sucesso e não altera nada, então um deploy
+                pode executá-lo a cada rollout. Nesse caso a senha também não
+                muda: para trocá-la, use o comando de redefinição com{" "}
+                <code>--new-password</code> descrito acima. Se o endereço
+                pertencer a uma conta com outro papel, a uma conta desativada ou
+                convidada, ou a uma conta que entra pelo Google ou pelo GitHub,
+                o comando falha sem alterar nada.
+              </p>
+
               <h2 id="disable-two-factor">
                 Parar de pedir um código no login
               </h2>

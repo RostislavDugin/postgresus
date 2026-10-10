@@ -277,6 +277,14 @@ docker exec -it databasus ./main --list-admins
 
 A saída nomeia cada conta de administrador com seu e-mail, nome de exibição, data de criação e estado de atividade, e marca aquela que a instância reconhece como seu administrador. Nenhuma senha ou hash de senha é impresso.
 
+Para criar uma conta sem passar pelo cadastro no navegador, por exemplo a partir de um script de deploy, use o console:
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` aceita `admin` ou `member`, a senha precisa ter pelo menos 8 caracteres e `--name` define, se quiser, o nome de exibição. Em uma instância que ainda não tem nenhuma conta, a primeira precisa usar `--role=admin` e passa a administrar a instância. Rodar o comando de novo para a mesma conta não altera nada, então um deploy pode executá-lo a cada rollout; para trocar a senha, use `--new-password`.
+
 ### 💾 Fazer backup do próprio Databasus
 
 Depois de instalar, também é recomendável <a href="https://databasus.com/pt/faq/#backup-databasus">fazer backup do próprio Databasus</a> ou, no mínimo, copiar a chave secreta usada na criptografia (leva 30 segundos). Assim você consegue restaurar a partir dos seus backups criptografados se perder o acesso ao servidor com o Databasus ou se ele for corrompido.

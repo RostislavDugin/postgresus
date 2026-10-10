@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "Reset password - Databasus Documentation",
   description:
-    "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+    "Learn how to reset user passwords, list administrators and create accounts in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
   keywords: [
     "Databasus password reset",
     "reset user password",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Reset Password - Databasus Documentation",
     description:
-      "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+      "Learn how to reset user passwords, list administrators and create accounts in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
     type: "article",
     url: "https://databasus.com/password",
   },
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Reset Password - Databasus Documentation",
     description:
-      "Learn how to reset user passwords in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
+      "Learn how to reset user passwords, list administrators and create accounts in Databasus using the built-in command-line tool. Quick and secure password recovery for your PostgreSQL backup system.",
   },
   alternates: {
     canonical: "https://databasus.com/password",
@@ -40,6 +40,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -134,9 +135,9 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong>: The new password. Make sure
-                  it&apos;s secure and contains a mix of letters, numbers and
-                  special characters.
+                  <strong>--new-password</strong>: The new password, at least 8
+                  characters long. Make sure it&apos;s secure and contains a mix
+                  of letters, numbers and special characters.
                 </li>
                 <li>
                   <strong>--email</strong>: The email address of the account
@@ -173,6 +174,65 @@ export default function PasswordResetPage() {
                 nobody has created an account yet, it reports that the instance
                 has no administrator.
               </p>
+
+              <h2 id="create-user">Create an account from the console</h2>
+
+              <p>
+                To provision an account without signing up in the browser, for
+                example from a deployment script, create it on the server where
+                Databasus is running:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={createUserCommand} />
+                </div>
+              </div>
+
+              <p>The command accepts the following parameters:</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong>: The email address of the new
+                  account. It must be a valid email address.
+                </li>
+                <li>
+                  <strong>--password</strong>: The password of the new account,
+                  at least 8 characters long.
+                </li>
+                <li>
+                  <strong>--role</strong>: <code>admin</code> or{" "}
+                  <code>member</code>.
+                </li>
+                <li>
+                  <strong>--name</strong>: An optional display name. Without it,
+                  the account is named after the part of the address before the{" "}
+                  <code>@</code>.
+                </li>
+              </ul>
+
+              <p>
+                The account is active at once and signs in with that address and
+                password, whether or not open registration is enabled. On an
+                instance that holds no account yet, the account you create
+                administers the instance, so the first one must use{" "}
+                <code>--role=admin</code>. An administrator created later this
+                way is an ordinary administrator.
+              </p>
+
+              <p>
+                Running the command again for an existing account with the same
+                role succeeds and changes nothing, so a deployment can run it on
+                every rollout. It does not change the password then: rotate the
+                password with the <code>--new-password</code> reset command
+                above. If the address belongs to an account with another role, a
+                deactivated or invited account, or an account that signs in
+                through Google or GitHub, the command fails and changes nothing.
+              </p>
+
               <h2 id="disable-two-factor">Stop requiring a sign-in code</h2>
 
               <p>

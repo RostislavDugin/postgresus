@@ -1,0 +1,29 @@
+## 1. Password minimum
+
+- [x] 1.1 Add the eight-character minimum as a named constant in the users feature, make `ChangeUserPassword` refuse a shorter password by rune count with a sentinel error from `users/errors/errors.go`, and add service tests for a seven-character console reset that leaves the old password working and a reset of the placeholder account `admin` that still succeeds; verify with `just test-package ./internal/features/users/...` in `backend/`
+
+## 2. Shared empty-instance claim
+
+- [x] 2.1 Give `createAccountClaimingEmptyInstance` the ordinary-account check as an argument, pass `checkExternalRegistrationAllowed` from `SignUp` and the OAuth path, and verify that the existing registration, OAuth, closed-registration and concurrent-registration tests still pass with `just test-package ./internal/features/users/...` in `backend/`
+
+## 3. Console account creation
+
+- [x] 3.1 Add the refusal sentinels to `users/errors/errors.go`: an invalid address, an invalid role, a member as the first account, and an address held by an account in another state. Add `CreateUserFromConsole` and the function that renders its outcome line in `users/services/console_account.go`. The method validates with the Gin validator, defaults the name to the address's local part, and refuses a member on an empty instance. An active account with the requested role and a password counts as an exact match and is reported as existing without any write; any other existing account is refused. Otherwise the method creates the account through the shared claim with an always-allowing check and writes the console audit entry. It writes no log line. Verify with `go build ./...` in `backend/`
+- [x] 3.2 Add `users/services/console_account_test.go` for the empty-instance cases, using `users_testing.DeleteAllUsers` and the audit recorder. Cover these scenarios: on an empty instance, the first console administrator becomes the bootstrap administrator with both audit entries, `RenderAdminListing` marks it as the bootstrap administrator, and a later registration gets the member role; a member on an empty instance is refused and the instance stays empty; `CreateUserFromConsole` with the administrator role, run concurrently with `SignUp` on an emptied instance, leaves exactly one bootstrap administrator while the console account exists with the administrator role, flagged only if it won. Verify with `just test-package ./internal/features/users/...` in `backend/`
+- [x] 3.3 Extend `console_account_test.go` with the non-empty-instance cases. Cover these scenarios: a console administrator is ordinary; creation succeeds with open registration off; the account signs in right away through `SignIn`; a console reset rotates the password and the old one is refused; the name defaults to the local part; an invalid address, a seven-character password, a missing role and the role `owner` are each refused with no account created. Verify with `just test-package ./internal/features/users/...` in `backend/`
+- [x] 3.4 Extend `console_account_test.go` with the existing-address cases: a rerun with a different password reports no change, its rendered line says the password was not changed, and the first password still signs in. A member, a deactivated account, an invited account and a password-less OAuth administrator at that address are each refused and left unchanged; the invited account stays invited without a password. Add one test that creates an account, reruns it and runs a refused input, then asserts that no rendered line and no returned error contains the password or the stored hash. Verify with `just test-package ./internal/features/users/...` in `backend/`
+
+## 4. Console wiring
+
+- [x] 4.1 Add `--create-user`, `--password`, `--role` and `--name` to `parseCommandLineOptions`, and add `createUserIfRequested` to `backend/cmd/main.go` ahead of `resetPasswordIfRequested`. It refuses a combination with `--new-password` or a missing `--email`, installs the audit writer, prints the line the service renders, and on failure logs only the returned error. Verify with `go build ./...` and `just lint` in `backend/`, and with `grep -n "Password" backend/cmd/main.go`, which must show the password reaching only the service call and the flag definitions, never `fmt.Print*` or `log.*`
+
+## 5. Documentation
+
+- [x] 5.1 Add a section on creating an account from the console to `website/app/(en)/password/page.tsx`, placed after the administrator listing. It gives the command, its parameters, the first-account rule, the no-change rerun and rotation with `--new-password`, and the eight-character minimum under the reset parameters. Extend the page's metadata description to mention account creation. Verify with `pnpm lint` and `pnpm build` in `website/`
+- [x] 5.2 Apply the same section, parameter note and metadata change to `website/app/[lang]/password/content/{ru,es,pt,zh,fr}.tsx`, keeping commands byte-identical to English. Verify with `pnpm lint` and `pnpm build` in `website/`, and with `grep -c -- "--create-user"` and `grep -c -- "--new-password"` over `website/app/(en)/password/page.tsx` and `website/app/[lang]/password/content/*.tsx`, each of which must report the same non-zero count for all six files
+- [x] 5.3 Add the create command with a short explanation to the `### 🔑 Resetting password` section of `README.md` and to all five copies in `assets/readme/`, keeping code blocks byte-identical, and verify with `grep -c -- "--create-user" README.md assets/readme/README.*.md`, which must report the same non-zero count for all six files
+
+## 6. Verification
+
+- [x] 6.1 Run `just test-package ./internal/features/users/... ./internal/features/audit_logs/...` in `backend/` and `just lint` at the repository root
+- [x] 6.2 Run `openspec validate add-console-user-creation --strict`

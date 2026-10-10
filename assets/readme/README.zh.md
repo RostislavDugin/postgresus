@@ -277,6 +277,14 @@ docker exec -it databasus ./main --list-admins
 
 输出会列出每个管理员账户的邮箱、显示名称、创建日期和活动状态，并标记实例所认可的管理员。不会输出任何密码或密码哈希。
 
+如果不想在浏览器里注册，比如要用部署脚本开通账户，可以在控制台直接创建：
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` 取 `admin` 或 `member`，密码至少 8 个字符，`--name` 可选，用来设置显示名称。如果实例上还没有任何账户，第一个账户必须使用 `--role=admin`，它就是该实例的管理员。对同一账户再次运行命令不会做任何改动，所以部署流程可以在每次上线时都运行它；要更换密码，请使用 `--new-password`。
+
 ### 💾 给 Databasus 自身做备份
 
 装好之后，建议再<a href="https://databasus.com/zh/faq/#backup-databasus">给 Databasus 自身做一次备份</a>，至少也要把用于加密的密钥复制一份（只要 30 秒）。这样即使装有 Databasus 的服务器丢失访问权限或者损坏，你依然能从加密备份中恢复。

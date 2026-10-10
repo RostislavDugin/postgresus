@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "Сброс пароля - документация Databasus",
   description:
-    "Как сбросить пароль пользователя в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
+    "Как сбросить пароль пользователя, вывести список администраторов и создать учетную запись в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
   keywords: [
     "сброс пароля Databasus",
     "сбросить пароль пользователя",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Сброс пароля - документация Databasus",
     description:
-      "Как сбросить пароль пользователя в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
+      "Как сбросить пароль пользователя, вывести список администраторов и создать учетную запись в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
     type: "article",
     url: getLocalizedUrl("ru", "password"),
     locale: OG_LOCALES.ru,
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Сброс пароля - документация Databasus",
     description:
-      "Как сбросить пароль пользователя в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
+      "Как сбросить пароль пользователя, вывести список администраторов и создать учетную запись в Databasus встроенной консольной утилитой. Быстрый и безопасный сброс пароля в вашей системе резервного копирования PostgreSQL.",
   },
   alternates: {
     canonical: getLocalizedUrl("ru", "password"),
@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -135,8 +136,9 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong>: новый пароль. Убедитесь, что
-                  он надежный и содержит буквы, цифры и специальные символы.
+                  <strong>--new-password</strong>: новый пароль, не короче 8
+                  символов. Убедитесь, что он надежный и содержит буквы, цифры и
+                  специальные символы.
                 </li>
                 <li>
                   <strong>--email</strong>: email учетной записи, чей пароль вы
@@ -172,6 +174,66 @@ export default function PasswordResetPage() {
                 где еще никто не завел учетную запись, команда сообщит, что
                 администратора нет.
               </p>
+
+              <h2 id="create-user">Создание учетной записи из консоли</h2>
+
+              <p>
+                Учетную запись можно завести без регистрации в браузере,
+                например из скрипта деплоя. Выполните команду на сервере, где
+                запущен Databasus:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={createUserCommand} lang="ru" />
+                </div>
+              </div>
+
+              <p>Команда принимает следующие параметры:</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong>: email новой учетной записи. Адрес
+                  должен быть корректным.
+                </li>
+                <li>
+                  <strong>--password</strong>: пароль новой учетной записи, не
+                  короче 8 символов.
+                </li>
+                <li>
+                  <strong>--role</strong>: <code>admin</code> или{" "}
+                  <code>member</code>.
+                </li>
+                <li>
+                  <strong>--name</strong>: отображаемое имя, необязательно. Без
+                  него учетная запись получит имя по части адреса до{" "}
+                  <code>@</code>.
+                </li>
+              </ul>
+
+              <p>
+                Учетная запись сразу активна, и в нее можно войти с этим адресом
+                и паролем, даже если открытая регистрация выключена. На
+                инстансе, где еще нет ни одной учетной записи, созданная
+                учетная запись станет администратором инстанса, поэтому первой
+                нужно передать <code>--role=admin</code>. Администратор,
+                созданный так позже, будет обычным администратором.
+              </p>
+
+              <p>
+                Повторный запуск для существующей учетной записи с той же ролью
+                завершится успешно и ничего не изменит, так что команду можно
+                выполнять при каждом деплое. Пароль при этом тоже не меняется:
+                для смены пароля используйте команду сброса с{" "}
+                <code>--new-password</code> выше. Если адрес принадлежит
+                учетной записи с другой ролью, деактивированной или
+                приглашенной учетной записи либо той, что входит через Google
+                или GitHub, команда завершится ошибкой и ничего не изменит.
+              </p>
+
               <h2 id="disable-two-factor">
                 Перестать запрашивать код при входе
               </h2>
