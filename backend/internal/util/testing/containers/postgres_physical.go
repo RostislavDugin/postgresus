@@ -39,6 +39,7 @@ type physicalPostgresOptions struct {
 	shouldOmitReplicationHbaEntry bool
 	shouldSpreadCheckpoints       bool
 	maxConnections                int
+	maxWalSenders                 int
 }
 
 // PhysicalPostgresOption tunes a physical source container away from its replication-ready default.
@@ -68,6 +69,12 @@ func WithoutReplicationHbaEntry() PhysicalPostgresOption {
 // "insufficient parameter settings" case.
 func WithMaxConnections(connections int) PhysicalPostgresOption {
 	return func(o *physicalPostgresOptions) { o.maxConnections = connections }
+}
+
+// WithMaxWalSenders caps the cluster's WAL sender slots so a test can hold all of them and observe
+// what a further replication connection, or a probe that must not need one, does at the limit.
+func WithMaxWalSenders(walSenders int) PhysicalPostgresOption {
+	return func(o *physicalPostgresOptions) { o.maxWalSenders = walSenders }
 }
 
 // A promotion only requests its checkpoint, so on a node carrying dirty buffers that request stays
@@ -120,10 +127,16 @@ func physicalPostgresCmd(opts physicalPostgresOptions) []string {
 		fullPageWrites = "full_page_writes=on"
 	}
 
+	maxWalSenders := 10
+	if opts.maxWalSenders > 0 {
+		maxWalSenders = opts.maxWalSenders
+	}
+
 	cmd := []string{
 		"-c", "fsync=off", "-c", fullPageWrites, "-c", "synchronous_commit=off",
 		"-c", "wal_level=logical", "-c", summarize,
-		"-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "wal_keep_size=512MB",
+		"-c", fmt.Sprintf("max_wal_senders=%d", maxWalSenders),
+		"-c", "max_replication_slots=10", "-c", "wal_keep_size=512MB",
 	}
 	if opts.maxConnections > 0 {
 		cmd = append(cmd, "-c", fmt.Sprintf("max_connections=%d", opts.maxConnections))
