@@ -1,0 +1,33 @@
+Paths are relative to `backend/internal/features/backups/backups/`. Test commands run from `backend/`.
+
+## 1. Bounded WAL span lookup
+
+- [x] 1.1 In `core/physical/repositories/wal_segment_repository.go`, move the span condition of `FindByChainSpan` into a private helper that adds the lower bound from design Decision 4: `start_lsn` at or above the greatest `start_lsn` at or below the span start, falling back to `'0/0'`. Keep the `end_lsn` filter and the `start_lsn ASC` order. Verify with `go test ./internal/features/backups/backups/core/physical/... -count=1`; the existing boundary-segment tests in `chain_view/restore_set_test.go` and `backuping/physical/cleaner_test.go` must keep passing.
+- [x] 1.2 Add `GetLatestReceivedAtInChainSpan(databaseID, timelineID, startLSN, endLSN) (*time.Time, error)` beside `FindByChainSpan`, returning `MAX(received_at)` under the same helper and nil when the span holds no segment. Verify with `go build ./...`.
+- [x] 1.3 In `core/physical/chain_view/service_test.go`, add `Test_FindByChainSpan_ForMiddleChain_ReturnsOnlyItsSegmentsIncludingBoundary`: three chains on one timeline, the middle full backup starting partway into a segment; the lookup for the middle span returns that boundary segment and the middle chain's later segments, and no segment of the first or third chain. Verify with `go test ./internal/features/backups/backups/core/physical/chain_view/... -run Test_FindByChainSpan -count=1`.
+- [x] 1.4 Add `Test_FindByChainSpan_WhenSpanStartsOnSegmentBoundary_ExcludesSegmentEndingThere` to the same file: the span starts exactly where one segment ends and the next begins; the lookup returns the segment starting at the span start and not the one ending there. Verify with the same command as 1.3.
+- [x] 1.5 Add `Test_FindByChainSpan_WhenOtherTimelineAndDatabaseHaveSegmentsInRange_IgnoresThem` to the same file: segments of a second timeline and of a second database sit at LSNs inside and just below the span start; the lookup returns only the requested database's segments on the requested timeline, with the same boundary segment as without them. Verify with the same command as 1.3.
+
+## 2. Chain model without WAL
+
+- [x] 2.1 Remove `WalSegments`, `Gaps` and `MaxReplayableLSN` from `ChainView` in `core/physical/chain_view/view.go`, shrink its doc diagram to the span, and stop `buildChainView` from loading WAL or calling `FindWalGapsInChain`. Delete `FindWalSegmentsInSpan`. Update `service_test.go`: drop the `WalSegments` and `Gaps` assertions from the healthy-chain test, delete `Test_FindLastExtendableChainByDatabase_WhenChainHasGap_MaxReplayableLSNStopsAtFirstGap`, and make the two span tests read through the repository. Verify with `go build ./...` and `go test ./internal/features/backups/backups/core/physical/chain_view/... -count=1`.
+- [x] 2.2 Rewrite `FindLastExtendableChainByDatabase` and `FindNonExtendableChainsByDatabase` on one read of the completed full backups, per design Decision 2: only the newest can be extendable, and only when none of its incremental backups is `CHAIN_BROKEN`. Move the body of `GetChainSpan` into a private `getChainSpanForFull(full)` that `GetChainSpan` wraps and `buildChainView` calls with the full backup it holds. Delete `getChainState`, `findNewerCompletedFulls` and the `ChainState` enum, and move the rule that WAL gaps never change chain state into a comment on the extendability check. Verify with `go test ./internal/features/backups/backups/core/physical/chain_view/... -count=1`; the existing extendable, broken and newer-full tests must pass unchanged.
+- [x] 2.3 Add `Test_FindNonExtendableChainsByDatabase_WhenNewestChainBroken_ListsItWithOlderChains` to `service_test.go`: with two completed full backups and a `CHAIN_BROKEN` incremental on the newer one, the extendable lookup returns nil and the closed list holds both chains, newest first. Verify with `go test ./internal/features/backups/backups/core/physical/chain_view/... -run Test_FindNonExtendableChainsByDatabase -count=1`.
+
+## 3. Chain end time from the built chain
+
+- [x] 3.1 Change `GetChainEndTimestamp` to take a `*ChainView` and compute the latest of the root full backup's completion, the incremental backups' completion and `GetLatestReceivedAtInChainSpan` over the view's span, per design Decision 3. Update `Test_GetChainEndTimestamp_WhenWalReceivedAfterIncr_ReturnsWalReceivedAt` to build the view first, and add `Test_GetChainEndTimestamp_WhenChainHasNoWal_ReturnsLatestBackupCompletion`. Verify with `go test ./internal/features/backups/backups/core/physical/chain_view/... -run Test_GetChainEndTimestamp -count=1`.
+- [x] 3.2 In `backuping/physical/cleaner.go`, pass each view to `GetChainEndTimestamp` in `nonExtendableChainsNewestEndFirst`, and change `isChainWithinGrace` to take the candidate's end time instead of a full backup ID, so each chain's end time is computed once per pass. Verify with `go test ./internal/features/backups/backups/backuping/physical/... -run "Test_Clean" -count=1`; the grace and keep-count tests must pass unchanged.
+
+## 4. Background cadence
+
+- [x] 4.1 In `decideBackupKind` in `backuping/physical/scheduler.go`, move the `IncrementalBackupInterval.ShouldTriggerBackup` check above the `FindLastExtendableChainByDatabase` call, per design Decision 5. Verify with `go test ./internal/features/backups/backups/backuping/physical/... -run Test_DecideBackupKind -count=1`.
+- [x] 4.2 In `backuping/physical/constants.go`, set `cleanerTickInterval` to one minute and rewrite its comment with the reason from design Decision 6. Verify with `go test ./internal/features/backups/backups/backuping/physical/... -count=1`.
+
+## 5. Verification
+
+- [x] 5.1 Confirm that no reference to the removed names is left: `grep -rnE "FindWalSegmentsInSpan|ChainState|getChainState|findNewerCompletedFulls|\bview\.(WalSegments|Gaps|MaxReplayableLSN)" backend/` returns nothing.
+- [x] 5.2 Run `just lint` in `backend/` and fix every finding in the touched files.
+- [x] 5.3 Run the touched packages and confirm that they pass: `go test ./internal/features/backups/backups/core/physical/... ./internal/features/backups/backups/backuping/physical/... ./internal/features/backups/backups/services/... -count=1`.
+- [x] 5.4 Run the physical backup and restore cycle packages, which prove end to end that restore still ships the right WAL through the bounded lookup: `go test ./internal/features/tests/physical/postgresql/pg17/... ./internal/features/tests/physical/postgresql/pg18/... -count=1 -timeout 60m`.
+- [x] 5.5 Run `openspec validate reduce-physical-idle-load --strict` and confirm that it passes.

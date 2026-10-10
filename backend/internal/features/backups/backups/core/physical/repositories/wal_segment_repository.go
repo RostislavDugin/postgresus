@@ -1,6 +1,7 @@
 package physical_repositories
 
 import (
+	"database/sql"
 	"errors"
 	"time"
 
@@ -64,18 +65,66 @@ func (r *PhysicalWalSegmentRepository) FindByChainSpan(
 ) ([]*physical_models.PhysicalWalSegment, error) {
 	var segments []*physical_models.PhysicalWalSegment
 
-	if err := storage.
-		GetDb().
-		Where(
-			"database_id = ? AND timeline_id = ? AND end_lsn > ?::pg_lsn AND start_lsn < ?::pg_lsn",
-			databaseID, timelineID, startLSN.String(), endLSN.String(),
-		).
+	if err := whereInChainSpan(storage.GetDb(), databaseID, timelineID, startLSN, endLSN).
 		Order("start_lsn ASC").
 		Find(&segments).Error; err != nil {
 		return nil, err
 	}
 
 	return segments, nil
+}
+
+// GetLatestReceivedAtInChainSpan returns nil when no segment overlaps the span.
+func (r *PhysicalWalSegmentRepository) GetLatestReceivedAtInChainSpan(
+	databaseID uuid.UUID,
+	timelineID int,
+	startLSN, endLSN walmath.LSN,
+) (*time.Time, error) {
+	var latestReceivedAt sql.NullTime
+
+	if err := whereInChainSpan(storage.GetDb(), databaseID, timelineID, startLSN, endLSN).
+		Model(&physical_models.PhysicalWalSegment{}).
+		Select("MAX(received_at)").
+		Row().
+		Scan(&latestReceivedAt); err != nil {
+		return nil, err
+	}
+
+	if !latestReceivedAt.Valid {
+		return nil, nil
+	}
+
+	return &latestReceivedAt.Time, nil
+}
+
+// whereInChainSpan selects the segments overlapping [startLSN, endLSN). The
+// end_lsn filter alone leaves the start_lsn index bounded only from above, so
+// every lookup would read the timeline's WAL from its first segment. Segments of
+// one timeline never overlap, so any segment ending after startLSN starts at or
+// after the segment holding startLSN, and that segment's start_lsn is a lower
+// index bound that keeps the boundary segment in.
+func whereInChainSpan(
+	db *gorm.DB,
+	databaseID uuid.UUID,
+	timelineID int,
+	startLSN, endLSN walmath.LSN,
+) *gorm.DB {
+	return db.Where(`
+		database_id = ? AND timeline_id = ?
+		AND start_lsn >= COALESCE(
+			(SELECT boundary.start_lsn
+			 FROM physical_wal_segments boundary
+			 WHERE boundary.database_id = ? AND boundary.timeline_id = ? AND boundary.start_lsn <= ?::pg_lsn
+			 ORDER BY boundary.start_lsn DESC
+			 LIMIT 1),
+			'0/0'::pg_lsn)
+		AND start_lsn < ?::pg_lsn
+		AND end_lsn > ?::pg_lsn`,
+		databaseID, timelineID,
+		databaseID, timelineID, startLSN.String(),
+		endLSN.String(),
+		startLSN.String(),
+	)
 }
 
 // Anti-join not covered by idx_physical_wal_segments_database_id_received_at;
