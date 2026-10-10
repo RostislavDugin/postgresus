@@ -6,7 +6,7 @@
 
 Commands run from the repository root, with the tools from `mise.toml` installed.
 
-To run the backend together with the frontend and the dev database:
+To run the backend together with the frontend, the dev database, the test fixtures and the WAL backup source:
 
 > just run
 

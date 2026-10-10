@@ -7,13 +7,13 @@ Defines the commands a developer or an agent uses on a local Fedora host to run 
 
 ### Requirement: One command starts the local app
 
-The repository SHALL provide `just run` at its root. It SHALL start the development database, the backend and the frontend development server, and SHALL show them in one terminal window that lists every process separately, with each process's output available on its own. It SHALL work in a fresh worktree that has a `.env` file but has never generated the backend's API documentation or installed frontend dependencies. When a backend from an earlier run still holds the backend port, the command SHALL stop that process before starting the new backend, so that requests reach the code just started.
+The repository SHALL provide `just run` at its root. It SHALL start the development database, the shared backend test fixtures, the live WAL backup source with its load generator, the backend and the frontend development server, and SHALL show the database, the load generator, the backend and the frontend in one terminal window that lists every process separately, with each process's output available on its own. It SHALL work in a fresh worktree that has a `.env` file but has never generated the backend's API documentation or installed frontend dependencies. When a backend from an earlier run still holds the backend port, the command SHALL stop that process before starting the new backend, so that requests reach the code just started.
 
 #### Scenario: Developer starts the app
 
 - **WHEN** a developer runs `just run` on a Fedora host with a `.env` file
-- **THEN** the development database, the backend and the frontend start
-- **AND** the window lists each of them as a separate process with its own output
+- **THEN** the development database, the shared test fixtures, the WAL backup source, its load generator, the backend and the frontend start
+- **AND** the window lists the database, the load generator, the backend and the frontend as separate processes with their own output
 
 #### Scenario: Fresh worktree
 
@@ -28,13 +28,13 @@ The repository SHALL provide `just run` at its root. It SHALL start the developm
 
 ### Requirement: Interrupting the local app stops what it started
 
-When a developer interrupts `just run` with Ctrl+C, the backend and the frontend development server SHALL exit and the development database container SHALL stop. The database container SHALL be stopped rather than removed, so its data survives into the next run. Containers the command did not start, including the shared backend test fixtures, SHALL keep running.
+When a developer interrupts `just run` with Ctrl+C, the backend and the frontend development server SHALL exit, and the development database, the WAL backup source and its load generator SHALL stop. These containers SHALL be stopped rather than removed, so the database's data survives into the next run. The shared backend test fixtures SHALL keep running, because the backend suite and other worktrees use them.
 
 #### Scenario: Developer presses Ctrl+C
 
 - **WHEN** a developer presses Ctrl+C in the `just run` window
 - **THEN** no backend or frontend process from that run remains
-- **AND** the development database container is stopped
+- **AND** the development database, the WAL backup source and its load generator are stopped
 
 #### Scenario: Data survives a restart
 
@@ -43,8 +43,8 @@ When a developer interrupts `just run` with Ctrl+C, the backend and the frontend
 
 #### Scenario: Test fixtures are running
 
-- **WHEN** the shared backend test fixtures are running and a developer interrupts `just run`
-- **THEN** the test fixtures are still running afterwards
+- **WHEN** a developer interrupts `just run`
+- **THEN** the shared test fixtures it started are still running afterwards
 
 ### Requirement: One command runs the full backend suite
 

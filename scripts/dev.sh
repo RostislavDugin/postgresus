@@ -5,11 +5,13 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/scripts/fedora.sh"
 
 readonly backend_port=4005
+readonly test_fixtures=(test-logical-postgres-16 test-physical-postgres-17 test-physical-postgres-18)
+readonly own_services=(backend-db wal-backup-postgres-18 wal-backup-loader)
 
-# `stop`, not `down`: the compose file also holds the test fixtures other worktrees share, and the
-# dev database keeps its data in an anonymous volume that `down` would drop.
-stop_database() {
-    docker compose -f "$root/docker-compose.yml" stop backend-db
+# `stop`, not `down`: the dev database keeps its data in an anonymous volume that `down` would drop.
+# The test fixtures stay up, because the backend suite and other worktrees share them.
+stop_services() {
+    docker compose -f "$root/docker-compose.yml" stop "${own_services[@]}"
 }
 
 # A stale backend keeps holding the port and answers with the previously built code; a new one that
@@ -35,8 +37,8 @@ free_backend_port() {
 
 apply_libedit_shim
 
-trap stop_database EXIT
-docker compose -f "$root/docker-compose.yml" up -d backend-db
+trap stop_services EXIT
+docker compose -f "$root/docker-compose.yml" up -d "${own_services[@]}" "${test_fixtures[@]}"
 timeout 60 bash -c 'until docker exec backend-db pg_isready -U postgres >/dev/null; do sleep 2; done'
 
 (cd "$root/backend" && swag init -d . -g cmd/main.go -o swagger --quiet)

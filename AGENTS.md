@@ -32,7 +32,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 
 | Command | Purpose |
 |---|---|
-| `just run` | Start the app locally: dev database, backend and frontend |
+| `just run` | Start the app locally: dev database, test fixtures, WAL backup source with its load generator, backend and frontend |
 | `just test` | Run the full backend suite |
 | `just test-filesystem` | Run the Docker filesystem suite, mostly left to CI |
 | `just pull-testcontainers` | Pull the database images the backend tests use |

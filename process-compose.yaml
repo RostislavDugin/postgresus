@@ -16,3 +16,6 @@ processes:
 
   db:
     command: docker compose -f docker-compose.yml logs --follow --no-log-prefix backend-db
+
+  wal-loader:
+    command: docker compose -f docker-compose.yml logs --follow --no-log-prefix wal-backup-loader
