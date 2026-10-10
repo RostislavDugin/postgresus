@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { SshTunnelAuthType } from './SshTunnelAuthType';
-import type { SshTunnelConfig } from './SshTunnelConfig';
 import { createEmptySshTunnelConfig } from './createEmptySshTunnelConfig';
 import { setSshTunnelAuthTypeAndClearUnusedSecrets } from './setSshTunnelAuthTypeAndClearUnusedSecrets';
+import { SshTunnelAuthType } from './SshTunnelAuthType';
+import type { SshTunnelConfig } from './SshTunnelConfig';
 
 function tunnelWithBothSecrets(): SshTunnelConfig {
   return {

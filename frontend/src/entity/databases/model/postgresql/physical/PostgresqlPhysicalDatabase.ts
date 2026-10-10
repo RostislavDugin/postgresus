@@ -1,6 +1,6 @@
 import type { SshTunnelConfig } from '../../sshtunnel/SshTunnelConfig';
-import type { PostgresSslMode } from '../PostgresSslMode';
 import type { PostgresqlVersion } from '../PostgresqlVersion';
+import type { PostgresSslMode } from '../PostgresSslMode';
 import type { PhysicalDatabaseBackupType } from './PhysicalDatabaseBackupType';
 
 export interface PostgresqlPhysicalDatabase {

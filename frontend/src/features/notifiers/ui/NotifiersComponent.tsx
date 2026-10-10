@@ -7,9 +7,9 @@ import type { Notifier } from '../../../entity/notifiers';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { useIsMobile } from '../../../shared/hooks';
 import { translateApiError } from '../../../shared/i18n';
+import { EditNotifierComponent } from './edit/EditNotifierComponent';
 import { NotifierCardComponent } from './NotifierCardComponent';
 import { NotifierComponent } from './NotifierComponent';
-import { EditNotifierComponent } from './edit/EditNotifierComponent';
 
 interface Props {
   contentHeight: number;

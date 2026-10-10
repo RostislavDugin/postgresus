@@ -3,14 +3,13 @@ import { App, Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
-import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
-
 import {
   CLOUDFLARE_TURNSTILE_SITE_KEY,
   GITHUB_CLIENT_ID,
   GOOGLE_CLIENT_ID,
 } from '../../../constants';
 import { userApi } from '../../../entity/users';
+import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
 import { translateApiError } from '../../../shared/i18n';
 import { FormValidator } from '../../../shared/lib/FormValidator';
 import { CloudflareTurnstileWidget } from '../../../shared/ui/CloudflareTurnstileWidget';

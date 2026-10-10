@@ -3,10 +3,10 @@ import { DatabaseType } from './DatabaseType';
 import type { MariadbDatabase } from './mariadb/MariadbDatabase';
 import type { MongodbDatabase } from './mongodb/MongodbDatabase';
 import type { MysqlDatabase } from './mysql/MysqlDatabase';
-import { PostgresSslMode } from './postgresql/PostgresSslMode';
-import type { PostgresqlLogicalDatabase } from './postgresql/PostgresqlLogicalDatabase';
 import { PhysicalDatabaseBackupType } from './postgresql/physical/PhysicalDatabaseBackupType';
 import type { PostgresqlPhysicalDatabase } from './postgresql/physical/PostgresqlPhysicalDatabase';
+import type { PostgresqlLogicalDatabase } from './postgresql/PostgresqlLogicalDatabase';
+import { PostgresSslMode } from './postgresql/PostgresSslMode';
 
 // Resets every engine-specific sub-object, then seeds defaults for the active type.
 export const initializeDatabaseTypeData = (database: Database): Database => {

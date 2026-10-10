@@ -13,7 +13,6 @@ node_modules/
 /articles
 
 .DS_Store
-/scripts
 .vscode/settings.json
 .claude/*
 !.claude/agents/

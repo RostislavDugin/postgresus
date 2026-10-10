@@ -28,16 +28,26 @@ Reply to the user in the language they write in, and keep everything committed t
 
 ## Development environment
 
-Work happens inside the repo's [Dev Container](.devcontainer/devcontainer.json), so the toolchain is identical for every contributor. Don't install or rely on host-level SDKs — run `make`, `pnpm` and `docker` commands from inside the container.
+Work happens on a Fedora host; any other host distro is on its own. Tool versions are pinned in [`mise.toml`](mise.toml): run `mise install` once and activate mise in your shell, so every command below resolves to the pinned version. In a fresh worktree, copy `.env.example` to `.env`.
 
-On a Fedora host the backend suite may run host-native through `make test-fedora`. Any other host distro is on its own — the container stays the reference environment. In a fresh worktree, copy `.env.example` to `.env` and run `make swagger` and `pnpm install` before running tests.
+| Command | Purpose |
+|---|---|
+| `just run` | Start the app locally: dev database, backend and frontend |
+| `just test` | Run the full backend suite |
+| `just test-filesystem` | Run the Docker filesystem suite, mostly left to CI |
+| `just pull-testcontainers` | Pull the database images the backend tests use |
+| `just lint` | Check every module without changing files |
+| `just format` | Format every module |
+| `goose -dir backend/migrations create <name> sql` | Create a migration |
+| `goose -dir backend/migrations postgres "$GOOSE_DBSTRING" up` (or `down`) | Apply or roll back migrations on the dev database |
+| `swag init -d . -g cmd/main.go -o swagger`, run in `backend/` | Regenerate the API docs |
 
 ### Several agents, one set of containers
 
 Several agents may work on this repo at once, in different worktrees, sharing one Docker daemon, one set of test containers and one pool of test metadata databases. Don't let that stop you from running tests — simultaneous runs are rare and usually harmless. Two habits keep them that way:
 
 - Lint and format whenever you want: the linters, the formatters and the frontend's `pnpm test` touch nothing shared.
-- Test the package you touched with `go test ./internal/features/<feature>/... -count=1`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). Leave `make test` and `make test-fedora` for the end of a change, because they reset the test containers and slot databases every other agent uses. A fresh environment needs one full run first.
+- Test the package you touched with `go test ./internal/features/<feature>/... -count=1`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). Leave `just test` for the end of a change, because it resets the test containers and slot databases every other agent uses. A fresh environment needs one full run first.
 
 When a failure makes no sense — a container that vanished, a database that emptied itself — a parallel run is worth suspecting in maybe one case in twenty. Re-run before hunting the bug.
 
@@ -170,8 +180,9 @@ func (h *Heartbeater) IsAborted(id uuid.UUID) bool { ... }
 ### Linting and formatting
 
 After each change run linting and formatting depending on folder you are working it.
-- backend and agent has `make lint` commands
-- frontend has `pnpm lint` and `pnpm format` commands
+- backend and agent have `just lint` and `just format` in their folder
+- frontend has `pnpm lint`, `pnpm typecheck` and `pnpm format`
+- `just lint` and `just format` at the root cover all three
 
 ### Comments are a last resort
 

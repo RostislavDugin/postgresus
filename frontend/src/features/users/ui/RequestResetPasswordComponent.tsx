@@ -2,9 +2,8 @@ import { Button, Input } from 'antd';
 import { type JSX, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
-import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
-
 import { userApi } from '../../../entity/users';
+import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
 import { translateApiError } from '../../../shared/i18n';
 import { FormValidator } from '../../../shared/lib/FormValidator';
 import { CloudflareTurnstileWidget } from '../../../shared/ui/CloudflareTurnstileWidget';

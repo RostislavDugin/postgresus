@@ -4,8 +4,8 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { useLocale } from '../../../../shared/i18n';
 import { getUserTimeFormat } from '../../../../shared/time';
-import type { ScheduledBackupTime } from '../model/ScheduledBackupTime';
 import { isScheduledBackupDue } from '../model/isScheduledBackupDue';
+import type { ScheduledBackupTime } from '../model/ScheduledBackupTime';
 
 interface Props {
   scheduledBackupTime: ScheduledBackupTime;

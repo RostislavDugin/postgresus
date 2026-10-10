@@ -107,9 +107,8 @@ class Check:
     arguments: tuple
 
 
-# The hook only runs checks that leave files untouched: `make lint` starts with
-# `golangci-lint fmt` and would rewrite files a parallel agent is editing.
-# `make test` resets the test containers other agents share, so it never runs here.
+# The hook only runs checks that leave files untouched: a formatter would rewrite files a parallel
+# agent is editing. `just test` resets the test containers other agents share, so it never runs here.
 MODULE_CHECKS = (
     ("backend/", (Check("backend", ("golangci-lint", "run", "./cmd/...", "./internal/...")),)),
     (

@@ -43,7 +43,7 @@ services:
     container_name: backend-db
     shm_size: 10gb
 
-  # Dedicated test DB so `make test` doesn't pollute the dev DB
+  # Dedicated test DB so `just test` doesn't pollute the dev DB
   backend-db-test:
     image: postgres:17
     ports:

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { PagedListController } from './PagedListController';
 import type { PagedListPage } from './pagedList';
+import { PagedListController } from './PagedListController';
 
 interface Row {
   id: string;

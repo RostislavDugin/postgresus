@@ -1,7 +1,7 @@
-import type { NotifierType } from './NotifierType';
 import type { DiscordNotifier } from './discord/DiscordNotifier';
 import type { EmailNotifier } from './email/EmailNotifier';
 import type { MattermostNotifier } from './mattermost/MattermostNotifier';
+import type { NotifierType } from './NotifierType';
 import type { SlackNotifier } from './slack/SlackNotifier';
 import type { TeamsNotifier } from './teams/TeamsNotifier';
 import type { TelegramNotifier } from './telegram/TelegramNotifier';

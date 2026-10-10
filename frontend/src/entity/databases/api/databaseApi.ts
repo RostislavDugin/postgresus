@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../constants';
-import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import RequestOptions from '../../../shared/api/RequestOptions';
 import type { CreateReadOnlyUserResponse } from '../model/CreateReadOnlyUserResponse';
 import type { CreateReplicationOnlyUserResponse } from '../model/CreateReplicationOnlyUserResponse';
 import type { Database } from '../model/Database';

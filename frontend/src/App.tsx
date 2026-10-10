@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Route } from 'react-router';
 import { Routes } from 'react-router';
 
-import { useVersionCheck } from './shared/hooks/useVersionCheck';
-
 import { userApi } from './entity/users';
 import { AuthPageComponent } from './pages/AuthPageComponent';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { OauthStorageComponent } from './pages/OauthStorageComponent';
+import { useVersionCheck } from './shared/hooks/useVersionCheck';
 import { LocaleProvider, useLocale } from './shared/i18n';
 import { ThemeProvider, useTheme } from './shared/theme';
 import { MainScreenComponent } from './widgets/main/MainScreenComponent';

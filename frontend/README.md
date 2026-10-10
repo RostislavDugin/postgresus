@@ -30,18 +30,25 @@ This will compile TypeScript and create an optimized production build.
 
 ### Linting
 
-To check for linting errors:
+To check for linting and type errors:
 
 ```bash
 pnpm lint
+pnpm typecheck
 ```
 
 ### Formatting
 
-To format code using Prettier:
+To format code using oxfmt:
 
 ```bash
 pnpm format
 ```
 
 This will automatically format all TypeScript, JavaScript, JSON, CSS, and Markdown files.
+
+To check formatting without changing files:
+
+```bash
+pnpm format:check
+```

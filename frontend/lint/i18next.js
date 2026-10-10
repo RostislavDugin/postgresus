@@ -1,37 +1,5 @@
-import js from '@eslint/js';
 import i18next from 'eslint-plugin-i18next';
 import i18nextDefaults from 'eslint-plugin-i18next/lib/options/defaults.js';
-import react from 'eslint-plugin-react';
-import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
-
-// eslint-plugin-i18next exempts every literal inside a SCREAMING_SNAKE variable and every default
-// parameter value, and no option turns that off. Module-level label tables are exactly where copy
-// hides, so both node types are routed through the handler the plugin uses for an ordinary
-// lower-case variable, which checks its literals.
-const pluginNoLiteralString = i18next.rules['no-literal-string'];
-const i18nextPlugin = {
-  ...i18next,
-  rules: {
-    ...i18next.rules,
-    'no-literal-string': {
-      ...pluginNoLiteralString,
-      create(context) {
-        const visitor = pluginNoLiteralString.create(context);
-        const checkLikeLowerCaseVariable = () =>
-          visitor.VariableDeclarator({ id: { name: 'checked' } });
-
-        return {
-          ...visitor,
-          VariableDeclarator: checkLikeLowerCaseVariable,
-          AssignmentPattern: checkLikeLowerCaseVariable,
-        };
-      },
-    },
-  },
-};
 
 // Options for i18next/no-literal-string. `all` mode checks every string literal and template, not
 // only JSX text, because copy also lives in attributes, option arrays, message.* calls and .ts
@@ -102,6 +70,12 @@ const i18nextLiteralStringOptions = {
       '[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+',
       // BCP 47 language tags such as en-US
       '[a-z]{2}-[A-Z]{2}',
+      // Without type information a literal typed as a union of string literals is no longer exempt,
+      // so the two shapes those unions take are excluded by form: translation keys such as
+      // 'workspaces.roles.viewer', and single lower-case tokens such as 'signIn', 'db-settings' or
+      // 'dark'. Copy starts with a capital letter or holds a space, so it is still caught.
+      '[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_]+)+',
+      '[a-z0-9][a-zA-Z0-9]*([-_][a-zA-Z0-9]+)*',
     ],
   },
   callees: {
@@ -175,45 +149,41 @@ const i18nextLiteralStringOptions = {
   },
 };
 
-export default tseslint.config(
-  { ignores: ['dist'] },
-  {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['**/*.{ts,tsx}'],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
+// The plugin's default patterns include RegExp objects, which do not survive oxlint's JSON
+// configuration, so the options are injected here rather than set in the linter config.
+const withOptions = (context) =>
+  new Proxy(context, {
+    get(target, property) {
+      return property === 'options'
+        ? [i18nextLiteralStringOptions]
+        : Reflect.get(target, property, target);
+    },
+  });
+
+// eslint-plugin-i18next exempts every literal inside a SCREAMING_SNAKE variable and every default
+// parameter value, and no option turns that off. Module-level label tables are exactly where copy
+// hides, so both node types are routed through the handler the plugin uses for an ordinary
+// lower-case variable, which checks its literals.
+const pluginNoLiteralString = i18next.rules['no-literal-string'];
+const i18nextPlugin = {
+  ...i18next,
+  rules: {
+    ...i18next.rules,
+    'no-literal-string': {
+      ...pluginNoLiteralString,
+      create(context) {
+        const visitor = pluginNoLiteralString.create(withOptions(context));
+        const checkLikeLowerCaseVariable = () =>
+          visitor.VariableDeclarator({ id: { name: 'checked' } });
+
+        return {
+          ...visitor,
+          VariableDeclarator: checkLikeLowerCaseVariable,
+          AssignmentPattern: checkLikeLowerCaseVariable,
+        };
       },
     },
-    plugins: {
-      react: react,
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
-    },
-    rules: {
-      ...reactHooks.configs.recommended.rules,
-      ...react.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-      'react/react-in-jsx-scope': 'off',
-      'react-hooks/exhaustive-deps': 'off',
-    },
   },
-  {
-    files: ['src/**/*.{ts,tsx}'],
-    ignores: ['**/*.test.{ts,tsx}', '**/api/**', 'src/shared/i18n/locales/**'],
-    languageOptions: {
-      // The contextual types from the TypeScript program let the rule skip a literal whose type is
-      // a union of string literals, such as a TranslationKey or a prop typed 'small' | 'large'.
-      parserOptions: {
-        project: ['./tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    plugins: { i18next: i18nextPlugin },
-    rules: { 'i18next/no-literal-string': ['error', i18nextLiteralStringOptions] },
-  },
-);
+};
+
+export default i18nextPlugin;

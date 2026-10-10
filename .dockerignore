@@ -68,5 +68,8 @@ assets/tools/win-x64
 # Python cache
 **/__pycache__
 
-# Pre-commit config
-.pre-commit-config.yaml
+# Local tooling config
+lefthook.yml
+mise.toml
+process-compose.yaml
+**/Justfile

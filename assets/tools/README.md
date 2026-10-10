@@ -119,8 +119,8 @@ binaries, and the loader picks them before the image's copies.
 image as a dependency of `postgresql-common`. A change that drops that package
 takes the MariaDB interactive client with it. It is also the one soname a
 non-Debian development host is missing — Fedora ships the upstream
-`libedit.so.0` — which is what `make test-fedora` and `make run-fedora` in
-`backend/` shim around.
+`libedit.so.0` — which is what `just run` and `just test` at the repository
+root shim around.
 
 To refresh a tool set, run the script for that engine, or drop the
 corresponding `bin/` contents in place, and commit. For PostgreSQL the source

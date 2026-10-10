@@ -33,8 +33,8 @@ import { formatDuration } from '../../../../shared/lib';
 import { getUserTimeFormat } from '../../../../shared/time';
 import { ConfirmationComponent } from '../../../../shared/ui';
 import { PHYSICAL_BACKUP_STATUS_BADGE_STYLES } from '../model/physicalBackupStatus';
-import { PhysicalBackupTypeCellComponent } from './PhysicalBackupTypeCellComponent';
 import { PhysicalBackupsFiltersPanelComponent } from './PhysicalBackupsFiltersPanelComponent';
+import { PhysicalBackupTypeCellComponent } from './PhysicalBackupTypeCellComponent';
 import { PhysicalRestoreComponent } from './PhysicalRestoreComponent';
 
 const BACKUPS_PAGE_SIZE = 50;

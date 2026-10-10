@@ -11,7 +11,7 @@ import unittest
 HOOK_PATH = Path(__file__).resolve().parent / "review_gate.py"
 CHANGE_NAME = "add-widgets"
 PROPOSAL_NAME = "add-gadgets"
-STUB_NAMES = ("claude", "codex", "openspec", "golangci-lint", "pnpm", "npm", "make")
+STUB_NAMES = ("claude", "codex", "openspec", "golangci-lint", "pnpm", "npm", "just")
 
 # The stub stands in for every external command: it takes its answer from <stubs>/<name>.json
 # and records each call in <stubs>/calls, so a test sees the arguments, the working directory
@@ -163,7 +163,7 @@ class HookRepository:
         return [call for call in calls if name is None or call["name"] == name]
 
     def check_calls(self):
-        return [call for call in self.calls() if call["name"] in ("golangci-lint", "pnpm", "npm", "make")]
+        return [call for call in self.calls() if call["name"] in ("golangci-lint", "pnpm", "npm", "just")]
 
     def reviewer_calls(self):
         return [call for call in self.calls() if call["name"] in ("claude", "codex")]
@@ -604,7 +604,7 @@ class ImplementationGateChecksTest(unittest.TestCase):
         self.assertIn("service.go:12:2: ineffectual assignment to err", response["reason"])
         self.assertEqual(repository.reviewer_calls(), [])
 
-    def test_never_runs_formatters_or_make(self):
+    def test_never_runs_formatters_or_just(self):
         repository = HookRepository(self)
         repository.submit_prompt("Continue")
         repository.write("backend/internal/features/widgets/service.go", "package widgets\n")
@@ -614,7 +614,7 @@ class ImplementationGateChecksTest(unittest.TestCase):
         response = repository.stop("implementation")
 
         self.assertEqual(response, {})
-        self.assertEqual(repository.calls("make"), [])
+        self.assertEqual(repository.calls("just"), [])
         arguments = [" ".join(call["arguments"]) for call in repository.check_calls()]
         self.assertEqual(len(arguments), 2)
         self.assertFalse(any("fmt" in argument or "format" in argument for argument in arguments))
