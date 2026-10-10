@@ -62,6 +62,7 @@ var mongodbVersions = []mongodbVersion{
 	{"MongoDB 6.0", tools.MongodbVersion6, "mongo:6.0"},
 	{"MongoDB 7.0", tools.MongodbVersion7, "mongo:7.0"},
 	{"MongoDB 8.2", tools.MongodbVersion8, "mongo:8.2.3-noble"},
+	{"MongoDB 9.0", tools.MongodbVersion9, "mongo:9.0.2-noble"},
 }
 
 // Test_MongodbBackupRestore_AcrossSupportedVersions boots each MongoDB version once, runs every

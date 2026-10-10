@@ -115,7 +115,7 @@ O Databasus faz uma restauração de verdade para confirmar que os backups serve
 - **PostgreSQL**: 14, 15, 16, 17 e 18 (físico e lógico)
 - **MySQL**: 5.7, 8.0, 8.4, 9 e 26 (apenas lógico)
 - **MariaDB**: 5.5, 10, 11, 12 e 13 (apenas lógico)
-- **MongoDB**: 4.2+, 5, 6, 7 e 8 (apenas lógico)
+- **MongoDB**: 4.2+, 5, 6, 7, 8 e 9 (apenas lógico)
 
 ### 🐳 **Self-hosted e seguro**
 

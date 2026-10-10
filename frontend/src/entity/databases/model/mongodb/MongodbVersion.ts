@@ -1,8 +1,8 @@
 export enum MongodbVersion {
-  MongodbVersion42 = '4.2',
-  MongodbVersion44 = '4.4',
-  MongodbVersion50 = '5.0',
-  MongodbVersion60 = '6.0',
-  MongodbVersion70 = '7.0',
-  MongodbVersion80 = '8.0',
+  MongodbVersion4 = '4',
+  MongodbVersion5 = '5',
+  MongodbVersion6 = '6',
+  MongodbVersion7 = '7',
+  MongodbVersion8 = '8',
+  MongodbVersion9 = '9',
 }

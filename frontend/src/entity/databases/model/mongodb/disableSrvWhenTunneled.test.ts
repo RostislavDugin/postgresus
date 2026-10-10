@@ -19,7 +19,7 @@ const enabledTunnel = (): SshTunnelConfig => ({
 
 const srvDatabase = (sshTunnel?: SshTunnelConfig): MongodbDatabase => ({
   id: 'db-1',
-  version: MongodbVersion.MongodbVersion70,
+  version: MongodbVersion.MongodbVersion7,
   host: 'cluster0.example.mongodb.net',
   port: 27017,
   username: 'testuser',

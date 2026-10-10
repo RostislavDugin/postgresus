@@ -86,7 +86,7 @@ Physical, full, incremental and WAL backups are built on PostgreSQL 17's native 
 ### Database Guides
 
 - [MySQL and MariaDB Backup](https://databasus.com/mysql-backup): Comprehensive guide on using Databasus for MySQL and MariaDB backups. Explains how to backup MySQL databases using mysqldump under the hood, with support for MySQL 5.7, 8.0, 8.4 and 9, as well as MariaDB 10, 11 and 12 using native mariadb-dump tool. Includes details on scheduled backups, cloud storage integration, notifications, compression, encryption and compatibility with cloud-hosted MySQL services like AWS RDS, Google Cloud SQL, Azure Database for MySQL and PlanetScale.
-- [MongoDB Backup](https://databasus.com/mongodb-backup): Complete guide on using Databasus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7 and 8. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
+- [MongoDB Backup](https://databasus.com/mongodb-backup): Complete guide on using Databasus for MongoDB backups. Explains how to backup MongoDB databases using mongodump under the hood, with support for MongoDB versions 4, 5, 6, 7, 8 and 9. Includes information about scheduled backups, BSON archive storage, cloud storage integration, notifications, compression with gzip, AES-256-GCM encryption and compatibility with MongoDB Atlas, replica sets and self-hosted deployments.
 
 ### Restore and Recovery
 

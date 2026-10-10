@@ -39,7 +39,7 @@ Databasus supports MariaDB versions 10 and 11.
 
 ### MongoDB Compatibility
 
-Databasus supports MongoDB versions 4, 5, 6, 7 and 8.
+Databasus supports MongoDB versions 4, 5, 6, 7, 8 and 9.
 
 ## Response Timeline
 

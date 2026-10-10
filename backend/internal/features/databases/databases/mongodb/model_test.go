@@ -32,6 +32,7 @@ var mongodbModelVersions = []mongodbModelVersion{
 	{"MongoDB 6.0", tools.MongodbVersion6, "mongo:6.0"},
 	{"MongoDB 7.0", tools.MongodbVersion7, "mongo:7.0"},
 	{"MongoDB 8.2", tools.MongodbVersion8, "mongo:8.2.3-noble"},
+	{"MongoDB 9.0", tools.MongodbVersion9, "mongo:9.0.2-noble"},
 }
 
 // Test_MongodbModel_AcrossSupportedVersions boots each MongoDB version once and runs every matrix
@@ -158,7 +159,6 @@ func testTestConnectionSufficientPermissions(
 
 	port := container.Port
 	mongodbModel := &MongodbDatabase{
-		Version:      version,
 		Host:         container.Host,
 		Port:         &port,
 		Username:     backupUsername,
@@ -174,6 +174,7 @@ func testTestConnectionSufficientPermissions(
 
 	err = mongodbModel.TestConnection(logger, nil)
 	assert.NoError(t, err)
+	assert.Equal(t, version, mongodbModel.Version)
 }
 
 func testShouldSuggestReadOnlyUserAdminUser(
@@ -816,39 +817,45 @@ func Test_MapMongodbVersion_VersionMatrix_ReturnsExpected(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		major       string
-		minor       string
-		wantErr     bool
-		wantVersion tools.MongodbVersion
-		errContains string
+		name            string
+		reportedVersion string
+		isRefused       bool
+		mappedVersion   tools.MongodbVersion
+		errorFragments  []string
 	}{
-		{"3.6 rejected", "3", "6", true, "", "supported: 4.2+"},
-		{"4.0 rejected", "4", "0", true, "", "minimum supported: 4.2"},
-		{"4.1 rejected", "4", "1", true, "", "minimum supported: 4.2"},
-		{"4.2 supported", "4", "2", false, tools.MongodbVersion4, ""},
-		{"4.4 supported", "4", "4", false, tools.MongodbVersion4, ""},
-		{"5.0 supported", "5", "0", false, tools.MongodbVersion5, ""},
-		{"6.0 supported", "6", "0", false, tools.MongodbVersion6, ""},
-		{"7.0 supported", "7", "0", false, tools.MongodbVersion7, ""},
-		{"8.0 supported", "8", "0", false, tools.MongodbVersion8, ""},
-		{"9.0 rejected", "9", "0", true, "", "supported: 4.2+"},
+		{"4.2 supported", "4.2.0", false, tools.MongodbVersion4, nil},
+		{"4.4 supported", "4.4.29", false, tools.MongodbVersion4, nil},
+		{"5.0 supported", "5.0.0", false, tools.MongodbVersion5, nil},
+		{"6.0 supported", "6.0.0", false, tools.MongodbVersion6, nil},
+		{"7.0 supported", "7.0.0", false, tools.MongodbVersion7, nil},
+		{"8.0 supported", "8.0.0", false, tools.MongodbVersion8, nil},
+		{"8.10 supported", "8.10.1", false, tools.MongodbVersion8, nil},
+		{"9.0 supported", "9.0.2", false, tools.MongodbVersion9, nil},
+		{"9.2 supported", "9.2.0", false, tools.MongodbVersion9, nil},
+		{"3.6 rejected", "3.6.23", true, "", []string{"3.6", "minimum supported: 4.2"}},
+		{"4.0 rejected", "4.0.28", true, "", []string{"4.0", "minimum supported: 4.2"}},
+		{"4.1 rejected", "4.1.0", true, "", []string{"4.1", "minimum supported: 4.2"}},
+		{"10.0 rejected", "10.0.0", true, "", []string{"10.0", "supported: 4.2 through 9.x"}},
+		{"unreadable rejected", "abc", true, "", []string{"could not parse MongoDB version", "abc"}},
+		{"empty rejected", "", true, "", []string{"could not parse MongoDB version", `""`}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := mapMongodbVersion(tc.major, tc.minor)
+			mappedVersion, err := mapMongodbVersion(tc.reportedVersion)
 
-			if tc.wantErr {
+			if tc.isRefused {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errContains)
+				for _, fragment := range tc.errorFragments {
+					assert.Contains(t, err.Error(), fragment)
+				}
 				return
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, tc.wantVersion, got)
+			assert.Equal(t, tc.mappedVersion, mappedVersion)
 		})
 	}
 }
