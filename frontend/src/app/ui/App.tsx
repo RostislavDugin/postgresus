@@ -1,16 +1,16 @@
 import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Route } from 'react-router';
+import { BrowserRouter, Navigate, Route } from 'react-router';
 import { Routes } from 'react-router';
 
-import { userApi } from './entity/users';
-import { AuthPageComponent } from './pages/AuthPageComponent';
-import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
-import { OauthStorageComponent } from './pages/OauthStorageComponent';
-import { useVersionCheck } from './shared/hooks/useVersionCheck';
-import { LocaleProvider, useLocale } from './shared/i18n';
-import { ThemeProvider, useTheme } from './shared/theme';
-import { MainScreenComponent } from './widgets/main/MainScreenComponent';
+import { userApi } from '../../entity/users';
+import { AuthPageComponent } from '../../pages/AuthPageComponent';
+import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
+import { OauthStorageComponent } from '../../pages/OauthStorageComponent';
+import { useVersionCheck } from '../../shared/hooks/useVersionCheck';
+import { LocaleProvider, useLocale } from '../../shared/i18n';
+import { ThemeProvider, useTheme } from '../../shared/theme';
+import { MainScreenComponent } from '../../widgets/main/MainScreenComponent';
 
 function AppContent() {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -47,6 +47,7 @@ function AppContent() {
               path="/"
               element={!isAuthorized ? <AuthPageComponent /> : <MainScreenComponent />}
             />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </AntdApp>

@@ -9,9 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"databasus-backend/internal/config"
+	"databasus-backend/internal/features/email"
 	users_enums "databasus-backend/internal/features/users/enums"
 	users_testing "databasus-backend/internal/features/users/testing"
 	workspaces_dto "databasus-backend/internal/features/workspaces/dto"
+	workspaces_services "databasus-backend/internal/features/workspaces/services"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
 	test_utils "databasus-backend/internal/util/testing"
 )
@@ -327,6 +330,67 @@ func Test_AddMemberToWorkspace_WithNonExistentUser_ReturnsInvited(t *testing.T) 
 	)
 
 	assert.True(t, response.Status == workspaces_dto.AddStatusInvited)
+}
+
+func Test_AddMemberToWorkspace_WithNonExistentUser_InvitationLinksToConfiguredUrl(t *testing.T) {
+	for _, databasusURL := range []string{
+		"https://databasus.example.com",
+		"https://databasus.example.com/",
+	} {
+		t.Run(databasusURL, func(t *testing.T) {
+			mockEmailSender := useMockMembershipEmailSender(t)
+			useDatabasusURL(t, databasusURL)
+
+			router := workspaces_testing.CreateTestRouter(
+				GetWorkspaceController(),
+				GetMembershipController(),
+			)
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+
+			workspace, _ := workspaces_testing.CreateTestWorkspaceViaAPI(t.Context(), "Test Workspace", owner, router)
+			defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+			request := workspaces_dto.AddMemberRequestDTO{
+				Email: uuid.New().String() + "@example.com",
+				Role:  users_enums.WorkspaceRoleViewer,
+			}
+
+			test_utils.MakePostRequest(
+				t,
+				router,
+				"/api/v1/workspaces/memberships/"+workspace.ID.String()+"/members",
+				"Bearer "+owner.Token,
+				request,
+				http.StatusOK,
+			)
+
+			assert.Len(t, mockEmailSender.SendEmailCalls, 1)
+			assert.Equal(t, request.Email, mockEmailSender.SendEmailCalls[0].To)
+			assert.Contains(t, mockEmailSender.SendEmailCalls[0].Body, `href="`+databasusURL+`"`)
+		})
+	}
+}
+
+func useMockMembershipEmailSender(t *testing.T) *workspaces_testing.MockEmailSender {
+	t.Helper()
+
+	mockEmailSender := workspaces_testing.NewMockEmailSender()
+	workspaces_services.GetMembershipService().SetEmailSender(mockEmailSender)
+	t.Cleanup(func() {
+		workspaces_services.GetMembershipService().SetEmailSender(email.GetEmailSMTPSender())
+	})
+
+	return mockEmailSender
+}
+
+func useDatabasusURL(t *testing.T, databasusURL string) {
+	t.Helper()
+
+	originalDatabasusURL := config.GetEnv().DatabasusURL
+	config.GetEnv().DatabasusURL = databasusURL
+	t.Cleanup(func() {
+		config.GetEnv().DatabasusURL = originalDatabasusURL
+	})
 }
 
 func Test_AddMemberToWorkspace_WhenWorkspaceAdminTriesToAddAdmin_ReturnsBadRequest(t *testing.T) {

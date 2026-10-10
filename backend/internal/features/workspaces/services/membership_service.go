@@ -32,6 +32,10 @@ type MembershipService struct {
 	logger               *slog.Logger
 }
 
+func (s *MembershipService) SetEmailSender(sender workspaces_interfaces.EmailSender) {
+	s.emailSender = sender
+}
+
 func (s *MembershipService) GetMembers(
 	ctx context.Context,
 	workspaceID uuid.UUID,
@@ -370,7 +374,7 @@ func (s *MembershipService) buildInvitationEmailHTML(
 	signUpLink := ""
 	if env.DatabasusURL != "" {
 		signUpLink = fmt.Sprintf(`<p style="margin: 20px 0;">
-			<a href="%s/sign-up" style="display: inline-block; padding: 12px 24px; background-color: #0d6efd; color: white; text-decoration: none; border-radius: 4px;">
+			<a href="%s" style="display: inline-block; padding: 12px 24px; background-color: #0d6efd; color: white; text-decoration: none; border-radius: 4px;">
 				Sign up
 			</a>
 		</p>`, env.DatabasusURL)
