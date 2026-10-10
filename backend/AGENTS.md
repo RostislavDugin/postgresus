@@ -295,7 +295,7 @@ ALTER TABLE marketplace_info_images
     REFERENCES marketplace_info (bot_id);
 ```
 
-For migrations stub generation use Makefile and only then fill manually.
+Generate the migration stub with the goose create command from the [command table](../AGENTS.md#development-environment) and only then fill it manually.
 
 ---
 
@@ -303,7 +303,7 @@ For migrations stub generation use Makefile and only then fill manually.
 
 **Always run tests after writing them and verify they pass.**
 
-Run the package you touched (`go test ./internal/features/<feature>/... -count=1`) and keep `make test` / `make test-fedora` for the end of a change — see [Several agents, one set of containers](../AGENTS.md#several-agents-one-set-of-containers).
+Run the packages you touched and the ones that test the same feature (`just test-package ./internal/features/<feature>/...`). Never run `just test` — see [Several agents, one set of containers](../AGENTS.md#several-agents-one-set-of-containers).
 
 ### Naming
 

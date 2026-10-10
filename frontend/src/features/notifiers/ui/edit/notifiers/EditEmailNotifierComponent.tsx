@@ -1,6 +1,6 @@
-import { DownOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { InfoCircleOutlined } from '@ant-design/icons';
 import { Checkbox, Input, Select, Tooltip } from 'antd';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -10,6 +10,10 @@ import {
   getDefaultEmailNotifierSecurity,
   getSecurityAfterPortChange,
 } from '../../../../../entity/notifiers';
+import {
+  AdvancedFieldRowComponent,
+  AdvancedSettingsToggleComponent,
+} from '../../../../../shared/ui';
 
 interface Props {
   notifier: Notifier;
@@ -185,20 +189,11 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setUnsaved }
         </div>
       </div>
 
-      <div className="mt-4 mb-3 flex items-center">
-        <div
-          className="flex cursor-pointer items-center text-sm text-blue-600 hover:text-blue-800"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-        >
-          <span className="mr-2">{t('notifiers.email.advancedSettings')}</span>
-
-          {showAdvanced ? (
-            <UpOutlined style={{ fontSize: '12px' }} />
-          ) : (
-            <DownOutlined style={{ fontSize: '12px' }} />
-          )}
-        </div>
-      </div>
+      <AdvancedSettingsToggleComponent
+        label={t('notifiers.advancedSettings')}
+        isShowAdvanced={showAdvanced}
+        onToggle={() => setShowAdvanced(!showAdvanced)}
+      />
 
       {showAdvanced && (
         <>
@@ -272,26 +267,5 @@ export function EditEmailNotifierComponent({ notifier, setNotifier, setUnsaved }
         </>
       )}
     </>
-  );
-}
-
-interface AdvancedFieldRowProps {
-  label: string;
-  tooltip: string;
-  children: ReactNode;
-}
-
-function AdvancedFieldRowComponent({ label, tooltip, children }: AdvancedFieldRowProps) {
-  return (
-    <div className="mb-1 flex w-full flex-col items-start sm:flex-row sm:items-center">
-      <div className="mb-1 min-w-[150px] sm:mb-0 sm:pr-2">{label}</div>
-      <div className="flex items-center">
-        {children}
-
-        <Tooltip className="cursor-pointer" title={tooltip}>
-          <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
-        </Tooltip>
-      </div>
-    </div>
   );
 }

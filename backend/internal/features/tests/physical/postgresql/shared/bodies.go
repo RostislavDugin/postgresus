@@ -162,7 +162,7 @@ func RunWalStreamCatalogsHistoryOnTimelineSwitch(t *testing.T, version, image st
 	chain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
 
 	// Stream a couple of committed TL1 segments so the slot is actively consuming when we promote.
-	streamPostFullSegments(t, ctx, router, primaryConn, fixture, chainTipStopLSN(t, chain), 2, 90*time.Second)
+	streamPostFullSegments(t, ctx, primaryConn, fixture, chain, 2, 90*time.Second)
 
 	// Promote: the standby becomes a primary on timeline 2. pg_receivewal follows the switch and
 	// uploads 00000002.history, driving the issue #643 path in the live supervisor.
@@ -325,11 +325,10 @@ func RunWhenWalGapBeforeTargetTokenRequestReturns422(t *testing.T, version, imag
 
 	enablePhysicalBackupsViaAPI(t, router, fixture, true)
 	chain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
-	fullStopLSN := chainTipStopLSN(t, chain)
 
 	// Stream a run of post-FULL segments, then drop a committed middle one so a
 	// real hole sits in the replayable WAL ahead of the target.
-	postFull := streamPostFullSegments(t, ctx, router, sourceConn, fixture, fullStopLSN, 3, 90*time.Second)
+	postFull := streamPostFullSegments(t, ctx, sourceConn, fixture, chain, 3, 90*time.Second)
 	removed := postFull[len(postFull)/2]
 	require.NoError(t, physical_repositories.GetWalSegmentRepository().DeleteByID(removed.ID))
 
@@ -377,7 +376,7 @@ func RunWhenOrphanSweepRunsAfterFullTargetPastFullStaysRestorable(t *testing.T, 
 	chain := waitForChainBackups(t, router, fixture, 0, 3*time.Minute)
 
 	insertMarker(t, ctx, sourceConn, "after-full", "row-replayed-up-to-target")
-	streamPostFullSegments(t, ctx, router, sourceConn, fixture, chainTipStopLSN(t, chain), 2, 90*time.Second)
+	streamPostFullSegments(t, ctx, sourceConn, fixture, chain, 2, 90*time.Second)
 
 	// A margin wider than the whole-second recovery_target_time truncation on either side keeps the
 	// target unambiguously inside the streamed range.

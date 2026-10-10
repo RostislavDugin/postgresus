@@ -23,10 +23,11 @@ const (
 	// rename would silently break log queries.
 	schedulerJobName = "physical_backup_scheduler"
 
-	// Cleaner ticks every 3 s so retention decisions become visible almost
-	// immediately, while the per-tick WAL byte budget keeps a single tick bounded
-	// even at this cadence. Mirrors logical.
-	cleanerTickInterval = 3 * time.Second
+	// Each cleaner tick reads every closed chain of every enabled database and
+	// runs the orphan WAL anti-join. Retention grace is at least an hour and
+	// abandoned WAL claims are reaped after one, so a minute of extra delay
+	// changes no outcome while keeping that work off an idle instance.
+	cleanerTickInterval = 1 * time.Minute
 
 	// Never delete a chain whose end timestamp is younger than
 	// max(full, incr cadence) × 2 — protects a chain that just completed or is

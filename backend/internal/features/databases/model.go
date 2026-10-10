@@ -145,6 +145,26 @@ func (d *Database) TestConnection(
 	}
 }
 
+// ProbeLiveness backs the scheduled healthcheck. Only the physical type swaps its full connection
+// test for a plain liveness probe, because only its test opens a replication connection that
+// competes with backups for WAL sender slots; the other types share nothing with their backups and
+// keep the full test.
+func (d *Database) ProbeLiveness(
+	ctx context.Context,
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+) error {
+	if d.Type != DatabaseTypePostgresPhysical {
+		return d.TestConnection(logger, encryptor)
+	}
+
+	if d.PostgresqlPhysical == nil {
+		return errors.New("postgresql physical config is not set")
+	}
+
+	return d.PostgresqlPhysical.ProbeLiveness(ctx, logger, encryptor)
+}
+
 func (d *Database) GetRawDbSizeMb(
 	ctx context.Context,
 	logger *slog.Logger,

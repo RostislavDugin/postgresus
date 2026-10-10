@@ -115,7 +115,7 @@ Databasus effectue une vraie restauration pour confirmer que les sauvegardes son
 - **PostgreSQL** : 14, 15, 16, 17 et 18 (physique et logique)
 - **MySQL** : 5.7, 8.0, 8.4, 9 et 26 (logique uniquement)
 - **MariaDB** : 5.5, 10, 11, 12 et 13 (logique uniquement)
-- **MongoDB** : 4.2+, 5, 6, 7 et 8 (logique uniquement)
+- **MongoDB** : 4.2+, 5, 6, 7, 8 et 9 (logique uniquement)
 
 ### 🐳 **Auto-hébergé et sûr**
 
@@ -276,6 +276,14 @@ docker exec -it databasus ./main --list-admins
 ```
 
 La sortie nomme chaque compte administrateur avec son adresse e-mail, son nom affiché, sa date de création et son état d'activité, et marque celui que l'instance reconnaît comme son administrateur. Aucun mot de passe ni empreinte de mot de passe n'est affiché.
+
+Pour ouvrir un compte sans passer par l'inscription dans le navigateur, par exemple depuis un script de déploiement, créez-le depuis la console :
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` vaut `admin` ou `member`, le mot de passe doit compter au moins 8 caractères, et `--name` permet de définir un nom affiché. Sur une instance qui n'a encore aucun compte, le premier doit utiliser `--role=admin` et administre l'instance. Relancer la commande pour le même compte ne change rien : un déploiement peut donc l'exécuter à chaque mise en production. Pour renouveler le mot de passe, utilisez `--new-password`.
 
 ### 💾 Sauvegarder Databasus lui-même
 

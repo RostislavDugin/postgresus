@@ -27,9 +27,9 @@ import { useIsMobile, useIsNewGitHubVersionAvailable, useScreenHeight } from '..
 import { getWebsitePageUrl, translateApiError, useLocale } from '../../shared/i18n';
 import { LanguageThemeControlComponent, SponsorshipLinkComponent } from '../../shared/ui';
 import { StarButtonComponent } from '../../shared/ui/StarButtonComponent';
+import { getDiskUsageValues } from './getDiskUsageValues';
 import { type MainTab, SidebarComponent, type SidebarTab } from './SidebarComponent';
 import { WorkspaceSelectionComponent } from './WorkspaceSelectionComponent';
-import { getDiskUsageValues } from './getDiskUsageValues';
 
 export const MainScreenComponent = () => {
   const { t } = useTranslation();

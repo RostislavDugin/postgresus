@@ -232,17 +232,17 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 		return backupDecision{}, false
 	}
 
-	extendableChain, err := s.chainViewService.FindLastExtendableChainByDatabase(backupConfig.DatabaseID)
-	if err != nil {
-		logger.Error("failed to find extendable chain", "error", err)
-
-		return backupDecision{}, false
-	}
-
 	lastBackupTime := newestCreatedAt(lastFull, lastIncr)
 
 	if !backupConfig.IncrementalBackupInterval.ShouldTriggerBackup(now, lastBackupTime) {
 		logger.Debug("nothing due: neither cadence has elapsed")
+
+		return backupDecision{}, false
+	}
+
+	extendableChain, err := s.chainViewService.FindLastExtendableChainByDatabase(backupConfig.DatabaseID)
+	if err != nil {
+		logger.Error("failed to find extendable chain", "error", err)
 
 		return backupDecision{}, false
 	}

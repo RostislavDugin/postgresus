@@ -1118,6 +1118,7 @@ export const ru: typeof en = {
     },
   },
   notifiers: {
+    advancedSettings: 'Дополнительные настройки',
     types: {
       email: 'Email',
       telegram: 'Telegram',
@@ -1215,7 +1216,6 @@ export const ru: typeof en = {
       fromTooltip:
         'Необязательно. Адрес отправителя, можно с именем: Acme Backups <noreply@example.com>. Если поле пустое, используется пользователь SMTP, когда это адрес почты, а иначе noreply@ и хост SMTP',
       fromAuto: '(автоматически)',
-      advancedSettings: 'Дополнительные настройки',
       skipTlsTooltip:
         'Не проверять TLS-сертификат. Включите, если SMTP-сервер использует самоподписанный сертификат. Внимание: это снижает безопасность.',
       security: 'Защита соединения',
@@ -1241,6 +1241,9 @@ export const ru: typeof en = {
         group:
           'Чтобы узнать ID группы, добавьте в нее своего бота и <botLink>@getmyid_bot</botLink>, затем напишите /start — появится ID чата',
       },
+      botApiUrl: 'URL Bot API',
+      botApiUrlTooltip:
+        'Необязательно. Адрес своего сервера Telegram Bot API или reverse proxy перед Telegram API. Если поле пустое, используется официальный Telegram API. Этот сервер получает токен бота. Чтобы бот заработал через свой сервер, сначала выведите его из официального API методом logOut',
       useProxy: 'Использовать прокси',
       useProxyTooltip: 'Отправлять запросы к Telegram API через прокси',
       proxy: 'Прокси',
@@ -1529,6 +1532,14 @@ export const ru: typeof en = {
         restore: 'Восстановить',
         restoreFromThisBackup: 'Восстановить из этого бекапа',
         pointInTimeRestoreTitle: 'Восстановление на момент времени',
+        walRange: {
+          from: 'Начало',
+          to: 'Конец',
+          segments: 'Сегменты',
+          gap: 'Разрыв',
+          gapBeforeTooltip:
+            'Между этим диапазоном и предыдущим не хватает сегментов WAL. Восстановление на момент времени не может пройти через этот разрыв.',
+        },
         deleteFullConfirmation:
           'Вместе с этим полным бекапом удалится вся его цепочка (все зависящие от него инкрементальные бекапы). Это действие нельзя отменить. Продолжить?',
         deleteIncrementalConfirmation:

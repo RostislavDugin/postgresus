@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../constants';
-import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import RequestOptions from '../../../shared/api/RequestOptions';
 import type { GetAuditLogsResponse } from '../../audit-logs/model/GetAuditLogsResponse';
 import type { CreateWorkspaceRequest } from '../model/CreateWorkspaceRequest';
 import type { ListWorkspacesResponse } from '../model/ListWorkspacesResponse';

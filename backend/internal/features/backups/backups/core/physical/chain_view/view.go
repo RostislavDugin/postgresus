@@ -5,33 +5,16 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// ChainView is one backup chain — its FULL, its INCRs and the WAL between.
-// It represents a single chain from one FULL to the next FULL.
-//
-// LSN layout of the fields:
-//
-// Span:             [════════════════════════════════════════]
-// WalSegments:      [seg1][seg2]        [seg4][seg5]
-// Gaps:                         [══════]
-// MaxReplayableLSN:            ↑ (end of seg2 — gap blocks further replay)
+// ChainView is one backup chain — its FULL and its INCRs, from one FULL to the
+// next. It carries no WAL: callers that need the chain's WAL look it up by Span.
 type ChainView struct {
 	RootFull     *physical_models.PhysicalFullBackup
 	Incrementals []*physical_models.PhysicalIncrementalBackup
-	WalSegments  []*physical_models.PhysicalWalSegment
 
 	// Span is the LSN range owned by this chain: from RootFull.StartLSN up to
 	// the next FULL's StartLSN (or LSNMax if no next FULL exists yet). Only
 	// FULLs bound a chain — INCRs sit inside Span, not at its edge.
 	Span LSNRange
-
-	// Gaps are holes between WalSegments inside Span — a missing segment or a
-	// mid-chain timeline switch. The chain stays usable, but PITR into a gap
-	// is impossible.
-	Gaps []LSNRange
-
-	// MaxReplayableLSN is the furthest LSN PITR can reach: RootFull.StopLSN
-	// plus every contiguous WAL segment up to (but not past) the first Gap.
-	MaxReplayableLSN walmath.LSN
 }
 
 // LSNMax is the unbounded upper sentinel for the latest chain on a timeline

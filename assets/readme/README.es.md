@@ -115,7 +115,7 @@ Databasus ejecuta una restauración real para confirmar que las copias sirven, e
 - **PostgreSQL**: 14, 15, 16, 17 y 18 (física y lógica)
 - **MySQL**: 5.7, 8.0, 8.4, 9 y 26 (solo lógica)
 - **MariaDB**: 5.5, 10, 11, 12 y 13 (solo lógica)
-- **MongoDB**: 4.2+, 5, 6, 7 y 8 (solo lógica)
+- **MongoDB**: 4.2+, 5, 6, 7, 8 y 9 (solo lógica)
 
 ### 🐳 **Autoalojado y seguro**
 
@@ -276,6 +276,14 @@ docker exec -it databasus ./main --list-admins
 ```
 
 La salida nombra cada cuenta de administrador con su correo electrónico, nombre visible, fecha de creación y estado de actividad, y marca la que la instancia reconoce como su administrador. No imprime ninguna contraseña ni su hash.
+
+Para dar de alta una cuenta sin registrarse en el navegador, por ejemplo desde un script de despliegue, créela desde la consola:
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` admite `admin` o `member`, la contraseña necesita al menos 8 caracteres y `--name` fija, si lo desea, el nombre visible. En una instancia que todavía no tiene ninguna cuenta, la primera debe usar `--role=admin` y pasa a administrar la instancia. Repetir el comando para la misma cuenta no cambia nada, así que puede incluirlo en cada despliegue; para cambiar la contraseña, use `--new-password`.
 
 ### 💾 Respaldar el propio Databasus
 

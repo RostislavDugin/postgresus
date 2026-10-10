@@ -4,39 +4,37 @@
 
 # Run
 
-To run:
+Commands run from the repository root, with the tools from `mise.toml` installed.
 
-> make run
+To run the backend together with the frontend, the dev database, the test fixtures and the WAL backup source:
+
+> just run
 
 To run tests:
 
-> make test
+> just test
 
-Before commit (make sure `golangci-lint` is installed):
+Before commit:
 
-> make lint
+> just lint
 
 # Migrations
 
-To create migration:
+The backend applies pending migrations on startup. To create a migration:
 
-> make migration-create name=MIGRATION_NAME
+> goose -dir backend/migrations create MIGRATION_NAME sql
 
-To run migrations:
+To apply or roll back migrations on the dev database, with the variables from `.env` exported (goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment):
 
-> make migration-up
+> goose -dir backend/migrations up
 
-If latest migration failed:
-
-To rollback on migration:
-
-> make migration-down
+> goose -dir backend/migrations down
 
 # Swagger
 
-To generate swagger docs:
+`just run` generates the swagger docs before the backend starts. To regenerate them by hand, from `backend/`:
 
-> make swagger
+> swag init -d . -g cmd/main.go -o swagger
 
 Swagger URL is:
 

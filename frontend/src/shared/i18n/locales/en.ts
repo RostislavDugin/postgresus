@@ -1113,6 +1113,7 @@ export const en = {
     },
   },
   notifiers: {
+    advancedSettings: 'Advanced settings',
     types: {
       email: 'Email',
       telegram: 'Telegram',
@@ -1211,7 +1212,6 @@ export const en = {
       fromTooltip:
         'Optional. Sender address, with or without a name: Acme Backups <noreply@example.com>. If empty, the SMTP user is used when it is an email address, otherwise noreply@ and the SMTP host',
       fromAuto: '(auto)',
-      advancedSettings: 'Advanced settings',
       skipTlsTooltip:
         'Skip TLS certificate verification. Enable this if your SMTP server uses a self-signed certificate. Warning: this reduces security.',
       security: 'Connection security',
@@ -1238,6 +1238,9 @@ export const en = {
         group:
           'If you want to get chat ID of a group, add your bot with <botLink>@getmyid_bot</botLink> to the group and write /start (you will see chat ID)',
       },
+      botApiUrl: 'Bot API URL',
+      botApiUrlTooltip:
+        'Optional. A self-hosted Telegram Bot API server or a reverse proxy in front of the Telegram API. If empty, the official Telegram API is used. This server receives the bot token. A bot has to log out of the official API before it works with a self-hosted server',
       useProxy: 'Use proxy',
       useProxyTooltip: 'Use a proxy for Telegram API requests',
       proxy: 'Proxy',
@@ -1526,6 +1529,14 @@ export const en = {
         restore: 'Restore',
         restoreFromThisBackup: 'Restore from this backup',
         pointInTimeRestoreTitle: 'Point-in-time restore',
+        walRange: {
+          from: 'From',
+          to: 'To',
+          segments: 'Segments',
+          gap: 'Gap',
+          gapBeforeTooltip:
+            'WAL segments are missing between this range and the previous one. Point-in-time restore cannot replay across the gap.',
+        },
         deleteFullConfirmation:
           'Deleting this full backup removes its entire chain (all incrementals that depend on it). This cannot be undone. Continue?',
         deleteIncrementalConfirmation:

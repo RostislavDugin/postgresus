@@ -15,9 +15,9 @@ import type { Storage } from '../../../entity/storages';
 import { translateApiError } from '../../../shared/i18n';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
-import { StorageTransferDialogComponent } from './StorageTransferDialogComponent';
 import { EditStorageComponent } from './edit/EditStorageComponent';
 import { ShowStorageComponent } from './show/ShowStorageComponent';
+import { StorageTransferDialogComponent } from './StorageTransferDialogComponent';
 
 interface Props {
   storageId: string;

@@ -1139,6 +1139,7 @@ export const es: typeof en = {
     },
   },
   notifiers: {
+    advancedSettings: 'Ajustes avanzados',
     types: {
       email: 'Correo electrónico',
       telegram: 'Telegram',
@@ -1238,7 +1239,6 @@ export const es: typeof en = {
       fromTooltip:
         'Opcional. Dirección del remitente, con o sin nombre: Acme Backups <noreply@example.com>. Si se deja vacía, se usa el usuario SMTP cuando es una dirección de correo y, si no, noreply@ con el host SMTP',
       fromAuto: '(automático)',
-      advancedSettings: 'Ajustes avanzados',
       skipTlsTooltip:
         'No verifica el certificado TLS. Active esta opción si su servidor SMTP usa un certificado autofirmado. Advertencia: esto reduce la seguridad.',
       security: 'Seguridad de la conexión',
@@ -1265,6 +1265,9 @@ export const es: typeof en = {
         group:
           'Para obtener el ID de un chat de grupo, añada al grupo su bot y <botLink>@getmyid_bot</botLink> y escriba /start (verá el ID del chat)',
       },
+      botApiUrl: 'URL de Bot API',
+      botApiUrlTooltip:
+        'Opcional. Un servidor propio de Telegram Bot API o un proxy inverso delante de la API de Telegram. Si lo deja vacío, se usa la API oficial de Telegram. Este servidor recibe el token del bot. Antes de usar un servidor propio, cierre la sesión del bot en la API oficial con el método logOut',
       useProxy: 'Usar proxy',
       useProxyTooltip: 'Usa un proxy para las solicitudes a la API de Telegram',
       proxy: 'Proxy',
@@ -1554,6 +1557,14 @@ export const es: typeof en = {
         restore: 'Restaurar',
         restoreFromThisBackup: 'Restaurar desde esta copia',
         pointInTimeRestoreTitle: 'Restauración a un punto en el tiempo',
+        walRange: {
+          from: 'Desde',
+          to: 'Hasta',
+          segments: 'Segmentos',
+          gap: 'Hueco',
+          gapBeforeTooltip:
+            'Faltan segmentos WAL entre este rango y el anterior. La restauración a un punto en el tiempo no puede pasar por encima del hueco.',
+        },
         deleteFullConfirmation:
           'Al eliminar esta copia completa se elimina toda su cadena (todas las incrementales que dependen de ella). Esta acción no se puede deshacer. ¿Continuar?',
         deleteIncrementalConfirmation:

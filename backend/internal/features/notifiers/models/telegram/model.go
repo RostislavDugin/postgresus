@@ -24,6 +24,7 @@ type TelegramNotifier struct {
 	ThreadID       *int64    `json:"threadId"       gorm:"column:thread_id"`
 	IsProxyEnabled bool      `json:"isProxyEnabled" gorm:"column:is_proxy_enabled;type:boolean;not null;default:false"`
 	ProxyURL       string    `json:"proxyUrl"       gorm:"column:proxy_url;type:text"`
+	BotAPIURL      string    `json:"botApiUrl"      gorm:"column:bot_api_url;type:text"`
 }
 
 func (t *TelegramNotifier) TableName() string {
@@ -54,6 +55,12 @@ func (t *TelegramNotifier) Validate(encryptor encryption.FieldEncryptor) error {
 		}
 	}
 
+	if t.BotAPIURL != "" {
+		if err := validateBotAPIURL(t.BotAPIURL); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -72,7 +79,10 @@ func (t *TelegramNotifier) Send(
 		fullMessage = fmt.Sprintf("%s\n\n%s", notification.Heading, notification.Message)
 	}
 
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	sendMessageURL, err := t.getSendMessageURL(botToken)
+	if err != nil {
+		return err
+	}
 
 	data := url.Values{}
 	data.Set("chat_id", t.TargetChatID)
@@ -83,7 +93,12 @@ func (t *TelegramNotifier) Send(
 		data.Set("message_thread_id", strconv.FormatInt(*t.ThreadID, 10))
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "POST", apiURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		"POST",
+		sendMessageURL,
+		strings.NewReader(data.Encode()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -108,7 +123,7 @@ func (t *TelegramNotifier) Send(
 		return fmt.Errorf(
 			"telegram API returned non-OK status: %s. Error: %s",
 			resp.Status,
-			string(bodyBytes),
+			notifier_models.RedactSecretInText(string(bodyBytes), botToken),
 		)
 	}
 
@@ -124,6 +139,7 @@ func (t *TelegramNotifier) Update(incoming *TelegramNotifier) {
 	t.TargetChatID = incoming.TargetChatID
 	t.ThreadID = incoming.ThreadID
 	t.IsProxyEnabled = incoming.IsProxyEnabled
+	t.BotAPIURL = incoming.BotAPIURL
 
 	if !incoming.IsProxyEnabled {
 		t.ProxyURL = ""

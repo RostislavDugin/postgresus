@@ -15,8 +15,8 @@ import type { Notifier } from '../../../entity/notifiers';
 import { translateApiError } from '../../../shared/i18n';
 import { ToastHelper } from '../../../shared/toast';
 import { ConfirmationComponent } from '../../../shared/ui';
-import { NotifierTransferDialogComponent } from './NotifierTransferDialogComponent';
 import { EditNotifierComponent } from './edit/EditNotifierComponent';
+import { NotifierTransferDialogComponent } from './NotifierTransferDialogComponent';
 import { ShowNotifierComponent } from './show/ShowNotifierComponent';
 
 interface Props {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { hasStoredSshTunnelSecretsForAuthType } from './hasStoredSshTunnelSecretsForAuthType';
 import { SshTunnelAuthType } from './SshTunnelAuthType';
 import type { SshTunnelConfig } from './SshTunnelConfig';
-import { hasStoredSshTunnelSecretsForAuthType } from './hasStoredSshTunnelSecretsForAuthType';
 
 const enabledTunnel = (): SshTunnelConfig => ({
   isEnabled: true,

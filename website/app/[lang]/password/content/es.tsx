@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "Restablecer contraseña - Documentación de Databasus",
   description:
-    "Aprenda a restablecer las contraseñas de usuario en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
+    "Aprenda a restablecer las contraseñas de usuario, listar los administradores y crear cuentas en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
   keywords: [
     "restablecer contraseña Databasus",
     "restablecer contraseña de usuario",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Restablecer contraseña - Documentación de Databasus",
     description:
-      "Aprenda a restablecer las contraseñas de usuario en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
+      "Aprenda a restablecer las contraseñas de usuario, listar los administradores y crear cuentas en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
     type: "article",
     url: getLocalizedUrl("es", "password"),
     locale: OG_LOCALES.es,
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Restablecer contraseña - Documentación de Databasus",
     description:
-      "Aprenda a restablecer las contraseñas de usuario en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
+      "Aprenda a restablecer las contraseñas de usuario, listar los administradores y crear cuentas en Databasus con la herramienta de línea de comandos integrada. Recuperación de contraseña rápida y segura para su sistema de copias de seguridad de PostgreSQL.",
   },
   alternates: {
     canonical: getLocalizedUrl("es", "password"),
@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -137,9 +138,9 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong>: la nueva contraseña.
-                  Asegúrese de que sea segura y combine letras, números y
-                  caracteres especiales.
+                  <strong>--new-password</strong>: la nueva contraseña, de al
+                  menos 8 caracteres. Asegúrese de que sea segura y combine
+                  letras, números y caracteres especiales.
                 </li>
                 <li>
                   <strong>--email</strong>: el correo electrónico de la cuenta
@@ -176,6 +177,65 @@ export default function PasswordResetPage() {
                 administrador. No imprime ninguna contraseña, ni su hash, ni
                 ningún token. En una instancia donde todavía nadie ha creado una
                 cuenta, informa de que la instancia no tiene administrador.
+              </p>
+
+              <h2 id="create-user">Crear una cuenta desde la consola</h2>
+
+              <p>
+                Para dar de alta una cuenta sin registrarse en el navegador, por
+                ejemplo desde un script de despliegue, créela en el servidor
+                donde se ejecuta Databasus:
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton lang="es" text={createUserCommand} />
+                </div>
+              </div>
+
+              <p>El comando acepta los siguientes parámetros:</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong>: el correo electrónico de la nueva
+                  cuenta. Debe ser una dirección válida.
+                </li>
+                <li>
+                  <strong>--password</strong>: la contraseña de la nueva cuenta,
+                  de al menos 8 caracteres.
+                </li>
+                <li>
+                  <strong>--role</strong>: <code>admin</code> o{" "}
+                  <code>member</code>.
+                </li>
+                <li>
+                  <strong>--name</strong>: un nombre visible opcional. Si no lo
+                  indica, la cuenta recibe como nombre la parte de la dirección
+                  anterior a la <code>@</code>.
+                </li>
+              </ul>
+
+              <p>
+                La cuenta queda activa de inmediato y entra con esa dirección y
+                esa contraseña, esté o no abierto el registro. En una instancia
+                que todavía no tiene ninguna cuenta, la cuenta que cree pasa a
+                administrar la instancia, así que la primera debe usar{" "}
+                <code>--role=admin</code>. Un administrador creado más tarde de
+                esta forma es un administrador corriente.
+              </p>
+
+              <p>
+                Si vuelve a ejecutar el comando para una cuenta que ya existe con
+                el mismo rol, termina sin error y no cambia nada, así que puede
+                incluirlo en cada despliegue. En ese caso la contraseña no se
+                toca: para cambiarla, use el comando de restablecimiento{" "}
+                <code>--new-password</code> descrito más arriba. Si la dirección
+                pertenece a una cuenta con otro rol, a una cuenta desactivada o
+                invitada, o a una cuenta que inicia sesión con Google o GitHub,
+                el comando falla y no cambia nada.
               </p>
               <h2 id="disable-two-factor">
                 Dejar de pedir un código al iniciar sesión

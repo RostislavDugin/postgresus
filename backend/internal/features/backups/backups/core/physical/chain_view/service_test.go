@@ -1,6 +1,7 @@
 package chain_view_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 
 	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
+	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	physical_testing "databasus-backend/internal/features/backups/backups/core/physical/testing"
 	"databasus-backend/internal/features/databases"
 	"databasus-backend/internal/features/notifiers"
@@ -97,8 +100,6 @@ func Test_FindLastExtendableChainByDatabase_WhenChainHasOnlyHealthyFull_ReturnsC
 	require.NoError(t, err)
 	require.NotNil(t, view)
 	assert.Equal(t, full.ID, view.RootFull.ID)
-	assert.Len(t, view.WalSegments, 1)
-	assert.Empty(t, view.Gaps)
 }
 
 func Test_FindLastExtendableChainByDatabase_WhenChainHasBrokenIncr_ReturnsNil(t *testing.T) {
@@ -239,7 +240,9 @@ func Test_GetChainSpan_WhenSuccessorFullExists_EndIsSuccessorStartLSN(t *testing
 	assert.Equal(t, olderStart, span.Start)
 	assert.Equal(t, newerStart, span.End, "older FULL's span ends at next FULL's start_lsn")
 
-	walInSpan, err := service.FindWalSegmentsInSpan(databaseID, 1, span.Start, span.End)
+	walInSpan, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		databaseID, 1, span.Start, span.End,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, walInSpan)
 }
@@ -271,7 +274,9 @@ func Test_GetChainSpan_WhenNoSuccessorFull_EndIsLSNMax(t *testing.T) {
 	assert.Equal(t, fullStart, span.Start)
 	assert.Equal(t, chain_view.LSNMax, span.End, "latest FULL has unbounded span")
 
-	walInSpan, err := service.FindWalSegmentsInSpan(databaseID, 1, span.Start, span.End)
+	walInSpan, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		databaseID, 1, span.Start, span.End,
+	)
 	require.NoError(t, err)
 	assert.Len(t, walInSpan, 1, "WAL after the FULL's stop_lsn belongs to its open-ended span")
 }
@@ -339,7 +344,11 @@ func Test_GetChainEndTimestamp_WhenWalReceivedAfterIncr_ReturnsWalReceivedAt(t *
 
 	service := chain_view.GetChainViewService()
 
-	end, err := service.GetChainEndTimestamp(full.ID)
+	view, err := service.FindLastExtendableChainByDatabase(databaseID)
+	require.NoError(t, err)
+	require.NotNil(t, view)
+
+	end, err := service.GetChainEndTimestamp(view)
 	require.NoError(t, err)
 	assert.WithinDuration(t, walReceived, end, time.Second,
 		"WAL.ReceivedAt is the latest of the three; should win the max")
@@ -453,38 +462,202 @@ func Test_FindWalGapsInChain_WhenMultipleGapsExist_ReturnsAllGaps(t *testing.T) 
 	assert.Equal(t, seg3Start, gaps[1].End)
 }
 
-func Test_FindLastExtendableChainByDatabase_WhenChainHasGap_MaxReplayableLSNStopsAtFirstGap(t *testing.T) {
+func Test_GetChainEndTimestamp_WhenChainHasNoWal_ReturnsLatestBackupCompletion(t *testing.T) {
 	t.Parallel()
 
 	prereqs := createChainViewTestPrereqs(t)
 	databaseID := prereqs.database.ID
 
-	full := physical_testing.CreateTestFullBackup(t,
-		physical_testing.NewTestCompletedFullBackup(
-			databaseID, prereqs.storage.ID, 1,
-			walmath.LSN(0), walmath.LSN(segmentBytes),
-		))
+	full := physical_testing.NewTestCompletedFullBackup(
+		databaseID, prereqs.storage.ID, 1,
+		walmath.LSN(0), walmath.LSN(segmentBytes),
+	)
+	full.CompletedAt = new(time.Now().UTC().Add(-2 * time.Hour))
+	physical_testing.CreateTestFullBackup(t, full)
 
-	beforeGapEnd := walmath.LSN(2 * segmentBytes)
-	afterGapStart := walmath.LSN(4 * segmentBytes)
-
-	physical_testing.CreateTestWalSegment(t,
-		physical_testing.NewTestWalSegment(
-			databaseID, prereqs.storage.ID, 1, "000000010000000000000001",
-			walmath.LSN(segmentBytes), beforeGapEnd,
-		))
-	physical_testing.CreateTestWalSegment(t,
-		physical_testing.NewTestWalSegment(
-			databaseID, prereqs.storage.ID, 1, "000000010000000000000003",
-			afterGapStart, walmath.LSN(5*segmentBytes),
-		))
+	incrCompletedAt := time.Now().UTC().Add(-30 * time.Minute)
+	incr := physical_testing.NewTestCompletedIncrementalBackup(
+		databaseID, prereqs.storage.ID, full.ID, nil, 1,
+		walmath.LSN(segmentBytes), walmath.LSN(2*segmentBytes),
+	)
+	incr.CompletedAt = new(incrCompletedAt)
+	physical_testing.CreateTestIncrementalBackup(t, incr)
 
 	service := chain_view.GetChainViewService()
 
 	view, err := service.FindLastExtendableChainByDatabase(databaseID)
 	require.NoError(t, err)
 	require.NotNil(t, view)
-	assert.Equal(t, full.ID, view.RootFull.ID)
-	assert.Equal(t, beforeGapEnd, view.MaxReplayableLSN,
-		"PITR horizon stops at the end of contiguous WAL before the first gap")
+
+	end, err := service.GetChainEndTimestamp(view)
+	require.NoError(t, err)
+	assert.WithinDuration(t, incrCompletedAt, end, time.Second)
+}
+
+func Test_FindNonExtendableChainsByDatabase_WhenNewestChainBroken_ListsItWithOlderChains(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	databaseID := prereqs.database.ID
+
+	olderFull := physical_testing.NewTestCompletedFullBackup(
+		databaseID, prereqs.storage.ID, 1,
+		walmath.LSN(0), walmath.LSN(segmentBytes),
+	)
+	olderFull.CreatedAt = time.Now().UTC().Add(-time.Hour)
+	olderFull.CompletedAt = new(olderFull.CreatedAt.Add(time.Minute))
+	physical_testing.CreateTestFullBackup(t, olderFull)
+
+	newerFull := physical_testing.CreateTestFullBackup(t,
+		physical_testing.NewTestCompletedFullBackup(
+			databaseID, prereqs.storage.ID, 1,
+			walmath.LSN(4*segmentBytes), walmath.LSN(5*segmentBytes),
+		))
+
+	brokenIncr := physical_testing.NewTestCompletedIncrementalBackup(
+		databaseID, prereqs.storage.ID, newerFull.ID, nil, 1,
+		walmath.LSN(5*segmentBytes), walmath.LSN(6*segmentBytes),
+	)
+	brokenIncr.Status = physical_enums.PhysicalBackupStatusChainBroken
+	brokenIncr.ErrorReason = new(physical_enums.PhysicalBackupErrorSummariesExpired)
+	physical_testing.CreateTestIncrementalBackup(t, brokenIncr)
+
+	service := chain_view.GetChainViewService()
+
+	extendableView, err := service.FindLastExtendableChainByDatabase(databaseID)
+	require.NoError(t, err)
+	assert.Nil(t, extendableView)
+
+	closedViews, err := service.FindNonExtendableChainsByDatabase(databaseID)
+	require.NoError(t, err)
+	require.Len(t, closedViews, 2)
+	assert.Equal(t, newerFull.ID, closedViews[0].RootFull.ID)
+	assert.Equal(t, olderFull.ID, closedViews[1].RootFull.ID)
+}
+
+func Test_FindByChainSpan_ForMiddleChain_ReturnsOnlyItsSegmentsIncludingBoundary(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	databaseID := prereqs.database.ID
+
+	fullIDsBySegmentIndex := make(map[int]uuid.UUID)
+
+	for _, segmentIndex := range []int{0, 4, 8} {
+		fullStart := walmath.LSN(segmentIndex*segmentBytes + firstRecordOffset)
+		full := physical_testing.CreateTestFullBackup(t,
+			physical_testing.NewTestCompletedFullBackup(
+				databaseID, prereqs.storage.ID, 1, fullStart, fullStart+fullLSNSpan,
+			))
+
+		fullIDsBySegmentIndex[segmentIndex] = full.ID
+	}
+
+	segmentIDsByIndex := createContiguousWalSegments(t, prereqs, databaseID, 1, 0, 10)
+
+	middleSpan, err := chain_view.GetChainViewService().GetChainSpan(fullIDsBySegmentIndex[4])
+	require.NoError(t, err)
+
+	middleSegments, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		databaseID, 1, middleSpan.Start, middleSpan.End,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		[]uuid.UUID{
+			segmentIDsByIndex[4], segmentIDsByIndex[5], segmentIDsByIndex[6],
+			segmentIDsByIndex[7], segmentIDsByIndex[8],
+		},
+		getWalSegmentIDs(middleSegments),
+		"the segment holding the middle FULL's start begins below the span and is included; "+
+			"segments of the first chain are not",
+	)
+}
+
+func Test_FindByChainSpan_WhenSpanStartsOnSegmentBoundary_ExcludesSegmentEndingThere(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	databaseID := prereqs.database.ID
+
+	segmentIDsByIndex := createContiguousWalSegments(t, prereqs, databaseID, 1, 3, 6)
+
+	spanSegments, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		databaseID, 1, walmath.LSN(4*segmentBytes), chain_view.LSNMax,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		[]uuid.UUID{segmentIDsByIndex[4], segmentIDsByIndex[5]},
+		getWalSegmentIDs(spanSegments),
+	)
+}
+
+func Test_FindByChainSpan_WhenOtherTimelineAndDatabaseHaveSegmentsInRange_IgnoresThem(t *testing.T) {
+	t.Parallel()
+
+	prereqs := createChainViewTestPrereqs(t)
+	otherPrereqs := createChainViewTestPrereqs(t)
+	databaseID := prereqs.database.ID
+
+	segmentIDsByIndex := createContiguousWalSegments(t, prereqs, databaseID, 1, 3, 6)
+
+	spanStart := walmath.LSN(4*segmentBytes + firstRecordOffset)
+	closerToSpanStart := walmath.LSN(4*segmentBytes + firstRecordOffset/2)
+
+	physical_testing.CreateTestWalSegment(t,
+		physical_testing.NewTestWalSegment(
+			databaseID, prereqs.storage.ID, 2, "000000020000000000000004",
+			closerToSpanStart, closerToSpanStart+segmentBytes,
+		))
+	physical_testing.CreateTestWalSegment(t,
+		physical_testing.NewTestWalSegment(
+			otherPrereqs.database.ID, otherPrereqs.storage.ID, 1, "000000010000000000000004",
+			closerToSpanStart, closerToSpanStart+segmentBytes,
+		))
+
+	spanSegments, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		databaseID, 1, spanStart, chain_view.LSNMax,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		[]uuid.UUID{segmentIDsByIndex[4], segmentIDsByIndex[5]},
+		getWalSegmentIDs(spanSegments),
+		"segments of another timeline or database must not move the boundary segment",
+	)
+}
+
+func createContiguousWalSegments(
+	t *testing.T,
+	prereqs *chainViewTestPrereqs,
+	databaseID uuid.UUID,
+	timelineID int,
+	firstSegmentIndex, endSegmentIndex int,
+) map[int]uuid.UUID {
+	t.Helper()
+
+	segmentIDsByIndex := make(map[int]uuid.UUID)
+
+	for segmentIndex := firstSegmentIndex; segmentIndex < endSegmentIndex; segmentIndex++ {
+		segment := physical_testing.CreateTestWalSegment(t,
+			physical_testing.NewTestWalSegment(
+				databaseID, prereqs.storage.ID, timelineID,
+				fmt.Sprintf("%08X%016X", timelineID, segmentIndex),
+				walmath.LSN(segmentIndex*segmentBytes), walmath.LSN((segmentIndex+1)*segmentBytes),
+			))
+
+		segmentIDsByIndex[segmentIndex] = segment.ID
+	}
+
+	return segmentIDsByIndex
+}
+
+func getWalSegmentIDs(segments []*physical_models.PhysicalWalSegment) []uuid.UUID {
+	segmentIDs := make([]uuid.UUID, 0, len(segments))
+	for _, segment := range segments {
+		segmentIDs = append(segmentIDs, segment.ID)
+	}
+
+	return segmentIDs
 }

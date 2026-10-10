@@ -303,10 +303,14 @@ func (s *RestoreService) validateVersionCompatibility(
 		if requestDTO.MongodbDatabase == nil {
 			return errors.New("mongodb database configuration is required for restore")
 		}
-		if tools.IsMongodbBackupVersionHigherThanRestoreVersion(
+		isMongodbDowngrade, err := tools.IsMongodbBackupVersionHigherThanRestoreVersion(
 			backupDatabase.Mongodb.Version,
 			requestDTO.MongodbDatabase.Version,
-		) {
+		)
+		if err != nil {
+			return err
+		}
+		if isMongodbDowngrade {
 			return errors.New(`backup database version is higher than restore database version. ` +
 				`Should be restored to the same version as the backup database or higher. ` +
 				`For example, you can restore MongoDB 6.0 backup to MongoDB 6.0, 7.0 or higher. But cannot restore to 5.0`)

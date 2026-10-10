@@ -1,11 +1,18 @@
 package usecases_logical_mariadb
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
+	"databasus-backend/internal/features/databases"
 	mariadbtypes "databasus-backend/internal/features/databases/databases/mariadb"
+	"databasus-backend/internal/util/testing/containers"
 	"databasus-backend/internal/util/tools"
 )
 
@@ -143,4 +150,26 @@ func Test_BuildMariadbDumpArgs_WithoutExcludedTables_OmitsIgnoreTableArgs(t *tes
 			t.Fatalf("expected no --ignore-table args, got %v", args)
 		}
 	}
+}
+
+// Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue816 pins issue #816 for
+// MariaDB: a storage timeout that ended the backup context was reported as "backup cancelled".
+func Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue816(t *testing.T) {
+	endpoint := containers.StartMariadb(t, "mariadb:10.11")
+	database := &databases.Database{
+		ID:      uuid.New(),
+		Type:    databases.DatabaseTypeMariadb,
+		Mariadb: databases.GetTestMariadbConfig(endpoint.Host, endpoint.Port),
+	}
+
+	backups_core_logical.AssertStorageTimeoutReportedAsStorageFailure(t, func(
+		ctx context.Context,
+		backup *backups_core_logical.LogicalBackup,
+		backupConfig *backups_config_logical.LogicalBackupConfig,
+		fileStore backups_core_logical.BackupFileStore,
+	) error {
+		_, err := GetCreateMariadbBackupUsecase().Execute(ctx, backup, backupConfig, database, fileStore, func(float64) {})
+
+		return err
+	})
 }

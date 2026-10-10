@@ -502,6 +502,7 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 
 func (s *AzureBlobStorage) buildClientOptions() *azblob.ClientOptions {
 	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: azureConnectTimeout,
 		}).DialContext,

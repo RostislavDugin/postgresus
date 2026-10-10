@@ -17,11 +17,12 @@ const (
 
 const minioPort = "9000/tcp"
 
-// MinIO withdrew its Docker Hub repository, so `minio/minio` now answers every pull
-// with an access denial. Quay is where the project publishes, and the tag is pinned
-// because a test that silently follows upstream is a test that breaks on someone
+// MinIO stopped publishing community images: both `minio/minio` on Docker Hub and
+// `quay.io/minio/minio` now deny anonymous pulls. `pgsty/minio` is a community-maintained
+// fork of the same server, so the command, env and health endpoint stay the same. The tag
+// is pinned because a test that silently follows upstream is a test that breaks on someone
 // else's release day.
-const MinioImage = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+const MinioImage = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
 
 // StartMinio's container starts empty: the caller creates whatever bucket it needs against the
 // returned endpoint, or for failure-path tests points at a missing one.

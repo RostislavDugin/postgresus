@@ -86,6 +86,25 @@ func Test_Send_WhenServerOffersNoKnownMechanism_Fails(t *testing.T) {
 	require.ErrorIs(t, err, ErrAuthMechanismNotOffered)
 }
 
+func Test_Send_WithStartTLSAndNoCredentials_DeliversWithoutAuth(t *testing.T) {
+	server := startFakeServer(t, fakeServerOptions{startTLSConfig: newSelfSignedTLSConfig(t)})
+
+	relayConnection := server.getConnection(SecurityStartTLS)
+	relayConnection.Username = ""
+	relayConnection.Password = ""
+
+	err := Send(t.Context(), relayConnection, newTestMessage(t))
+	require.NoError(t, err)
+
+	server.waitForSessionEnd(t)
+	assert.Equal(
+		t,
+		[]string{"EHLO", "STARTTLS", "EHLO", "MAIL", "RCPT", "DATA", "QUIT"},
+		server.getCommandVerbs(),
+	)
+	assert.Len(t, server.getMessages(), 1)
+}
+
 func Test_Auth_OnUnencryptedConnectionWithoutOptIn_Refuses(t *testing.T) {
 	unencryptedServer := &smtp.ServerInfo{Name: "relay.example.com", TLS: false}
 	userCredentials := credentials{fakeServerUsername, fakeServerPassword, false}

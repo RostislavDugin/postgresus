@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../constants';
-import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import RequestOptions from '../../../shared/api/RequestOptions';
 import type { AddMemberRequest } from '../model/AddMemberRequest';
 import type { AddMemberResponse } from '../model/AddMemberResponse';
 import type { ChangeMemberRoleRequest } from '../model/ChangeMemberRoleRequest';

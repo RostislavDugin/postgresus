@@ -12,6 +12,26 @@ const isValidProxyUrl = (rawProxyUrl: string): boolean => {
   }
 };
 
+// eslint-disable-next-line i18next/no-literal-string -- URL protocols, not copy
+const allowedBotApiProtocols = ['http:', 'https:'];
+
+// Outside user info, which is rejected, "?" and "#" can only start a query or a fragment, and an
+// empty one ("/telegram?") leaves search and hash empty.
+const isValidBotApiUrl = (rawBotApiUrl: string): boolean => {
+  try {
+    const botApiUrl = new URL(rawBotApiUrl);
+    return (
+      allowedBotApiProtocols.includes(botApiUrl.protocol) &&
+      !!botApiUrl.host &&
+      !botApiUrl.username &&
+      !botApiUrl.password &&
+      !/[?#]/.test(rawBotApiUrl)
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const validateTelegramNotifier = (
   isCreate: boolean,
   notifier: TelegramNotifier,
@@ -37,6 +57,10 @@ export const validateTelegramNotifier = (
     if (notifier.proxyUrl && !isValidProxyUrl(notifier.proxyUrl)) {
       return false;
     }
+  }
+
+  if (notifier.botApiUrl && !isValidBotApiUrl(notifier.botApiUrl)) {
+    return false;
   }
 
   return true;

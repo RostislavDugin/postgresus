@@ -29,6 +29,7 @@ import (
 	"databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/encryption"
 	util_logger "databasus-backend/internal/util/logger"
+	test_utils "databasus-backend/internal/util/testing"
 )
 
 const partialLogicalArtifact = "partial logical backup"
@@ -282,9 +283,15 @@ func (h *requestIDCapturingHandler) GetRequestIDForMessagePrefix(prefix string) 
 // Cancellation and metadata failure are backuper concerns, not engine concerns:
 // every engine reaches storage through the same file store, so the discard logic
 // these cover is the same code for MySQL, MariaDB, MongoDB and PostgreSQL.
-type createStoredArtifactThenCancelBackupUsecase struct{}
+// createStoredArtifactThenBlockBackupUsecase stores an artifact, reports that it started, and holds
+// the backup open until its context ends, the way a real engine sits in a running dump when the
+// user cancels. It then returns errAfterCancel, or the cancellation an engine reports by default.
+type createStoredArtifactThenBlockBackupUsecase struct {
+	startedBackup  chan struct{}
+	errAfterCancel error
+}
 
-func (*createStoredArtifactThenCancelBackupUsecase) Execute(
+func (uc *createStoredArtifactThenBlockBackupUsecase) Execute(
 	ctx context.Context,
 	backup *backups_core_logical.LogicalBackup,
 	_ *backups_config_logical.LogicalBackupConfig,
@@ -300,7 +307,29 @@ func (*createStoredArtifactThenCancelBackupUsecase) Execute(
 		return nil, err
 	}
 
+	close(uc.startedBackup)
+	<-ctx.Done()
+
+	if uc.errAfterCancel != nil {
+		return nil, uc.errAfterCancel
+	}
+
 	return nil, fmt.Errorf("backup cancelled: %w", context.Canceled)
+}
+
+type returnErrorBackupUsecase struct {
+	backupErr error
+}
+
+func (uc *returnErrorBackupUsecase) Execute(
+	_ context.Context,
+	_ *backups_core_logical.LogicalBackup,
+	_ *backups_config_logical.LogicalBackupConfig,
+	_ *databases.Database,
+	_ backups_core_logical.BackupFileStore,
+	_ func(completedMBs float64),
+) (*backups_core_logical.BackupArtifacts, error) {
+	return nil, uc.backupErr
 }
 
 type createUnusableMetadataBackupUsecase struct{}
@@ -332,19 +361,151 @@ func (*createUnusableMetadataBackupUsecase) Execute(
 func Test_MakeBackup_WhenCancelledAfterStoringArtifact_ArtifactRemoved(t *testing.T) {
 	fixture := CreateBackupTestFixture(t, "Cancelled Backup Artifact Workspace")
 	backup := SeedInProgressTestBackup(t, fixture.Database.ID, fixture.Storage.ID)
+	notificationSender := createRecordingNotificationSender()
+
+	backuper := CreateTestBackuperWithUseCase(&createStoredArtifactThenBlockBackupUsecase{
+		startedBackup: make(chan struct{}),
+	})
+	backuper.notificationSender = notificationSender
+
+	makeBackupCancellingThroughRegistry(t, backuper, backup.ID)
+
+	assertBackupCancelledSilently(t, fixture, backup.ID, notificationSender)
+	assertBackupFilesRemoved(t, fixture, backup.FileName)
+}
+
+func Test_MakeBackup_WhenCancelledAndStorageThenFails_BackupCancelledWithoutFailureNotification(t *testing.T) {
+	fixture := CreateBackupTestFixture(t, "Cancelled Then Storage Failed Workspace")
+	backup := SeedInProgressTestBackup(t, fixture.Database.ID, fixture.Storage.ID)
+	notificationSender := createRecordingNotificationSender()
+
+	backuper := CreateTestBackuperWithUseCase(&createStoredArtifactThenBlockBackupUsecase{
+		startedBackup:  make(chan struct{}),
+		errAfterCancel: fmt.Errorf("save to storage: %w", test_utils.GetNetworkTimeoutError(t)),
+	})
+	backuper.notificationSender = notificationSender
+
+	makeBackupCancellingThroughRegistry(t, backuper, backup.ID)
+
+	assertBackupCancelledSilently(t, fixture, backup.ID, notificationSender)
+}
+
+// Test_MakeBackup_WhenStorageTimesOut_BackupFailedAndReported_RegressionForIssue816 pins issue
+// #816: a storage upload that timed out was recorded as cancelled, so no failure notification
+// went out.
+func Test_MakeBackup_WhenStorageTimesOut_BackupFailedAndReported_RegressionForIssue816(t *testing.T) {
+	storageErr := fmt.Errorf("save to storage: failed to upload file to S3: %w", test_utils.GetNetworkTimeoutError(t))
+
+	assertBackupFailsAndIsReported(t, storageErr, storageErr.Error())
+}
+
+func Test_MakeBackup_WhenUsecaseErrorWrapsCanceledWithoutCancelRequest_BackupFailedAndReported(t *testing.T) {
+	storageErr := fmt.Errorf("save to storage: upload aborted: %w", context.Canceled)
+
+	assertBackupFailsAndIsReported(t, storageErr, storageErr.Error())
+}
+
+func Test_MakeBackup_WhenBackupExceedsTimeLimit_BackupFailedAndReported(t *testing.T) {
+	assertBackupFailsAndIsReported(t,
+		backups_core_logical.ErrBackupTimeout,
+		"backup exceeded the time limit of 23 hours",
+	)
+}
+
+func Test_MakeBackup_WhenApplicationShutsDown_BackupFailedNotCancelled(t *testing.T) {
+	assertBackupFailsAndIsReported(t,
+		backups_core_logical.ErrBackupShutdown,
+		"backup interrupted by application shutdown",
+	)
+}
+
+func assertBackupFailsAndIsReported(t *testing.T, backupErr error, expectedFailMessage string) {
+	t.Helper()
+
+	fixture := CreateBackupTestFixture(t, "Failed Backup Outcome Workspace")
+	backup := SeedInProgressTestBackup(t, fixture.Database.ID, fixture.Storage.ID)
 
 	notificationSender := &MockNotificationSender{}
-	notificationSender.On("SendNotification", mock.Anything, mock.Anything).Maybe()
+	notificationSender.On("SendNotification",
+		mock.Anything,
+		mock.MatchedBy(func(notification notifier_models.Notification) bool {
+			return notification.Type == notifier_models.NotificationTypeBackupFailed &&
+				strings.Contains(notification.Message, expectedFailMessage)
+		}),
+	).Once()
 
-	backuper := CreateTestBackuperWithUseCase(&createStoredArtifactThenCancelBackupUsecase{})
+	backuper := CreateTestBackuperWithUseCase(&returnErrorBackupUsecase{backupErr})
 	backuper.notificationSender = notificationSender
 	backuper.MakeBackup(t.Context(), backup.ID, true)
 
 	persistedBackup, err := backupRepository.FindByID(backup.ID)
 	require.NoError(t, err)
+	assert.Equal(t, backups_core_logical.BackupStatusFailed, persistedBackup.Status)
+	require.NotNil(t, persistedBackup.FailMessage)
+	assert.Equal(t, expectedFailMessage, *persistedBackup.FailMessage)
+
+	persistedDatabase, err := databases.GetDatabaseService().GetDatabaseByID(fixture.Database.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persistedDatabase.LastBackupErrorMessage, "a failed backup must mark its database as failing")
+	assert.Equal(t, expectedFailMessage, *persistedDatabase.LastBackupErrorMessage)
+
+	notificationSender.AssertExpectations(t)
+}
+
+func createRecordingNotificationSender() *MockNotificationSender {
+	notificationSender := &MockNotificationSender{}
+	notificationSender.On("SendNotification", mock.Anything, mock.Anything).Maybe()
+
+	return notificationSender
+}
+
+// makeBackupCancellingThroughRegistry runs MakeBackup and, once the use case has started, cancels
+// the backup the way the cancel endpoint does: through the task cancellation registry.
+func makeBackupCancellingThroughRegistry(t *testing.T, backuper *Backuper, backupID uuid.UUID) {
+	t.Helper()
+
+	blockingUsecase, isBlockingUsecase := backuper.createBackupUseCase.(*createStoredArtifactThenBlockBackupUsecase)
+	require.True(t, isBlockingUsecase, "cancelling through the registry needs a use case that waits for it")
+
+	finishedBackup := make(chan struct{})
+
+	go func() {
+		defer close(finishedBackup)
+		backuper.MakeBackup(t.Context(), backupID, true)
+	}()
+
+	select {
+	case <-blockingUsecase.startedBackup:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the backup use case never started")
+	}
+
+	taskCancellationRegistry.CancelRegisteredTask(backupID)
+
+	select {
+	case <-finishedBackup:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the backup did not finish after it was cancelled")
+	}
+}
+
+func assertBackupCancelledSilently(
+	t *testing.T,
+	fixture *BackupTestFixture,
+	backupID uuid.UUID,
+	notificationSender *MockNotificationSender,
+) {
+	t.Helper()
+
+	persistedBackup, err := backupRepository.FindByID(backupID)
+	require.NoError(t, err)
 	assert.Equal(t, backups_core_logical.BackupStatusCanceled, persistedBackup.Status)
 
-	assertBackupFilesRemoved(t, fixture, backup.FileName)
+	notificationSender.AssertNotCalled(t, "SendNotification", mock.Anything, mock.Anything)
+
+	persistedDatabase, err := databases.GetDatabaseService().GetDatabaseByID(fixture.Database.ID)
+	require.NoError(t, err)
+	assert.Nil(t, persistedDatabase.LastBackupErrorMessage, "a cancelled backup must not mark its database as failing")
 }
 
 func Test_MakeBackup_WhenMetadataIsUnusable_BackupFailsAndArtifactRemoved(t *testing.T) {

@@ -8,6 +8,10 @@ import (
 	users_enums "databasus-backend/internal/features/users/enums"
 )
 
+// MinPasswordLength applies to every way a password is set. The request DTOs
+// repeat it as a literal min=8, because a struct tag cannot reference a constant.
+const MinPasswordLength = 8
+
 type User struct {
 	ID                   uuid.UUID              `json:"id"`
 	Email                string                 `json:"email"`

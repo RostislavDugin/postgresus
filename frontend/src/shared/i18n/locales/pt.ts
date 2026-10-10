@@ -1133,6 +1133,7 @@ export const pt: typeof en = {
     },
   },
   notifiers: {
+    advancedSettings: 'Configurações avançadas',
     types: {
       email: 'E-mail',
       telegram: 'Telegram',
@@ -1230,7 +1231,6 @@ export const pt: typeof en = {
       fromTooltip:
         'Opcional. Endereço do remetente, com ou sem nome: Acme Backups <noreply@example.com>. Se ficar vazio, será usado o usuário SMTP quando ele for um endereço de e-mail; caso contrário, noreply@ com o host SMTP',
       fromAuto: '(automático)',
-      advancedSettings: 'Configurações avançadas',
       skipTlsTooltip:
         'Não verifica o certificado TLS. Ative se o seu servidor SMTP usa um certificado autoassinado. Atenção: isso reduz a segurança.',
       security: 'Segurança da conexão',
@@ -1257,6 +1257,9 @@ export const pt: typeof en = {
         group:
           'Para obter o ID do chat de um grupo, adicione ao grupo o seu bot e o <botLink>@getmyid_bot</botLink> e envie /start (o ID do chat vai aparecer)',
       },
+      botApiUrl: 'URL da Bot API',
+      botApiUrlTooltip:
+        'Opcional. Um servidor próprio do Telegram Bot API ou um proxy reverso na frente da API do Telegram. Se ficar vazio, é usada a API oficial do Telegram. Esse servidor recebe o token do bot. Antes de usar um servidor próprio, encerre a sessão do bot na API oficial com o método logOut',
       useProxy: 'Usar proxy',
       useProxyTooltip: 'Usa um proxy para as requisições à API do Telegram',
       proxy: 'Proxy',
@@ -1546,6 +1549,14 @@ export const pt: typeof en = {
         restore: 'Restaurar',
         restoreFromThisBackup: 'Restaurar a partir deste backup',
         pointInTimeRestoreTitle: 'Restauração point-in-time',
+        walRange: {
+          from: 'De',
+          to: 'Até',
+          segments: 'Segmentos',
+          gap: 'Lacuna',
+          gapBeforeTooltip:
+            'Faltam segmentos WAL entre este intervalo e o anterior. A restauração point-in-time não consegue atravessar a lacuna.',
+        },
         deleteFullConfirmation:
           'Excluir este backup completo remove toda a cadeia dele (todos os incrementais que dependem dele). Esta ação não pode ser desfeita. Continuar?',
         deleteIncrementalConfirmation:

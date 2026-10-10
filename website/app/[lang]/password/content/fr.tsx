@@ -8,7 +8,7 @@ import DocTableOfContentComponent from "@/app/components/DocTableOfContentCompon
 export const metadata: Metadata = {
   title: "Réinitialiser le mot de passe - Documentation Databasus",
   description:
-    "Apprenez à réinitialiser les mots de passe des utilisateurs dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
+    "Apprenez à réinitialiser les mots de passe des utilisateurs, lister les administrateurs et créer des comptes dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
   keywords: [
     "réinitialisation mot de passe Databasus",
     "réinitialiser mot de passe utilisateur",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Réinitialiser le mot de passe - Documentation Databasus",
     description:
-      "Apprenez à réinitialiser les mots de passe des utilisateurs dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
+      "Apprenez à réinitialiser les mots de passe des utilisateurs, lister les administrateurs et créer des comptes dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
     type: "article",
     url: getLocalizedUrl("fr", "password"),
     locale: OG_LOCALES.fr,
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Réinitialiser le mot de passe - Documentation Databasus",
     description:
-      "Apprenez à réinitialiser les mots de passe des utilisateurs dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
+      "Apprenez à réinitialiser les mots de passe des utilisateurs, lister les administrateurs et créer des comptes dans Databasus avec l'outil en ligne de commande intégré. Récupération rapide et sécurisée pour votre système de sauvegarde PostgreSQL.",
   },
   alternates: {
     canonical: getLocalizedUrl("fr", "password"),
@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 export default function PasswordResetPage() {
   const resetPasswordCommand = `docker exec -it databasus ./main --new-password="YourNewSecurePassword123" --email="owner@example.com"`;
   const listAdminsCommand = `docker exec -it databasus ./main --list-admins`;
+  const createUserCommand = `docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin`;
   const disableTwoFactorCommand = `docker exec -it databasus ./main --disable-2fa`;
 
   return (
@@ -140,8 +141,8 @@ export default function PasswordResetPage() {
 
               <ul>
                 <li>
-                  <strong>--new-password</strong> : le nouveau mot de passe.
-                  Assurez-vous qu&apos;il est robuste et contient un mélange de
+                  <strong>--new-password</strong> : le nouveau mot de passe, d&apos;au
+                  moins 8 caractères. Assurez-vous qu&apos;il est robuste et contient un mélange de
                   lettres, de chiffres et de caractères spéciaux.
                 </li>
                 <li>
@@ -181,6 +182,68 @@ export default function PasswordResetPage() {
                 personne n&apos;a encore créé de compte, elle indique que
                 l&apos;instance n&apos;a pas d&apos;administrateur.
               </p>
+
+              <h2 id="create-user">Créer un compte depuis la console</h2>
+
+              <p>
+                Pour ouvrir un compte sans passer par l&apos;inscription dans le
+                navigateur, par exemple depuis un script de déploiement,
+                créez-le sur le serveur où Databasus tourne :
+              </p>
+
+              <div className="relative my-6">
+                <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
+                  <code>{createUserCommand}</code>
+                </pre>
+                <div className="absolute right-2 top-2">
+                  <CopyButton text={createUserCommand} lang="fr" />
+                </div>
+              </div>
+
+              <p>La commande accepte les paramètres suivants :</p>
+
+              <ul>
+                <li>
+                  <strong>--email</strong> : l&apos;adresse e-mail du nouveau
+                  compte. Elle doit être valide.
+                </li>
+                <li>
+                  <strong>--password</strong> : le mot de passe du nouveau
+                  compte, d&apos;au moins 8 caractères.
+                </li>
+                <li>
+                  <strong>--role</strong> : <code>admin</code> ou{" "}
+                  <code>member</code>.
+                </li>
+                <li>
+                  <strong>--name</strong> : un nom affiché, facultatif. Sans
+                  lui, le compte prend le nom de la partie de l&apos;adresse
+                  située avant le <code>@</code>.
+                </li>
+              </ul>
+
+              <p>
+                Le compte est actif tout de suite : il se connecte avec cette
+                adresse et ce mot de passe, que l&apos;inscription libre soit
+                activée ou non. Sur une instance qui n&apos;a encore aucun
+                compte, le compte créé administre l&apos;instance, donc le
+                premier doit utiliser <code>--role=admin</code>. Un
+                administrateur créé plus tard de cette façon est un
+                administrateur ordinaire.
+              </p>
+
+              <p>
+                Relancer la commande pour un compte existant avec le même rôle
+                réussit sans rien modifier : un déploiement peut donc
+                l&apos;exécuter à chaque mise en production. Le mot de passe
+                reste alors inchangé ; pour le renouveler, utilisez la commande
+                de réinitialisation <code>--new-password</code> décrite plus
+                haut. Si l&apos;adresse appartient à un compte d&apos;un autre
+                rôle, à un compte désactivé ou invité, ou à un compte qui se
+                connecte via Google ou GitHub, la commande échoue et ne change
+                rien.
+              </p>
+
               <h2 id="disable-two-factor">
                 Cesser de demander un code à la connexion
               </h2>

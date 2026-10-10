@@ -84,7 +84,7 @@ export default function MongodbBackupPage() {
               "MongoDB 连接健康监控",
               "通过 Docker 自托管",
               "开源且免费",
-              "支持 MongoDB 4、5、6、7 和 8",
+              "支持 MongoDB 4、5、6、7、8 和 9",
               "使用 gzip 压缩 BSON 归档",
               "备份文件 AES-256-GCM 加密",
               "支持 MongoDB Atlas 和副本集",
@@ -130,7 +130,7 @@ export default function MongodbBackupPage() {
                 name: "Databasus 支持哪些 MongoDB 版本？",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Databasus 支持 MongoDB 4、5、6、7 和 8。所有备份都使用原生 mongodump 工具并带 --archive 和 --gzip 参数，生成高效压缩的 BSON 归档，可用 mongorestore 恢复。",
+                  text: "Databasus 支持 MongoDB 4、5、6、7、8 和 9。所有备份都使用原生 mongodump 工具并带 --archive 和 --gzip 参数，生成高效压缩的 BSON 归档，可用 mongorestore 恢复。",
                 },
               },
               {
@@ -541,7 +541,7 @@ export default function MongodbBackupPage() {
                 </h3>
 
                 <p className="text-gray-400 text-sm md:text-base mb-4">
-                  支持 MongoDB 4、5、6、7 和 8。Databasus 为每个版本使用原生
+                  支持 MongoDB 4、5、6、7、8 和 9。Databasus 为每个版本使用原生
                   mongodump 工具，确保与你的文档数据库完全兼容
                 </p>
 
@@ -792,6 +792,9 @@ export default function MongodbBackupPage() {
                     <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
                       MongoDB 8
                     </span>
+                    <span className="px-3 py-1 rounded border border-[#ffffff20] text-sm">
+                      MongoDB 9
+                    </span>
                   </div>
                 </div>
               </div>
@@ -880,7 +883,7 @@ export default function MongodbBackupPage() {
             <FaqItem
               number="4"
               question="Databasus 支持哪些 MongoDB 版本？"
-              answer="Databasus 支持 MongoDB 4、5、6、7 和 8。所有备份都使用原生 mongodump 工具并带 --archive 和 --gzip 参数，生成高效压缩的 BSON 归档。归档可以用 mongorestore 恢复到任何兼容的 MongoDB 版本，版本间迁移也因此变得简单。"
+              answer="Databasus 支持 MongoDB 4、5、6、7、8 和 9。所有备份都使用原生 mongodump 工具并带 --archive 和 --gzip 参数，生成高效压缩的 BSON 归档。归档可以用 mongorestore 恢复到任何兼容的 MongoDB 版本，版本间迁移也因此变得简单。"
             />
             <FaqItem
               number="5"

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import websiteI18nSource from '../../../../website/app/i18n.ts?raw';
-
 import { WEBSITE_PAGES, getWebsitePageUrl } from './websitePages';
 
 const readTranslatedPaths = (source: string): string[] => {

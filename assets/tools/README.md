@@ -84,9 +84,19 @@ MariaDB ships three client tiers, mapped to server versions in
 - `12.3` (modern) serves every line from 10.2 through 12.x.
 - `13.0` serves the 13 line, which the 12.3 client predates.
 
-MongoDB Database Tools are version 100.16.1 across all arches and are
-backward-compatible with all supported server versions (4.2 – 8.2). MongoDB
-4.0 is not supported (wire version 7, requires older mongodump).
+Bundled MongoDB Database Tools, `mongodump` and `mongorestore` copied
+unmodified from the vendor's `ubuntu2204` archives listed in
+`https://downloads.mongodb.org/tools/db/release.json`:
+
+| arch  | release  | archive                                                                                           | archive sha256                                                     |
+|-------|----------|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| `x64` | 100.19.1 | `https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.19.1.tgz`       | `8312f251c360ddfbcdd430c64758bee58b7050e1041e8c9df2906761098acd49` |
+| `arm` | 100.19.1 | `https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-arm64-100.19.1.tgz`        | `e5d37e679ff815c45a86c17bc17de200c3a215a6eafc82516e5ba271f563373e` |
+
+One release serves every supported server: the vendor lists 4.2 through 9.0
+for 100.19.1, and the backend accepts every release of the 9 line. Take both
+architectures from the same build family; `debian12` has no arm64 archive.
+MongoDB 4.0 is not supported (wire version 7, requires older mongodump).
 
 Notes:
 - MySQL `5.7` is amd64-only — `arm/mysql/mysql-5.7/` is intentionally absent,
@@ -95,7 +105,7 @@ Notes:
 
 Shared libraries the binaries need from the runtime image
 (`debian:bookworm-slim`, glibc 2.36; every bundled binary targets glibc 2.28
-or lower):
+or lower, except the MongoDB tools, whose `ubuntu2204` build needs glibc 2.34):
 
 | library                             | needed by                                    |
 |-------------------------------------|----------------------------------------------|
@@ -119,8 +129,8 @@ binaries, and the loader picks them before the image's copies.
 image as a dependency of `postgresql-common`. A change that drops that package
 takes the MariaDB interactive client with it. It is also the one soname a
 non-Debian development host is missing — Fedora ships the upstream
-`libedit.so.0` — which is what `make test-fedora` and `make run-fedora` in
-`backend/` shim around.
+`libedit.so.0` — which is what `just run` and `just test` at the repository
+root shim around.
 
 To refresh a tool set, run the script for that engine, or drop the
 corresponding `bin/` contents in place, and commit. For PostgreSQL the source

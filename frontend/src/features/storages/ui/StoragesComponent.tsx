@@ -7,9 +7,9 @@ import type { Storage } from '../../../entity/storages';
 import type { WorkspaceResponse } from '../../../entity/workspaces';
 import { useIsMobile } from '../../../shared/hooks';
 import { translateApiError } from '../../../shared/i18n';
+import { EditStorageComponent } from './edit/EditStorageComponent';
 import { StorageCardComponent } from './StorageCardComponent';
 import { StorageComponent } from './StorageComponent';
-import { EditStorageComponent } from './edit/EditStorageComponent';
 
 interface Props {
   contentHeight: number;

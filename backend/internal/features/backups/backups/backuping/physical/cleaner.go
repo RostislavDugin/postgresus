@@ -127,7 +127,7 @@ func (c *PhysicalBackupCleaner) nonExtendableChainsNewestEndFirst(
 	candidates := make([]chainCandidate, 0, len(views))
 
 	for _, view := range views {
-		endTs, err := c.chainViewService.GetChainEndTimestamp(view.RootFull.ID)
+		endTs, err := c.chainViewService.GetChainEndTimestamp(view)
 		if err != nil {
 			c.logger.Error("failed to get chain end timestamp",
 				"root_full_backup_id", view.RootFull.ID, "error", err)
@@ -220,21 +220,12 @@ func (c *PhysicalBackupCleaner) walDeleteBudgetMB(ctx context.Context, databaseI
 
 // isChainWithinGrace reports whether a chain is too young to evict: its end
 // timestamp is within max(full, incr cadence) × 2 (floored at the 60-minute
-// per-backup grace). A failure to read the timestamp is treated as within grace
-// so a transient error never causes a premature delete.
-func (c *PhysicalBackupCleaner) isChainWithinGrace(
-	ctx context.Context,
+// per-backup grace). A chain whose end timestamp failed to load never becomes a
+// candidate, so a transient error never causes a premature delete.
+func isChainWithinGrace(
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
-	rootFullBackupID uuid.UUID,
+	chainEndTs time.Time,
 ) bool {
-	endTs, err := c.chainViewService.GetChainEndTimestamp(rootFullBackupID)
-	if err != nil {
-		c.logger.WarnContext(ctx, "failed to get chain end timestamp; treating as within grace",
-			"root_full_backup_id", rootFullBackupID, "error", err)
-
-		return true
-	}
-
 	grace := max(
 		approxIntervalDuration(backupConfig.FullBackupInterval),
 		approxIntervalDuration(backupConfig.IncrementalBackupInterval),
@@ -242,7 +233,7 @@ func (c *PhysicalBackupCleaner) isChainWithinGrace(
 
 	grace = max(grace, recentBackupGracePeriod)
 
-	return time.Since(endTs) < grace
+	return time.Since(chainEndTs) < grace
 }
 
 // cleanByChains keeps the N newest non-extendable chains (by chain-end
@@ -277,7 +268,7 @@ func (c *PhysicalBackupCleaner) cleanByChains(
 	for _, candidate := range candidates[keepCount:] {
 		rootFullBackupID := candidate.view.RootFull.ID
 
-		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+		if isChainWithinGrace(backupConfig, candidate.endTs) {
 			withinGraceCount++
 
 			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",
@@ -334,7 +325,7 @@ func (c *PhysicalBackupCleaner) cleanByFulls(
 	for _, candidate := range candidates {
 		rootFullBackupID := candidate.view.RootFull.ID
 
-		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+		if isChainWithinGrace(backupConfig, candidate.endTs) {
 			withinGraceCount++
 
 			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",
@@ -460,7 +451,7 @@ func (c *PhysicalBackupCleaner) cleanByCombined(
 			continue
 		}
 
-		if c.isChainWithinGrace(ctx, backupConfig, rootFullBackupID) {
+		if isChainWithinGrace(backupConfig, candidate.endTs) {
 			withinGraceCount++
 
 			logger.DebugContext(ctx, "keeping chain, it is still within the retention grace period",

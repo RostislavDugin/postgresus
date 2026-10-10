@@ -11,12 +11,11 @@ import { App, Button, Dropdown, type MenuProps, Modal, Spin, Table, Tooltip } fr
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
-import { type JSX, useEffect, useRef, useState } from 'react';
+import { type JSX, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   PHYSICAL_BACKUP_STATUS_LABEL_KEYS,
-  PHYSICAL_BACKUP_TYPE_LABEL_KEYS,
   type PhysicalBackupConfig,
   type PhysicalBackupListItem,
   PhysicalBackupStatus,
@@ -27,16 +26,18 @@ import {
   physicalBackupsApi,
 } from '../../../../entity/backups/physical';
 import { type Database, PhysicalDatabaseBackupType } from '../../../../entity/databases';
-import { usePersistentState } from '../../../../shared/hooks';
+import { usePersistentState, usePolledPagedList } from '../../../../shared/hooks';
 import { type LocaleContextValue, translateApiError, useLocale } from '../../../../shared/i18n';
 import { formatDuration } from '../../../../shared/lib';
 import { getUserTimeFormat } from '../../../../shared/time';
 import { ConfirmationComponent } from '../../../../shared/ui';
 import { PHYSICAL_BACKUP_STATUS_BADGE_STYLES } from '../model/physicalBackupStatus';
 import { PhysicalBackupsFiltersPanelComponent } from './PhysicalBackupsFiltersPanelComponent';
+import { PhysicalBackupTypeCellComponent } from './PhysicalBackupTypeCellComponent';
 import { PhysicalRestoreComponent } from './PhysicalRestoreComponent';
 
 const BACKUPS_PAGE_SIZE = 50;
+const BACKUPS_REFRESH_MS = 1_000;
 
 interface Props {
   database: Database;
@@ -54,11 +55,32 @@ const formatSize = (sizeMb: number, formatNumber: LocaleContextValue['formatNumb
   return `${formatNumber(Number((sizeMb ?? 0).toFixed(2)))} MB`;
 };
 
+// A missing segment before a WAL range is its health state, so it takes the
+// place of the status badge, styled like the other broken-chain warning.
+const renderGapBadge = (t: TFunction): JSX.Element => {
+  const badgeStyle = PHYSICAL_BACKUP_STATUS_BADGE_STYLES[PhysicalBackupStatus.CHAIN_BROKEN];
+
+  return (
+    <Tooltip title={t('backups.physical.list.walRange.gapBeforeTooltip')}>
+      <span
+        className={`inline-flex cursor-help items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset ${badgeStyle.pillClasses}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${badgeStyle.dotClasses}`} />
+        {t('backups.physical.list.walRange.gap')}
+      </span>
+    </Tooltip>
+  );
+};
+
 const renderStatusBadge = (
   backup: PhysicalBackupListItem,
   onShowError: (backup: PhysicalBackupListItem) => void,
   t: TFunction,
 ): JSX.Element => {
+  if (backup.hasGapBefore) {
+    return renderGapBadge(t);
+  }
+
   const badgeStyle = PHYSICAL_BACKUP_STATUS_BADGE_STYLES[backup.status];
   const label = t(PHYSICAL_BACKUP_STATUS_LABEL_KEYS[backup.status]);
 
@@ -88,32 +110,6 @@ const renderStatusBadge = (
   );
 };
 
-const renderTypeBadge = (type: PhysicalBackupType, t: TFunction): JSX.Element => {
-  const label = t(PHYSICAL_BACKUP_TYPE_LABEL_KEYS[type]);
-
-  if (type === PhysicalBackupType.FULL) {
-    return (
-      <span className="inline-flex items-center rounded bg-indigo-500/15 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-500/40 ring-inset dark:text-indigo-300">
-        {label}
-      </span>
-    );
-  }
-
-  if (type === PhysicalBackupType.WAL) {
-    return (
-      <span className="inline-flex items-center rounded bg-slate-400/10 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-400/30 ring-inset dark:text-slate-300">
-        {label}
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center rounded bg-indigo-400/10 px-2 py-0.5 text-xs font-medium text-indigo-600 ring-1 ring-indigo-400/30 ring-inset dark:text-indigo-300">
-      {label}
-    </span>
-  );
-};
-
 export const PhysicalBackupsComponent = ({
   database,
   isCanManageDBs,
@@ -124,14 +120,7 @@ export const PhysicalBackupsComponent = ({
   const { formatNumber, formatRelativeTime } = useLocale();
   const { message } = App.useApp();
 
-  const [isBackupsLoading, setIsBackupsLoading] = useState(false);
-  const [backups, setBackups] = useState<PhysicalBackupListItem[]>([]);
   const [totalUsageMb, setTotalUsageMb] = useState(0);
-
-  const [totalBackups, setTotalBackups] = useState(0);
-  const [currentLimit, setCurrentLimit] = useState(BACKUPS_PAGE_SIZE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
 
   const [backupConfig, setBackupConfig] = useState<PhysicalBackupConfig | undefined>();
   const [isBackupConfigLoading, setIsBackupConfigLoading] = useState(false);
@@ -157,77 +146,22 @@ export const PhysicalBackupsComponent = ({
     {},
   );
 
-  const lastRequestTimeRef = useRef<number>(0);
-  const isBackupsRequestInFlightRef = useRef(false);
-
   const isIncrementalAllowed =
     database.postgresqlPhysical?.backupType !== PhysicalDatabaseBackupType.FULL;
 
-  const loadBackups = async (limit?: number, filtersOverride?: PhysicalBackupsFilters) => {
-    if (isBackupsRequestInFlightRef.current) return;
-    isBackupsRequestInFlightRef.current = true;
+  const fetchBackupsPage = async (cursor: string | undefined) => {
+    const response = await physicalBackupsApi.getPhysicalBackups(
+      database.id,
+      BACKUPS_PAGE_SIZE,
+      cursor,
+      filters,
+    );
 
-    const requestTime = Date.now();
-    lastRequestTimeRef.current = requestTime;
-
-    const loadLimit = limit ?? currentLimit;
-    const activeFilters = filtersOverride ?? filters;
-
-    try {
-      const response = await physicalBackupsApi.getPhysicalBackups(
-        database.id,
-        loadLimit,
-        0,
-        activeFilters,
-      );
-
-      if (lastRequestTimeRef.current !== requestTime) return;
-
-      setBackups(response.backups);
+    if (cursor === undefined) {
       setTotalUsageMb(response.totalUsageMb);
-      setTotalBackups(response.total);
-      setHasMore(response.backups.length < response.total);
-    } catch (e) {
-      if (lastRequestTimeRef.current === requestTime) {
-        alert(translateApiError(e, t));
-      }
-    } finally {
-      isBackupsRequestInFlightRef.current = false;
-    }
-  };
-
-  const loadMoreBackups = async () => {
-    if (isLoadingMore || !hasMore) return;
-
-    setIsLoadingMore(true);
-
-    const newLimit = currentLimit + BACKUPS_PAGE_SIZE;
-    setCurrentLimit(newLimit);
-
-    const requestTime = Date.now();
-    lastRequestTimeRef.current = requestTime;
-
-    try {
-      const response = await physicalBackupsApi.getPhysicalBackups(
-        database.id,
-        newLimit,
-        0,
-        filters,
-      );
-
-      if (lastRequestTimeRef.current !== requestTime) return;
-
-      setBackups(response.backups);
-      setTotalUsageMb(response.totalUsageMb);
-      setTotalBackups(response.total);
-      setHasMore(response.backups.length < response.total);
-    } catch (e) {
-      if (lastRequestTimeRef.current === requestTime) {
-        alert(translateApiError(e, t));
-      }
     }
 
-    setIsLoadingMore(false);
+    return { items: response.backups, nextCursor: response.nextCursor };
   };
 
   const triggerBackup = async (type: TriggerPhysicalBackupType) => {
@@ -236,9 +170,7 @@ export const PhysicalBackupsComponent = ({
     try {
       await physicalBackupsApi.triggerPhysicalBackup(database.id, type);
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      setCurrentLimit(BACKUPS_PAGE_SIZE);
-      setHasMore(true);
-      await loadBackups(BACKUPS_PAGE_SIZE);
+      await reloadBackups();
     } catch (e) {
       message.error(translateApiError(e, t));
     }
@@ -251,7 +183,7 @@ export const PhysicalBackupsComponent = ({
 
     try {
       await physicalBackupsApi.cancelPhysicalBackup(backupId);
-      await loadBackups();
+      await refreshBackups();
     } catch (e) {
       alert(translateApiError(e, t));
     }
@@ -268,9 +200,7 @@ export const PhysicalBackupsComponent = ({
 
     try {
       await physicalBackupsApi.deletePhysicalBackup(backupId);
-      setCurrentLimit(BACKUPS_PAGE_SIZE);
-      setHasMore(true);
-      await loadBackups(BACKUPS_PAGE_SIZE);
+      await reloadBackups();
     } catch (e) {
       alert(translateApiError(e, t));
     }
@@ -278,56 +208,34 @@ export const PhysicalBackupsComponent = ({
     setDeletingBackupId(undefined);
   };
 
+  const {
+    items: backups,
+    isLoading: isBackupsLoading,
+    isLoadingMore,
+    hasMore,
+    reload: reloadBackups,
+    refreshFirstPage: refreshBackups,
+  } = usePolledPagedList({
+    fetchPage: fetchBackupsPage,
+    getItemKey: (backup: PhysicalBackupListItem) => backup.id,
+    refreshIntervalMs: BACKUPS_REFRESH_MS,
+    scrollContainerRef,
+    resetKey: JSON.stringify([database.id, filters]),
+    onError: (e) => alert(translateApiError(e, t)),
+  });
+
   useEffect(() => {
     setIsBackupConfigLoading(true);
-    setCurrentLimit(BACKUPS_PAGE_SIZE);
-    setHasMore(true);
 
     physicalBackupConfigApi.getPhysicalBackupConfigByDbId(database.id).then((config) => {
       setBackupConfig(config);
       setIsBackupConfigLoading(false);
-
-      setIsBackupsLoading(true);
-      loadBackups(BACKUPS_PAGE_SIZE).then(() => setIsBackupsLoading(false));
     });
   }, [database]);
 
-  useEffect(() => {
-    setCurrentLimit(BACKUPS_PAGE_SIZE);
-    setHasMore(true);
-    setIsBackupsLoading(true);
-    loadBackups(BACKUPS_PAGE_SIZE, filters).then(() => setIsBackupsLoading(false));
-  }, [filters]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      loadBackups();
-    }, 1_000);
-
-    return () => clearInterval(intervalId);
-  }, [currentLimit, filters]);
-
-  useEffect(() => {
-    if (!scrollContainerRef?.current) return;
-
-    const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-
-      if (scrollHeight - scrollTop <= clientHeight + 100 && hasMore && !isLoadingMore) {
-        loadMoreBackups();
-      }
-    };
-
-    const container = scrollContainerRef.current;
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, currentLimit, scrollContainerRef]);
-
   const renderActions = (record: PhysicalBackupListItem): JSX.Element => (
     <div className="flex gap-2 text-lg">
-      {/* WAL segments have no standalone backup identity - they are not restored or deleted on their own (use point-in-time restore instead). */}
+      {/* WAL ranges have no standalone backup identity - they are not restored or deleted on their own (use point-in-time restore instead). */}
       {record.type === PhysicalBackupType.WAL ? null : (
         <>
           {record.status === PhysicalBackupStatus.IN_PROGRESS && isCanManageDBs && (
@@ -382,6 +290,12 @@ export const PhysicalBackupsComponent = ({
   );
 
   const renderDuration = (record: PhysicalBackupListItem): string => {
+    // A WAL range's end is the receive time of its last segment, not the end
+    // of a backup run, so it has no duration to show.
+    if (record.type === PhysicalBackupType.WAL) {
+      return '-';
+    }
+
     if (record.completedAt) {
       return formatDuration(dayjs(record.completedAt).diff(dayjs(record.createdAt)));
     }
@@ -394,12 +308,59 @@ export const PhysicalBackupsComponent = ({
     return '-';
   };
 
+  const renderCreatedAt = (backup: PhysicalBackupListItem): JSX.Element => {
+    const timeFormat = getUserTimeFormat().format;
+    const createdAt = dayjs.utc(backup.createdAt).local();
+
+    if (backup.type === PhysicalBackupType.WAL && backup.completedAt) {
+      const lastReceivedAt = dayjs.utc(backup.completedAt).local();
+
+      return (
+        <div className="grid grid-cols-[auto_1fr] gap-x-2">
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.from')}
+          </span>
+          <span>
+            {createdAt.format(timeFormat)}{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              ({formatRelativeTime(createdAt)})
+            </span>
+          </span>
+
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.to')}
+          </span>
+          <span>
+            {lastReceivedAt.format(timeFormat)}{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              ({formatRelativeTime(lastReceivedAt)})
+            </span>
+          </span>
+
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.segments')}
+          </span>
+          <span>{backup.walSegmentsCount}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {createdAt.format(timeFormat)}
+        <div className="text-gray-500 dark:text-gray-400">({formatRelativeTime(createdAt)})</div>
+      </div>
+    );
+  };
+
   const columns: ColumnsType<PhysicalBackupListItem> = [
     {
       title: t('common.fields.type'),
       dataIndex: 'type',
       key: 'type',
-      render: (type: PhysicalBackupType) => renderTypeBadge(type, t),
+      render: (_type: PhysicalBackupType, record: PhysicalBackupListItem) => (
+        <PhysicalBackupTypeCellComponent backup={record} />
+      ),
     },
     {
       title: t('common.fields.status'),
@@ -425,17 +386,7 @@ export const PhysicalBackupsComponent = ({
       title: t('backups.list.columns.created'),
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (createdAt: Date) => (
-        <div>
-          {dayjs.utc(createdAt).local().format(getUserTimeFormat().format)}
-          <br />
-          <span className="text-gray-500 dark:text-gray-400">
-            ({formatRelativeTime(dayjs.utc(createdAt).local())})
-          </span>
-        </div>
-      ),
-      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
-      defaultSortOrder: 'descend',
+      render: (_createdAt: Date, record: PhysicalBackupListItem) => renderCreatedAt(record),
     },
     {
       title: t('backups.list.columns.actions'),
@@ -525,7 +476,7 @@ export const PhysicalBackupsComponent = ({
         </Button>
       </div>
 
-      <div className="mt-5 w-full md:max-w-[850px]">
+      <div className="mt-5 w-full md:max-w-[890px]">
         {/* Mobile card view */}
         <div className="md:hidden">
           {isBackupsLoading ? (
@@ -545,12 +496,7 @@ export const PhysicalBackupsComponent = ({
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {t('backups.list.columns.created')}
                         </div>
-                        <div className="text-sm font-medium">
-                          {dayjs.utc(backup.createdAt).local().format(getUserTimeFormat().format)}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          ({formatRelativeTime(dayjs.utc(backup.createdAt).local())})
-                        </div>
+                        <div className="text-sm font-medium">{renderCreatedAt(backup)}</div>
                       </div>
                       <div>{renderStatusBadge(backup, setShowingBackupError, t)}</div>
                     </div>
@@ -560,7 +506,9 @@ export const PhysicalBackupsComponent = ({
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {t('common.fields.type')}
                         </div>
-                        <div className="text-sm font-medium">{renderTypeBadge(backup.type, t)}</div>
+                        <div className="text-sm font-medium">
+                          <PhysicalBackupTypeCellComponent backup={backup} />
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -594,7 +542,7 @@ export const PhysicalBackupsComponent = ({
           )}
           {!hasMore && backups.length > 0 && (
             <div className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('backups.list.allLoaded', { count: totalBackups })}
+              {t('backups.list.allLoaded', { count: backups.length })}
             </div>
           )}
           {!isBackupsLoading && backups.length === 0 && (
@@ -622,7 +570,7 @@ export const PhysicalBackupsComponent = ({
           )}
           {!hasMore && backups.length > 0 && (
             <div className="mt-2 text-center text-gray-500 dark:text-gray-400">
-              {t('backups.list.allLoaded', { count: totalBackups })}
+              {t('backups.list.allLoaded', { count: backups.length })}
             </div>
           )}
         </div>

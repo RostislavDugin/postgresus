@@ -310,6 +310,32 @@ func (p *PostgresqlPhysicalDatabase) TestReplicationConnection(
 	return p.checkReplicationReadiness(logger, encryptor)
 }
 
+// ProbeLiveness answers only whether the source accepts the stored credentials. It deliberately
+// avoids a replication connection: that would take a WAL sender slot, which on a source sized
+// tightly for its replicas makes the probe fail during every backup and can starve the backup
+// itself. Replication readiness stays the job of TestReplicationConnection.
+func (p *PostgresqlPhysicalDatabase) ProbeLiveness(
+	ctx context.Context,
+	logger *slog.Logger,
+	encryptor encryption.FieldEncryptor,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	conn, err := openConn(ctx, p, encryptor)
+	if err != nil {
+		return fmt.Errorf("failed to connect to the source: %w", err)
+	}
+	defer closeConnQuietly(ctx, conn, logger)
+
+	var result int
+	if err := conn.QueryRow(ctx, "SELECT 1").Scan(&result); err != nil {
+		return fmt.Errorf("failed to query the source: %w", err)
+	}
+
+	return nil
+}
+
 // VerifyWalSlot ensures a physical replication slot named p.ReplicationSlotName
 // exists on the target cluster. Idempotent: a second call after first create
 // is a no-op. Caller is the backup runner — slot existence is a backup-time

@@ -485,11 +485,28 @@ func (s *DatabaseService) TestDatabaseConnectionDirect(
 	return s.testDatabaseConnection(ctx, usingDatabase)
 }
 
-func (s *DatabaseService) TestTrustedDatabaseConnection(
+func (s *DatabaseService) ProbeDatabaseLiveness(
 	ctx context.Context,
 	database *Database,
 ) error {
-	return s.testDatabaseConnection(ctx, database)
+	if database == nil {
+		return errors.New("database is required")
+	}
+
+	logger := s.logger.With("database_id", database.ID)
+
+	tunneledDatabase, err := OpenTunnel(ctx, OpenTunnelSpec{
+		Database:  database,
+		Logger:    logger,
+		Encryptor: s.fieldEncryptor,
+	})
+	if err != nil {
+		return err
+	}
+
+	defer tunneledDatabase.Close()
+
+	return tunneledDatabase.GetDatabaseThroughTunnel().ProbeLiveness(ctx, logger, s.fieldEncryptor)
 }
 
 func (s *DatabaseService) GetDatabaseByID(

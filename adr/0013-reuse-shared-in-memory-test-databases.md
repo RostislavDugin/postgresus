@@ -69,7 +69,7 @@ isolated (so peak memory stays bounded).
   `innodb-flush-log-at-trx-commit=0 / innodb-doublewrite=0 / sync-binlog=0 / skip-log-bin`. Files:
   `containers/{postgres,mysql,mariadb,mongodb}.go`.
 
-- **Run packages in parallel.** `go test -p=8` (`TEST_PARALLEL_WORKERS` in `backend/Makefile`). One
+- **Run packages in parallel.** `go test -p=8` (`TEST_PARALLEL_WORKERS` in `scripts/test.sh`). One
   matrix container is alive per package, so peak memory stays around 10–11 GB instead of the old
   all-at-once that ran out of RAM.
 
@@ -115,7 +115,7 @@ pub/sub channels.
 
 ### Neutral / follow-ups
 
-- On a hard `-timeout` or `os.Exit`, `t.Cleanup` is skipped; the Makefile/CI label-sweep cleans up any
+- On a hard `-timeout` or `os.Exit`, `t.Cleanup` is skipped; the `scripts/test.sh`/CI label-sweep cleans up any
   leftover containers.
 
 ## References
@@ -128,7 +128,7 @@ pub/sub channels.
   binaries (each with its own control plane and throwaway source + restore-target containers)
 - `backend/internal/config/config.go` (`applyTestWorkerSlot` / `claimTestWorkerSlot`)
 - `backend/internal/features/backups/backups/backuping/nodes/registry.go`
-- `backend/Makefile`
+- `scripts/test.sh`
 
 ## Replacement note (2026-09-06)
 

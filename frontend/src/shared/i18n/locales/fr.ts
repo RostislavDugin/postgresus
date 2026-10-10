@@ -1147,6 +1147,7 @@ export const fr: typeof en = {
     },
   },
   notifiers: {
+    advancedSettings: 'Paramètres avancés',
     types: {
       email: 'E-mail',
       telegram: 'Telegram',
@@ -1246,7 +1247,6 @@ export const fr: typeof en = {
       fromTooltip:
         "Facultatif. Adresse de l'expéditeur, avec ou sans nom : Acme Backups <noreply@example.com>. Si le champ est vide, l'utilisateur SMTP est utilisé s'il s'agit d'une adresse e-mail, sinon noreply@ suivi de l'hôte SMTP",
       fromAuto: '(automatique)',
-      advancedSettings: 'Paramètres avancés',
       skipTlsTooltip:
         'Ne pas vérifier le certificat TLS. Activez cette option si votre serveur SMTP utilise un certificat auto-signé. Attention : cela réduit la sécurité.',
       security: 'Sécurité de la connexion',
@@ -1273,6 +1273,9 @@ export const fr: typeof en = {
         group:
           "Pour obtenir l'ID d'un groupe, ajoutez votre bot et <botLink>@getmyid_bot</botLink> au groupe, puis écrivez /start (l'ID du chat s'affichera)",
       },
+      botApiUrl: 'URL de la Bot API',
+      botApiUrlTooltip:
+        "Facultatif. Un serveur Telegram Bot API auto-hébergé ou un proxy inverse placé devant l'API Telegram. S'il est vide, l'API officielle de Telegram est utilisée. Ce serveur reçoit le jeton du bot. Avant de passer à un serveur auto-hébergé, déconnectez le bot de l'API officielle avec la méthode logOut",
       useProxy: 'Utiliser un proxy',
       useProxyTooltip: "Passer par un proxy pour les requêtes vers l'API Telegram",
       proxy: 'Proxy',
@@ -1563,6 +1566,14 @@ export const fr: typeof en = {
         restore: 'Restaurer',
         restoreFromThisBackup: 'Restaurer depuis cette sauvegarde',
         pointInTimeRestoreTitle: 'Restauration à un instant donné',
+        walRange: {
+          from: 'Début',
+          to: 'Fin',
+          segments: 'Segments',
+          gap: 'Trou',
+          gapBeforeTooltip:
+            'Des segments WAL manquent entre cette plage et la précédente. La restauration à un instant donné ne peut pas franchir ce trou.',
+        },
         deleteFullConfirmation:
           'Si vous supprimez cette sauvegarde complète, toute sa chaîne disparaît avec elle (toutes les sauvegardes incrémentales qui en dépendent). Cette action est irréversible. Continuer ?',
         deleteIncrementalConfirmation:

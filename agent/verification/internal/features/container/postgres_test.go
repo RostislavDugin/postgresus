@@ -13,16 +13,7 @@ func Test_BuildSpec_AppliesHardeningControls(t *testing.T) {
 	// nil engine: buildSpec is pure and never calls the engine.
 	containerManager := NewManager(nil, "agent-1", "databasus/verification-postgres", testutil.DiscardLogger())
 
-	labels := map[string]string{LabelAgentID: "agent-1"}
-	spec := containerManager.buildSpec(spawnPlan{
-		verificationID: uuid.New(),
-		image:          "postgres@sha256:x",
-		password:       "pw",
-		cpuPerJob:      2,
-		ramMbPerJob:    1024,
-		networkID:      "net-id",
-		labels:         labels,
-	})
+	spec := containerManager.buildSpec(newTestSpawnPlan())
 
 	assert.True(t, spec.NoNewPrivileges)
 	assert.True(t, spec.CapDropAll)
@@ -34,18 +25,24 @@ func Test_BuildSpec_AppliesHardeningControls(t *testing.T) {
 	assert.Equal(t, []string{"POSTGRES_PASSWORD=pw"}, spec.Env)
 }
 
+func Test_BuildSpec_WhenCpuLimitUnsupported_OmitsCpuLimitAndKeepsOtherControls(t *testing.T) {
+	containerManager := NewManager(nil, "agent-1", "databasus/verification-postgres", testutil.DiscardLogger())
+	containerManager.isCpuLimitSupported = false
+
+	spec := containerManager.buildSpec(newTestSpawnPlan())
+
+	assert.Zero(t, spec.NanoCPUs, "Docker treats 0 as no CPU limit")
+	assert.Equal(t, int64(1024)*1024*1024, spec.MemoryBytes)
+	assert.EqualValues(t, containerPidsLimit, spec.PidsLimit)
+	assert.True(t, spec.NoNewPrivileges)
+	assert.True(t, spec.CapDropAll)
+	assert.Equal(t, minimalCaps, spec.CapAdd)
+}
+
 func Test_BuildSpec_SetsRestoreTunedPostgresCmd(t *testing.T) {
 	containerManager := NewManager(nil, "agent-1", "databasus/verification-postgres", testutil.DiscardLogger())
 
-	spec := containerManager.buildSpec(spawnPlan{
-		verificationID: uuid.New(),
-		image:          "postgres@sha256:x",
-		password:       "pw",
-		cpuPerJob:      2,
-		ramMbPerJob:    1024,
-		networkID:      "net-id",
-		labels:         map[string]string{LabelAgentID: "agent-1"},
-	})
+	spec := containerManager.buildSpec(newTestSpawnPlan())
 
 	assert.Equal(t, restoreTunedPostgresCmd, spec.Cmd)
 	assert.Equal(t, "postgres", spec.Cmd[0])
@@ -126,4 +123,16 @@ func Test_StockFallbackImage_WhenTimescaleJob_DoesNotFallBack(t *testing.T) {
 
 	assert.False(t, canFallBack,
 		"timescale needs its exact version-matched image; stock postgres cannot restore it")
+}
+
+func newTestSpawnPlan() spawnPlan {
+	return spawnPlan{
+		verificationID: uuid.New(),
+		image:          "postgres@sha256:x",
+		password:       "pw",
+		cpuPerJob:      2,
+		ramMbPerJob:    1024,
+		networkID:      "net-id",
+		labels:         map[string]string{LabelAgentID: "agent-1"},
+	}
 }

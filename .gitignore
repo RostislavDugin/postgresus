@@ -13,7 +13,6 @@ node_modules/
 /articles
 
 .DS_Store
-/scripts
 .vscode/settings.json
 .claude/*
 !.claude/agents/
@@ -25,3 +24,4 @@ backend/cleanup_test_db.exe
 plans/
 
 .pnpm-store
+__pycache__/

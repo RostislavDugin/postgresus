@@ -1,4 +1,4 @@
-// Resets state before `make test` runs. Two distinct resets:
+// Resets state before `just test` runs. Two distinct resets:
 //
 //  1. The Databasus metadata DB: drop and recreate the test schema referenced
 //     by TEST_DATABASE_DSN so Goose migrations apply against a clean slate.

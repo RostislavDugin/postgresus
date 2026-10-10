@@ -1,12 +1,23 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" session-start --client claude",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" snapshot",
-            "timeout": 10
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" snapshot --client claude",
+            "timeout": 30
           }
         ]
       }
@@ -17,9 +28,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" plan-gate",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" plan --client claude",
             "timeout": 600,
             "statusMessage": "Reviewing the plan"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" necessity --client claude",
+            "timeout": 600,
+            "statusMessage": "Checking whether the task is needed"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" architecture --client claude",
+            "timeout": 600,
+            "statusMessage": "Checking architecture"
           }
         ]
       }
@@ -29,9 +52,39 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" claude",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" diff --client claude",
             "timeout": 600,
-            "statusMessage": "Reviewing the plan and changes"
+            "statusMessage": "Reviewing the diff"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" necessity --client claude",
+            "timeout": 600,
+            "statusMessage": "Checking whether the task is needed"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" architecture --client claude",
+            "timeout": 600,
+            "statusMessage": "Checking architecture"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" naming --client claude",
+            "timeout": 600,
+            "statusMessage": "Checking names"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" implementation --client claude",
+            "timeout": 3600,
+            "statusMessage": "Full implementation review"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" proposal --client claude",
+            "timeout": 3600,
+            "statusMessage": "Full proposal review"
           }
         ]
       }

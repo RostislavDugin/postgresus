@@ -15,6 +15,15 @@ type SignUpRequestDTO struct {
 	CloudflareTurnstileToken *string `json:"cloudflareTurnstileToken"`
 }
 
+// CreateConsoleAccountRequest carries the console flags as typed: the role is
+// still the operator's text, so the service can refuse what it cannot parse.
+type CreateConsoleAccountRequest struct {
+	Email    string
+	Password string
+	Role     string
+	Name     string
+}
+
 type SignInRequestDTO struct {
 	Email                    string  `json:"email"                    binding:"required"`
 	Password                 string  `json:"password"                 binding:"required"`

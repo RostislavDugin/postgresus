@@ -115,7 +115,7 @@ Databasus 会真正执行一次恢复，确认备份可用，而不只是检查�
 - **PostgreSQL**：14、15、16、17 和 18（物理和逻辑）
 - **MySQL**：5.7、8.0、8.4、9 和 26（仅逻辑）
 - **MariaDB**：5.5、10、11、12 和 13（仅逻辑）
-- **MongoDB**：4.2+、5、6、7 和 8（仅逻辑）
+- **MongoDB**：4.2+、5、6、7、8 和 9（仅逻辑）
 
 ### 🐳 **自托管且安全**
 
@@ -276,6 +276,14 @@ docker exec -it databasus ./main --list-admins
 ```
 
 输出会列出每个管理员账户的邮箱、显示名称、创建日期和活动状态，并标记实例所认可的管理员。不会输出任何密码或密码哈希。
+
+如果不想在浏览器里注册，比如要用部署脚本开通账户，可以在控制台直接创建：
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` 取 `admin` 或 `member`，密码至少 8 个字符，`--name` 可选，用来设置显示名称。如果实例上还没有任何账户，第一个账户必须使用 `--role=admin`，它就是该实例的管理员。对同一账户再次运行命令不会做任何改动，所以部署流程可以在每次上线时都运行它；要更换密码，请使用 `--new-password`。
 
 ### 💾 给 Databasus 自身做备份
 

@@ -29,6 +29,13 @@ export function ShowTelegramNotifierComponent({ notifier }: Props) {
         </div>
       )}
 
+      {notifier?.telegramNotifier?.botApiUrl && (
+        <div className="mb-1 flex items-center">
+          <div className="min-w-[110px] pr-2">{t('notifiers.telegram.botApiUrl')}</div>
+          {notifier.telegramNotifier.botApiUrl}
+        </div>
+      )}
+
       {notifier?.telegramNotifier?.isProxyEnabled && (
         <div className="mb-1 flex items-center">
           <div className="min-w-[110px] pr-2">{t('notifiers.telegram.proxy')}</div>

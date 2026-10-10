@@ -115,7 +115,7 @@ Databasus performs a real restore to confirm backups are usable, not just intact
 - **PostgreSQL**: 14, 15, 16, 17 and 18 (physical and logical)
 - **MySQL**: 5.7, 8.0, 8.4, 9 and 26 (logical only)
 - **MariaDB**: 5.5, 10, 11, 12 and 13 (logical only)
-- **MongoDB**: 4.2+, 5, 6, 7 and 8 (logical only)
+- **MongoDB**: 4.2+, 5, 6, 7, 8 and 9 (logical only)
 
 ### 🐳 **Self-hosted & secure**
 
@@ -276,6 +276,14 @@ docker exec -it databasus ./main --list-admins
 ```
 
 The output names every administrator account with its email address, display name, creation date and active state, and marks the one the instance recognizes as its administrator. It prints no password material.
+
+To provision an account without signing up in the browser, for example from a deployment script, create it from the console:
+
+```bash
+docker exec -it databasus ./main --create-user --email="ops@example.com" --password="YourSecurePassword123" --role=admin
+```
+
+`--role` is `admin` or `member`, the password needs at least 8 characters, and `--name` optionally sets the display name. On an instance that holds no account yet, the first account must use `--role=admin` and administers the instance. Running the command again for the same account changes nothing, so a deployment can run it on every rollout; rotate the password with `--new-password`.
 
 ### 💾 Backuping Databasus itself
 

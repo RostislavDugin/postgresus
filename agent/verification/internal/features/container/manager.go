@@ -52,10 +52,11 @@ var restoreTunedPostgresCmd = []string{
 }
 
 type Manager struct {
-	engine          *dockerEngine
-	agentID         string
-	engineImageRepo string
-	log             *slog.Logger
+	engine              *dockerEngine
+	agentID             string
+	engineImageRepo     string
+	isCpuLimitSupported bool
+	log                 *slog.Logger
 }
 
 func NewManager(
@@ -65,10 +66,11 @@ func NewManager(
 	log *slog.Logger,
 ) *Manager {
 	return &Manager{
-		engine:          engine,
-		agentID:         agentID,
-		engineImageRepo: engineImageRepo,
-		log:             log,
+		engine:              engine,
+		agentID:             agentID,
+		engineImageRepo:     engineImageRepo,
+		isCpuLimitSupported: true,
+		log:                 log,
 	}
 }
 
@@ -79,14 +81,26 @@ func (m *Manager) StartupSelfCheck(ctx context.Context) error {
 
 	m.log.Info("docker daemon is reachable")
 
-	remapOn, err := m.engine.UserNSRemapEnabled(ctx)
+	capabilities, err := m.engine.GetHostCapabilities(ctx)
 	if err != nil {
-		m.log.Warn("could not determine user-namespace remap state", "error", err)
-	} else if !remapOn {
+		// The CPU limit stays on: dropping it on a transient failure would
+		// silently unlimit hosts that support it.
+		m.log.Warn("could not determine docker host capabilities", "error", err)
+		return nil
+	}
+
+	if !capabilities.IsUserNSRemapEnabled {
 		m.log.Warn(
 			"docker user-namespace remapping is OFF — the strongest control " +
 				"against a container escape is absent; enable userns-remap on the " +
 				"verification host")
+	}
+
+	m.isCpuLimitSupported = capabilities.IsCpuLimitSupported
+	if !m.isCpuLimitSupported {
+		m.log.Warn(
+			"docker host does not support CPU CFS quota — verification containers " +
+				"run without a CPU limit, so a restore can use every CPU core on the host")
 	}
 
 	return nil
@@ -194,7 +208,7 @@ func (m *Manager) buildSpec(plan spawnPlan) SpawnSpec {
 		Cmd:         restoreTunedPostgresCmd,
 		Env:         []string{"POSTGRES_PASSWORD=" + plan.password},
 		Labels:      plan.labels,
-		NanoCPUs:    int64(plan.cpuPerJob) * 1_000_000_000,
+		NanoCPUs:    m.getNanoCPUs(plan.cpuPerJob),
 		MemoryBytes: int64(plan.ramMbPerJob) * 1024 * 1024,
 		PidsLimit:   containerPidsLimit,
 		NetworkID:   plan.networkID,
@@ -210,6 +224,16 @@ func (m *Manager) buildSpec(plan spawnPlan) SpawnSpec {
 		// see CreateNetwork in dockerengine.go for why.
 		ReadonlyRootfs: false,
 	}
+}
+
+// getNanoCPUs returns 0 on hosts without CFS quota support, which Docker
+// treats as no CPU limit; any other value makes the daemon reject the container.
+func (m *Manager) getNanoCPUs(cpuPerJob int) int64 {
+	if !m.isCpuLimitSupported {
+		return 0
+	}
+
+	return int64(cpuPerJob) * 1_000_000_000
 }
 
 func (m *Manager) assertSecurity(ctx context.Context, containerID string) error {

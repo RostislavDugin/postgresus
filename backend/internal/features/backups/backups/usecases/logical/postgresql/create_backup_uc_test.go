@@ -1,12 +1,17 @@
 package usecases_logical_postgresql
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
+	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
+	"databasus-backend/internal/features/databases"
 	pgtypes "databasus-backend/internal/features/databases/databases/postgresql/logical"
 	"databasus-backend/internal/util/tools"
 )
@@ -37,4 +42,25 @@ func Test_BuildPgDumpArgs_TreatsDuplicateParameterAsLiteralDatabaseName(t *testi
 	require.Less(t, databaseArgumentIndex, len(args))
 	require.GreaterOrEqual(t, databaseArgumentIndex, 0)
 	require.Equal(t, "dbname='postgres dbname=databasus'", args[databaseArgumentIndex])
+}
+
+// Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue816 pins issue #816:
+// a storage timeout that ended the backup context was reported as "backup cancelled".
+func Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue816(t *testing.T) {
+	database := &databases.Database{
+		ID:                uuid.New(),
+		Type:              databases.DatabaseTypePostgresLogical,
+		PostgresqlLogical: databases.GetTestPostgresConfig(),
+	}
+
+	backups_core_logical.AssertStorageTimeoutReportedAsStorageFailure(t, func(
+		ctx context.Context,
+		backup *backups_core_logical.LogicalBackup,
+		backupConfig *backups_config_logical.LogicalBackupConfig,
+		fileStore backups_core_logical.BackupFileStore,
+	) error {
+		_, err := GetCreatePostgresqlBackupUsecase().Execute(ctx, backup, backupConfig, database, fileStore, func(float64) {})
+
+		return err
+	})
 }

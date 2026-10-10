@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -130,18 +128,11 @@ func (b *Backuper) MakeBackup(ctx context.Context, backupID uuid.UUID, isCallNot
 			"error", err,
 		)
 
-		// Check if backup was cancelled (not due to shutdown)
-		isCancelled := strings.Contains(errMsg, "backup cancelled") ||
-			strings.Contains(errMsg, "context canceled") ||
-			errors.Is(err, context.Canceled)
-		isShutdown := strings.Contains(errMsg, "shutdown")
-
-		if isCancelled && !isShutdown {
-			logger.WarnContext(ctx, "backup was cancelled by user or system",
-				"backup_id", backup.ID,
-				"is_cancelled", isCancelled,
-				"is_shutdown", isShutdown,
-			)
+		// Only a cancel request cancels executionCtx. Shutdown, the time limit and a failed upload
+		// end the use case's own context instead, and their errors can still read as a
+		// cancellation, so the error decides nothing here.
+		if executionCtx.Err() != nil {
+			logger.WarnContext(ctx, "backup was cancelled on request", "backup_id", backup.ID)
 
 			backup.Status = backups_core_logical.BackupStatusCanceled
 			backup.BackupDurationMs = time.Since(start).Milliseconds()

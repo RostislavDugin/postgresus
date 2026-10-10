@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { SshTunnelAuthType } from './SshTunnelAuthType';
-import type { SshTunnelConfig } from './SshTunnelConfig';
 import { createEmptySshTunnelConfig } from './createEmptySshTunnelConfig';
 import { isSshTunnelReadyToTest } from './isSshTunnelReadyToTest';
+import { SshTunnelAuthType } from './SshTunnelAuthType';
+import type { SshTunnelConfig } from './SshTunnelConfig';
 
 function enabledTunnel(): SshTunnelConfig {
   return {

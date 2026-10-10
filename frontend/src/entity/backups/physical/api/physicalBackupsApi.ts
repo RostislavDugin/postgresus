@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../../constants';
-import RequestOptions from '../../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../../shared/api/apiHelper';
+import RequestOptions from '../../../../shared/api/RequestOptions';
 import type { GetPhysicalBackupsResponse } from '../model/GetPhysicalBackupsResponse';
 import type { PhysicalBackupsFilters } from '../model/PhysicalBackupsFilters';
 import type { PhysicalRestoreTokenResponse } from '../model/PhysicalRestoreTokenResponse';
@@ -13,12 +13,12 @@ export const physicalBackupsApi = {
   async getPhysicalBackups(
     databaseId: string,
     limit?: number,
-    offset?: number,
+    cursor?: string,
     filters?: PhysicalBackupsFilters,
   ) {
     const params = new URLSearchParams();
     if (limit !== undefined) params.append('limit', limit.toString());
-    if (offset !== undefined) params.append('offset', offset.toString());
+    if (cursor !== undefined) params.append('cursor', cursor);
 
     if (filters?.types) for (const type of filters.types) params.append('type', type);
     if (filters?.statuses) for (const status of filters.statuses) params.append('status', status);

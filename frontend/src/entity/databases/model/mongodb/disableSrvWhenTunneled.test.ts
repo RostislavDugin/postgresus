@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { SshTunnelAuthType } from '../sshtunnel/SshTunnelAuthType';
 import type { SshTunnelConfig } from '../sshtunnel/SshTunnelConfig';
+import { disableSrvWhenTunneled } from './disableSrvWhenTunneled';
 import type { MongodbDatabase } from './MongodbDatabase';
 import { MongodbVersion } from './MongodbVersion';
-import { disableSrvWhenTunneled } from './disableSrvWhenTunneled';
 
 const enabledTunnel = (): SshTunnelConfig => ({
   isEnabled: true,
@@ -19,7 +19,7 @@ const enabledTunnel = (): SshTunnelConfig => ({
 
 const srvDatabase = (sshTunnel?: SshTunnelConfig): MongodbDatabase => ({
   id: 'db-1',
-  version: MongodbVersion.MongodbVersion70,
+  version: MongodbVersion.MongodbVersion7,
   host: 'cluster0.example.mongodb.net',
   port: 27017,
   username: 'testuser',

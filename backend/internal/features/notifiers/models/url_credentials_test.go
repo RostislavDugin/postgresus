@@ -98,3 +98,16 @@ func Test_ErrorWithoutWebhookURLCredentials_WithNonTransportError_ReturnsItUncha
 
 	assert.Equal(t, plainError, ErrorWithoutWebhookURLCredentials(plainError))
 }
+
+func Test_RedactSecretInText_WithEchoedSecret_ReplacesEveryOccurrence(t *testing.T) {
+	redactedText := RedactSecretInText(
+		"Cannot POST /bot123456:AAH-SECRET/sendMessage (123456:AAH-SECRET)",
+		"123456:AAH-SECRET",
+	)
+
+	assert.Equal(t, "Cannot POST /botredacted/sendMessage (redacted)", redactedText)
+}
+
+func Test_RedactSecretInText_WithEmptySecret_ReturnsTextUnchanged(t *testing.T) {
+	assert.Equal(t, "chat not found", RedactSecretInText("chat not found", ""))
+}

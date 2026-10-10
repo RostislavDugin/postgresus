@@ -39,6 +39,7 @@ import (
 	workspaces_controllers "databasus-backend/internal/features/workspaces/controllers"
 	workspaces_models "databasus-backend/internal/features/workspaces/models"
 	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	"databasus-backend/internal/storage"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 	test_utils "databasus-backend/internal/util/testing"
@@ -139,7 +140,6 @@ func Test_GetBackups_WhenOwner_ReturnsFlatListSortedByCreatedAt(t *testing.T) {
 		"Bearer "+prereqs.user.Token, http.StatusOK, &response)
 
 	require.Len(t, response.Backups, 3)
-	assert.EqualValues(t, 3, response.Total)
 
 	// Newest-first: WAL (received last), then incremental, then full.
 	assert.Equal(t, walSegment.ID, response.Backups[0].ID)
@@ -150,7 +150,8 @@ func Test_GetBackups_WhenOwner_ReturnsFlatListSortedByCreatedAt(t *testing.T) {
 	assert.Equal(t, physical_enums.PhysicalBackupTypeFull, response.Backups[2].Type)
 
 	assert.Equal(t, full.ID, *response.Backups[1].RootFullBackupID)
-	assert.NotNil(t, response.Backups[0].WalFilename)
+	require.NotNil(t, response.Backups[0].FromWalFilename)
+	assert.Equal(t, "000000010000000000000002", *response.Backups[0].FromWalFilename)
 	assert.Positive(t, response.TotalUsageMb)
 }
 
@@ -190,48 +191,93 @@ func Test_GetBackups_WhenBackupFailed_ReturnsFailMessage(t *testing.T) {
 		"a completed backup carries no failure message")
 }
 
-func Test_GetBackups_Paginated_ReturnsRequestedPage(t *testing.T) {
+func Test_GetBackups_FollowingNextCursor_ReturnsEveryRowOnce(t *testing.T) {
 	prereqs := createPhysicalControllerPrereqs(t)
 
-	base := time.Now().UTC().Add(-1 * time.Hour)
+	fulls := createFullBackupsMinutesApart(t, prereqs, 5, time.Now().UTC().Add(-1*time.Hour))
 
-	fullModel := physical_testing.NewTestCompletedFullBackup(
-		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
-	fullModel.CreatedAt = base
-	full := physical_testing.CreateTestFullBackup(t, fullModel)
+	firstPage := getBackups(t, prereqs, "?limit=2")
+	require.Len(t, firstPage.Backups, 2)
+	require.NotEmpty(t, firstPage.NextCursor)
 
-	incrModel := physical_testing.NewTestCompletedIncrementalBackup(
-		prereqs.database.ID, prereqs.storage.ID, full.ID, nil, 1,
-		walmath.LSN(segmentBytes), walmath.LSN(2*segmentBytes))
-	incrModel.CreatedAt = base.Add(10 * time.Minute)
-	incr := physical_testing.CreateTestIncrementalBackup(t, incrModel)
+	secondPage := getBackups(t, prereqs, "?limit=2&cursor="+firstPage.NextCursor)
+	require.Len(t, secondPage.Backups, 2)
+	require.NotEmpty(t, secondPage.NextCursor)
 
-	walModel := physical_testing.NewTestWalSegment(
-		prereqs.database.ID, prereqs.storage.ID, 1, "000000010000000000000002",
-		walmath.LSN(2*segmentBytes), walmath.LSN(3*segmentBytes))
-	walModel.ReceivedAt = base.Add(20 * time.Minute)
-	walSegment := physical_testing.CreateTestWalSegment(t, walModel)
+	lastPage := getBackups(t, prereqs, "?limit=2&cursor="+secondPage.NextCursor)
+	require.Len(t, lastPage.Backups, 1)
+	assert.Empty(t, lastPage.NextCursor, "the page holding the oldest row carries no cursor")
+
+	listedIDs := collectBackupIDs(firstPage, secondPage, lastPage)
+	assert.Equal(t, []uuid.UUID{fulls[4].ID, fulls[3].ID, fulls[2].ID, fulls[1].ID, fulls[0].ID}, listedIDs)
+}
+
+func Test_GetBackups_WhenBackupCreatedBetweenPages_NoRowRepeatedOrSkipped(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	fulls := createFullBackupsMinutesApart(t, prereqs, 3, time.Now().UTC().Add(-1*time.Hour))
+
+	firstPage := getBackups(t, prereqs, "?limit=2")
+	require.NotEmpty(t, firstPage.NextCursor)
+
+	physical_testing.CreateTestFullBackup(t, physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes)))
+
+	secondPage := getBackups(t, prereqs, "?limit=2&cursor="+firstPage.NextCursor)
+
+	listedIDs := collectBackupIDs(firstPage, secondPage)
+	assert.Equal(t, []uuid.UUID{fulls[2].ID, fulls[1].ID, fulls[0].ID}, listedIDs)
+}
+
+func Test_GetBackups_WhenCursorMalformed_Returns400(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
 
 	listURL := "/api/v1/backups/physical/database/" + prereqs.database.ID.String() + "/backups"
 
-	var firstPage backups_dto_physical.GetPhysicalBackupsResponse
+	for _, malformedCursor := range []string{"not-a-cursor", "e30", "eyJ0IjoieCJ9"} {
+		test_utils.MakeGetRequest(t, prereqs.router,
+			listURL+"?cursor="+malformedCursor, "Bearer "+prereqs.user.Token, http.StatusBadRequest)
+	}
+}
+
+func Test_GetBackups_WithCursorFromAnotherDatabase_ReturnsOnlyRequestedDatabaseRows(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	ownFulls := createFullBackupsMinutesApart(t, prereqs, 2, base)
+
+	other := createSecondPhysicalDatabase(t, prereqs)
+	for index := range 2 {
+		otherModel := physical_testing.NewTestCompletedFullBackup(
+			other.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
+		otherModel.CreatedAt = base.Add(time.Duration(30+index) * time.Minute)
+		physical_testing.CreateTestFullBackup(t, otherModel)
+	}
+
+	var otherPage backups_dto_physical.GetPhysicalBackupsResponse
 	test_utils.MakeGetRequestAndUnmarshal(t, prereqs.router,
-		listURL+"?limit=2&offset=0", "Bearer "+prereqs.user.Token, http.StatusOK, &firstPage)
+		"/api/v1/backups/physical/database/"+other.ID.String()+"/backups?limit=1",
+		"Bearer "+prereqs.user.Token, http.StatusOK, &otherPage)
+	require.NotEmpty(t, otherPage.NextCursor)
 
-	require.Len(t, firstPage.Backups, 2)
-	assert.EqualValues(t, 3, firstPage.Total)
-	assert.Equal(t, 2, firstPage.Limit)
-	assert.Equal(t, 0, firstPage.Offset)
-	assert.Equal(t, walSegment.ID, firstPage.Backups[0].ID)
-	assert.Equal(t, incr.ID, firstPage.Backups[1].ID)
+	page := getBackups(t, prereqs, "?cursor="+otherPage.NextCursor)
 
-	var secondPage backups_dto_physical.GetPhysicalBackupsResponse
-	test_utils.MakeGetRequestAndUnmarshal(t, prereqs.router,
-		listURL+"?limit=2&offset=2", "Bearer "+prereqs.user.Token, http.StatusOK, &secondPage)
+	assert.Equal(t, []uuid.UUID{ownFulls[1].ID, ownFulls[0].ID}, collectBackupIDs(page))
+}
 
-	require.Len(t, secondPage.Backups, 1)
-	assert.EqualValues(t, 3, secondPage.Total)
-	assert.Equal(t, full.ID, secondPage.Backups[0].ID)
+func Test_GetBackups_WithCursor_WhenNonMember_ReturnsError(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	createFullBackupsMinutesApart(t, prereqs, 2, time.Now().UTC().Add(-1*time.Hour))
+
+	firstPage := getBackups(t, prereqs, "?limit=1")
+	require.NotEmpty(t, firstPage.NextCursor)
+
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+
+	test_utils.MakeGetRequest(t, prereqs.router,
+		"/api/v1/backups/physical/database/"+prereqs.database.ID.String()+"/backups?cursor="+firstPage.NextCursor,
+		"Bearer "+outsider.Token, http.StatusBadRequest)
 }
 
 func Test_GetBackups_WhenNonMember_ReturnsError(t *testing.T) {
@@ -721,7 +767,6 @@ func Test_GetBackups_FilterByType_ReturnsOnlyThatType(t *testing.T) {
 	fullPage := getBackups(t, prereqs, "?type=FULL")
 	require.Len(t, fullPage.Backups, 1)
 	assert.Equal(t, full.ID, fullPage.Backups[0].ID)
-	assert.EqualValues(t, 1, fullPage.Total)
 
 	incrPage := getBackups(t, prereqs, "?type=INCREMENTAL")
 	require.Len(t, incrPage.Backups, 1)
@@ -769,7 +814,6 @@ func Test_GetBackups_FilterByBeforeDate_ExcludesNewer(t *testing.T) {
 
 	require.Len(t, page.Backups, 1)
 	assert.Equal(t, older.ID, page.Backups[0].ID)
-	assert.EqualValues(t, 1, page.Total)
 }
 
 func Test_GetBackups_FilterByMultipleTypes_ReturnsThoseTypes(t *testing.T) {
@@ -780,7 +824,6 @@ func Test_GetBackups_FilterByMultipleTypes_ReturnsThoseTypes(t *testing.T) {
 	page := getBackups(t, prereqs, "?type=FULL&type=WAL")
 
 	require.Len(t, page.Backups, 2)
-	assert.EqualValues(t, 2, page.Total)
 
 	returnedIDs := []uuid.UUID{page.Backups[0].ID, page.Backups[1].ID}
 	assert.Contains(t, returnedIDs, full.ID)
@@ -803,7 +846,6 @@ func Test_GetBackups_FilterByMultipleStatuses_ReturnsThoseStatuses(t *testing.T)
 	page := getBackups(t, prereqs, "?status=COMPLETED&status=IN_PROGRESS")
 
 	require.Len(t, page.Backups, 2)
-	assert.EqualValues(t, 2, page.Total)
 
 	returnedIDs := []uuid.UUID{page.Backups[0].ID, page.Backups[1].ID}
 	assert.Contains(t, returnedIDs, completed.ID)
@@ -829,7 +871,6 @@ func Test_GetBackups_FilterByTypesAndStatuses_AppliesAndAcrossDimensions(t *test
 
 	require.Len(t, page.Backups, 1)
 	assert.Equal(t, completedFull.ID, page.Backups[0].ID)
-	assert.EqualValues(t, 1, page.Total)
 }
 
 // --- List edges --------------------------------------------------------------
@@ -840,7 +881,7 @@ func Test_GetBackups_WhenEmpty_ReturnsEmptyPage(t *testing.T) {
 	page := getBackups(t, prereqs, "")
 
 	assert.Empty(t, page.Backups)
-	assert.EqualValues(t, 0, page.Total)
+	assert.Empty(t, page.NextCursor)
 	assert.Zero(t, page.TotalUsageMb)
 }
 
@@ -863,24 +904,187 @@ func Test_GetBackups_IsolatesByDatabase(t *testing.T) {
 func Test_GetBackups_DefaultsAndCapsPageLimit(t *testing.T) {
 	prereqs := createPhysicalControllerPrereqs(t)
 
+	createCompletedFullBackupsInBulk(t, prereqs, 1001)
+
 	unset := getBackups(t, prereqs, "")
-	assert.Equal(t, 50, unset.Limit)
+	assert.Len(t, unset.Backups, 50)
+	assert.NotEmpty(t, unset.NextCursor)
 
 	capped := getBackups(t, prereqs, "?limit=5000")
-	assert.Equal(t, 1000, capped.Limit)
+	assert.Len(t, capped.Backups, 1000)
+	assert.NotEmpty(t, capped.NextCursor)
 }
 
-func Test_GetBackups_OffsetPastEnd_ReturnsEmptyPageWithTotal(t *testing.T) {
+// --- WAL ranges --------------------------------------------------------------
+
+func Test_GetBackups_WithContiguousWalSegments_ReturnsOneRangeRow(t *testing.T) {
 	prereqs := createPhysicalControllerPrereqs(t)
 
-	physical_testing.CreateTestFullBackup(t, physical_testing.NewTestCompletedFullBackup(
-		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes)))
+	base := time.Now().UTC().Add(-1 * time.Hour)
 
-	page := getBackups(t, prereqs, "?offset=10")
+	fullModel := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
+	fullModel.CreatedAt = base
+	full := physical_testing.CreateTestFullBackup(t, fullModel)
 
-	assert.Empty(t, page.Backups)
-	assert.EqualValues(t, 1, page.Total)
-	assert.Equal(t, 10, page.Offset)
+	segments := createContiguousWalSegments(t, prereqs, 1, 1, 5, base.Add(time.Minute))
+
+	page := getBackups(t, prereqs, "")
+	require.Len(t, page.Backups, 2)
+
+	walRange := page.Backups[0]
+	assert.Equal(t, physical_enums.PhysicalBackupTypeWal, walRange.Type)
+	assert.Equal(t, segments[0].ID, walRange.ID)
+	assert.Equal(t, segments[0].WalFilename, *walRange.FromWalFilename)
+	assert.Equal(t, segments[4].WalFilename, *walRange.ToWalFilename)
+	assert.Equal(t, 5, *walRange.WalSegmentsCount)
+	assert.InDelta(t, 80, walRange.SizeMb, 0.001)
+	assert.Equal(t, segments[0].StartLSN.String(), walRange.StartLSN)
+	assert.Equal(t, segments[4].EndLSN.String(), walRange.StopLSN)
+	assert.WithinDuration(t, segments[0].ReceivedAt, walRange.CreatedAt, time.Millisecond)
+	require.NotNil(t, walRange.CompletedAt)
+	assert.WithinDuration(t, segments[4].ReceivedAt, *walRange.CompletedAt, time.Millisecond)
+	assert.False(t, walRange.HasGapBefore)
+
+	assert.Equal(t, full.ID, page.Backups[1].ID)
+}
+
+func Test_GetBackups_WhenWalSegmentMissing_SplitsRangeAndMarksGap(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	olderSegments := createContiguousWalSegments(t, prereqs, 1, 1, 2, base)
+	newerSegments := createContiguousWalSegments(t, prereqs, 1, 4, 2, base.Add(10*time.Minute))
+
+	page := getBackups(t, prereqs, "")
+	require.Len(t, page.Backups, 2)
+
+	assert.Equal(t, newerSegments[0].ID, page.Backups[0].ID)
+	assert.True(t, page.Backups[0].HasGapBefore, "the range after the missing segment is marked")
+
+	assert.Equal(t, olderSegments[0].ID, page.Backups[1].ID)
+	assert.False(t, page.Backups[1].HasGapBefore, "the oldest retained range has nothing before it")
+}
+
+func Test_GetBackups_WhenTimelineSwitches_StartsNewRangeWithoutGapMark(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	oldTimelineSegments := createContiguousWalSegments(t, prereqs, 1, 1, 2, base)
+	newTimelineSegments := createContiguousWalSegments(t, prereqs, 2, 3, 2, base.Add(10*time.Minute))
+
+	page := getBackups(t, prereqs, "")
+	require.Len(t, page.Backups, 2)
+
+	assert.Equal(t, newTimelineSegments[0].ID, page.Backups[0].ID)
+	assert.Equal(t, 2, page.Backups[0].TimelineID)
+	assert.False(t, page.Backups[0].HasGapBefore, "the first range on a timeline is not a gap")
+
+	assert.Equal(t, oldTimelineSegments[0].ID, page.Backups[1].ID)
+	assert.Equal(t, 1, page.Backups[1].TimelineID)
+}
+
+func Test_GetBackups_WhenFullBetweenSegments_SplitsRangeAroundFull(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	olderSegments, full, newerSegments := seedWalAroundFull(t, prereqs)
+
+	page := getBackups(t, prereqs, "")
+	require.Len(t, page.Backups, 3)
+
+	assert.Equal(t, newerSegments[0].ID, page.Backups[0].ID)
+	assert.Equal(t, 2, *page.Backups[0].WalSegmentsCount)
+	assert.False(t, page.Backups[0].HasGapBefore)
+
+	assert.Equal(t, full.ID, page.Backups[1].ID)
+
+	assert.Equal(t, olderSegments[0].ID, page.Backups[2].ID)
+	assert.Equal(t, 2, *page.Backups[2].WalSegmentsCount)
+}
+
+func Test_GetBackups_WhenFilteredToWal_MergesRangeAcrossFull(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	olderSegments, _, newerSegments := seedWalAroundFull(t, prereqs)
+
+	page := getBackups(t, prereqs, "?type=WAL")
+	require.Len(t, page.Backups, 1)
+
+	assert.Equal(t, olderSegments[0].ID, page.Backups[0].ID)
+	assert.Equal(t, 4, *page.Backups[0].WalSegmentsCount)
+	assert.Equal(t, newerSegments[1].WalFilename, *page.Backups[0].ToWalFilename)
+}
+
+func Test_GetBackups_WithBeforeDateInsideRange_RangeCoversOlderSegmentsOnly(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	segments := createContiguousWalSegments(t, prereqs, 1, 1, 4, base)
+
+	cutoff := segments[1].ReceivedAt.Add(30 * time.Second).Format(time.RFC3339Nano)
+	page := getBackups(t, prereqs, "?beforeDate="+cutoff)
+	require.Len(t, page.Backups, 1)
+
+	assert.Equal(t, 2, *page.Backups[0].WalSegmentsCount)
+	assert.Equal(t, segments[1].WalFilename, *page.Backups[0].ToWalFilename)
+	assert.InDelta(t, 32, page.Backups[0].SizeMb, 0.001)
+}
+
+func Test_GetBackups_WithStatusThatWalNeverHas_ReturnsNoWalRows(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	createContiguousWalSegments(t, prereqs, 1, 1, 2, base)
+
+	failedModel := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
+	failedModel.Status = physical_enums.PhysicalBackupStatusError
+	failed := physical_testing.CreateTestFullBackup(t, failedModel)
+
+	page := getBackups(t, prereqs, "?status=ERROR")
+
+	assert.Equal(t, []uuid.UUID{failed.ID}, collectBackupIDs(page))
+}
+
+func Test_GetBackups_WhenSegmentAppendedToNewestRange_RangeGrowsInPlace(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	segments := createContiguousWalSegments(t, prereqs, 1, 1, 2, base)
+
+	pageBefore := getBackups(t, prereqs, "")
+	require.Len(t, pageBefore.Backups, 1)
+
+	appendedSegment := createContiguousWalSegments(t, prereqs, 1, 3, 1, base.Add(5*time.Minute))[0]
+
+	pageAfter := getBackups(t, prereqs, "")
+	require.Len(t, pageAfter.Backups, 1)
+
+	grownRange := pageAfter.Backups[0]
+	assert.Equal(t, segments[0].ID, grownRange.ID)
+	assert.Equal(t, 3, *grownRange.WalSegmentsCount)
+	assert.Equal(t, appendedSegment.WalFilename, *grownRange.ToWalFilename)
+	assert.Greater(t, grownRange.SizeMb, pageBefore.Backups[0].SizeMb)
+	assert.WithinDuration(t, appendedSegment.ReceivedAt, *grownRange.CompletedAt, time.Millisecond)
+}
+
+func Test_GetBackups_WithManyWalSegments_RangeCountsAsOneRow(t *testing.T) {
+	prereqs := createPhysicalControllerPrereqs(t)
+
+	base := time.Now().UTC().Add(-2 * time.Hour)
+
+	fullModel := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
+	fullModel.CreatedAt = base
+	full := physical_testing.CreateTestFullBackup(t, fullModel)
+
+	segments := createContiguousWalSegments(t, prereqs, 1, 1, 60, base.Add(time.Minute))
+
+	page := getBackups(t, prereqs, "?limit=2")
+
+	assert.Equal(t, []uuid.UUID{segments[0].ID, full.ID}, collectBackupIDs(page))
+	assert.Equal(t, 60, *page.Backups[0].WalSegmentsCount)
+	assert.Empty(t, page.NextCursor)
 }
 
 // --- Cancel / delete edge cases ---------------------------------------------
@@ -1175,6 +1379,108 @@ func seedOneOfEachType(t *testing.T, prereqs *physicalControllerPrereqs) (
 		walmath.LSN(2*segmentBytes), walmath.LSN(3*segmentBytes)))
 
 	return full, incr, walSegment
+}
+
+func collectBackupIDs(pages ...backups_dto_physical.GetPhysicalBackupsResponse) []uuid.UUID {
+	var backupIDs []uuid.UUID
+
+	for _, page := range pages {
+		for _, backup := range page.Backups {
+			backupIDs = append(backupIDs, backup.ID)
+		}
+	}
+
+	return backupIDs
+}
+
+// createFullBackupsMinutesApart returns the created FULLs oldest first.
+func createFullBackupsMinutesApart(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+	count int,
+	firstCreatedAt time.Time,
+) []*physical_models.PhysicalFullBackup {
+	t.Helper()
+
+	fulls := make([]*physical_models.PhysicalFullBackup, 0, count)
+
+	for index := range count {
+		fullModel := physical_testing.NewTestCompletedFullBackup(
+			prereqs.database.ID, prereqs.storage.ID, 1, walmath.LSN(0), walmath.LSN(segmentBytes))
+		fullModel.CreatedAt = firstCreatedAt.Add(time.Duration(index) * time.Minute)
+		fulls = append(fulls, physical_testing.CreateTestFullBackup(t, fullModel))
+	}
+
+	return fulls
+}
+
+// createCompletedFullBackupsInBulk inserts count FULL rows a second apart in
+// one statement: saving them one by one through the repository takes tens of
+// seconds at the page-limit cap.
+func createCompletedFullBackupsInBulk(t *testing.T, prereqs *physicalControllerPrereqs, count int) {
+	t.Helper()
+
+	err := storage.GetDb().Exec(`
+		INSERT INTO physical_full_backups
+		    (database_id, storage_id, timeline_id, status, start_lsn, stop_lsn, created_at, completed_at)
+		SELECT ?, ?, 1, ?, '0/0'::pg_lsn, '0/100'::pg_lsn,
+		       NOW() - make_interval(secs => series_index), NOW() - make_interval(secs => series_index)
+		FROM generate_series(1, ?) AS series_index`,
+		prereqs.database.ID, prereqs.storage.ID, physical_enums.PhysicalBackupStatusCompleted, count,
+	).Error
+	require.NoError(t, err)
+}
+
+// createContiguousWalSegments commits count segments that follow each other
+// without a gap, received a minute apart, and returns them in LSN order.
+func createContiguousWalSegments(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+	timelineID int,
+	firstSegmentNo uint64,
+	count int,
+	firstReceivedAt time.Time,
+) []*physical_models.PhysicalWalSegment {
+	t.Helper()
+
+	segments := make([]*physical_models.PhysicalWalSegment, 0, count)
+
+	for index := range count {
+		segmentNo := walmath.WalSegmentNo(firstSegmentNo + uint64(index))
+
+		segmentModel := physical_testing.NewTestWalSegment(
+			prereqs.database.ID, prereqs.storage.ID, timelineID,
+			segmentNo.GetFilename(uint32(timelineID)), segmentNo.FirstLSN(), segmentNo.Next().FirstLSN())
+		segmentModel.ReceivedAt = firstReceivedAt.Add(time.Duration(index) * time.Minute)
+
+		segments = append(segments, physical_testing.CreateTestWalSegment(t, segmentModel))
+	}
+
+	return segments
+}
+
+// seedWalAroundFull commits four contiguous segments with a FULL created after
+// the second one, so only the FULL separates the two halves in the list.
+func seedWalAroundFull(t *testing.T, prereqs *physicalControllerPrereqs) (
+	[]*physical_models.PhysicalWalSegment,
+	*physical_models.PhysicalFullBackup,
+	[]*physical_models.PhysicalWalSegment,
+) {
+	t.Helper()
+
+	base := time.Now().UTC().Add(-1 * time.Hour)
+	olderSegments := createContiguousWalSegments(t, prereqs, 1, 1, 2, base)
+
+	fullModel := physical_testing.NewTestCompletedFullBackup(
+		prereqs.database.ID, prereqs.storage.ID, 1,
+		walmath.WalSegmentNo(3).FirstLSN()+physical_testing.FirstRecordOffset,
+		walmath.WalSegmentNo(3).FirstLSN()+physical_testing.FirstRecordOffset+physical_testing.FullLSNSpan)
+	fullModel.CreatedAt = base.Add(5 * time.Minute)
+	full := physical_testing.CreateTestFullBackup(t, fullModel)
+
+	newerSegments := createContiguousWalSegments(t, prereqs, 1, 3, 2, base.Add(10*time.Minute))
+
+	return olderSegments, full, newerSegments
 }
 
 func createSecondPhysicalDatabase(t *testing.T, prereqs *physicalControllerPrereqs) *databases.Database {

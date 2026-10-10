@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
@@ -32,18 +31,11 @@ import (
 )
 
 const (
-	backupTimeout               = 23 * time.Hour
-	shutdownCheckInterval       = 1 * time.Second
 	copyBufferSize              = 8 * 1024 * 1024
 	progressReportIntervalMB    = 1.0
 	zstdStorageCompressionLevel = 5
 	exitCodeGenericError        = 1
 	exitCodeConnectionError     = 2
-)
-
-var (
-	errBackupShutdown = errors.New("backup cancelled due to shutdown")
-	errBackupTimeout  = errors.New("backup cancelled due to timeout")
 )
 
 type CreateMariadbBackupUsecase struct {
@@ -193,7 +185,7 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 ) (*backups_core_logical.BackupArtifacts, error) {
 	uc.logger.InfoContext(parentCtx, "streaming MariaDB backup to storage", "mariadb_bin", mariadbBin)
 
-	ctx, cancel := uc.createBackupContext(parentCtx)
+	ctx, cancel := backups_core_logical.NewBackupContext(parentCtx)
 	defer cancel(nil)
 
 	myCnfFile, err := uc.createTempMyCnfFile(mdbConfig, password)
@@ -299,7 +291,7 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 	select {
 	case <-ctx.Done():
 		uc.cleanupOnCancellation(zstdWriter, encryptionWriter, storageWriter, fileWrite.Errors)
-		return nil, uc.classifyCancellation(ctx)
+		return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 	default:
 	}
 
@@ -448,38 +440,6 @@ func (uc *CreateMariadbBackupUsecase) copyWithShutdownCheck(
 	return nil
 }
 
-func (uc *CreateMariadbBackupUsecase) createBackupContext(
-	parentCtx context.Context,
-) (context.Context, context.CancelCauseFunc) {
-	ctx, cancel := context.WithCancelCause(parentCtx)
-
-	timeout := time.AfterFunc(backupTimeout, func() { cancel(errBackupTimeout) })
-
-	go func() {
-		defer timeout.Stop()
-
-		ticker := time.NewTicker(shutdownCheckInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-parentCtx.Done():
-				cancel(context.Cause(parentCtx))
-				return
-			case <-ticker.C:
-				if config.IsShouldShutdown() {
-					cancel(errBackupShutdown)
-					return
-				}
-			}
-		}
-	}()
-
-	return ctx, cancel
-}
-
 func (uc *CreateMariadbBackupUsecase) setupBackupEncryption(
 	backupID uuid.UUID,
 	backupConfig *backups_config_logical.LogicalBackupConfig,
@@ -581,21 +541,6 @@ func (uc *CreateMariadbBackupUsecase) closeWriters(
 	}
 
 	return nil
-}
-
-func (uc *CreateMariadbBackupUsecase) classifyCancellation(ctx context.Context) error {
-	cause := context.Cause(ctx)
-
-	switch {
-	case errors.Is(cause, errBackupShutdown):
-		return errors.New("backup cancelled due to shutdown")
-	case errors.Is(cause, errBackupTimeout):
-		return errors.New("backup cancelled due to timeout")
-	case cause == nil, errors.Is(cause, context.Canceled), errors.Is(cause, context.DeadlineExceeded):
-		return errors.New("backup cancelled")
-	default:
-		return fmt.Errorf("save to storage: %w", cause)
-	}
 }
 
 func (uc *CreateMariadbBackupUsecase) buildMariadbDumpErrorMessage(

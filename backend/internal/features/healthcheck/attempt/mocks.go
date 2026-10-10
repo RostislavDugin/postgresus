@@ -27,7 +27,7 @@ type MockDatabaseService struct {
 	mock.Mock
 }
 
-func (m *MockDatabaseService) TestTrustedDatabaseConnection(
+func (m *MockDatabaseService) ProbeDatabaseLiveness(
 	ctx context.Context,
 	database *databases.Database,
 ) error {

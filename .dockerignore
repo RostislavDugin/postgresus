@@ -39,9 +39,9 @@ notifiers
 # Dist (will be built fresh)
 frontend/dist
 
-# Environment files (handled separately)
-.env.local
-.env.development
+# Environment files never enter the image, neither the backend's nor Vite's
+**/.env
+**/.env.*
 
 # Logs and temp files
 **/*.log
@@ -68,5 +68,8 @@ assets/tools/win-x64
 # Python cache
 **/__pycache__
 
-# Pre-commit config
-.pre-commit-config.yaml
+# Local tooling config
+lefthook.yml
+mise.toml
+process-compose.yaml
+**/Justfile

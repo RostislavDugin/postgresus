@@ -853,6 +853,7 @@ func (s *S3Storage) getClientParams(
 	}
 
 	transport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: s3ConnectTimeout,
 		}).DialContext,

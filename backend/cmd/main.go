@@ -45,6 +45,7 @@ import (
 	task_cancellation "databasus-backend/internal/features/tasks/cancellation"
 	"databasus-backend/internal/features/telemetry"
 	users_controllers "databasus-backend/internal/features/users/controllers"
+	users_dto "databasus-backend/internal/features/users/dto"
 	users_middleware "databasus-backend/internal/features/users/middleware"
 	users_services "databasus-backend/internal/features/users/services"
 	verification_agents "databasus-backend/internal/features/verification/agents"
@@ -108,6 +109,8 @@ func main() {
 
 	listAdminsIfRequested(ctx, log, commandLineOptions)
 
+	createUserIfRequested(ctx, log, commandLineOptions)
+
 	resetPasswordIfRequested(ctx, log, commandLineOptions)
 
 	disableTwoFactorAuthIfRequested(ctx, log, commandLineOptions)
@@ -147,8 +150,12 @@ type commandLineOptions struct {
 	shouldTestStorage      bool
 	shouldListAdmins       bool
 	shouldDisableTwoFactor bool
+	shouldCreateUser       bool
 	newPassword            string
-	passwordResetEmail     string
+	email                  string
+	newUserPassword        string
+	newUserRole            string
+	newUserName            string
 }
 
 func parseCommandLineOptions() commandLineOptions {
@@ -165,16 +172,24 @@ func parseCommandLineOptions() commandLineOptions {
 		false,
 		"Stop requiring an emailed code at sign-in",
 	)
+	shouldCreateUser := flag.Bool("create-user", false, "Create an account with the given email, password and role")
 	newPassword := flag.String("new-password", "", "Set a new password for the user")
-	passwordResetEmail := flag.String("email", "", "Email of the user to reset password")
+	email := flag.String("email", "", "Email of the user to create or to reset password")
+	newUserPassword := flag.String("password", "", "Password of the account --create-user creates")
+	newUserRole := flag.String("role", "", "Role of the account --create-user creates: admin or member")
+	newUserName := flag.String("name", "", "Display name of the account --create-user creates")
 	flag.Parse()
 
 	return commandLineOptions{
 		shouldTestStorage:      *shouldTestStorage,
 		shouldListAdmins:       *shouldListAdmins,
 		shouldDisableTwoFactor: *shouldDisableTwoFactor,
+		shouldCreateUser:       *shouldCreateUser,
 		newPassword:            *newPassword,
-		passwordResetEmail:     *passwordResetEmail,
+		email:                  *email,
+		newUserPassword:        *newUserPassword,
+		newUserRole:            *newUserRole,
+		newUserName:            *newUserName,
 	}
 }
 
@@ -199,6 +214,50 @@ func listAdminsIfRequested(
 	// Printed rather than logged: the owner runs this to read the addresses, and
 	// the logger masks them as the PII they otherwise are.
 	fmt.Println(listing)
+
+	logger.ExitAfterFlush(0)
+}
+
+// Runs ahead of the password reset, so a --new-password passed by mistake is
+// refused here instead of resetting some account's password.
+func createUserIfRequested(
+	ctx context.Context,
+	log *slog.Logger,
+	commandLineOptions commandLineOptions,
+) {
+	if !commandLineOptions.shouldCreateUser {
+		return
+	}
+
+	if commandLineOptions.newPassword != "" {
+		log.ErrorContext(ctx, "--create-user takes the password in --password, not --new-password")
+		logger.ExitAfterFlush(1)
+	}
+
+	if commandLineOptions.email == "" {
+		log.ErrorContext(ctx, "no email provided, pass one via --email=\"some@email.com\"")
+		logger.ExitAfterFlush(1)
+	}
+
+	audit_logs.SetupDependencies()
+
+	outcome, err := users_services.GetUserService().CreateUserFromConsole(
+		ctx,
+		&users_dto.CreateConsoleAccountRequest{
+			Email:    commandLineOptions.email,
+			Password: commandLineOptions.newUserPassword,
+			Role:     commandLineOptions.newUserRole,
+			Name:     commandLineOptions.newUserName,
+		},
+	)
+	if err != nil {
+		log.ErrorContext(ctx, "failed to create the account", "error", err)
+		logger.ExitAfterFlush(1)
+	}
+
+	// Printed rather than logged, like the administrator listing: the operator
+	// needs the address, and the logger masks it.
+	fmt.Println(users_services.RenderConsoleAccountOutcome(outcome))
 
 	logger.ExitAfterFlush(0)
 }
@@ -241,14 +300,14 @@ func resetPasswordIfRequested(
 	audit_logs.SetupDependencies()
 	log.InfoContext(ctx, "found reset password command, resetting password")
 
-	if commandLineOptions.passwordResetEmail == "" {
+	if commandLineOptions.email == "" {
 		log.InfoContext(ctx, "no email provided, pass one via --email=\"some@email.com\"")
 		logger.ExitAfterFlush(1)
 	}
 
 	resetPassword(
 		ctx,
-		commandLineOptions.passwordResetEmail,
+		commandLineOptions.email,
 		commandLineOptions.newPassword,
 		log,
 	)

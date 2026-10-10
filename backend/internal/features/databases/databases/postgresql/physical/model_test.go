@@ -655,6 +655,49 @@ func Test_TestReplicationConnection_HostAllButNoReplicationHba_ReturnsPgHbaNoEnt
 	}
 }
 
+func Test_ProbeLiveness_WhenWalSendersExhausted_Succeeds(t *testing.T) {
+	for _, fx := range physicalFixtures() {
+		t.Run(fx.name, func(t *testing.T) {
+			source := containers.StartPhysicalPostgres(t, fx.image, containers.WithMaxWalSenders(1))
+			m := newTestModelAt(t, source.Host, source.Port)
+
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+
+			// Stands in for the backup or WAL stream that holds the source's only WAL sender slot.
+			slotHolder, err := openPhysicalReplicationConn(ctx, m, nil)
+			require.NoError(t, err)
+			defer func() { _ = slotHolder.Close(ctx) }()
+
+			require.Error(t, m.TestReplicationConnection(testLogger(), nil),
+				"the fixture must leave no WAL sender slot free, or the liveness assertion proves nothing")
+
+			assert.NoError(t, m.ProbeLiveness(ctx, testLogger(), nil))
+		})
+	}
+}
+
+func Test_ProbeLiveness_WhenPasswordIsWrong_FailsWithoutLeakingPassword(t *testing.T) {
+	for _, fx := range physicalFixtures() {
+		t.Run(fx.name, func(t *testing.T) {
+			if fx.port() == "" {
+				t.Fatalf("%s port not configured", fx.name)
+			}
+
+			wrongPassword := "wrong-password-" + uuid.NewString()
+
+			m := newTestModel(t, fx.port())
+			m.Password = wrongPassword
+
+			err := m.ProbeLiveness(t.Context(), testLogger(), nil)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "password authentication failed")
+			assert.NotContains(t, err.Error(), wrongPassword)
+		})
+	}
+}
+
 func connTestErrorCode(t *testing.T, err error) postgresql_shared.ConnectionErrorCode {
 	t.Helper()
 

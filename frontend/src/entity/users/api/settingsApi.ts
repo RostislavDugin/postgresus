@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../constants';
-import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import RequestOptions from '../../../shared/api/RequestOptions';
 import type { SendTestEmailResponse } from '../model/SendTestEmailResponse';
 import type { UsersSettings } from '../model/UsersSettings';
 import type { UsersSettingsResponse } from '../model/UsersSettingsResponse';

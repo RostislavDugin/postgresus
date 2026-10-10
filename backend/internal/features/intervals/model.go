@@ -91,38 +91,6 @@ func (i *Interval) ShouldTriggerBackup(now time.Time, lastBackupTime *time.Time)
 	}
 }
 
-// NextTriggerTime computes the next time a backup should trigger based on the interval and last backup time.
-// Returns nil when a backup is due immediately (no previous backup exists).
-func (i *Interval) NextTriggerTime(now time.Time, lastBackupTime *time.Time) *time.Time {
-	if lastBackupTime == nil {
-		return nil
-	}
-
-	switch i.Type {
-	case IntervalHourly:
-		next := lastBackupTime.Add(time.Hour)
-		return &next
-
-	case IntervalDaily:
-		next := i.nextDailyTrigger(now)
-		return &next
-
-	case IntervalWeekly:
-		next := i.nextWeeklyTrigger(now)
-		return &next
-
-	case IntervalMonthly:
-		next := i.nextMonthlyTrigger(now)
-		return &next
-
-	case IntervalCron:
-		return i.nextCronTrigger(*lastBackupTime)
-
-	default:
-		return nil
-	}
-}
-
 // ApproxPeriod returns a coarse cadence for the interval, used only where an
 // exact next-trigger is unnecessary (e.g. sizing a bounded wait window as a
 // fraction of the cadence). Cron and unknown types return 0 so callers fall
@@ -301,99 +269,6 @@ func (i *Interval) shouldTriggerCron(now, lastBackup time.Time) bool {
 
 	// If we're at or past that next scheduled time, trigger
 	return now.After(nextAfterLastBackup) || now.Equal(nextAfterLastBackup)
-}
-
-func (i *Interval) nextDailyTrigger(now time.Time) time.Time {
-	t, err := time.Parse("15:04", *i.TimeOfDay)
-	if err != nil {
-		return now
-	}
-
-	todaySlot := time.Date(
-		now.Year(), now.Month(), now.Day(),
-		t.Hour(), t.Minute(), 0, 0, now.Location(),
-	)
-
-	if now.Before(todaySlot) {
-		return todaySlot
-	}
-
-	return todaySlot.AddDate(0, 0, 1)
-}
-
-func (i *Interval) nextWeeklyTrigger(now time.Time) time.Time {
-	targetWd := time.Weekday(0)
-	if i.Weekday != nil {
-		targetWd = time.Weekday(*i.Weekday)
-	}
-
-	startOfWeek := getStartOfWeek(now)
-
-	var daysFromMonday int
-	if targetWd == time.Sunday {
-		daysFromMonday = 6
-	} else {
-		daysFromMonday = int(targetWd) - 1
-	}
-
-	targetThisWeek := startOfWeek.AddDate(0, 0, daysFromMonday)
-
-	if i.TimeOfDay != nil {
-		t, err := time.Parse("15:04", *i.TimeOfDay)
-		if err == nil {
-			targetThisWeek = time.Date(
-				targetThisWeek.Year(), targetThisWeek.Month(), targetThisWeek.Day(),
-				t.Hour(), t.Minute(), 0, 0, targetThisWeek.Location(),
-			)
-		}
-	}
-
-	if now.Before(targetThisWeek) {
-		return targetThisWeek
-	}
-
-	return targetThisWeek.AddDate(0, 0, 7)
-}
-
-func (i *Interval) nextMonthlyTrigger(now time.Time) time.Time {
-	day := 1
-	if i.DayOfMonth != nil {
-		day = *i.DayOfMonth
-	}
-
-	targetThisMonth := time.Date(now.Year(), now.Month(), day, 0, 0, 0, 0, now.Location())
-
-	if i.TimeOfDay != nil {
-		t, err := time.Parse("15:04", *i.TimeOfDay)
-		if err == nil {
-			targetThisMonth = time.Date(
-				targetThisMonth.Year(), targetThisMonth.Month(), targetThisMonth.Day(),
-				t.Hour(), t.Minute(), 0, 0, targetThisMonth.Location(),
-			)
-		}
-	}
-
-	if now.Before(targetThisMonth) {
-		return targetThisMonth
-	}
-
-	return targetThisMonth.AddDate(0, 1, 0)
-}
-
-func (i *Interval) nextCronTrigger(lastBackup time.Time) *time.Time {
-	if i.CronExpression == nil || *i.CronExpression == "" {
-		return nil
-	}
-
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	schedule, err := parser.Parse(*i.CronExpression)
-	if err != nil {
-		return nil
-	}
-
-	next := schedule.Next(lastBackup)
-
-	return &next
 }
 
 func (i *Interval) validateCronExpression(expr string) error {

@@ -1074,6 +1074,7 @@ export const zh: typeof en = {
     },
   },
   notifiers: {
+    advancedSettings: '高级设置',
     types: {
       email: '邮件',
       telegram: 'Telegram',
@@ -1167,7 +1168,6 @@ export const zh: typeof en = {
       fromTooltip:
         '可选。发件人地址，可以带名称：Acme Backups <noreply@example.com>。留空时，如果 SMTP 用户是邮箱地址就使用它，否则使用 noreply@ 加 SMTP 主机',
       fromAuto: '（自动）',
-      advancedSettings: '高级设置',
       skipTlsTooltip:
         '跳过 TLS 证书验证。如果 SMTP 服务器使用自签名证书，请开启此项。警告：这会降低安全性。',
       security: '连接安全',
@@ -1193,6 +1193,9 @@ export const zh: typeof en = {
         group:
           '要获取群组的聊天 ID，请把你的机器人和 <botLink>@getmyid_bot</botLink> 一起加入群组，然后发送 /start（你会看到聊天 ID）',
       },
+      botApiUrl: 'Bot API URL',
+      botApiUrlTooltip:
+        '可选。自建的 Telegram Bot API 服务器，或 Telegram API 前面的反向代理。留空时使用官方 Telegram API。该服务器会收到机器人令牌。切换到自建服务器之前，需要先用 logOut 方法让机器人从官方 API 登出',
       useProxy: '使用代理',
       useProxyTooltip: '通过代理发送 Telegram API 请求',
       proxy: '代理',
@@ -1469,6 +1472,13 @@ export const zh: typeof en = {
         restore: '恢复',
         restoreFromThisBackup: '从此备份恢复',
         pointInTimeRestoreTitle: '时间点恢复',
+        walRange: {
+          from: '开始',
+          to: '结束',
+          segments: '段数',
+          gap: '缺口',
+          gapBeforeTooltip: '此范围与上一个范围之间缺少 WAL 段，时间点恢复无法跨越该缺口。',
+        },
         deleteFullConfirmation:
           '删除这个全量备份会移除它的整条备份链（所有依赖它的增量备份）。此操作无法撤销。确定继续吗？',
         deleteIncrementalConfirmation:

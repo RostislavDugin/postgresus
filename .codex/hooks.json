@@ -1,13 +1,24 @@
 {
-  "description": "Review plans and completed changes before Codex stops.",
+  "description": "Review the plan, the task's necessity, the diff, architecture and names, plus the full review of a finished OpenSpec proposal and a finished implementation, before Codex finishes a turn.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" session-start --client codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" snapshot",
-            "timeout": 10
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" snapshot --client codex",
+            "timeout": 30
           }
         ]
       }
@@ -17,9 +28,45 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" codex",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" plan --client codex",
             "timeout": 600,
-            "statusMessage": "Reviewing the plan and changes"
+            "statusMessage": "Reviewing the plan"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" necessity --client codex",
+            "timeout": 600,
+            "statusMessage": "Checking whether the task is needed"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" diff --client codex",
+            "timeout": 600,
+            "statusMessage": "Reviewing the diff"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" architecture --client codex",
+            "timeout": 600,
+            "statusMessage": "Checking architecture"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" naming --client codex",
+            "timeout": 600,
+            "statusMessage": "Checking names"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" implementation --client codex",
+            "timeout": 3600,
+            "statusMessage": "Full implementation review"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.agent-hooks/review_gate.py\" proposal --client codex",
+            "timeout": 3600,
+            "statusMessage": "Full proposal review"
           }
         ]
       }

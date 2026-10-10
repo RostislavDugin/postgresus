@@ -27,10 +27,11 @@ context: |
     specific issue's behavior.
   - Names state intent. Getters take Get, predicates read as questions,
     booleans take is/can/has/should.
-  - Work happens inside the repo Dev Container. Commands are make (backend,
-    agent) and pnpm (frontend).
-  - Every non-trivial change is audited by the reviewer subagent
-    twice: after planning and after implementation.
+  - Work happens on a Fedora host with the tools pinned in mise.toml.
+    Commands are just (repository root, backend, agent) and pnpm (frontend).
+  - Review hooks gate plans, finished turns, full proposals and full
+    implementations. Resolve their findings as the "Review hooks" section
+    of AGENTS.md says.
 
 rules:
   proposal:
@@ -46,10 +47,12 @@ rules:
     - Humanize all prose in embedded mode before writing the artifact.
     - For each decision, name the alternatives rejected and why. A decision with no alternatives listed is a description, not a decision.
     - Ground claims about current state in file:line references.
+    - Ground architecture decisions in the module AGENTS.md architecture rules and the accepted ADRs in adr/.
     - Say which module AGENTS.md rules the approach is constrained by.
   tasks:
     - Humanize all prose in embedded mode before writing the artifact.
-    - Each task's verification is a real command from this repo (make lint, make test, make test-fedora, pnpm lint, pnpm test, pnpm build) or an observable behavior, never "should work".
+    - Each task's verification is a local command the agent runs itself, never "should work". Valid checks are the tests of the touched packages and of the packages that test the same feature (just test-package ./internal/features/<feature>/... in backend/), just lint at the root or in a module, just build and just test in agent/verification, pnpm lint, pnpm typecheck, pnpm test, pnpm build, or an automated test that pins the behavior.
+    - Every task is one the agent can complete and verify on its own. Every task closes without the user stepping in and without the full backend suite. Keep these out of tasks and out of other tasks' verification, including a final verification task - the full backend suite (just test at the root), the Docker filesystem suite (just test-filesystem), deploys, CI pipeline runs, any check that needs a push, and manual app runs or browser clicking. The full backend suite resets the test containers other agents share, so it is left to the developer and CI.
     - Order by dependency, smallest slice first when the work is repetitive.
     - End the task list at the pre-commit boundary. The change is complete when implementation, required documentation, verification and mandatory review are finished, and the working tree is ready to commit.
     - Never add tasks for committing, pushing, creating or updating a pull request, requesting pull request review, merging, or any later Git or repository-hosting workflow. Completion status updates must be ready for inclusion in the same commit as the implementation.
@@ -58,7 +61,7 @@ operations:
   apply:
     guidance:
       - Run the linter for every directory the diff touches before finishing.
-      - Run reviewer after planning and again before finishing the turn; resolve every CHANGES REQUIRED finding.
+      - Resolve every blocking review hook finding before finishing; never apply a scope finding without the user's consent.
       - Never commit or push without explicit approval. No AI attribution trailers in commit messages.
   archive:
     guidance:

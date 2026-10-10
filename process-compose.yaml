@@ -1,0 +1,21 @@
+version: "0.5"
+
+processes:
+  links:
+    command: |
+      echo "backend http://localhost:4005"
+      echo "frontend http://localhost:5173"
+      echo "API docs http://localhost:4005/api/v1/docs/swagger/index.html"
+
+  backend:
+    command: go run ./cmd
+    working_dir: backend
+
+  frontend:
+    command: pnpm --dir frontend dev
+
+  db:
+    command: docker compose -f docker-compose.yml logs --follow --no-log-prefix backend-db
+
+  wal-loader:
+    command: docker compose -f docker-compose.yml logs --follow --no-log-prefix wal-backup-loader

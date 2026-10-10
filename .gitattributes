@@ -1,5 +1,5 @@
 # Normalize all text files to LF in the repo, regardless of host OS.
-# Prevents CRLF noise when checking out on Windows and mounting into the Linux devcontainer.
+# Prevents CRLF noise when checking out on Windows.
 * text=auto eol=lf
 
 # Keep genuinely binary assets untouched.

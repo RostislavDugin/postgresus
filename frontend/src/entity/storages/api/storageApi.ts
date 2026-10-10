@@ -1,6 +1,6 @@
 import { getApplicationServer } from '../../../constants';
-import RequestOptions from '../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../shared/api/apiHelper';
+import RequestOptions from '../../../shared/api/RequestOptions';
 import type { Storage } from '../models/Storage';
 
 export const storageApi = {

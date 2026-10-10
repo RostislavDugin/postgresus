@@ -1,8 +1,32 @@
 package users_errors
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	users_models "databasus-backend/internal/features/users/models"
+)
 
 var ErrInsufficientPermissionsToInviteUsers = errors.New("insufficient permissions to invite users")
+
+var ErrPasswordTooShort = fmt.Errorf(
+	"the password must be at least %d characters long",
+	users_models.MinPasswordLength,
+)
+
+var (
+	ErrConsoleAccountEmailInvalid = errors.New("the email is not a valid email address")
+	ErrConsoleAccountRoleInvalid  = errors.New("the role must be admin or member")
+	// The first account administers the instance, so a member there would leave
+	// nobody able to grant the administrator role.
+	ErrConsoleAccountFirstMustBeAdmin = errors.New(
+		"this instance has no account yet, and its first account administers it: create it with the admin role",
+	)
+	ErrConsoleAccountExistsInAnotherState = errors.New(
+		"an account with this email already exists with another role, is deactivated, " +
+			"has not completed sign-up or has no password; nothing changed",
+	)
+)
 
 var (
 	ErrEmailNotConfigured = errors.New("the instance has no mail server configured")

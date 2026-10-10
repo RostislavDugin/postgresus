@@ -4,8 +4,8 @@ import type { HealthStatus } from './HealthStatus';
 import type { MariadbDatabase } from './mariadb/MariadbDatabase';
 import type { MongodbDatabase } from './mongodb/MongodbDatabase';
 import type { MysqlDatabase } from './mysql/MysqlDatabase';
-import type { PostgresqlLogicalDatabase } from './postgresql/PostgresqlLogicalDatabase';
 import type { PostgresqlPhysicalDatabase } from './postgresql/physical/PostgresqlPhysicalDatabase';
+import type { PostgresqlLogicalDatabase } from './postgresql/PostgresqlLogicalDatabase';
 
 export interface Database {
   id: string;
