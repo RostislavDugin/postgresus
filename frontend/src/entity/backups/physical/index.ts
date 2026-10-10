@@ -18,4 +18,3 @@ export { PHYSICAL_RETENTION_LABEL_KEYS } from './model/PhysicalRetentionLabelKey
 export { PHYSICAL_BACKUP_TYPE_LABEL_KEYS } from './model/PhysicalBackupTypeLabelKeys';
 export { PHYSICAL_FULL_BACKUPS_POLICY_LABEL_KEYS } from './model/PhysicalFullBackupsPolicyLabelKeys';
 export { PHYSICAL_BACKUP_NOTIFICATION_TYPE_LABEL_KEYS } from './model/PhysicalBackupNotificationTypeLabelKeys';
-export type { NextScheduledBackupsResponse } from './model/NextScheduledBackupsResponse';

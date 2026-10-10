@@ -2,7 +2,6 @@ import { getApplicationServer } from '../../../../constants';
 import { apiHelper } from '../../../../shared/api/apiHelper';
 import RequestOptions from '../../../../shared/api/RequestOptions';
 import type { GetLogicalBackupsResponse } from '../model/GetLogicalBackupsResponse';
-import type { NextScheduledBackupResponse } from '../model/NextScheduledBackupResponse';
 
 export interface BackupsFilters {
   statuses?: string[];
@@ -26,14 +25,6 @@ export const logicalBackupsApi = {
 
     return apiHelper.fetchGetJson<GetLogicalBackupsResponse>(
       `${getApplicationServer()}/api/v1/backups?${params.toString()}`,
-      undefined,
-      true,
-    );
-  },
-
-  async getNextScheduledBackup(databaseId: string) {
-    return apiHelper.fetchGetJson<NextScheduledBackupResponse>(
-      `${getApplicationServer()}/api/v1/backups/database/${databaseId}/next-backup`,
       undefined,
       true,
     );

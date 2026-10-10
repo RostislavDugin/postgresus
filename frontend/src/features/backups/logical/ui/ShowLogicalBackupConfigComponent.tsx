@@ -10,13 +10,8 @@ import {
   type LogicalBackupConfig,
   LogicalRetentionPolicyType,
   logicalBackupConfigApi,
-  logicalBackupsApi,
 } from '../../../../entity/backups/logical';
-import {
-  BACKUP_ENCRYPTION_LABEL_KEYS,
-  NextScheduledBackupComponent,
-  type ScheduledBackupTime,
-} from '../../../../entity/backups/shared';
+import { BACKUP_ENCRYPTION_LABEL_KEYS } from '../../../../entity/backups/shared';
 import { type Database, PERIOD_LABEL_KEYS } from '../../../../entity/databases';
 import {
   INTERVAL_TYPE_LABEL_KEYS,
@@ -62,7 +57,6 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
   const { t } = useTranslation();
   const listSeparator = t('common.listSeparator');
   const [backupConfig, setBackupConfig] = useState<LogicalBackupConfig>();
-  const [nextBackup, setNextBackup] = useState<ScheduledBackupTime | null>(null);
 
   const describeGfsRetention = (config: LogicalBackupConfig): string => {
     const texts = getGfsRetentionTexts(config);
@@ -84,9 +78,6 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
       logicalBackupConfigApi.getBackupConfigByDbID(database.id).then((res) => {
         setBackupConfig(res);
       });
-      logicalBackupsApi
-        .getNextScheduledBackup(database.id)
-        .then((response) => setNextBackup(response.nextBackup));
     }
   }, [database]);
 
@@ -169,13 +160,6 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
                 <div>{formattedTime}</div>
               </div>
             )}
-
-          {nextBackup && (
-            <NextScheduledBackupComponent
-              scheduledBackupTime={nextBackup}
-              labelWidthClassName="min-w-[150px]"
-            />
-          )}
 
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px] pr-2">

@@ -6,20 +6,14 @@ import { useTranslation } from 'react-i18next';
 
 import {
   type FullBackupsRetention,
-  type NextScheduledBackupsResponse,
   PHYSICAL_BACKUP_NOTIFICATION_TYPE_LABEL_KEYS,
   PHYSICAL_RETENTION_LABEL_KEYS,
   type PhysicalBackupConfig,
   PhysicalFullBackupsPolicy,
   PhysicalRetention,
   physicalBackupConfigApi,
-  physicalBackupsApi,
 } from '../../../../entity/backups/physical';
-import {
-  BACKUP_ENCRYPTION_LABEL_KEYS,
-  NextScheduledBackupComponent,
-  type ScheduledBackupTime,
-} from '../../../../entity/backups/shared';
+import { BACKUP_ENCRYPTION_LABEL_KEYS } from '../../../../entity/backups/shared';
 import type { Database } from '../../../../entity/databases';
 import {
   INTERVAL_TYPE_LABEL_KEYS,
@@ -66,8 +60,6 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
   const { t } = useTranslation();
   const listSeparator = t('common.listSeparator');
   const [backupConfig, setBackupConfig] = useState<PhysicalBackupConfig>();
-  const [nextScheduledBackups, setNextScheduledBackups] =
-    useState<NextScheduledBackupsResponse | null>(null);
 
   const describeGfsRetention = (retention: FullBackupsRetention): string => {
     const texts = getGfsRetentionTexts(retention);
@@ -82,11 +74,7 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
   }, []);
 
   // Time of day, weekday and day of month are stored in UTC and shown in local time.
-  const renderInterval = (
-    label: string,
-    interval: Interval | undefined,
-    nextScheduledBackup: ScheduledBackupTime | null | undefined,
-  ): JSX.Element | null => {
+  const renderInterval = (label: string, interval?: Interval): JSX.Element | null => {
     if (!interval?.type) return null;
 
     const localTime = interval.timeOfDay
@@ -140,13 +128,6 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
             <div>{formattedTime}</div>
           </div>
         )}
-
-        {nextScheduledBackup && (
-          <NextScheduledBackupComponent
-            scheduledBackupTime={nextScheduledBackup}
-            labelWidthClassName="min-w-[180px]"
-          />
-        )}
       </>
     );
   };
@@ -156,7 +137,6 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
       physicalBackupConfigApi.getPhysicalBackupConfigByDbId(database.id).then((config) => {
         setBackupConfig(config);
       });
-      physicalBackupsApi.getNextScheduledBackups(database.id).then(setNextScheduledBackups);
     }
   }, [database]);
 
@@ -188,12 +168,10 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
           {renderInterval(
             t('backups.physical.config.fullBackupCadence'),
             backupConfig.fullBackupInterval,
-            nextScheduledBackups?.nextFullBackup,
           )}
           {renderInterval(
             t('backups.physical.config.incrementalBackupCadence'),
             backupConfig.incrementalBackupInterval,
-            nextScheduledBackups?.nextIncrementalBackup,
           )}
 
           <div className="mt-4 mb-1 flex w-full items-center">

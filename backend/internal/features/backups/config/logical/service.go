@@ -145,14 +145,6 @@ func (s *BackupConfigService) GetBackupConfigByDbId(
 	return config, nil
 }
 
-// FindBackupConfigByDbId returns nil when the database has no saved backup config,
-// unlike GetBackupConfigByDbId, which creates a default one.
-func (s *BackupConfigService) FindBackupConfigByDbId(
-	databaseID uuid.UUID,
-) (*LogicalBackupConfig, error) {
-	return s.backupConfigRepository.FindByDatabaseID(databaseID)
-}
-
 func (s *BackupConfigService) IsStorageInUse(
 	ctx context.Context,
 	user *users_models.User,

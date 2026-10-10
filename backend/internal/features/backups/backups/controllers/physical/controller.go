@@ -27,7 +27,6 @@ type PhysicalBackupController struct {
 
 func (c *PhysicalBackupController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/backups/physical/database/:id/backups", c.GetBackups)
-	router.GET("/backups/physical/database/:id/next-backups", c.GetNextScheduledBackups)
 	router.POST("/backups/physical/database/:id/trigger", c.TriggerBackup)
 	router.POST("/backups/physical/database/:id/restore-token", c.GenerateRestoreToken)
 
@@ -90,39 +89,6 @@ func (c *PhysicalBackupController) GetBackups(ctx *gin.Context) {
 	}
 
 	response, err := c.physicalBackupService.GetBackups(ctx.Request.Context(), user, databaseID, &request)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, response)
-}
-
-// GetNextScheduledBackups
-// @Summary Get the next scheduled backups of a physical database
-// @Description Get when the scheduler will start the next automatic full and incremental backups. A field is null when no such automatic backup will run.
-// @Tags backups-physical
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "Database ID"
-// @Success 200 {object} backups_dto_physical.GetNextScheduledBackupsResponse
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /backups/physical/database/{id}/next-backups [get]
-func (c *PhysicalBackupController) GetNextScheduledBackups(ctx *gin.Context) {
-	user, ok := users_middleware.GetUserFromContext(ctx)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	databaseID, err := uuid.Parse(ctx.Param("id"))
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
-		return
-	}
-
-	response, err := c.physicalBackupService.GetNextScheduledBackups(ctx.Request.Context(), user, databaseID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

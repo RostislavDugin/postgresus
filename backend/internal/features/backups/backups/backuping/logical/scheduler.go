@@ -12,7 +12,6 @@ import (
 	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
-	"databasus-backend/internal/features/intervals"
 	task_cancellation "databasus-backend/internal/features/tasks/cancellation"
 )
 
@@ -252,29 +251,6 @@ func (s *BackupsScheduler) GetRemainedBackupTryCount(
 	return remainedTryCount
 }
 
-// GetNextScheduledBackup reads the same inputs runPendingBackups and StartBackup act on,
-// so the reported time is when this scheduler will actually start the backup.
-func (s *BackupsScheduler) GetNextScheduledBackup(
-	databaseID uuid.UUID,
-	now time.Time,
-) (*intervals.NextTrigger, error) {
-	backupConfig, err := s.backupConfigService.FindBackupConfigByDbId(databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	if backupConfig == nil || !backupConfig.IsBackupsEnabled || backupConfig.StorageID == nil {
-		return nil, nil
-	}
-
-	lastBackup, err := s.backupRepository.FindLastByDatabaseID(databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	return backupConfig.BackupInterval.GetNextTrigger(now, createdAtOrNil(lastBackup)), nil
-}
-
 func (s *BackupsScheduler) runPendingBackups(ctx context.Context, logger *slog.Logger) error {
 	enabledBackupConfigs, err := s.backupConfigService.GetBackupConfigsWithEnabledBackups()
 	if err != nil {
@@ -294,7 +270,10 @@ func (s *BackupsScheduler) runPendingBackups(ctx context.Context, logger *slog.L
 			continue
 		}
 
-		lastBackupTime := createdAtOrNil(lastBackup)
+		var lastBackupTime *time.Time
+		if lastBackup != nil {
+			lastBackupTime = &lastBackup.CreatedAt
+		}
 
 		remainedBackupTryCount := s.GetRemainedBackupTryCount(ctx, logger, lastBackup)
 
@@ -379,12 +358,4 @@ func (s *BackupsScheduler) onBackupCompleted(backupID uuid.UUID) {
 	for _, listener := range s.backupCompletionListeners {
 		go listener.OnBackupCompleted(backupID)
 	}
-}
-
-func createdAtOrNil(backup *backups_core_logical.LogicalBackup) *time.Time {
-	if backup == nil {
-		return nil
-	}
-
-	return &backup.CreatedAt
 }

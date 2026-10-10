@@ -8,7 +8,6 @@ import (
 
 	backups_core_logical "databasus-backend/internal/features/backups/backups/core/logical"
 	"databasus-backend/internal/features/backups/backups/encryption"
-	"databasus-backend/internal/features/intervals"
 )
 
 type GetBackupsRequest struct {
@@ -24,10 +23,6 @@ type GetBackupsResponse struct {
 	Total   int64                                 `json:"total"`
 	Limit   int                                   `json:"limit"`
 	Offset  int                                   `json:"offset"`
-}
-
-type GetNextScheduledBackupResponse struct {
-	NextBackup *intervals.NextTrigger `json:"nextBackup"`
 }
 
 type DecryptionReaderCloser struct {

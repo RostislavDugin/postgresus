@@ -129,28 +129,6 @@ func (s *LogicalBackupService) MakeBackupWithAuth(
 	return nil
 }
 
-func (s *LogicalBackupService) GetNextScheduledBackup(
-	ctx context.Context,
-	user *users_models.User,
-	databaseID uuid.UUID,
-) (*backups_dto_logical.GetNextScheduledBackupResponse, error) {
-	database, err := s.databaseService.GetDatabase(ctx, user, databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	if database.Type == databases.DatabaseTypePostgresPhysical {
-		return nil, errors.New("database uses physical backups")
-	}
-
-	nextBackup, err := s.backupSchedulerService.GetNextScheduledBackup(databaseID, time.Now().UTC())
-	if err != nil {
-		return nil, err
-	}
-
-	return &backups_dto_logical.GetNextScheduledBackupResponse{NextBackup: nextBackup}, nil
-}
-
 func (s *LogicalBackupService) GetBackups(
 	ctx context.Context,
 	user *users_models.User,

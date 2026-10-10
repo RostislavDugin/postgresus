@@ -63,38 +63,11 @@ type PhysicalBackupService struct {
 	walSegmentRepository        *physical_repositories.PhysicalWalSegmentRepository
 	inFlightBackupRepository    *physical_repositories.PhysicalInFlightBackupRepository
 	canceller                   *backuping_physical.PhysicalBackupCanceller
-	scheduler                   *backuping_physical.PhysicalBackupsScheduler
 	restoreStreamWriter         *restore_stream.Writer
 	restoreTokenService         *restore_token.Service
 	secretKeyService            *encryption_secrets.SecretKeyService
 	auditLogService             *audit_logs.AuditLogService
 	logger                      *slog.Logger
-}
-
-func (s *PhysicalBackupService) GetNextScheduledBackups(
-	ctx context.Context,
-	user *users_models.User,
-	databaseID uuid.UUID,
-) (*backups_dto_physical.GetNextScheduledBackupsResponse, error) {
-	database, err := s.databaseService.GetDatabase(ctx, user, databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	if database.Type != databases.DatabaseTypePostgresPhysical {
-		return nil, errors.New("database uses logical backups")
-	}
-
-	nextFullBackup, nextIncrementalBackup, err := s.scheduler.GetNextScheduledBackups(
-		databaseID, time.Now().UTC())
-	if err != nil {
-		return nil, err
-	}
-
-	return &backups_dto_physical.GetNextScheduledBackupsResponse{
-		NextFullBackup:        nextFullBackup,
-		NextIncrementalBackup: nextIncrementalBackup,
-	}, nil
 }
 
 // GetBackups returns one page of a database's backups — FULLs, incrementals and
