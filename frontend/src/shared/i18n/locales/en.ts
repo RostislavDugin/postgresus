@@ -1526,6 +1526,12 @@ export const en = {
         restore: 'Restore',
         restoreFromThisBackup: 'Restore from this backup',
         pointInTimeRestoreTitle: 'Point-in-time restore',
+        walRange: {
+          segments: 'Segments: {{count}}',
+          gapBefore: 'Gap before this range',
+          gapBeforeTooltip:
+            'WAL segments are missing between this range and the previous one. Point-in-time restore cannot replay across the gap.',
+        },
         deleteFullConfirmation:
           'Deleting this full backup removes its entire chain (all incrementals that depend on it). This cannot be undone. Continue?',
         deleteIncrementalConfirmation:

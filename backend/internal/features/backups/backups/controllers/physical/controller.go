@@ -55,13 +55,13 @@ func (c *PhysicalBackupController) GetRecoveryScript(ctx *gin.Context) {
 
 // GetBackups
 // @Summary List physical backups for a database
-// @Description Returns a page of physical backups — FULLs, incrementals and committed WAL segments — as one flat list newest-first, with the database's total on-disk usage and the total count for pagination. The frontend filters by type.
+// @Description Returns a page of physical backups — FULLs, incrementals and WAL ranges of consecutive committed segments — as one flat list newest-first, with the database's total on-disk usage. nextCursor is set while further rows exist; pass it as cursor to get the next page. A malformed cursor returns 400.
 // @Tags backups-physical
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Database ID"
 // @Param limit query int false "Page size (default 50, max 1000)"
-// @Param offset query int false "Offset for pagination" default(0)
+// @Param cursor query string false "nextCursor of the previous page; omit for the first page"
 // @Param type query []string false "Filter by backup type - repeatable, matches any" Enums(FULL, INCREMENTAL, WAL) collectionFormat(multi)
 // @Param status query []string false "Filter by status - repeatable, matches any (e.g. COMPLETED, IN_PROGRESS)" collectionFormat(multi)
 // @Param beforeDate query string false "Keep only backups created before this date (RFC3339)" format(date-time)

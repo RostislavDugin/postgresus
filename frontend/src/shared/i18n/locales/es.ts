@@ -1554,6 +1554,12 @@ export const es: typeof en = {
         restore: 'Restaurar',
         restoreFromThisBackup: 'Restaurar desde esta copia',
         pointInTimeRestoreTitle: 'Restauración a un punto en el tiempo',
+        walRange: {
+          segments: 'Segmentos: {{count}}',
+          gapBefore: 'Hueco antes de este rango',
+          gapBeforeTooltip:
+            'Faltan segmentos WAL entre este rango y el anterior. La restauración a un punto en el tiempo no puede pasar por encima del hueco.',
+        },
         deleteFullConfirmation:
           'Al eliminar esta copia completa se elimina toda su cadena (todas las incrementales que dependen de ella). Esta acción no se puede deshacer. ¿Continuar?',
         deleteIncrementalConfirmation:

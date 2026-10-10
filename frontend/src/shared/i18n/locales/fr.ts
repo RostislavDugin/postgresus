@@ -1563,6 +1563,12 @@ export const fr: typeof en = {
         restore: 'Restaurer',
         restoreFromThisBackup: 'Restaurer depuis cette sauvegarde',
         pointInTimeRestoreTitle: 'Restauration à un instant donné',
+        walRange: {
+          segments: 'Segments : {{count}}',
+          gapBefore: 'Trou avant cette plage',
+          gapBeforeTooltip:
+            'Des segments WAL manquent entre cette plage et la précédente. La restauration à un instant donné ne peut pas franchir ce trou.',
+        },
         deleteFullConfirmation:
           'Si vous supprimez cette sauvegarde complète, toute sa chaîne disparaît avec elle (toutes les sauvegardes incrémentales qui en dépendent). Cette action est irréversible. Continuer ?',
         deleteIncrementalConfirmation:

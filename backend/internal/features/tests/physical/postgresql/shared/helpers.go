@@ -666,41 +666,45 @@ func downloadRestoreBundleViaAPI(
 	return hostPath
 }
 
-// committedWalSegmentsInOrder lists the database's committed (uploaded) WAL
-// segments through the flat backup API (type=WAL) and returns them ordered by
-// start_lsn ascending. The WAL union only emits rows whose file is uploaded, so
-// every listed row is committed — no extra filtering needed.
+// committedWalSegmentsInOrder reads the database's committed (uploaded) WAL
+// segments on one timeline from the catalog, ordered by start_lsn ascending. The
+// backup list API groups segments into ranges, so it cannot hand out a single
+// segment to delete.
 func committedWalSegmentsInOrder(
 	t *testing.T,
-	router *gin.Engine,
 	fixture *postgresql_executor.PhysicalDBFixture,
-) []backups_dto_physical.PhysicalBackupListItem {
+	timelineID int,
+) []*physical_models.PhysicalWalSegment {
 	t.Helper()
 
-	segments := listBackupsByType(t, router, fixture, physical_enums.PhysicalBackupTypeWal)
+	segments, err := physical_repositories.GetWalSegmentRepository().FindByChainSpan(
+		fixture.DB.ID, timelineID, walmath.LSN(0), chain_view.LSNMax,
+	)
+	require.NoError(t, err)
 
-	slices.SortFunc(segments, func(a, b backups_dto_physical.PhysicalBackupListItem) int {
-		return cmp.Compare(parseLSN(t, a.StartLSN), parseLSN(t, b.StartLSN))
+	return slices.DeleteFunc(segments, func(segment *physical_models.PhysicalWalSegment) bool {
+		return segment.FileName == nil
 	})
-
-	return segments
 }
 
 // streamPostFullSegments forces WAL rotations until at least minCount committed
-// segments lie past fullStopLSN (i.e. in the replayable range after the FULL),
-// returning them ordered by start_lsn. pg_receivewal writes full, contiguous
-// segments, so the run has no gap until a caller deletes one.
+// segments lie past the chain tip's stop_lsn on its timeline (i.e. in the
+// replayable range after the tip), returning them ordered by start_lsn.
+// pg_receivewal writes full, contiguous segments, so the run has no gap until a
+// caller deletes one.
 func streamPostFullSegments(
 	t *testing.T,
 	ctx context.Context,
-	router *gin.Engine,
 	conn *pgx.Conn,
 	fixture *postgresql_executor.PhysicalDBFixture,
-	fullStopLSN walmath.LSN,
+	chain []backups_dto_physical.PhysicalBackupListItem,
 	minCount int,
 	timeout time.Duration,
-) []backups_dto_physical.PhysicalBackupListItem {
+) []*physical_models.PhysicalWalSegment {
 	t.Helper()
+
+	tipStopLSN := chainTipStopLSN(t, chain)
+	tipTimelineID := chain[len(chain)-1].TimelineID
 
 	deadline := time.Now().UTC().Add(timeout)
 
@@ -708,15 +712,15 @@ func streamPostFullSegments(
 		_, err := postgresql_executor.ForceWalRotation(ctx, conn)
 		require.NoError(t, err)
 
-		var postFull []backups_dto_physical.PhysicalBackupListItem
-		for _, segment := range committedWalSegmentsInOrder(t, router, fixture) {
-			if parseLSN(t, segment.StopLSN) > fullStopLSN {
-				postFull = append(postFull, segment)
+		var postTipSegments []*physical_models.PhysicalWalSegment
+		for _, segment := range committedWalSegmentsInOrder(t, fixture, tipTimelineID) {
+			if segment.EndLSN > tipStopLSN {
+				postTipSegments = append(postTipSegments, segment)
 			}
 		}
 
-		if len(postFull) >= minCount {
-			return postFull
+		if len(postTipSegments) >= minCount {
+			return postTipSegments
 		}
 
 		time.Sleep(250 * time.Millisecond)

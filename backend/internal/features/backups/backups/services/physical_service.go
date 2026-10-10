@@ -33,6 +33,10 @@ import (
 // no chain can take one — the caller must run a full first.
 var ErrNoExtendableChain = errors.New("no extendable chain; run a full backup first")
 
+// ErrInvalidBackupsCursor is returned when a backup list request carries a
+// cursor the server did not issue or cannot decode.
+var ErrInvalidBackupsCursor = errors.New("invalid backups cursor")
+
 // ErrBackupNotFound is returned when a backup id matches no FULL, incremental,
 // or WAL row owned by a database the user can access.
 var ErrBackupNotFound = errors.New("backup not found")
@@ -67,10 +71,11 @@ type PhysicalBackupService struct {
 }
 
 // GetBackups returns one page of a database's backups — FULLs, incrementals and
-// committed WAL segments — as one flat list sorted newest-first by creation
-// time. Pagination (limit/offset, with a Total for the page count) happens in
-// SQL so a database with many WAL segments never loads its whole catalog. The
-// aggregate on-disk usage rides along so the UI need not sum it.
+// WAL ranges of consecutive committed segments — as one flat list sorted
+// newest-first. It pages by keyset cursor rather than offset because the newest
+// WAL range grows and new backups appear at the top between requests, which
+// would shift offsets. One extra row is fetched to know whether a next page
+// exists. The aggregate on-disk usage rides along so the UI need not sum it.
 func (s *PhysicalBackupService) GetBackups(
 	ctx context.Context,
 	user *users_models.User,
@@ -82,15 +87,14 @@ func (s *PhysicalBackupService) GetBackups(
 	}
 
 	limit := normalizeBackupsPageLimit(request.Limit)
-	offset := max(request.Offset, 0)
 	filter := toBackupListFilter(request)
 
-	rows, err := s.physicalCoreService.ListBackups(databaseID, filter, limit, offset)
+	after, err := decodePhysicalListCursor(request.Cursor)
 	if err != nil {
 		return nil, err
 	}
 
-	total, err := s.physicalCoreService.CountBackups(databaseID, filter)
+	rows, err := s.physicalCoreService.ListBackups(databaseID, filter, after, limit+1)
 	if err != nil {
 		return nil, err
 	}
@@ -100,18 +104,34 @@ func (s *PhysicalBackupService) GetBackups(
 		return nil, err
 	}
 
+	hasNextPage := len(rows) > limit
+	if hasNextPage {
+		rows = rows[:limit]
+	}
+
 	items := make([]backups_dto_physical.PhysicalBackupListItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, rowToListItem(row))
 	}
 
-	return &backups_dto_physical.GetPhysicalBackupsResponse{
+	response := &backups_dto_physical.GetPhysicalBackupsResponse{
 		Backups:      items,
 		TotalUsageMb: totalUsageMb,
-		Total:        total,
-		Limit:        limit,
-		Offset:       offset,
-	}, nil
+	}
+
+	if hasNextPage {
+		lastRow := rows[len(rows)-1]
+
+		response.NextCursor, err = encodePhysicalListCursor(physical_core_service.BackupListPosition{
+			SortTime: lastRow.SortTime,
+			ID:       lastRow.ID,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return response, nil
 }
 
 // RequestBackup triggers the backup the scheduler would naturally pick next:
@@ -584,7 +604,10 @@ func rowToListItem(row physical_core_service.PhysicalBackupListRow) backups_dto_
 		StopLSN:                   row.StopLSN,
 		RootFullBackupID:          row.RootFullBackupID,
 		ParentIncrementalBackupID: row.ParentIncrementalBackupID,
-		WalFilename:               row.WalFilename,
+		FromWalFilename:           row.FromWalFilename,
+		ToWalFilename:             row.ToWalFilename,
+		WalSegmentsCount:          row.WalSegmentsCount,
+		HasGapBefore:              row.HasGapBefore,
 		SizeMb:                    row.SizeMb,
 		FailMessage:               row.FailMessage,
 		CreatedAt:                 row.CreatedAt,

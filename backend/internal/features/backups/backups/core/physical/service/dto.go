@@ -16,10 +16,13 @@ type DeleteOrphanWalSegmentsSpec struct {
 	WalByteBudgetMB float64
 }
 
-// PhysicalBackupListRow is one row of the merged, paginated backup list across
-// the FULL, incremental and committed-WAL tables. Type-only columns are NULL for
-// the other types (scanned into the pointer fields); LSNs arrive as text. It is
-// the catalog-level shape the API maps to its presentation DTO.
+// PhysicalBackupListRow is one row of the merged, paginated backup list: a FULL,
+// an incremental, or a WAL range that collapses consecutive committed segments.
+// Type-only columns are NULL for the other types (scanned into the pointer
+// fields); LSNs arrive as text. A WAL range takes the ID of its lowest-LSN
+// segment, so its identity survives growth at the newest end. SortTime is the
+// row's position in the newest-first list: created_at for a backup, the newest
+// receive time for a WAL range.
 type PhysicalBackupListRow struct {
 	ID                        uuid.UUID  `gorm:"column:id"`
 	Type                      string     `gorm:"column:type"`
@@ -29,17 +32,29 @@ type PhysicalBackupListRow struct {
 	StopLSN                   string     `gorm:"column:stop_lsn"`
 	RootFullBackupID          *uuid.UUID `gorm:"column:root_full_backup_id"`
 	ParentIncrementalBackupID *uuid.UUID `gorm:"column:parent_incremental_backup_id"`
-	WalFilename               *string    `gorm:"column:wal_filename"`
+	FromWalFilename           *string    `gorm:"column:from_wal_filename"`
+	ToWalFilename             *string    `gorm:"column:to_wal_filename"`
+	WalSegmentsCount          *int       `gorm:"column:wal_segments_count"`
+	HasGapBefore              bool       `gorm:"column:has_gap_before"`
 	SizeMb                    float64    `gorm:"column:size_mb"`
 	FailMessage               *string    `gorm:"column:fail_message"`
 	CreatedAt                 time.Time  `gorm:"column:created_at"`
 	CompletedAt               *time.Time `gorm:"column:completed_at"`
+	SortTime                  time.Time  `gorm:"column:sort_time"`
 }
 
-// BackupListFilter narrows ListBackups / CountBackups. An empty slice (or nil
-// BeforeDate) is "no filter on that dimension". Types and Statuses match the
-// synthetic columns the UNION projects ('WAL'/'COMPLETED' for WAL rows) and
-// match any of their values; BeforeDate filters on created_at.
+// BackupListPosition is the keyset position ListBackups pages after: the sort
+// time and ID of the last row the caller already holds.
+type BackupListPosition struct {
+	SortTime time.Time
+	ID       uuid.UUID
+}
+
+// BackupListFilter narrows ListBackups. An empty slice (or nil BeforeDate) is
+// "no filter on that dimension". Types and Statuses match the synthetic columns
+// the UNION projects ('WAL'/'COMPLETED' for WAL segments) and match any of their
+// values; BeforeDate filters on created_at. The filter selects segments before
+// they are grouped into WAL ranges.
 type BackupListFilter struct {
 	Types      []string
 	Statuses   []string

@@ -1469,6 +1469,11 @@ export const zh: typeof en = {
         restore: '恢复',
         restoreFromThisBackup: '从此备份恢复',
         pointInTimeRestoreTitle: '时间点恢复',
+        walRange: {
+          segments: '段数：{{count}}',
+          gapBefore: '此范围前存在缺口',
+          gapBeforeTooltip: '此范围与上一个范围之间缺少 WAL 段，时间点恢复无法跨越该缺口。',
+        },
         deleteFullConfirmation:
           '删除这个全量备份会移除它的整条备份链（所有依赖它的增量备份）。此操作无法撤销。确定继续吗？',
         deleteIncrementalConfirmation:

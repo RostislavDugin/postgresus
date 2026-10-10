@@ -16,7 +16,7 @@ import { App, Button, Modal, Spin, Table, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
-import { type JSX, useEffect, useRef, useState } from 'react';
+import { type JSX, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import {
@@ -33,7 +33,7 @@ import {
 import { BackupEncryption } from '../../../../entity/backups/shared';
 import { type Database, DatabaseType } from '../../../../entity/databases';
 import { verificationRunsApi } from '../../../../entity/verification/runs';
-import { usePersistentState } from '../../../../shared/hooks';
+import { usePersistentState, usePolledPagedList } from '../../../../shared/hooks';
 import {
   type TranslationKey,
   getWebsitePageUrl,
@@ -48,6 +48,7 @@ import { RESTORE_VERIFICATION_STATUS_BADGE_STYLES } from '../model/restoreVerifi
 import { LogicalBackupsFiltersPanelComponent } from './LogicalBackupsFiltersPanelComponent';
 
 const BACKUPS_PAGE_SIZE = 50;
+const BACKUPS_REFRESH_MS = 1_000;
 
 // Physical databases have their own backups list; the generic text keeps the map exhaustive.
 const DOWNLOAD_TOOLTIP_KEYS: Record<DatabaseType, TranslationKey> = {
@@ -100,14 +101,6 @@ export const LogicalBackupsComponent = ({
   const { t } = useTranslation();
   const { locale, formatNumber, formatRelativeTime } = useLocale();
   const { message, modal } = App.useApp();
-  const [isBackupsLoading, setIsBackupsLoading] = useState(false);
-  const [backups, setBackups] = useState<LogicalBackup[]>([]);
-
-  const [totalBackups, setTotalBackups] = useState(0);
-  const [currentLimit, setCurrentLimit] = useState(BACKUPS_PAGE_SIZE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
   const [backupConfig, setBackupConfig] = useState<LogicalBackupConfig | undefined>();
   const [isBackupConfigLoading, setIsBackupConfigLoading] = useState(false);
 
@@ -119,9 +112,6 @@ export const LogicalBackupsComponent = ({
   const [deletingBackupId, setDeletingBackupId] = useState<string | undefined>();
 
   const [showingRestoresBackupId, setShowingRestoresBackupId] = useState<string | undefined>();
-
-  const lastRequestTimeRef = useRef<number>(0);
-  const isBackupsRequestInFlightRef = useRef(false);
 
   const [downloadingBackupId, setDownloadingBackupId] = useState<string | undefined>();
   const [cancellingBackupId, setCancellingBackupId] = useState<string | undefined>();
@@ -141,61 +131,21 @@ export const LogicalBackupsComponent = ({
     }
   };
 
-  const loadBackups = async (limit?: number, filtersOverride?: BackupsFilters) => {
-    if (isBackupsRequestInFlightRef.current) return;
-    isBackupsRequestInFlightRef.current = true;
+  const fetchBackupsPage = async (offset: number | undefined) => {
+    const pageOffset = offset ?? 0;
+    const response = await logicalBackupsApi.getBackups(
+      database.id,
+      BACKUPS_PAGE_SIZE,
+      pageOffset,
+      filters,
+    );
 
-    const requestTime = Date.now();
-    lastRequestTimeRef.current = requestTime;
+    const loadedCount = pageOffset + response.backups.length;
 
-    const loadLimit = limit ?? currentLimit;
-    const activeFilters = filtersOverride ?? filters;
-
-    try {
-      const response = await logicalBackupsApi.getBackups(database.id, loadLimit, 0, activeFilters);
-
-      if (lastRequestTimeRef.current !== requestTime) return;
-
-      setBackups(response.backups);
-      setTotalBackups(response.total);
-      setHasMore(response.backups.length < response.total);
-    } catch (e) {
-      if (lastRequestTimeRef.current === requestTime) {
-        alert(translateApiError(e, t));
-      }
-    } finally {
-      isBackupsRequestInFlightRef.current = false;
-    }
-  };
-
-  const loadMoreBackups = async () => {
-    if (isLoadingMore || !hasMore) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    const newLimit = currentLimit + BACKUPS_PAGE_SIZE;
-    setCurrentLimit(newLimit);
-
-    const requestTime = Date.now();
-    lastRequestTimeRef.current = requestTime;
-
-    try {
-      const response = await logicalBackupsApi.getBackups(database.id, newLimit, 0, filters);
-
-      if (lastRequestTimeRef.current !== requestTime) return;
-
-      setBackups(response.backups);
-      setTotalBackups(response.total);
-      setHasMore(response.backups.length < response.total);
-    } catch (e) {
-      if (lastRequestTimeRef.current === requestTime) {
-        alert(translateApiError(e, t));
-      }
-    }
-
-    setIsLoadingMore(false);
+    return {
+      items: response.backups,
+      nextCursor: loadedCount < response.total ? loadedCount : undefined,
+    };
   };
 
   const makeBackup = async () => {
@@ -204,9 +154,7 @@ export const LogicalBackupsComponent = ({
     try {
       await logicalBackupsApi.makeBackup(database.id);
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      setCurrentLimit(BACKUPS_PAGE_SIZE);
-      setHasMore(true);
-      await loadBackups(BACKUPS_PAGE_SIZE);
+      await reloadBackups();
     } catch (e) {
       alert(translateApiError(e, t));
     }
@@ -224,9 +172,7 @@ export const LogicalBackupsComponent = ({
 
     try {
       await logicalBackupsApi.deleteBackup(deleteConfimationId);
-      setCurrentLimit(BACKUPS_PAGE_SIZE);
-      setHasMore(true);
-      await loadBackups(BACKUPS_PAGE_SIZE);
+      await reloadBackups();
     } catch (e) {
       alert(translateApiError(e, t));
     }
@@ -240,7 +186,7 @@ export const LogicalBackupsComponent = ({
 
     try {
       await logicalBackupsApi.cancelBackup(backupId);
-      await loadBackups();
+      await refreshBackups();
     } catch (e) {
       alert(translateApiError(e, t));
     }
@@ -290,62 +236,36 @@ export const LogicalBackupsComponent = ({
     });
   };
 
+  const {
+    items: backups,
+    isLoading: isBackupsLoading,
+    isLoadingMore,
+    hasMore,
+    reload: reloadBackups,
+    refreshFirstPage: refreshBackups,
+  } = usePolledPagedList({
+    fetchPage: fetchBackupsPage,
+    getItemKey: (backup: LogicalBackup) => backup.id,
+    refreshIntervalMs: BACKUPS_REFRESH_MS,
+    scrollContainerRef,
+    resetKey: JSON.stringify([database.id, filters]),
+    onError: (e) => alert(translateApiError(e, t)),
+  });
+
   useEffect(() => {
     setIsBackupConfigLoading(true);
-    setCurrentLimit(BACKUPS_PAGE_SIZE);
-    setHasMore(true);
 
     logicalBackupConfigApi.getBackupConfigByDbID(database.id).then((config) => {
       setBackupConfig(config);
       setIsBackupConfigLoading(false);
-
-      setIsBackupsLoading(true);
-      loadBackups(BACKUPS_PAGE_SIZE).then(() => setIsBackupsLoading(false));
     });
-
-    return () => {};
   }, [database]);
-
-  useEffect(() => {
-    setCurrentLimit(BACKUPS_PAGE_SIZE);
-    setHasMore(true);
-    setIsBackupsLoading(true);
-    loadBackups(BACKUPS_PAGE_SIZE, filters).then(() => setIsBackupsLoading(false));
-  }, [filters]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      loadBackups();
-    }, 1_000);
-
-    return () => clearInterval(intervalId);
-  }, [currentLimit, filters]);
 
   useEffect(() => {
     if (downloadingBackupId) {
       downloadBackup(downloadingBackupId);
     }
   }, [downloadingBackupId]);
-
-  useEffect(() => {
-    if (!scrollContainerRef?.current) {
-      return;
-    }
-
-    const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-
-      if (scrollHeight - scrollTop <= clientHeight + 100 && hasMore && !isLoadingMore) {
-        loadMoreBackups();
-      }
-    };
-
-    const container = scrollContainerRef.current;
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, currentLimit, scrollContainerRef]);
 
   const renderBackupStatusLabel = (status: LogicalBackupStatus, record: LogicalBackup) => {
     if (status === LogicalBackupStatus.FAILED) {
@@ -718,7 +638,7 @@ export const LogicalBackupsComponent = ({
           )}
           {!hasMore && backups.length > 0 && (
             <div className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('backups.list.allLoaded', { count: totalBackups })}
+              {t('backups.list.allLoaded', { count: backups.length })}
             </div>
           )}
           {!isBackupsLoading && backups.length === 0 && (
@@ -746,7 +666,7 @@ export const LogicalBackupsComponent = ({
           )}
           {!hasMore && backups.length > 0 && (
             <div className="mt-2 text-center text-gray-500 dark:text-gray-400">
-              {t('backups.list.allLoaded', { count: totalBackups })}
+              {t('backups.list.allLoaded', { count: backups.length })}
             </div>
           )}
         </div>

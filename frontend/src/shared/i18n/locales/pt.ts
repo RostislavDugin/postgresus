@@ -1546,6 +1546,12 @@ export const pt: typeof en = {
         restore: 'Restaurar',
         restoreFromThisBackup: 'Restaurar a partir deste backup',
         pointInTimeRestoreTitle: 'Restauração point-in-time',
+        walRange: {
+          segments: 'Segmentos: {{count}}',
+          gapBefore: 'Lacuna antes deste intervalo',
+          gapBeforeTooltip:
+            'Faltam segmentos WAL entre este intervalo e o anterior. A restauração point-in-time não consegue atravessar a lacuna.',
+        },
         deleteFullConfirmation:
           'Excluir este backup completo remove toda a cadeia dele (todos os incrementais que dependem dele). Esta ação não pode ser desfeita. Continuar?',
         deleteIncrementalConfirmation:

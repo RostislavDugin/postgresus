@@ -11,7 +11,7 @@ import { Spin, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import type { Database } from '../../../../entity/databases';
@@ -24,6 +24,7 @@ import {
   VerificationTrigger,
   verificationRunsApi,
 } from '../../../../entity/verification/runs';
+import { usePolledPagedList } from '../../../../shared/hooks';
 import { getWebsitePageUrl, translateApiError, useLocale } from '../../../../shared/i18n';
 import { getUserTimeFormat } from '../../../../shared/time';
 import { VerificationDetailDrawer } from './VerificationDetailDrawer';
@@ -133,52 +134,24 @@ export const VerificationsComponent = ({
 }: Props) => {
   const { t } = useTranslation();
   const { locale, formatRelativeTime } = useLocale();
-  const [verifications, setVerifications] = useState<RestoreVerification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedVerificationId, setSelectedVerificationId] = useState<string | undefined>();
   const [hasAgents, setHasAgents] = useState<boolean | undefined>();
   const [cancellingVerificationId, setCancellingVerificationId] = useState<string | undefined>();
 
-  const [totalVerifications, setTotalVerifications] = useState(0);
-  const [currentLimit, setCurrentLimit] = useState(VERIFICATIONS_PAGE_SIZE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const fetchVerificationsPage = async (offset: number | undefined) => {
+    const pageOffset = offset ?? 0;
+    const response = await verificationRunsApi.listByDatabase(
+      database.id,
+      VERIFICATIONS_PAGE_SIZE,
+      pageOffset,
+    );
 
-  const isVerificationsRequestInFlightRef = useRef(false);
+    const loadedCount = pageOffset + response.verifications.length;
 
-  const loadVerifications = async (limit?: number) => {
-    if (isVerificationsRequestInFlightRef.current) {
-      return;
-    }
-
-    isVerificationsRequestInFlightRef.current = true;
-    const loadLimit = limit ?? currentLimit;
-
-    try {
-      const response = await verificationRunsApi.listByDatabase(database.id, loadLimit, 0);
-      setVerifications(response.verifications);
-      setTotalVerifications(response.total);
-      setHasMore(response.verifications.length < response.total);
-    } catch (e) {
-      alert(translateApiError(e, t));
-    } finally {
-      isVerificationsRequestInFlightRef.current = false;
-    }
-  };
-
-  const loadMoreVerifications = async () => {
-    if (isLoadingMore || !hasMore) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    const newLimit = currentLimit + VERIFICATIONS_PAGE_SIZE;
-    setCurrentLimit(newLimit);
-
-    await loadVerifications(newLimit);
-
-    setIsLoadingMore(false);
+    return {
+      items: response.verifications,
+      nextCursor: loadedCount < response.total ? loadedCount : undefined,
+    };
   };
 
   const cancelVerification = async (id: string) => {
@@ -186,7 +159,7 @@ export const VerificationsComponent = ({
 
     try {
       await verificationRunsApi.cancel(id);
-      await loadVerifications();
+      await refreshVerifications();
     } catch (e) {
       alert(translateApiError(e, t));
     } finally {
@@ -246,20 +219,20 @@ export const VerificationsComponent = ({
     return <span className="text-xs text-gray-400">-</span>;
   };
 
-  useEffect(() => {
-    setCurrentLimit(VERIFICATIONS_PAGE_SIZE);
-    setHasMore(true);
-    setIsLoading(true);
-    loadVerifications(VERIFICATIONS_PAGE_SIZE).then(() => setIsLoading(false));
-  }, [database.id]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      loadVerifications();
-    }, VERIFICATIONS_REFRESH_MS);
-
-    return () => clearInterval(intervalId);
-  }, [currentLimit]);
+  const {
+    items: verifications,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    refreshFirstPage: refreshVerifications,
+  } = usePolledPagedList({
+    fetchPage: fetchVerificationsPage,
+    getItemKey: (verification: RestoreVerification) => verification.id,
+    refreshIntervalMs: VERIFICATIONS_REFRESH_MS,
+    scrollContainerRef,
+    resetKey: database.id,
+    onError: (e) => alert(translateApiError(e, t)),
+  });
 
   useEffect(() => {
     let isCancelled = false;
@@ -285,26 +258,6 @@ export const VerificationsComponent = ({
       clearInterval(intervalId);
     };
   }, []);
-
-  useEffect(() => {
-    if (!scrollContainerRef?.current) {
-      return;
-    }
-
-    const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-
-      if (scrollHeight - scrollTop <= clientHeight + 100 && hasMore && !isLoadingMore) {
-        loadMoreVerifications();
-      }
-    };
-
-    const container = scrollContainerRef.current;
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, currentLimit, scrollContainerRef]);
 
   const columns: ColumnsType<RestoreVerification> = [
     {
@@ -430,7 +383,7 @@ export const VerificationsComponent = ({
           )}
           {!hasMore && verifications.length > 0 && (
             <div className="mt-2 text-center text-gray-500 dark:text-gray-400">
-              {t('verification.runs.allLoaded', { total: totalVerifications })}
+              {t('verification.runs.allLoaded', { total: verifications.length })}
             </div>
           )}
         </div>
@@ -501,7 +454,7 @@ export const VerificationsComponent = ({
           )}
           {!hasMore && verifications.length > 0 && (
             <div className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('verification.runs.allLoaded', { total: totalVerifications })}
+              {t('verification.runs.allLoaded', { total: verifications.length })}
             </div>
           )}
         </div>

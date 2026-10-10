@@ -1529,6 +1529,12 @@ export const ru: typeof en = {
         restore: 'Восстановить',
         restoreFromThisBackup: 'Восстановить из этого бекапа',
         pointInTimeRestoreTitle: 'Восстановление на момент времени',
+        walRange: {
+          segments: 'Сегментов: {{count}}',
+          gapBefore: 'Разрыв перед диапазоном',
+          gapBeforeTooltip:
+            'Между этим диапазоном и предыдущим не хватает сегментов WAL. Восстановление на момент времени не может пройти через этот разрыв.',
+        },
         deleteFullConfirmation:
           'Вместе с этим полным бекапом удалится вся его цепочка (все зависящие от него инкрементальные бекапы). Это действие нельзя отменить. Продолжить?',
         deleteIncrementalConfirmation:
