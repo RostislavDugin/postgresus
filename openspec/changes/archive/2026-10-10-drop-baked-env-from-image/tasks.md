@@ -1,0 +1,21 @@
+## 1. Optional environment file in the backend
+
+- [x] 1.1 In `backend/internal/config/config.go`, replace the unconditional `godotenv.Load` with a helper that loads the file only when it exists and returns whether it was loaded. Log at info level when no file was found. Keep a read or parse failure of an existing file fatal. Verify with `go test ./internal/config/... -count=1` after task 1.2.
+- [x] 1.2 Add tests to `backend/internal/config/config_test.go` for the helper: a missing file is reported as not loaded without an error; an existing file sets an unset variable; an existing file does not override a variable already set in the process environment, including one set to an empty value; a malformed file returns an error. Verify that `go test ./internal/config/... -count=1` passes.
+- [x] 1.3 Add a test to `backend/internal/features/email/email_test.go` for a host and port 25 with no username, password or security mode: the sender is configured, the mode is `starttls` and the connection carries no credentials. Verify that `go test ./internal/features/email/... -count=1` passes.
+- [x] 1.4 Add a test to `backend/internal/util/smtp_transport/auth_test.go` that uses the existing fake server offering STARTTLS and no `AUTH`, sends with an empty username and password in the `starttls` mode, and asserts that the delivery succeeds and the recorded commands contain no `AUTH`. Verify that `go test ./internal/util/smtp_transport/... -count=1` passes.
+- [x] 1.5 Move the checkout's `.env` aside, unset `ENV_MODE` and `DATABASE_DSN` in the shell and start the backend with `go run ./cmd/main.go` from `backend/`. Verify that the log says no environment file was loaded, then reports a missing required setting, and that the process exits with a non-zero status. Restore `.env` afterwards.
+
+## 2. Image and build context
+
+- [x] 2.1 In `Dockerfile`, delete `COPY .env.example /.env`, the `sed` line that strips `DATABASE_DSN` and the comment above them. Replace them with a short comment saying that the image carries no environment file and that settings come from the operator or from code defaults. Verify that `grep -n '\.env' Dockerfile` shows no copy of an env file.
+- [x] 2.2 In `Dockerfile`, delete the frontend block that looks for `.env.production.example`. Verify that `docker build .` completes and the frontend stage still runs `pnpm build`.
+- [x] 2.3 In `.dockerignore`, replace the root-only `.env.local` and `.env.development` entries with `**/.env` and `**/.env.*`. Create a dummy `frontend/.env` and a dummy `frontend/.env.local` with `VITE_GITHUB_CLIENT_ID=leak-check`, build the image, then delete both files. Verify that `find / -name '.env*'` in the image returns nothing and that `grep -r leak-check /app/ui/build` finds nothing.
+- [x] 2.4 Run the built image with no optional variable. Verify that the log says no environment file was loaded, that informational messages and the database installation verification output appear in the startup log, and that a log file is written under the data folder. Verify that the generated `runtime-config.js` has empty OAuth client IDs and Turnstile key and `IS_EMAIL_CONFIGURED: 'false'`, that the settings screen reports the mail server as not configured, that the sign-in screen shows no password reset link, and that a test message from the settings screen is refused because no mail server is configured.
+- [x] 2.5 Run the built image with only `SMTP_HOST` and `SMTP_PORT` set. Verify that the settings screen reports the mail server as configured and the sign-in screen shows the password reset link.
+
+## 3. Documentation and verification
+
+- [x] 3.1 Check the published configuration docs and `.env.example` comments for any statement that the image ships defaults from `.env.example`, and correct it. Verify with `grep -rn "env.example" website/ docs/ AGENTS.md backend/AGENTS.md` that no remaining text claims the image uses it.
+- [x] 3.2 Run `make lint` and `make test` in `backend/` (or `make test-fedora` on a Fedora host). Verify that both pass.
+- [x] 3.3 Run `openspec validate drop-baked-env-from-image --strict` and the mandatory implementation review hook. Verify that validation passes and every blocking review finding is resolved.

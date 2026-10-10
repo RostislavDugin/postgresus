@@ -11,13 +11,6 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY frontend/ ./
 
-# Copy .env file (with fallback to .env.production.example)
-RUN if [ ! -f .env ]; then \
-  if [ -f .env.production.example ]; then \
-  cp .env.production.example .env; \
-  fi; \
-  fi
-
 RUN pnpm build
 
 # ========= BUILD BACKEND =========
@@ -186,16 +179,9 @@ COPY --from=backend-build /app/ui/build ./ui/build
 RUN mkdir -p ./agent-binaries
 COPY --from=verification-agent-build /verification-agent-binaries/* ./agent-binaries/
 
-# Bake .env.example as /.env so the binary has defaults when no env file is
-# mounted. The backend looks for .env at the parent of cwd (= /app), i.e. /.
-# Real env vars (-e, compose, k8s) win, then the connection string start.sh
-# publishes for the embedded database, then these defaults. godotenv.Load does
-# not overwrite already-set variables, which is what puts these defaults last.
-# DATABASE_DSN is stripped because its development password cannot authenticate
-# against the embedded database, whose password is generated at every start.
-# Keeping it would turn a missing configuration into an authentication failure.
-COPY .env.example /.env
-RUN sed -i '/^DATABASE_DSN=/d' /.env
+# The image carries no .env file. Every setting comes from the operator (-e,
+# compose, k8s) or from the default the backend defines in code, so nothing
+# from a development environment can reach a running instance.
 
 COPY --chmod=0755 docker/start.sh /app/start.sh
 

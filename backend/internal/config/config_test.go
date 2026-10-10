@@ -227,3 +227,74 @@ func Test_ValidateSMTPSettings_AcceptsUsableValues(t *testing.T) {
 		})
 	}
 }
+
+const envFileTestVariable = "DATABASUS_ENV_FILE_TEST_VALUE"
+
+func Test_LoadEnvFileIfPresent_WhenFileIsMissing_ReportsNotLoadedWithoutError(t *testing.T) {
+	missingEnvPath := filepath.Join(t.TempDir(), ".env")
+
+	isLoaded, err := loadEnvFileIfPresent(missingEnvPath)
+
+	require.NoError(t, err)
+	assert.False(t, isLoaded)
+}
+
+func Test_LoadEnvFileIfPresent_WhenVariableIsUnset_SetsItFromTheFile(t *testing.T) {
+	clearEnvFileTestVariable(t)
+	envPath := writeEnvFile(t, envFileTestVariable+"=from-file\n")
+
+	isLoaded, err := loadEnvFileIfPresent(envPath)
+
+	require.NoError(t, err)
+	assert.True(t, isLoaded)
+	assert.Equal(t, "from-file", os.Getenv(envFileTestVariable))
+}
+
+func Test_LoadEnvFileIfPresent_WhenVariableIsAlreadySet_KeepsTheProcessValue(t *testing.T) {
+	testCases := []struct {
+		name         string
+		processValue string
+	}{
+		{name: "non-empty value", processValue: "from-process"},
+		{name: "empty value", processValue: ""},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv(envFileTestVariable, testCase.processValue)
+			envPath := writeEnvFile(t, envFileTestVariable+"=from-file\n")
+
+			isLoaded, err := loadEnvFileIfPresent(envPath)
+
+			require.NoError(t, err)
+			assert.True(t, isLoaded)
+			assert.Equal(t, testCase.processValue, os.Getenv(envFileTestVariable))
+		})
+	}
+}
+
+func Test_LoadEnvFileIfPresent_WhenFileIsMalformed_ReturnsError(t *testing.T) {
+	clearEnvFileTestVariable(t)
+	envPath := writeEnvFile(t, "not a variable assignment\n")
+
+	isLoaded, err := loadEnvFileIfPresent(envPath)
+
+	require.Error(t, err)
+	assert.False(t, isLoaded)
+}
+
+func clearEnvFileTestVariable(t *testing.T) {
+	t.Helper()
+
+	t.Setenv(envFileTestVariable, "")
+	require.NoError(t, os.Unsetenv(envFileTestVariable))
+}
+
+func writeEnvFile(t *testing.T, contents string) string {
+	t.Helper()
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(envPath, []byte(contents), 0o600))
+
+	return envPath
+}

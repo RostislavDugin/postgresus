@@ -141,12 +141,17 @@ func loadEnvVariables() {
 
 	adoptPublishedDatabaseDsnIfUnset(publishedDatabaseDsnPath)
 
-	log.Info("trying to load .env", "path", envPath)
-	if err := godotenv.Load(envPath); err != nil {
+	isEnvFileLoaded, err := loadEnvFileIfPresent(envPath)
+	if err != nil {
 		log.Error("error loading .env file from repo root", "path", envPath, "error", err)
 		logger.ExitAfterFlush(1)
 	}
-	log.Info("successfully loaded .env", "path", envPath)
+
+	if isEnvFileLoaded {
+		log.Info("successfully loaded .env", "path", envPath)
+	} else {
+		log.Info("no .env file found, using the process environment only", "path", envPath)
+	}
 
 	// Empty values for non-string fields (e.g. SMTP_PORT=) crash cleanenv's
 	// strconv parsing. Drop them so cleanenv falls back to the Go zero value.
@@ -262,8 +267,27 @@ func validateSMTPSettings(env *EnvVariables) error {
 	return nil
 }
 
+// The Docker image carries no .env, so every setting there comes from the operator or from a
+// code default. A development checkout still reads its own .env. Variables that are already
+// set, even to an empty value, keep their value.
+func loadEnvFileIfPresent(envPath string) (bool, error) {
+	if _, err := os.Stat(envPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if err := godotenv.Load(envPath); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // An operator-supplied connection string wins, then the one startup published, then
-// whatever the baked defaults still carry.
+// whatever a development .env carries.
 func adoptPublishedDatabaseDsnIfUnset(publishedDsnPath string) {
 	if _, isSet := os.LookupEnv(databaseDsnEnvVariable); isSet {
 		return

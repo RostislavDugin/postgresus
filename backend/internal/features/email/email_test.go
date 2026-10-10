@@ -64,3 +64,12 @@ func Test_NewEmailSMTPSenderFromEnv_WithoutSecurity_UsesPortDefault(t *testing.T
 	assert.Equal(t, "tls", string(implicitTLSSender.connection.Security))
 	assert.Equal(t, "starttls", string(upgradeSender.connection.Security))
 }
+
+func Test_NewEmailSMTPSenderFromEnv_ForRelayWithoutCredentials_UsesStartTLSWithoutAuth(t *testing.T) {
+	relaySender := newEmailSMTPSenderFromEnv(&config.EnvVariables{SMTPHost: "relay.example.com", SMTPPort: 25})
+
+	assert.True(t, relaySender.IsConfigured())
+	assert.Equal(t, "starttls", string(relaySender.connection.Security))
+	assert.Empty(t, relaySender.connection.Username)
+	assert.Empty(t, relaySender.connection.Password)
+}
