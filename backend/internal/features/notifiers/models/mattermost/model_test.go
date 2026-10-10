@@ -1,10 +1,12 @@
 package mattermost_notifier
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	notifier_models "databasus-backend/internal/features/notifiers/models"
+	test_utils "databasus-backend/internal/util/testing"
 )
 
 func send(t *testing.T, notifier *MattermostNotifier, notification notifier_models.Notification) error {
@@ -361,4 +364,42 @@ func Test_Update_WithBlankCredentials_KeepsStoredOnes(t *testing.T) {
 	assert.Equal(t, "https://mm.internal.example.com", storedNotifier.ServerURL)
 	assert.Equal(t, strings.Repeat("d", channelIDLength), storedNotifier.TargetChannelID)
 	assert.Equal(t, "Databasus", storedNotifier.OverrideUsername)
+}
+
+func Test_NewHTTPClient_WhenTLSVerificationSkipped_ResolvesProxyFromEnvironmentAndKeepsTLSSettings(t *testing.T) {
+	transport := getInsecureMattermostTransport(t)
+
+	require.NotNil(t, transport.Proxy)
+	assert.Equal(t,
+		reflect.ValueOf(http.ProxyFromEnvironment).Pointer(),
+		reflect.ValueOf(transport.Proxy).Pointer(),
+	)
+	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+}
+
+func Test_NewHTTPClient_WhenTLSVerificationOn_UsesDefaultTransportWithEnvironmentProxy(t *testing.T) {
+	client := (&MattermostNotifier{IsInsecureSkipVerify: false}).newHTTPClient()
+
+	assert.Nil(t, client.Transport, "a nil transport means http.DefaultTransport, which reads the proxy environment")
+}
+
+func Test_NewHTTPClient_WhenTLSVerificationSkipped_CredentialsReachOnlyEndpointThroughProxy(t *testing.T) {
+	exchange := test_utils.SendThroughTunnelProxy(t, getInsecureMattermostTransport(t), "Bearer bot-token")
+
+	require.NoError(t, exchange.Err)
+	test_utils.AssertProxyReceivedOnlyTunnelRequest(t, exchange)
+	require.Len(t, exchange.EndpointRequests, 1)
+	assert.Equal(t, "Bearer bot-token", exchange.EndpointRequests[0].Header.Get("Authorization"))
+}
+
+func getInsecureMattermostTransport(t *testing.T) *http.Transport {
+	t.Helper()
+
+	client := (&MattermostNotifier{IsInsecureSkipVerify: true}).newHTTPClient()
+
+	transport, isTransport := client.Transport.(*http.Transport)
+	require.True(t, isTransport, "Mattermost with TLS verification skipped must use its own *http.Transport")
+
+	return transport
 }

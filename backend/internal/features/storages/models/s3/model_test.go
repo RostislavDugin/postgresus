@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
+	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/testing/containers"
 )
 
@@ -557,4 +559,64 @@ func (r *cancelAfterReader) Read(p []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+func Test_GetClientParams_Transport_ResolvesProxyFromEnvironment(t *testing.T) {
+	transport := buildTestS3Transport(t, false)
+
+	require.NotNil(t, transport.Proxy)
+	assert.Equal(t,
+		reflect.ValueOf(http.ProxyFromEnvironment).Pointer(),
+		reflect.ValueOf(transport.Proxy).Pointer(),
+	)
+}
+
+func Test_GetClientParams_Transport_FollowsSkipTLSVerify(t *testing.T) {
+	assert.False(t, buildTestS3Transport(t, false).TLSClientConfig.InsecureSkipVerify)
+	assert.True(t, buildTestS3Transport(t, true).TLSClientConfig.InsecureSkipVerify)
+}
+
+func Test_GetClientParams_TransportThroughProxy_WhenVerificationOn_TunnelsAndRejectsUntrustedCertificate(
+	t *testing.T,
+) {
+	exchange := test_utils.SendThroughTunnelProxy(t, buildTestS3Transport(t, false), "AWS4-HMAC-SHA256 signature")
+
+	test_utils.AssertProxyReceivedOnlyTunnelRequest(t, exchange)
+	test_utils.AssertCertificateRejected(t, exchange)
+}
+
+func Test_GetClientParams_TransportThroughProxy_WhenVerificationSkipped_CredentialsReachOnlyEndpoint(
+	t *testing.T,
+) {
+	exchange := test_utils.SendThroughTunnelProxy(t, buildTestS3Transport(t, true), "AWS4-HMAC-SHA256 signature")
+
+	require.NoError(t, exchange.Err)
+	test_utils.AssertProxyReceivedOnlyTunnelRequest(t, exchange)
+	require.Len(t, exchange.EndpointRequests, 1)
+	assert.Equal(t, "AWS4-HMAC-SHA256 signature", exchange.EndpointRequests[0].Header.Get("Authorization"))
+}
+
+func buildTestS3Transport(t *testing.T, isSkipTLSVerify bool) *http.Transport {
+	t.Helper()
+
+	encryptor := encryption.GetFieldEncryptor()
+
+	accessKey, err := encryptor.Encrypt("access-key")
+	require.NoError(t, err)
+	secretKey, err := encryptor.Encrypt("secret-key")
+	require.NoError(t, err)
+
+	storage := &S3Storage{
+		S3Bucket:      "test-bucket",
+		S3Region:      "us-east-1",
+		S3AccessKey:   accessKey,
+		S3SecretKey:   secretKey,
+		S3Endpoint:    "https://s3.example.com",
+		SkipTLSVerify: isSkipTLSVerify,
+	}
+
+	_, _, _, _, _, transport, err := storage.getClientParams(encryptor)
+	require.NoError(t, err)
+
+	return transport
 }

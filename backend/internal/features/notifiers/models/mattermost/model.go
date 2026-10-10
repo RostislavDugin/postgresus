@@ -297,6 +297,7 @@ func (m *MattermostNotifier) newHTTPClient() *http.Client {
 
 	if m.IsInsecureSkipVerify {
 		client.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{
 				MinVersion:         tls.VersionTLS12,
 				InsecureSkipVerify: true,

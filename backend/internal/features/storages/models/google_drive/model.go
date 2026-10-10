@@ -616,6 +616,7 @@ func (s *GoogleDriveStorage) getDriveService(
 
 func (s *GoogleDriveStorage) buildHTTPClient(tokenSource oauth2.TokenSource) *http.Client {
 	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: gdConnectTimeout,
 		}).DialContext,

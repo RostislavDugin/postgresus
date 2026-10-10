@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/testing/containers"
 )
 
@@ -122,4 +125,35 @@ func Test_DiscardUncommittedBlocks_WhenNothingExists_Succeeds(t *testing.T) {
 	storage, client, _ := startAzurite(t)
 
 	assert.NoError(t, storage.discardUncommittedBlocks(t.Context(), client, "absent-"+uuid.New().String()))
+}
+
+func Test_BuildClientOptions_Transport_ResolvesProxyFromEnvironment(t *testing.T) {
+	transport := getAzureTransport(t)
+
+	require.NotNil(t, transport.Proxy)
+	assert.Equal(t,
+		reflect.ValueOf(http.ProxyFromEnvironment).Pointer(),
+		reflect.ValueOf(transport.Proxy).Pointer(),
+	)
+}
+
+func Test_BuildClientOptions_TransportThroughProxy_TunnelsAndRejectsUntrustedCertificate(t *testing.T) {
+	exchange := test_utils.SendThroughTunnelProxy(t, getAzureTransport(t), "SharedKey account:signature")
+
+	test_utils.AssertProxyReceivedOnlyTunnelRequest(t, exchange)
+	test_utils.AssertCertificateRejected(t, exchange)
+}
+
+func getAzureTransport(t *testing.T) *http.Transport {
+	t.Helper()
+
+	options := (&AzureBlobStorage{}).buildClientOptions()
+
+	client, isClient := options.Transport.(*http.Client)
+	require.True(t, isClient, "Azure client options must carry an *http.Client")
+
+	transport, isTransport := client.Transport.(*http.Transport)
+	require.True(t, isTransport, "Azure HTTP client must use an *http.Transport")
+
+	return transport
 }

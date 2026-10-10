@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -31,8 +30,6 @@ import (
 )
 
 const (
-	backupTimeout            = 23 * time.Hour
-	shutdownCheckInterval    = 1 * time.Second
 	copyBufferSize           = 8 * 1024 * 1024
 	progressReportIntervalMB = 1.0
 	pgConnectTimeout         = 30
@@ -40,11 +37,6 @@ const (
 	exitCodeAccessViolation  = -1073741819
 	exitCodeGenericError     = 1
 	exitCodeConnectionError  = 2
-)
-
-var (
-	errBackupShutdown = errors.New("backup cancelled due to shutdown")
-	errBackupTimeout  = errors.New("backup cancelled due to timeout")
 )
 
 type CreatePostgresqlBackupUsecase struct {
@@ -141,7 +133,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 ) (*backups_core_logical.BackupArtifacts, error) {
 	uc.logger.InfoContext(parentCtx, "streaming PostgreSQL backup to storage", "pg_bin", pgBin, "args", args)
 
-	ctx, cancel := uc.createBackupContext(parentCtx)
+	ctx, cancel := backups_core_logical.NewBackupContext(parentCtx)
 	defer cancel(nil)
 
 	credentials, err := postgresql_shared.WriteCredentialFilesToTempDir(
@@ -237,7 +229,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	select {
 	case <-ctx.Done():
 		uc.cleanupOnCancellation(encryptionWriter, storageWriter, fileWrite.Errors)
-		return nil, uc.classifyCancellation(ctx)
+		return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 	default:
 	}
 
@@ -257,18 +249,18 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 
 	switch {
 	case waitErr != nil:
-		if err := uc.checkCancellation(ctx); err != nil {
-			return nil, err
+		if ctx.Err() != nil {
+			return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 		}
 		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput, pgBin, args, password)
 	case copyErr != nil:
-		if err := uc.checkCancellation(ctx); err != nil {
-			return nil, err
+		if ctx.Err() != nil {
+			return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 		}
 		return nil, fmt.Errorf("copy to storage: %w", copyErr)
 	case saveErr != nil:
-		if err := uc.checkCancellation(ctx); err != nil {
-			return nil, err
+		if ctx.Err() != nil {
+			return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 		}
 		return nil, fmt.Errorf("save to storage: %w", saveErr)
 	}
@@ -398,38 +390,6 @@ func (uc *CreatePostgresqlBackupUsecase) isOlderPostgresVersion(
 		version == tools.PostgresqlVersion13 ||
 		version == tools.PostgresqlVersion14 ||
 		version == tools.PostgresqlVersion15
-}
-
-func (uc *CreatePostgresqlBackupUsecase) createBackupContext(
-	parentCtx context.Context,
-) (context.Context, context.CancelCauseFunc) {
-	ctx, cancel := context.WithCancelCause(parentCtx)
-
-	timeout := time.AfterFunc(backupTimeout, func() { cancel(errBackupTimeout) })
-
-	go func() {
-		defer timeout.Stop()
-
-		ticker := time.NewTicker(shutdownCheckInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-parentCtx.Done():
-				cancel(context.Cause(parentCtx))
-				return
-			case <-ticker.C:
-				if config.IsShouldShutdown() {
-					cancel(errBackupShutdown)
-					return
-				}
-			}
-		}
-	}()
-
-	return ctx, cancel
 }
 
 func (uc *CreatePostgresqlBackupUsecase) setupPgEnvironment(
@@ -565,29 +525,6 @@ func (uc *CreatePostgresqlBackupUsecase) closeWriters(
 	}
 
 	return nil
-}
-
-func (uc *CreatePostgresqlBackupUsecase) checkCancellation(ctx context.Context) error {
-	if ctx.Err() == nil {
-		return nil
-	}
-
-	return uc.classifyCancellation(ctx)
-}
-
-func (uc *CreatePostgresqlBackupUsecase) classifyCancellation(ctx context.Context) error {
-	cause := context.Cause(ctx)
-
-	switch {
-	case errors.Is(cause, errBackupShutdown):
-		return errors.New("backup cancelled due to shutdown")
-	case errors.Is(cause, errBackupTimeout):
-		return errors.New("backup cancelled due to timeout")
-	case cause == nil, errors.Is(cause, context.Canceled), errors.Is(cause, context.DeadlineExceeded):
-		return errors.New("backup cancelled")
-	default:
-		return fmt.Errorf("save to storage: %w", cause)
-	}
 }
 
 func (uc *CreatePostgresqlBackupUsecase) buildPgDumpErrorMessage(
