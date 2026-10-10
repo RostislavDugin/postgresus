@@ -7,6 +7,16 @@ lint:
 format:
     golangci-lint fmt ./cmd/... ./internal/...
 
+# The libedit shim lets the bundled PostgreSQL clients start on Fedora; without it a package that
+# checks them at startup exits before its first test.
+# Run the given test packages, e.g. just test-package ./internal/features/intervals/...
+test-package +packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source ../scripts/fedora.sh
+    apply_libedit_shim
+    go test -count=1 {{ packages }}
+
 clean-testcontainers:
     #!/usr/bin/env bash
     set -euo pipefail

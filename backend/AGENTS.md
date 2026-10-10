@@ -303,7 +303,7 @@ Generate the migration stub with the goose create command from the [command tabl
 
 **Always run tests after writing them and verify they pass.**
 
-Run the package you touched (`go test ./internal/features/<feature>/... -count=1`) and keep `just test` for the end of a change — see [Several agents, one set of containers](../AGENTS.md#several-agents-one-set-of-containers).
+Run the packages you touched and the ones that test the same feature (`just test-package ./internal/features/<feature>/...`). Never run `just test` — see [Several agents, one set of containers](../AGENTS.md#several-agents-one-set-of-containers).
 
 ### Naming
 

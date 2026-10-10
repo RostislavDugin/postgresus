@@ -35,6 +35,7 @@ Review only the requirements of your delta spec.
 
 - Check that every scenario of the delta specs is covered by a task with a test.
 - Check that every task has a verification: a test, a command or a repository search.
+- Check that every task closes without the user and without the full backend suite. Local tests of the touched packages and of the packages that test the same feature are enough. A task that runs `just test` or `just test-filesystem`, or waits on the user, CI or a push, is a `tasks` finding. Never ask for the full suite to be added.
 - Check that the task order can be followed: no task relies on something that appears only in a later one.
 
 ### Role: repeat review

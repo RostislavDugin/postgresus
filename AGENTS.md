@@ -34,6 +34,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 |---|---|
 | `just run` | Start the app locally: dev database, test fixtures, WAL backup source with its load generator, backend and frontend |
 | `just test` | Run the full backend suite |
+| `just test-package <packages>`, run in `backend/` | Run the given backend test packages |
 | `just test-filesystem` | Run the Docker filesystem suite, mostly left to CI |
 | `just pull-testcontainers` | Pull the database images the backend tests use |
 | `just lint` | Check every module without changing files |
@@ -47,7 +48,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 Several agents may work on this repo at once, in different worktrees, sharing one Docker daemon, one set of test containers and one pool of test metadata databases. Don't let that stop you from running tests — simultaneous runs are rare and usually harmless. Two habits keep them that way:
 
 - Lint and format whenever you want: the linters, the formatters and the frontend's `pnpm test` touch nothing shared.
-- Test the package you touched with `go test ./internal/features/<feature>/... -count=1`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). Leave `just test` for the end of a change, because it resets the test containers and slot databases every other agent uses. A fresh environment needs one full run first.
+- Test the packages you touched, and the packages that test the same feature, with `just test-package ./internal/features/<feature>/...` in `backend/`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). An agent never runs `just test`, not even at the end of a change, and never makes finishing a task depend on it: it resets the test containers and slot databases every other agent uses. The full suite is for the developer and CI. A fresh environment needs one full run first, which the developer starts.
 
 When a failure makes no sense — a container that vanished, a database that emptied itself — a parallel run is worth suspecting in maybe one case in twenty. Re-run before hunting the bug.
 
