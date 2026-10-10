@@ -5,11 +5,12 @@ This is NOT a strict set of rules — it is a set of recommendations to help wri
 
 Per-folder rules live next to the code they govern:
 
-- [`backend/AGENTS.md`](backend/AGENTS.md) — Go + Gin + GORM + PostgreSQL backend (controllers, migrations, CRUD, DI, testing, logging)
-- [`agent/verification/AGENTS.md`](agent/verification/AGENTS.md) — Go verification agent CLI (self-update + capacity heartbeat; restore logic deferred)
-- [`frontend/AGENTS.md`](frontend/AGENTS.md) — React 19 + TypeScript + Vite + Ant Design + Tailwind
-- [`website/AGENTS.md`](website/AGENTS.md) — Next.js marketing site and its 6-language translation rules
+- [`backend/AGENTS.md`](backend/AGENTS.md) — backend code rules, Go + Gin + GORM + PostgreSQL
+- [`agent/verification/AGENTS.md`](agent/verification/AGENTS.md) — verification agent code rules, Go CLI
+- [`frontend/AGENTS.md`](frontend/AGENTS.md) — frontend code rules, React + TypeScript + Vite + Ant Design + Tailwind
+- [`website/AGENTS.md`](website/AGENTS.md) — marketing site rules and its translations, Next.js
 - [`assets/readme/AGENTS.md`](assets/readme/AGENTS.md) — translated copies of the root `README.md`
+- [`adr/AGENTS.md`](adr/AGENTS.md) — how to write architecture decision records
 
 This root file holds the engineering philosophy that applies everywhere.
 
@@ -27,16 +28,16 @@ Reply to the user in the language they write in, and keep everything committed t
 
 ## Development environment
 
-Work happens inside the repo's [Dev Container](.devcontainer/devcontainer.json). The container ships Go, Node.js + pnpm, Docker-in-Docker, linters and matching VS Code extensions, so the toolchain is identical for every contributor. Ports `4005` (backend) and `5173` (Vite) are forwarded automatically. Don't install or rely on host-level SDKs — run `make`, `pnpm` and `docker` commands from inside the container.
+Work happens inside the repo's [Dev Container](.devcontainer/devcontainer.json), so the toolchain is identical for every contributor. Don't install or rely on host-level SDKs — run `make`, `pnpm` and `docker` commands from inside the container.
 
-Running the backend suite host-native is supported on Fedora via `make test-fedora`, which shims the Debian soname the bundled `assets/tools` clients expect. Any other host distro is on its own — the container stays the reference environment. Also project sometimes is run in different worktrees, in this case it is needed to copy .env.example -> .env, `make swagger` and `pnpm install` to run tests
+On a Fedora host the backend suite may run host-native through `make test-fedora`. Any other host distro is on its own — the container stays the reference environment. In a fresh worktree, copy `.env.example` to `.env` and run `make swagger` and `pnpm install` before running tests.
 
 ### Several agents, one set of containers
 
 Several agents may work on this repo at once, in different worktrees, sharing one Docker daemon, one set of test containers and one pool of test metadata databases. Don't let that stop you from running tests — simultaneous runs are rare and usually harmless. Two habits keep them that way:
 
-- Lint and format whenever you want. `make lint`, `pnpm lint`, `pnpm format`, `npm run lint` and the frontend's `pnpm test` touch nothing shared.
-- Test the package you touched: `go test ./internal/features/<feature>/... -count=1` loads the repo-root `.env` itself and claims a free database slot through an advisory lock (`backend/internal/config/config.go`). Leave `make test` and `make test-fedora` for the end of a change — they start by removing every `org.testcontainers` container and recreating every slot database, which those slots also come from, so a fresh environment needs one full run first.
+- Lint and format whenever you want: the linters, the formatters and the frontend's `pnpm test` touch nothing shared.
+- Test the package you touched with `go test ./internal/features/<feature>/... -count=1`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). Leave `make test` and `make test-fedora` for the end of a change, because they reset the test containers and slot databases every other agent uses. A fresh environment needs one full run first.
 
 When a failure makes no sense — a container that vanished, a database that emptied itself — a parallel run is worth suspecting in maybe one case in twenty. Re-run before hunting the bug.
 
@@ -76,18 +77,35 @@ The dictionaries are the only target-language text anywhere under `frontend/`, `
 
 Reread the diff with fresh eyes and **list** (don't silently apply) refactor suggestions: unclear names, duplication, dead code, deep nesting, misplaced responsibilities, leaky abstractions. Keep suggestions concrete (file + lines), behavior-preserving, and scoped to the current change. If the diff is already clean, say so in one line.
 
-### Mandatory compliance review
+### Review hooks
 
-Every non-trivial change is audited twice against this document **and** the module doc for each area it touches (`backend/AGENTS.md`, `agent/verification/AGENTS.md`, `frontend/AGENTS.md`, `website/AGENTS.md`, `assets/readme/AGENTS.md`). The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both. The rules the audit applies live in [`.claude/agents/reviewer.md`](.claude/agents/reviewer.md).
+Every change answers to this document **and** the module doc for each area it touches. The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
 
-1. **After planning, before the user sees the plan** — it checks the approach, the proposed names, file placement, and any planned backward-compat shims while they're still cheap to change.
-2. **After implementing, before finishing the turn** — it checks the working-tree diff, the OpenSpec artifacts, and the final response.
+Which review hooks exist, when they run and which model reviews are described in the docstring and comments of [`.agent-hooks/review_gate.py`](.agent-hooks/review_gate.py), the reviewer prompts in `.agent-hooks/*-prompt.md`, and the specs `openspec/specs/proposal-review` and `openspec/specs/implementation-review`.
 
-Hooks in [`.claude/settings.json`](.claude/settings.json) and [`.codex/hooks.json`](.codex/hooks.json) run both checkpoints through [`.agent-hooks/review_gate.py`](.agent-hooks/review_gate.py). It starts a separate read-only Claude Opus 5 process at low effort. That process reviews a plan before `ExitPlanMode` shows it to the user, and reviews the finished turn before the agent stops. A rejection comes back as feedback that starts with `AUTOMATIC REVIEW:`. Fix what it names. After three rejected revisions, or when the reviewer cannot run, the hook stops the agent and does not accept the result. Do not also invoke the `reviewer` subagent yourself while the hooks are active. The gate does not run linters, so run the linter for each directory the diff touches before finishing.
+What the agent does with findings:
 
-If hooks are disabled, invoke the `reviewer` subagent yourself at both checkpoints. It is read-only: it reports findings, you apply the fixes. Resolve every `CHANGES REQUIRED` finding before moving on.
+- A blocking finding is resolved by the agent itself, without asking the user, and then the agent finishes the turn again. It fixes the code, the documentation or the change's artifacts; when the implementation is right, it fixes the delta spec. A false finding is rejected with the reason in the response.
+- A `minor` finding is optional.
+- A `scope` finding proposes cutting the feature. The agent does not apply it; the summary shows the user what they lose and what they save, and the user decides.
+- Run the linter and formatter for each directory the diff touches before finishing.
 
-> At both checkpoints, the reviewer also applies [the how-to-communicate skill](.agents/skills/humanizer/SKILL.md) to every agent-authored response, plan, document, OpenSpec artifact, review finding, commit or pull request text, and code comment available in scope. Before editing a code comment, it first checks whether clearer naming or a smaller function can remove the comment. It flags removable comments instead of rewriting them. Editing must preserve facts, behavior, scope and technical meaning.
+### The best code is unwritten
+
+Before doing a task, check whether it is needed in this form. If the feature can be skipped or done much more simply, offer that to the user before implementing: what they lose and what they save.
+
+- Product: an existing feature, a manual process or an external service already covers the need; a narrower option covers the same need; a setting, screen or scenario is rarely needed and costs more than it gives.
+- Code: what is needed already exists in the repository or its dependencies; a small refactoring lets existing code be reused instead of writing new code; the standard library or a ready tool is enough.
+
+The user decides; the task is never cut without their consent. Simplify code within the task yourself, and agree a large rework first per [Refactoring within a feature](#refactoring-within-a-feature).
+
+### Refactoring within a feature
+
+The system improves gradually, along with ordinary tasks. If code the task touches stands in the way of the task or breaks the rules of the module docs or an accepted ADR, the refactoring is part of the same task; no separate task for later. The refactoring is limited to the code the task works with and does not touch other agents' changes in the working tree. Agree a large rework that goes beyond the task with the user first.
+
+### Other agents' changes in the working tree
+
+Several agents sometimes work in one branch at once. A file or change the agent did not create within the current request belongs to someone else. Never delete, revert, format, stage or commit someone else's changes. If they must be moved aside with `git stash` before a commit, ask the user first.
 
 ### Naming
 
@@ -173,7 +191,7 @@ Don't preserve backward compatibility unless the user asks for it. No deprecatio
 
 ### Security
 
-Databasus handles sensitive data, so security is a layered defence. CodeQL, CodeRabbit, Codex Security, Trivy, Dependabot, gitleaks and semgrep all run on every PR. When working in the repo:
+Databasus handles sensitive data, so security is a layered defence. When working in the repo:
 
 - Don't disable or weaken security checks to make a build pass. For genuine false positives, suppress explicitly with a documented reason (e.g. `.trivyignore`) and explain why in the PR.
 - Pin every new GitHub Action to a full commit SHA with a `# vX.Y.Z` tag comment. No floating tags like `@v4` or `@main`.
@@ -182,6 +200,52 @@ Databasus handles sensitive data, so security is a layered defence. CodeQL, Code
 - Never log secrets, tokens or credentials. Redact at the logger layer, not at call sites.
 
 The README's `🛡️ Security & reliability engineering` section is the public-facing version of these practices — keep both consistent if substance changes. That section, like the rest of `README.md`, exists in 6 languages: a substantive edit lands in the English file and in all five `assets/readme/README.<locale>.md` copies.
+
+---
+
+## Documentation consistency
+
+All project documentation agrees with itself and with the code: every `AGENTS.md`, `adr/`, `docs/`, the repository's own skills, the READMEs and code comments. OpenSpec specs and changes are outside this rule; the OpenSpec process keeps them consistent.
+
+When an edit in one place affects others, update every affected place in the same task: a renamed command, a changed rule, a new path, a different order of steps. Before handing the work over, search the repository for every mention of what changed and bring them in line.
+
+Agent instructions are the git-tracked `AGENTS.md` files and the repository's own skills under `.agents/skills`, that is every skill except the generated `openspec-*`. They hold principles and conventions that change how the agent behaves and outlive the next feature, not the implementation. An instruction changes when a rule changes, not when the code it points to changes. It may hold a table of documents with the topic of each, a table of commands with the purpose of each, the stack of a part, a link to a file as an example or a source of values, and one sentence saying that a linter enforces a rule.
+
+Everything else lives next to what it describes:
+
+| What | Where |
+|---|---|
+| Inventories of what exists: features, endpoints, checks, tools | the code, the generated API description, the program's README |
+| The state of the code, "currently" and "for now" statements about it | the code and its comments, `docs/` |
+| How a process, module, command or deployment works; helper signatures and options | the code and its comments, `docs/`, `README.md` |
+| Why an architectural choice was made | `adr/` |
+| How the review hooks work | the docstring and comments of `.agent-hooks/review_gate.py`, the prompts `.agent-hooks/*-prompt.md`, the specs `openspec/specs/implementation-review` and `openspec/specs/proposal-review` |
+| The sections of a document | the document itself |
+
+An ordinary feature does not change agent instructions. If a feature needs to, first check that what you add does not belong in the table above.
+
+One rule is written in one place. Other documents link to it instead of retelling it. If you find a contradiction between documents that is unrelated to the task, do not fix it silently: report it in the response.
+
+---
+
+## OpenSpec
+
+A request to write a spec, write up a change or write its artifacts goes through the `openspec-propose` skill, and an edit to a finished change through `openspec-update-change`. This way the change gets every artifact in OpenSpec format at once.
+
+### Discussing a task in explore
+
+When the agent works through a task with the user in `/opsx:explore` or the `openspec-explore` skill, it builds the answer from the essence to the mechanics:
+
+1. What needs to be done, without technical details: what problem exists now, what changes for the Databasus user or for the team, what is out of scope.
+2. How it works now. The agent explains the parts of the system the task touches in plain words. It introduces a feature, a service, a migration and other terms before their first use, following the [how-to-communicate skill](.agents/skills/humanizer/SKILL.md). It quotes no code without explaining it.
+3. How it will work: an ASCII diagram and a short step-by-step story.
+4. Decisions: each as a separate point with its reason and with what breaks under the other choice.
+5. How to tell the task is done: tests and observable signs.
+6. Which documents will change.
+
+The agent settles technical questions that have an optimal answer itself and explains the choice in point 4. It asks the user only about what the user decides: the size of the feature, product rules, cutting the task per [The best code is unwritten](#the-best-code-is-unwritten). The question goes at the end of the answer, one at a time.
+
+---
 
 ## Committing
 

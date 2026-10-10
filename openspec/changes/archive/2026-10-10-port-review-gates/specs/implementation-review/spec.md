@@ -1,0 +1,106 @@
+## ADDED Requirements
+
+### Requirement: The full implementation review starts after a change is implemented
+The hook that runs when the agent finishes a turn, in Claude Code and in Codex, SHALL start the full implementation review when all of these hold: every task of an active change is checked, the working tree changed during this turn, and its state differs from the last state the full implementation review accepted for this change. The accepted state SHALL be stored per change, not per session. The full implementation review MUST NOT start while a task is unchecked, in a turn that left the working tree unchanged, or in a turn whose request carries an OpenSpec planning command. Archived changes are not reviewed.
+
+#### Scenario: The agent checks the last task
+- **WHEN** the agent checks the last task of a change and finishes the turn
+- **THEN** the hook starts the full implementation review of that change
+
+#### Scenario: Tasks remain
+- **WHEN** a task of the change is unchecked and the agent finishes the turn
+- **THEN** the full implementation review does not start and only the quick checks run
+
+#### Scenario: A turn without changes
+- **WHEN** every task of the change is checked but the working tree did not change during the turn
+- **THEN** the full implementation review does not start
+
+#### Scenario: New session after acceptance
+- **WHEN** the full implementation review accepted a change in one session, and in a new session the agent finishes a turn with the working tree still in the accepted state
+- **THEN** the full implementation review does not start again
+
+#### Scenario: Edit after acceptance
+- **WHEN** after an accepted review the agent changes files and finishes the turn
+- **THEN** the full implementation review starts again
+
+### Requirement: Read-only checks of the touched modules run first
+Before starting reviewers the hook SHALL run the checks of every module the working tree changes relative to the last commit: the Go linter for the backend and for the verification agent, the linter for the frontend, the linter and the build for the website, and the hook tests when the hooks changed. The checks MUST NOT modify files, so formatters do not run. The hook MUST NOT run the backend test suites. When a check fails, the hook SHALL block the turn and pass the agent the command and the end of its output. Reviewers MUST NOT start in that case.
+
+#### Scenario: The backend linter fails
+- **WHEN** the change touches the backend and its linter fails
+- **THEN** the turn is blocked, the agent gets the end of the linter output, and no reviewer starts
+
+#### Scenario: Only the frontend changed
+- **WHEN** the change touches only the frontend
+- **THEN** the hook runs the frontend linter and no backend, agent or website check
+
+#### Scenario: The website changed
+- **WHEN** the change touches the website
+- **THEN** the hook runs both the website linter and the website build
+
+### Requirement: What the full implementation review checks
+The full implementation review SHALL run several read-only reviewers in parallel: one per delta spec of the change and one for documentation and the task list. The delta spec reviewer SHALL find the code and the test for every requirement and scenario, check that the test actually proves the scenario, check the design decisions against the code, and look for bugs. The documentation reviewer SHALL check that everything each task states was done, including its verification, and that documentation agrees with itself and with the code. The documentation reviewer SHALL also check edits to agent instructions made by the change against the requirement "What belongs in agent instructions" of the `agent-instructions` capability.
+
+#### Scenario: A scenario without a test
+- **WHEN** a delta spec scenario has no test, or its test passes without the described behavior
+- **THEN** the reviewer returns a `missing_test` finding with the path to the test or code
+
+#### Scenario: Documentation lags behind
+- **WHEN** the change adds an environment variable and the configuration documentation does not mention it
+- **THEN** the documentation reviewer returns a `docs` finding
+
+#### Scenario: The change retells a document in AGENTS.md
+- **WHEN** the change adds a list of a module doc's sections to the root `AGENTS.md`
+- **THEN** the documentation reviewer returns a `docs` finding that suggests naming the doc's topic instead
+
+#### Scenario: The change adds a rule to AGENTS.md
+- **WHEN** the change adds a rule to `AGENTS.md` that changes agent behavior and is written nowhere else
+- **THEN** the documentation reviewer returns no finding under the instruction content criterion
+
+### Requirement: Full review models
+The full review reviewers SHALL run on Opus with `medium` effort in Claude Code and on `gpt-6.1-sol` with `high` effort in Codex. The quick checks SHALL run on Opus with `low` effort in Claude Code and on `gpt-6.1-sol` with `low` effort in Codex.
+
+#### Scenario: Review in Codex
+- **WHEN** the full review starts from Codex
+- **THEN** the reviewers run on `gpt-6.1-sol` with `high` effort
+
+#### Scenario: Quick check in Claude Code
+- **WHEN** the diff check starts from Claude Code
+- **THEN** the reviewer runs on Opus with `low` effort
+
+### Requirement: Which findings block the turn
+A reviewer SHALL return findings, each with a category (`bug`, `spec_mismatch`, `missing_test`, `docs`, `minor`), a path and a description. The hook SHALL block the turn when at least one finding is not `minor`, and pass the agent every finding with `minor` marked optional. When the turn is not blocked, the user SHALL see the `minor` findings. The block text SHALL require the agent to resolve every finding without asking the user: fix the code or, when the implementation is right, the change's delta spec. With no findings or only `minor` ones, the review SHALL count as accepted. When the review accepts the change after at least one block within this user request, the hook SHALL block the turn once and ask the agent to write the user a summary of the whole implementation, including each review round, and pass the `minor` findings in that request.
+
+#### Scenario: Only minor findings
+- **WHEN** every finding is `minor`, and no earlier review in this request blocked the turn
+- **THEN** the state is stored as accepted and the user sees the findings
+
+#### Scenario: Accepted after fixes
+- **WHEN** a repeat review accepts a change the previous review blocked
+- **THEN** the hook blocks the turn once and asks the agent for a summary of the whole implementation, and the next turn without edits is not blocked
+
+#### Scenario: A bug is found
+- **WHEN** a reviewer returns a `bug` finding
+- **THEN** the turn is blocked, and the agent gets every finding with the instruction to resolve them itself
+
+#### Scenario: The reviewer cannot run
+- **WHEN** the reviewer process crashes or times out
+- **THEN** the review is not accepted and the agent gets the failure reason
+
+### Requirement: Repeat review after fixes
+After a blocked full review the next run SHALL check the previous findings and the files changed after that review, not the whole change again. The repeat SHALL run on the same models. There SHALL be at most two repeats per user request, after which the hook SHALL stop the agent and show the remaining findings.
+
+#### Scenario: Findings are fixed
+- **WHEN** the agent fixed every finding of the previous review and finishes the turn
+- **THEN** the repeat review checks the previous findings and the new edits and accepts the change
+
+#### Scenario: Repeat limit
+- **WHEN** the third review in a row within one user request blocks the turn again
+- **THEN** the hook stops the agent and shows the remaining findings
+
+### Requirement: The necessity check does not interfere with fixes
+While a change has an unaccepted full implementation review, the necessity check MUST NOT start because of edits to that change's artifacts.
+
+#### Scenario: The agent fixes a delta spec after a finding
+- **WHEN** after a `spec_mismatch` finding the agent edits the change's delta spec and finishes the turn
+- **THEN** the necessity check does not start, and the full review checks the edit

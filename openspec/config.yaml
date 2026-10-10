@@ -29,8 +29,9 @@ context: |
     booleans take is/can/has/should.
   - Work happens inside the repo Dev Container. Commands are make (backend,
     agent) and pnpm (frontend).
-  - Every non-trivial change is audited by the reviewer subagent
-    twice: after planning and after implementation.
+  - Review hooks gate plans, finished turns, full proposals and full
+    implementations. Resolve their findings as the "Review hooks" section
+    of AGENTS.md says.
 
 rules:
   proposal:
@@ -46,6 +47,7 @@ rules:
     - Humanize all prose in embedded mode before writing the artifact.
     - For each decision, name the alternatives rejected and why. A decision with no alternatives listed is a description, not a decision.
     - Ground claims about current state in file:line references.
+    - Ground architecture decisions in the module AGENTS.md architecture rules and the accepted ADRs in adr/.
     - Say which module AGENTS.md rules the approach is constrained by.
   tasks:
     - Humanize all prose in embedded mode before writing the artifact.
@@ -58,7 +60,7 @@ operations:
   apply:
     guidance:
       - Run the linter for every directory the diff touches before finishing.
-      - Run reviewer after planning and again before finishing the turn; resolve every CHANGES REQUIRED finding.
+      - Resolve every blocking review hook finding before finishing; never apply a scope finding without the user's consent.
       - Never commit or push without explicit approval. No AI attribution trailers in commit messages.
   archive:
     guidance:
