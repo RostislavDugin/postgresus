@@ -22,6 +22,10 @@ const dataDirTmpfsOptions = "rw,size=512m"
 
 const loopbackIP = "127.0.0.1"
 
+// One retry covers a transient boot failure, a second covers a back-to-back repeat under the same
+// load spike. More would only delay the report of a genuinely broken image.
+const containerBootAttempts = 3
+
 // Endpoint is the reachable address of a started container's primary port.
 type Endpoint struct {
 	Host string
@@ -87,19 +91,7 @@ func startUnpublished(t *testing.T, req testcontainers.ContainerRequest, placeme
 	req.Networks = []string{placement.NetworkName}
 	req.NetworkAliases = map[string][]string{placement.NetworkName: {placement.Alias}}
 
-	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("failed to start %s container: %v", req.Image, err)
-	}
-
-	t.Cleanup(func() {
-		if err := container.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate %s container: %v", req.Image, err)
-		}
-	})
+	bootContainer(t, req)
 }
 
 func start(t *testing.T, req testcontainers.ContainerRequest, mappedPort string) Endpoint {
@@ -111,21 +103,46 @@ func start(t *testing.T, req testcontainers.ContainerRequest, mappedPort string)
 func startContainer(t *testing.T, req testcontainers.ContainerRequest, mappedPort string) ContainerHandle {
 	t.Helper()
 
-	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("failed to start %s container: %v", req.Image, err)
-	}
-
-	t.Cleanup(func() {
-		if err := container.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate %s container: %v", req.Image, err)
-		}
-	})
+	container := bootContainer(t, req)
 
 	return ContainerHandle{Endpoint: endpointOf(t, container, mappedPort), Container: container}
+}
+
+// A boot can fail for reasons outside the test under CPU contention: the mongo entrypoint, for one,
+// starts mongod twice and the second start sometimes cannot bind its port and exits with code 48.
+// Each failed attempt is logged, so an image that keeps needing a retry still shows up in the output.
+func bootContainer(t *testing.T, req testcontainers.ContainerRequest) testcontainers.Container {
+	t.Helper()
+
+	var lastErr error
+
+	for attempt := 1; attempt <= containerBootAttempts; attempt++ {
+		container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
+		})
+		if err == nil {
+			t.Cleanup(func() {
+				if err := container.Terminate(context.Background()); err != nil {
+					t.Logf("failed to terminate %s container: %v", req.Image, err)
+				}
+			})
+
+			return container
+		}
+
+		lastErr = err
+		t.Logf("attempt %d/%d to start %s container failed: %v", attempt, containerBootAttempts, req.Image, err)
+
+		// GenericContainer hands back the half-started container alongside the error.
+		if err := testcontainers.TerminateContainer(container); err != nil {
+			t.Logf("failed to terminate %s container after a failed start: %v", req.Image, err)
+		}
+	}
+
+	t.Fatalf("failed to start %s container after %d attempts: %v", req.Image, containerBootAttempts, lastErr)
+
+	return nil
 }
 
 // The MySQL client resolves the name "localhost" to a unix socket rather than TCP, and the server

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
@@ -89,32 +90,61 @@ func startBastion(t *testing.T, topology containers.BastionedDatabase) {
 	t.Helper()
 
 	require.NoError(t, topology.BastionContainer.Start(context.Background()))
-	waitForBastionAccepting(t, topology.Bastion, 90*time.Second)
+	waitForBastionAuthenticating(t, topology.Bastion, 90*time.Second)
 }
 
-// Dialling rather than checking the container state: a running container whose sshd has not finished
-// binding still refuses connections. The address is the one from before the outage on purpose — the
-// backend's forwarder has been retrying it all along, and if the restart moved it the premise of the
-// test is gone rather than merely slow.
-func waitForBastionAccepting(t *testing.T, bastion containers.Endpoint, timeout time.Duration) {
+// A completed SSH handshake rather than an accepted TCP connection: after a restart the published
+// port and even sshd's own listener can be up while the first handshake is still reset, and the
+// test's next step is exactly such a handshake. The address is the one from before the outage on
+// purpose — the backend's forwarder has been retrying it all along, and if the restart moved it the
+// premise of the test is gone rather than merely slow.
+func waitForBastionAuthenticating(t *testing.T, bastion containers.Endpoint, timeout time.Duration) {
 	t.Helper()
 
 	address := net.JoinHostPort(bastion.Host, strconv.Itoa(bastion.Port))
-	dialer := net.Dialer{Timeout: time.Second}
+
+	var lastErr error
 
 	deadline := time.Now().UTC().Add(timeout)
 	for time.Now().UTC().Before(deadline) {
-		conn, err := dialer.DialContext(context.Background(), "tcp", address)
-		if err == nil {
-			_ = conn.Close()
-
+		lastErr = probeBastionHandshake(address)
+		if lastErr == nil {
 			return
 		}
 
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	t.Fatalf("the bastion never accepted connections at %s again within %s", address, timeout)
+	t.Fatalf("the bastion at %s never completed an ssh handshake again within %s: %v", address, timeout, lastErr)
+}
+
+func probeBastionHandshake(address string) error {
+	const probeTimeout = 5 * time.Second
+
+	dialer := net.Dialer{Timeout: probeTimeout}
+
+	conn, err := dialer.DialContext(context.Background(), "tcp", address)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
+	// The deadline bounds the handshake too, which ssh.NewClientConn would otherwise wait on forever.
+	if err := conn.SetDeadline(time.Now().UTC().Add(probeTimeout)); err != nil {
+		return err
+	}
+
+	clientConn, channels, requests, err := ssh.NewClientConn(conn, address, &ssh.ClientConfig{
+		User: containers.SshBastionUsername,
+		Auth: []ssh.AuthMethod{ssh.Password(containers.SshBastionPassword)},
+		// The throwaway test bastion regenerates its host key per image build; nothing to pin.
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return err
+	}
+
+	return ssh.NewClient(clientConn, channels, requests).Close()
 }
 
 // A FAILED row is how the supervisor hands a streamer back for reclaim, so it is exactly what an

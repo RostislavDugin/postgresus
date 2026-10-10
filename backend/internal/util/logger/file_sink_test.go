@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,12 +44,23 @@ func Test_RotatingFileWriter_WhenSizeExceeded_KeepsAtMostMaxBackupsPlusActive(t 
 
 	require.NoError(t, writer.Shutdown(t.Context()))
 
-	logFiles, err := filepath.Glob(filepath.Join(logDirectory, "databasus*.log"))
-	require.NoError(t, err)
+	globLogFiles := func() []string {
+		logFiles, globErr := filepath.Glob(filepath.Join(logDirectory, "databasus*.log"))
+		require.NoError(t, globErr)
+
+		return logFiles
+	}
+
+	// lumberjack deletes surplus backups in a background goroutine that Close does not wait for,
+	// so the cap holds only once that cleanup has caught up with the last rotation.
+	require.Eventually(t, func() bool {
+		return len(globLogFiles()) <= 4
+	}, 5*time.Second, 50*time.Millisecond, "active file plus at most 3 backups")
+
+	logFiles := globLogFiles()
 	// Both bounds matter: >1 proves rotation happened at all, <=4 proves it was capped. Asserting
 	// only the upper bound would pass if rotation never ran.
 	assert.Greater(t, len(logFiles), 1, "5.6 MB through a 1 MB limit must rotate")
-	assert.LessOrEqual(t, len(logFiles), 4, "active file plus at most 3 backups")
 
 	for _, logFile := range logFiles {
 		info, statErr := os.Stat(logFile)
