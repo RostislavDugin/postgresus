@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/api/types/system"
 	"github.com/moby/moby/client"
 
 	"databasus-verification-agent/internal/features/restore"
@@ -64,19 +66,26 @@ func (e *dockerEngine) Ping(ctx context.Context) error {
 	return err
 }
 
-func (e *dockerEngine) UserNSRemapEnabled(ctx context.Context) (bool, error) {
-	info, err := e.cli.Info(ctx, client.InfoOptions{})
+func (e *dockerEngine) GetHostCapabilities(ctx context.Context) (HostCapabilities, error) {
+	result, err := e.cli.Info(ctx, client.InfoOptions{})
 	if err != nil {
-		return false, err
+		return HostCapabilities{}, err
 	}
 
-	for _, opt := range info.Info.SecurityOptions {
-		if strings.Contains(opt, "name=userns") {
-			return true, nil
-		}
-	}
+	return toHostCapabilities(result.Info), nil
+}
 
-	return false, nil
+// toHostCapabilities requires both CFS flags because that is the daemon's own
+// condition for accepting NanoCPUs; older daemons track them separately.
+func toHostCapabilities(info system.Info) HostCapabilities {
+	isUserNSRemapEnabled := slices.ContainsFunc(info.SecurityOptions, func(opt string) bool {
+		return strings.Contains(opt, "name=userns")
+	})
+
+	return HostCapabilities{
+		IsUserNSRemapEnabled: isUserNSRemapEnabled,
+		IsCpuLimitSupported:  info.CPUCfsPeriod && info.CPUCfsQuota,
+	}
 }
 
 func (e *dockerEngine) EnsureImage(ctx context.Context, ref string) error {
