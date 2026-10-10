@@ -23,8 +23,10 @@ import {
 import { NAME_LIST_TOKEN_SEPARATORS, normalizeNameList } from '../../../../shared/lib';
 import { ClipboardHelper } from '../../../../shared/lib/ClipboardHelper';
 import { ToastHelper } from '../../../../shared/toast';
-import { ClipboardPasteModalComponent } from '../../../../shared/ui';
-import { AdvancedSettingsToggleComponent } from './AdvancedSettingsToggleComponent';
+import {
+  AdvancedSettingsToggleComponent,
+  ClipboardPasteModalComponent,
+} from '../../../../shared/ui';
 import { EditSshTunnelComponent } from './EditSshTunnelComponent';
 
 interface Props {
@@ -651,6 +653,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
         )}
 
         <AdvancedSettingsToggleComponent
+          label={t('databases.edit.advancedSettings')}
           isShowAdvanced={isShowAdvanced}
           onToggle={() => setShowAdvanced(!isShowAdvanced)}
         />

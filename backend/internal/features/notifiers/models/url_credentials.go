@@ -45,6 +45,15 @@ func ErrorWithoutWebhookURLCredentials(err error) error {
 	}
 }
 
+// A server's error response can echo the request it got, and with it a secret the request carried.
+func RedactSecretInText(text, secret string) string {
+	if secret == "" {
+		return text
+	}
+
+	return strings.ReplaceAll(text, secret, redactedURLSegment)
+}
+
 // Which segment holds the secret varies per provider. The first one usually names the endpoint and
 // is what makes a failure diagnosable, so it survives.
 func redactPathSecrets(path string) string {

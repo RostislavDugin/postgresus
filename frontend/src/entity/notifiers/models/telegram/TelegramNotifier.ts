@@ -4,6 +4,7 @@ export interface TelegramNotifier {
   threadId?: number;
   isProxyEnabled?: boolean;
   proxyUrl?: string;
+  botApiUrl?: string;
 
   // temp field
   isSendToThreadEnabled?: boolean;

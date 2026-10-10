@@ -2,7 +2,12 @@ package notifiers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -1624,4 +1629,308 @@ func createEmailNotifier(workspaceID uuid.UUID) *Notifier {
 			SMTPPort:    587,
 		},
 	}
+}
+
+func Test_SaveTelegramNotifier_WithBotAPIURL_ReturnedInClearAndClearedByUpdate(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	notifier := createTelegramNotifier(workspace.ID, "https://gateway.example.com/telegram")
+	notifier.TelegramNotifier.IsProxyEnabled = true
+	notifier.TelegramNotifier.ProxyURL = "socks5://user:password@proxy.example.com:1080"
+
+	var savedNotifier Notifier
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/notifiers", "Bearer "+owner.Token, *notifier, http.StatusOK, &savedNotifier,
+	)
+
+	retrievedNotifier := getNotifier(t, router, savedNotifier.ID, owner.Token)
+	assert.Equal(t, "https://gateway.example.com/telegram", retrievedNotifier.TelegramNotifier.BotAPIURL)
+	assert.Equal(t, "", retrievedNotifier.TelegramNotifier.BotToken)
+	assert.Equal(t, "", retrievedNotifier.TelegramNotifier.ProxyURL)
+
+	retrievedNotifier.TelegramNotifier.BotAPIURL = ""
+	test_utils.MakePostRequest(
+		t, router, "/api/v1/notifiers", "Bearer "+owner.Token, *retrievedNotifier, http.StatusOK,
+	)
+
+	updatedNotifier := getNotifier(t, router, savedNotifier.ID, owner.Token)
+	assert.Equal(t, "", updatedNotifier.TelegramNotifier.BotAPIURL)
+
+	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+}
+
+func createTelegramNotifier(workspaceID uuid.UUID, botAPIURL string) *Notifier {
+	return &Notifier{
+		WorkspaceID:  workspaceID,
+		Name:         "Test Telegram Notifier " + uuid.New().String(),
+		NotifierType: NotifierTypeTelegram,
+		TelegramNotifier: &telegram_notifier.TelegramNotifier{
+			BotToken:     testTelegramBotToken,
+			TargetChatID: "-1001234567890",
+			BotAPIURL:    botAPIURL,
+		},
+	}
+}
+
+func getNotifier(t *testing.T, router *gin.Engine, notifierID uuid.UUID, token string) *Notifier {
+	var retrievedNotifier Notifier
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers/%s", notifierID.String()),
+		"Bearer "+token,
+		http.StatusOK,
+		&retrievedNotifier,
+	)
+
+	return &retrievedNotifier
+}
+
+const (
+	testTelegramBotToken       = "123456:AAH-TESTBOTTOKEN"
+	testTelegramBotTokenSecret = "AAH-TESTBOTTOKEN"
+)
+
+func Test_SaveTelegramNotifier_WithUnusableBotAPIURL_RefusedAndStoredNotifierUnchanged(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	var savedNotifier Notifier
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/notifiers",
+		"Bearer "+owner.Token,
+		*createTelegramNotifier(workspace.ID, "https://gateway.example.com/telegram"),
+		http.StatusOK,
+		&savedNotifier,
+	)
+
+	for _, unusableBotAPIURL := range []string{
+		"ftp://telegram.example.com",
+		"https://user:password@gateway.example.com",
+		"https://gateway.example.com/telegram?key=1",
+	} {
+		t.Run(unusableBotAPIURL, func(t *testing.T) {
+			newNotifier := createTelegramNotifier(workspace.ID, unusableBotAPIURL)
+			test_utils.MakePostRequest(
+				t, router, "/api/v1/notifiers", "Bearer "+owner.Token, *newNotifier, http.StatusBadRequest,
+			)
+
+			updatedNotifier := getNotifier(t, router, savedNotifier.ID, owner.Token)
+			updatedNotifier.TelegramNotifier.BotAPIURL = unusableBotAPIURL
+			test_utils.MakePostRequest(
+				t, router, "/api/v1/notifiers", "Bearer "+owner.Token, *updatedNotifier, http.StatusBadRequest,
+			)
+
+			storedNotifier := getNotifier(t, router, savedNotifier.ID, owner.Token)
+			assert.Equal(t, "https://gateway.example.com/telegram", storedNotifier.TelegramNotifier.BotAPIURL)
+		})
+	}
+
+	var notifiers []Notifier
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers?workspace_id=%s", workspace.ID.String()),
+		"Bearer "+owner.Token,
+		http.StatusOK,
+		&notifiers,
+	)
+	assert.Len(t, notifiers, 1)
+
+	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+}
+
+func Test_SendTestNotificationExisting_TelegramWithBotAPIURL_DeliveredUnderPathPrefix(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+
+	botAPIServer := startTelegramBotAPIStub(t, http.StatusOK, `{"ok":true}`)
+
+	var savedNotifier Notifier
+	test_utils.MakePostRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/notifiers",
+		"Bearer "+owner.Token,
+		*createTelegramNotifier(workspace.ID, botAPIServer.URL+"/telegram/"),
+		http.StatusOK,
+		&savedNotifier,
+	)
+
+	test_utils.MakePostRequest(
+		t,
+		router,
+		fmt.Sprintf("/api/v1/notifiers/%s/test", savedNotifier.ID.String()),
+		"Bearer "+owner.Token,
+		nil,
+		http.StatusOK,
+	)
+
+	receivedRequests := botAPIServer.GetReceivedRequests()
+	assert.Len(t, receivedRequests, 1)
+	assert.Equal(t, "/telegram/bot"+testTelegramBotToken+"/sendMessage", receivedRequests[0].Path)
+	assert.Equal(t, "-1001234567890", receivedRequests[0].ChatID)
+
+	deleteNotifier(t, router, savedNotifier.ID, workspace.ID, owner.Token)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+}
+
+func Test_SendTestNotificationDirect_TelegramWithBotAPIURL_DeliveredUnderPathPrefix(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	botAPIServer := startTelegramBotAPIStub(t, http.StatusOK, `{"ok":true}`)
+	notifier := createTelegramNotifier(workspace.ID, botAPIServer.URL+"/telegram")
+
+	test_utils.MakePostRequest(
+		t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusOK,
+	)
+
+	receivedRequests := botAPIServer.GetReceivedRequests()
+	assert.Len(t, receivedRequests, 1)
+	assert.Equal(t, "/telegram/bot"+testTelegramBotToken+"/sendMessage", receivedRequests[0].Path)
+	assert.Equal(t, "-1001234567890", receivedRequests[0].ChatID)
+}
+
+func Test_SendTestNotificationDirect_TelegramWithUnusableBotAPIURL_RefusedWithoutRequest(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	botAPIServer := startTelegramBotAPIStub(t, http.StatusOK, `{"ok":true}`)
+	botAPIHost := strings.TrimPrefix(botAPIServer.URL, "http://")
+
+	for _, unusableBotAPIURL := range []string{
+		"ftp://" + botAPIHost + "/telegram",
+		"http://user:password@" + botAPIHost + "/telegram",
+	} {
+		t.Run(unusableBotAPIURL, func(t *testing.T) {
+			notifier := createTelegramNotifier(workspace.ID, unusableBotAPIURL)
+
+			test_utils.MakePostRequest(
+				t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusBadRequest,
+			)
+		})
+	}
+
+	assert.Empty(t, botAPIServer.GetReceivedRequests())
+}
+
+func Test_SendTestNotificationDirect_TelegramWithBotAPIURLAndProxy_SentThroughProxy(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	proxyServer := startTelegramBotAPIStub(t, http.StatusOK, `{"ok":true}`)
+
+	notifier := createTelegramNotifier(workspace.ID, "http://telegram-bot-api.invalid:8081/telegram")
+	notifier.TelegramNotifier.IsProxyEnabled = true
+	notifier.TelegramNotifier.ProxyURL = proxyServer.URL
+
+	test_utils.MakePostRequest(
+		t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusOK,
+	)
+
+	receivedRequests := proxyServer.GetReceivedRequests()
+	assert.Len(t, receivedRequests, 1)
+	assert.Equal(
+		t,
+		"http://telegram-bot-api.invalid:8081/telegram/bot"+testTelegramBotToken+"/sendMessage",
+		receivedRequests[0].RequestURI,
+	)
+}
+
+func Test_SendTestNotificationDirect_TelegramBotAPIUnreachable_ErrorNamesHostWithoutBotToken(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	closedServer := httptest.NewServer(http.NotFoundHandler())
+	closedServer.Close()
+
+	notifier := createTelegramNotifier(workspace.ID, closedServer.URL+"/telegram")
+
+	response := test_utils.MakePostRequest(
+		t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(response.Body), strings.TrimPrefix(closedServer.URL, "http://"))
+	assert.NotContains(t, string(response.Body), testTelegramBotTokenSecret)
+}
+
+type telegramBotAPIRequest struct {
+	Path       string
+	RequestURI string
+	ChatID     string
+}
+
+type telegramBotAPIStub struct {
+	URL string
+
+	mu               sync.Mutex
+	receivedRequests []telegramBotAPIRequest
+}
+
+func (s *telegramBotAPIStub) GetReceivedRequests() []telegramBotAPIRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]telegramBotAPIRequest(nil), s.receivedRequests...)
+}
+
+// Also serves as a forward proxy: a proxied request arrives with the target's absolute URL as its
+// RequestURI.
+func startTelegramBotAPIStub(t *testing.T, statusCode int, responseBody string) *telegramBotAPIStub {
+	stub := &telegramBotAPIStub{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestBody, _ := io.ReadAll(r.Body)
+		formValues, _ := url.ParseQuery(string(requestBody))
+
+		stub.mu.Lock()
+		stub.receivedRequests = append(stub.receivedRequests, telegramBotAPIRequest{
+			Path:       r.URL.Path,
+			RequestURI: r.RequestURI,
+			ChatID:     formValues.Get("chat_id"),
+		})
+		stub.mu.Unlock()
+
+		w.WriteHeader(statusCode)
+		_, _ = io.WriteString(w, strings.ReplaceAll(responseBody, "{path}", r.URL.Path))
+	}))
+	t.Cleanup(server.Close)
+
+	stub.URL = server.URL
+
+	return stub
+}
+
+func Test_SendTestNotificationDirect_TelegramBotAPIEchoesRequestPath_ErrorKeepsBodyWithoutBotToken(t *testing.T) {
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	router := createRouter()
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	botAPIServer := startTelegramBotAPIStub(t, http.StatusNotFound, "Cannot POST {path}")
+	notifier := createTelegramNotifier(workspace.ID, botAPIServer.URL+"/telegram")
+
+	response := test_utils.MakePostRequest(
+		t, router, "/api/v1/notifiers/direct-test", "Bearer "+owner.Token, *notifier, http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(response.Body), "Cannot POST /telegram/botredacted/sendMessage")
+	assert.NotContains(t, string(response.Body), testTelegramBotTokenSecret)
 }

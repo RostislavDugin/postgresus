@@ -51,4 +51,38 @@ describe('validateTelegramNotifier', () => {
       ).toBe(true);
     }
   });
+
+  it('accepts an empty Bot API URL and plain http or https addresses', () => {
+    for (const botApiUrl of [
+      undefined,
+      '',
+      'http://localhost:8081',
+      'http://telegram-bot-api:8081',
+      'https://gateway.example.com',
+      'https://gateway.example.com/telegram/',
+    ]) {
+      expect(
+        validateTelegramNotifier(true, { botToken: 'token', targetChatId: '123456', botApiUrl }),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects Bot API URLs with another scheme, no host, credentials, a query or a fragment', () => {
+    for (const botApiUrl of [
+      'ftp://telegram.example.com',
+      'telegram-bot-api:8081',
+      'https://',
+      'gateway.example.com/telegram',
+      'https://user:password@gateway.example.com',
+      'https://user@gateway.example.com',
+      'https://gateway.example.com/telegram?key=1',
+      'https://gateway.example.com/telegram?',
+      'https://gateway.example.com/#bot',
+      'https://gateway.example.com/#',
+    ]) {
+      expect(
+        validateTelegramNotifier(true, { botToken: 'token', targetChatId: '123456', botApiUrl }),
+      ).toBe(false);
+    }
+  });
 });
