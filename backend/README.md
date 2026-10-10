@@ -24,11 +24,11 @@ The backend applies pending migrations on startup. To create a migration:
 
 > goose -dir backend/migrations create MIGRATION_NAME sql
 
-To apply or roll back migrations on the dev database:
+To apply or roll back migrations on the dev database, with the variables from `.env` exported (goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment):
 
-> goose -dir backend/migrations postgres "$GOOSE_DBSTRING" up
+> goose -dir backend/migrations up
 
-> goose -dir backend/migrations postgres "$GOOSE_DBSTRING" down
+> goose -dir backend/migrations down
 
 # Swagger
 

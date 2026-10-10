@@ -39,7 +39,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 | `just lint` | Check every module without changing files |
 | `just format` | Format every module |
 | `goose -dir backend/migrations create <name> sql` | Create a migration |
-| `goose -dir backend/migrations postgres "$GOOSE_DBSTRING" up` (or `down`) | Apply or roll back migrations on the dev database |
+| `goose -dir backend/migrations up` (or `down`), with `.env` exported | Apply or roll back migrations on the dev database; goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment |
 | `swag init -d . -g cmd/main.go -o swagger`, run in `backend/` | Regenerate the API docs |
 
 ### Several agents, one set of containers

@@ -50,7 +50,7 @@ TEST_PARALLEL_WORKERS=$workers go run ./cmd/cleanup_test_db
 for ((i = 0; i < workers; i++)); do
     dbstring=$(sed -E "s#/([^/?]+)\?#/\1_w$i?#" <<<"$GOOSE_TEST_DBSTRING")
     echo "migrating slot $i"
-    goose -dir ./migrations postgres "$dbstring" up
+    GOOSE_DRIVER=postgres GOOSE_DBSTRING="$dbstring" goose -dir ./migrations up
 done
 
 TESTCONTAINERS_RYUK_DISABLED=true TEST_PARALLEL_WORKERS=$workers \
