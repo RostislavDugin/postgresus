@@ -12,3 +12,4 @@ export { LOGICAL_BACKUP_STATUS_LABEL_KEYS } from './model/LogicalBackupStatusLab
 export { RESTORE_VERIFICATION_STATUS_LABEL_KEYS } from './model/RestoreVerificationStatusLabelKeys';
 export { LOGICAL_RETENTION_POLICY_TYPE_LABEL_KEYS } from './model/LogicalRetentionPolicyTypeLabelKeys';
 export { LOGICAL_BACKUP_NOTIFICATION_TYPE_LABEL_KEYS } from './model/LogicalBackupNotificationTypeLabelKeys';
+export type { NextScheduledBackupResponse } from './model/NextScheduledBackupResponse';

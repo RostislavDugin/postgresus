@@ -295,6 +295,12 @@ export const zh: typeof en = {
     card: {
       storage: '存储：<storageName/>',
       lastBackup: '上次备份：{{relativeTime}}',
+      nextBackup: '下次备份：{{relativeTime}}',
+      nextBackupDue: '下次备份即将开始',
+      nextFullBackup: '下次全量备份：{{relativeTime}}',
+      nextFullBackupDue: '下次全量备份即将开始',
+      nextIncrementalBackup: '下次增量备份：{{relativeTime}}',
+      nextIncrementalBackupDue: '下次增量备份即将开始',
       hasBackupError: '备份出错',
     },
     tabs: {
@@ -1349,6 +1355,8 @@ export const zh: typeof en = {
         cronExpression: 'Cron 表达式（UTC）',
         timeOfDay: '时间',
         nextRun: '下次运行：{{time}}',
+        nextBackup: '下次备份：{{dateTime}}<lineBreak/>（{{relativeTime}}）',
+        nextBackupDue: '下次备份即将开始',
         invalidCron: '无效的 Cron 表达式',
         cronHelp: {
           format: 'Cron 格式：分钟 小时 日 月 星期（UTC）',

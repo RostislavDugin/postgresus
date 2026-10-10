@@ -2,6 +2,7 @@ import { getApplicationServer } from '../../../../constants';
 import RequestOptions from '../../../../shared/api/RequestOptions';
 import { apiHelper } from '../../../../shared/api/apiHelper';
 import type { GetPhysicalBackupsResponse } from '../model/GetPhysicalBackupsResponse';
+import type { NextScheduledBackupsResponse } from '../model/NextScheduledBackupsResponse';
 import type { PhysicalBackupsFilters } from '../model/PhysicalBackupsFilters';
 import type { PhysicalRestoreTokenResponse } from '../model/PhysicalRestoreTokenResponse';
 
@@ -26,6 +27,14 @@ export const physicalBackupsApi = {
 
     return apiHelper.fetchGetJson<GetPhysicalBackupsResponse>(
       `${getApplicationServer()}/api/v1/backups/physical/database/${databaseId}/backups?${params.toString()}`,
+      undefined,
+      true,
+    );
+  },
+
+  async getNextScheduledBackups(databaseId: string) {
+    return apiHelper.fetchGetJson<NextScheduledBackupsResponse>(
+      `${getApplicationServer()}/api/v1/backups/physical/database/${databaseId}/next-backups`,
       undefined,
       true,
     );

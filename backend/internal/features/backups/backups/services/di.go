@@ -61,6 +61,7 @@ var physicalBackupService = &PhysicalBackupService{
 	physical_repositories.GetWalSegmentRepository(),
 	physical_repositories.GetInFlightBackupRepository(),
 	backuping_physical.GetPhysicalBackupCanceller(),
+	backuping_physical.GetPhysicalBackupsScheduler(),
 	backups_download.GetRestoreStreamWriter(),
 	backups_download.GetRestoreTokenService(),
 	encryption_secrets.GetSecretKeyService(),

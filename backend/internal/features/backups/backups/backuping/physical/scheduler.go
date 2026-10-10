@@ -18,6 +18,7 @@ import (
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
+	"databasus-backend/internal/features/intervals"
 	storage_files "databasus-backend/internal/features/storages/files"
 	tasks_cancellation "databasus-backend/internal/features/tasks/cancellation"
 	"databasus-backend/internal/storage"
@@ -110,6 +111,61 @@ func (s *PhysicalBackupsScheduler) Run(ctx context.Context) {
 			s.lastTickTime.Store(time.Now().UTC())
 		}
 	}
+}
+
+// GetNextScheduledBackups reads the same inputs evaluateConfig and decideBackupKind act on,
+// so the reported times are when this scheduler will actually start each cadence.
+func (s *PhysicalBackupsScheduler) GetNextScheduledBackups(
+	databaseID uuid.UUID,
+	now time.Time,
+) (nextFullBackup, nextIncrementalBackup *intervals.NextTrigger, err error) {
+	backupConfig, err := s.backupConfigService.FindBackupConfigByDbId(databaseID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if backupConfig == nil || !backupConfig.IsBackupsEnabled || backupConfig.StorageID == nil {
+		return nil, nil, nil
+	}
+
+	hasUnresolvedMismatch, err := hasUnresolvedSystemIdentifierMismatch(storage.GetDb(), databaseID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if hasUnresolvedMismatch {
+		return nil, nil, nil
+	}
+
+	lastFull, err := s.fullRepo.FindLastFullAnyStatusByDatabase(databaseID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nextFullBackup = backupConfig.FullBackupInterval.GetNextTrigger(now, createdAtOrNil(lastFull))
+
+	if !isIncrementalEnabled(backupConfig) {
+		return nextFullBackup, nil, nil
+	}
+
+	lastIncr, err := s.incrRepo.FindLastByDatabase(databaseID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	isHeldBack, err := s.isIncrementalChainHeldBack(databaseID, lastIncr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if isHeldBack {
+		return nextFullBackup, nil, nil
+	}
+
+	nextIncrementalBackup = backupConfig.IncrementalBackupInterval.GetNextTrigger(
+		now, newestCreatedAt(lastFull, lastIncr))
+
+	return nextFullBackup, nextIncrementalBackup, nil
 }
 
 func (s *PhysicalBackupsScheduler) runPendingBackups(ctx context.Context, logger *slog.Logger) error {
@@ -264,6 +320,27 @@ func (s *PhysicalBackupsScheduler) decideBackupKind(
 		incrRootFullBackupID: extendableChain.RootFull.ID,
 		incrParentIncrID:     parentIncrID,
 	}, true
+}
+
+func (s *PhysicalBackupsScheduler) isIncrementalChainHeldBack(
+	databaseID uuid.UUID,
+	lastIncr *physical_models.PhysicalIncrementalBackup,
+) (bool, error) {
+	extendableChain, err := s.chainViewService.FindLastExtendableChainByDatabase(databaseID)
+	if err != nil {
+		return false, err
+	}
+
+	if extendableChain != nil {
+		return false, nil
+	}
+
+	holdBackReason, err := s.getChainlessIncrementalHoldBackReason(databaseID, lastIncr)
+	if err != nil {
+		return false, err
+	}
+
+	return holdBackReason != "", nil
 }
 
 // decideForcedIncremental honors an out-of-cadence incremental request. It can
@@ -876,24 +953,15 @@ func (s *PhysicalBackupsScheduler) decideReAnchoringFull(
 	backupConfig *backups_config_physical.PhysicalBackupConfig,
 	lastIncr *physical_models.PhysicalIncrementalBackup,
 ) (backupDecision, bool) {
-	if isChainBrokenBySummarizerOff(lastIncr) {
-		logger.Debug("nothing due: chain broken by summarizer off, which a fresh FULL cannot fix")
-
-		return backupDecision{}, false
-	}
-
-	recentFullBackups, err := s.fullRepo.FindNewestAnyStatusByDatabase(
-		backupConfig.DatabaseID, recentFullAttemptsWindow)
+	holdBackReason, err := s.getChainlessIncrementalHoldBackReason(backupConfig.DatabaseID, lastIncr)
 	if err != nil {
 		logger.Error("failed to find recent full backups", "error", err)
 
 		return backupDecision{}, false
 	}
 
-	if hasNoRecentCompletedFull(recentFullBackups) {
-		logger.Debug(fmt.Sprintf(
-			"nothing due: no extendable chain and no completed full among the newest %d",
-			recentFullAttemptsWindow))
+	if holdBackReason != "" {
+		logger.Debug(holdBackReason)
 
 		return backupDecision{}, false
 	}
@@ -902,6 +970,31 @@ func (s *PhysicalBackupsScheduler) decideReAnchoringFull(
 		kind:   physical_enums.PhysicalBackupTypeFull,
 		reason: "re-anchoring: no extendable chain",
 	}, true
+}
+
+// getChainlessIncrementalHoldBackReason answers, for a database with no extendable
+// chain, why a due incremental cadence must not re-anchor with a FULL. An empty
+// reason means re-anchoring may go ahead.
+func (s *PhysicalBackupsScheduler) getChainlessIncrementalHoldBackReason(
+	databaseID uuid.UUID,
+	lastIncr *physical_models.PhysicalIncrementalBackup,
+) (string, error) {
+	if isChainBrokenBySummarizerOff(lastIncr) {
+		return "nothing due: chain broken by summarizer off, which a fresh FULL cannot fix", nil
+	}
+
+	recentFullBackups, err := s.fullRepo.FindNewestAnyStatusByDatabase(databaseID, recentFullAttemptsWindow)
+	if err != nil {
+		return "", err
+	}
+
+	if hasNoRecentCompletedFull(recentFullBackups) {
+		return fmt.Sprintf(
+			"nothing due: no extendable chain and no completed full among the newest %d",
+			recentFullAttemptsWindow), nil
+	}
+
+	return "", nil
 }
 
 // The newest incremental row is the right witness: any completed INCR after it

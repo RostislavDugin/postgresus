@@ -1,20 +1,25 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
-import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
 import { type JSX, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   type FullBackupsRetention,
+  type NextScheduledBackupsResponse,
   PHYSICAL_BACKUP_NOTIFICATION_TYPE_LABEL_KEYS,
   PHYSICAL_RETENTION_LABEL_KEYS,
   type PhysicalBackupConfig,
   PhysicalFullBackupsPolicy,
   PhysicalRetention,
   physicalBackupConfigApi,
+  physicalBackupsApi,
 } from '../../../../entity/backups/physical';
-import { BACKUP_ENCRYPTION_LABEL_KEYS } from '../../../../entity/backups/shared';
+import {
+  BACKUP_ENCRYPTION_LABEL_KEYS,
+  NextScheduledBackupComponent,
+  type ScheduledBackupTime,
+} from '../../../../entity/backups/shared';
 import type { Database } from '../../../../entity/databases';
 import {
   INTERVAL_TYPE_LABEL_KEYS,
@@ -24,8 +29,7 @@ import {
   type Weekday,
 } from '../../../../entity/intervals';
 import { getStorageLogoFromType } from '../../../../entity/storages';
-import { type LocalizedText, translateLocalizedText, useLocale } from '../../../../shared/i18n';
-import { getUserTimeFormat } from '../../../../shared/time';
+import { type LocalizedText, translateLocalizedText } from '../../../../shared/i18n';
 import {
   getUserTimeFormat as getIs12Hour,
   getLocalDayOfMonth,
@@ -60,9 +64,10 @@ const getGfsRetentionTexts = (retention: FullBackupsRetention): LocalizedText[] 
 
 export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Element => {
   const { t } = useTranslation();
-  const { formatRelativeTime } = useLocale();
   const listSeparator = t('common.listSeparator');
   const [backupConfig, setBackupConfig] = useState<PhysicalBackupConfig>();
+  const [nextScheduledBackups, setNextScheduledBackups] =
+    useState<NextScheduledBackupsResponse | null>(null);
 
   const describeGfsRetention = (retention: FullBackupsRetention): string => {
     const texts = getGfsRetentionTexts(retention);
@@ -76,11 +81,12 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
     return { use12Hours: is12Hour, format: is12Hour ? 'h:mm A' : 'HH:mm' };
   }, []);
 
-  const dateTimeFormat = useMemo(() => getUserTimeFormat(), []);
-
-  // Read-only mirror of an interval: type, plus local time / weekday / day-of-month
-  // converted from UTC, or the next cron run.
-  const renderInterval = (label: string, interval?: Interval): JSX.Element | null => {
+  // Time of day, weekday and day of month are stored in UTC and shown in local time.
+  const renderInterval = (
+    label: string,
+    interval: Interval | undefined,
+    nextScheduledBackup: ScheduledBackupTime | null | undefined,
+  ): JSX.Element | null => {
     if (!interval?.type) return null;
 
     const localTime = interval.timeOfDay
@@ -97,27 +103,6 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
       interval.type === IntervalType.MONTHLY && interval.dayOfMonth && interval.timeOfDay
         ? getLocalDayOfMonth(interval.dayOfMonth, interval.timeOfDay)
         : interval.dayOfMonth;
-
-    const renderCronNextRun = (): JSX.Element | null => {
-      if (!interval.cronExpression) return null;
-      try {
-        const parsed = CronExpressionParser.parse(interval.cronExpression, { tz: 'UTC' });
-        const nextRun = parsed.next().toDate();
-        return (
-          <div className="mb-1 flex w-full items-center text-xs text-gray-600 dark:text-gray-400">
-            <div className="min-w-[180px] pr-2" />
-            <div>
-              {t('backups.config.schedule.nextRun', {
-                time: dayjs(nextRun).local().format(dateTimeFormat.format),
-              })}
-              <br />({formatRelativeTime(nextRun)})
-            </div>
-          </div>
-        );
-      } catch {
-        return null;
-      }
-    };
 
     return (
       <>
@@ -141,17 +126,12 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
         )}
 
         {interval.type === IntervalType.CRON && (
-          <>
-            <div className="mb-1 flex w-full items-center">
-              <div className="min-w-[180px] pr-2">
-                {t('backups.config.schedule.cronExpression')}
-              </div>
-              <code className="rounded bg-gray-100 px-2 py-0.5 text-sm dark:bg-gray-700">
-                {interval.cronExpression || ''}
-              </code>
-            </div>
-            {renderCronNextRun()}
-          </>
+          <div className="mb-1 flex w-full items-center">
+            <div className="min-w-[180px] pr-2">{t('backups.config.schedule.cronExpression')}</div>
+            <code className="rounded bg-gray-100 px-2 py-0.5 text-sm dark:bg-gray-700">
+              {interval.cronExpression || ''}
+            </code>
+          </div>
         )}
 
         {interval.type !== IntervalType.HOURLY && interval.type !== IntervalType.CRON && (
@@ -159,6 +139,13 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
             <div className="min-w-[180px] pr-2">{t('backups.config.schedule.timeOfDay')}</div>
             <div>{formattedTime}</div>
           </div>
+        )}
+
+        {nextScheduledBackup && (
+          <NextScheduledBackupComponent
+            scheduledBackupTime={nextScheduledBackup}
+            labelWidthClassName="min-w-[180px]"
+          />
         )}
       </>
     );
@@ -169,6 +156,7 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
       physicalBackupConfigApi.getPhysicalBackupConfigByDbId(database.id).then((config) => {
         setBackupConfig(config);
       });
+      physicalBackupsApi.getNextScheduledBackups(database.id).then(setNextScheduledBackups);
     }
   }, [database]);
 
@@ -200,10 +188,12 @@ export const ShowPhysicalBackupConfigComponent = ({ database }: Props): JSX.Elem
           {renderInterval(
             t('backups.physical.config.fullBackupCadence'),
             backupConfig.fullBackupInterval,
+            nextScheduledBackups?.nextFullBackup,
           )}
           {renderInterval(
             t('backups.physical.config.incrementalBackupCadence'),
             backupConfig.incrementalBackupInterval,
+            nextScheduledBackups?.nextIncrementalBackup,
           )}
 
           <div className="mt-4 mb-1 flex w-full items-center">

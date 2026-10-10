@@ -304,6 +304,12 @@ export const ru: typeof en = {
     card: {
       storage: 'Хранилище: <storageName/>',
       lastBackup: 'Последний бекап {{relativeTime}}',
+      nextBackup: 'Следующий бекап {{relativeTime}}',
+      nextBackupDue: 'Следующий бекап вот-вот начнется',
+      nextFullBackup: 'Следующий полный бекап {{relativeTime}}',
+      nextFullBackupDue: 'Следующий полный бекап вот-вот начнется',
+      nextIncrementalBackup: 'Следующий инкрементальный бекап {{relativeTime}}',
+      nextIncrementalBackupDue: 'Следующий инкрементальный бекап вот-вот начнется',
       hasBackupError: 'Есть ошибка бекапа',
     },
     tabs: {
@@ -1401,6 +1407,8 @@ export const ru: typeof en = {
         cronExpression: 'Cron-выражение (UTC)',
         timeOfDay: 'Время',
         nextRun: 'Следующий запуск: {{time}}',
+        nextBackup: 'Следующий бекап: {{dateTime}}<lineBreak/>({{relativeTime}})',
+        nextBackupDue: 'Следующий бекап вот-вот начнется',
         invalidCron: 'Некорректное cron-выражение',
         cronHelp: {
           format: 'Формат cron: минута, час, день, месяц, день недели (UTC)',

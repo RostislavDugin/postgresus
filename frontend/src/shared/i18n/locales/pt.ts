@@ -309,6 +309,12 @@ export const pt: typeof en = {
     card: {
       storage: 'Armazenamento: <storageName/>',
       lastBackup: 'Último backup {{relativeTime}}',
+      nextBackup: 'Próximo backup {{relativeTime}}',
+      nextBackupDue: 'O próximo backup está prestes a começar',
+      nextFullBackup: 'Próximo backup completo {{relativeTime}}',
+      nextFullBackupDue: 'O próximo backup completo está prestes a começar',
+      nextIncrementalBackup: 'Próximo backup incremental {{relativeTime}}',
+      nextIncrementalBackupDue: 'O próximo backup incremental está prestes a começar',
       hasBackupError: 'Com erro de backup',
     },
     tabs: {
@@ -1417,6 +1423,8 @@ export const pt: typeof en = {
         cronExpression: 'Expressão cron (UTC)',
         timeOfDay: 'Horário',
         nextRun: 'Próxima execução: {{time}}',
+        nextBackup: 'Próximo backup: {{dateTime}}<lineBreak/>({{relativeTime}})',
+        nextBackupDue: 'O próximo backup está prestes a começar',
         invalidCron: 'Expressão cron inválida',
         cronHelp: {
           format: 'Formato cron: minuto hora dia mês dia-da-semana (UTC)',

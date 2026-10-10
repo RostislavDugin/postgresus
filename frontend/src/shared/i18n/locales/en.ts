@@ -303,6 +303,12 @@ export const en = {
     card: {
       storage: 'Storage: <storageName/>',
       lastBackup: 'Last backup {{relativeTime}}',
+      nextBackup: 'Next backup {{relativeTime}}',
+      nextBackupDue: 'Next backup is about to start',
+      nextFullBackup: 'Next full backup {{relativeTime}}',
+      nextFullBackupDue: 'Next full backup is about to start',
+      nextIncrementalBackup: 'Next incremental backup {{relativeTime}}',
+      nextIncrementalBackupDue: 'Next incremental backup is about to start',
       hasBackupError: 'Has backup error',
     },
     tabs: {
@@ -1397,6 +1403,8 @@ export const en = {
         cronExpression: 'Cron expression (UTC)',
         timeOfDay: 'Time of day',
         nextRun: 'Next run {{time}}',
+        nextBackup: 'Next backup {{dateTime}}<lineBreak/>({{relativeTime}})',
+        nextBackupDue: 'Next backup is about to start',
         invalidCron: 'Invalid cron expression',
         cronHelp: {
           format: 'Cron format: minute hour day month weekday (UTC)',

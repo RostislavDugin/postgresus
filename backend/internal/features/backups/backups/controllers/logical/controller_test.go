@@ -30,6 +30,8 @@ import (
 	backups_config_logical "databasus-backend/internal/features/backups/config/logical"
 	"databasus-backend/internal/features/databases"
 	postgresql_logical "databasus-backend/internal/features/databases/databases/postgresql/logical"
+	"databasus-backend/internal/features/intervals"
+	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/features/storages"
 	storage_files "databasus-backend/internal/features/storages/files"
 	local_storage "databasus-backend/internal/features/storages/models/local"
@@ -1700,4 +1702,271 @@ func Test_DeleteBackup_RemovesBackupAndMetadataFilesFromDisk(t *testing.T) {
 
 	_, err = os.Stat(metadataFilePath)
 	assert.True(t, os.IsNotExist(err), "metadata file should be removed from disk after deletion")
+}
+
+func Test_GetNextScheduledBackup_WhenDailySlotIsAhead_ReturnsSlot(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	now := time.Now().UTC()
+	dailySlot := now.Add(3 * time.Hour).Truncate(time.Minute)
+	saveNextScheduledBackupTestConfig(t, database.ID, &storage.ID, true, intervals.Interval{
+		Type:      intervals.IntervalDaily,
+		TimeOfDay: new(dailySlot.Format("15:04")),
+	})
+	CreateTestBackupWithOptions(database.ID, storage.ID, TestBackupOptions{
+		Status:    backups_core_logical.BackupStatusCompleted,
+		CreatedAt: now,
+	})
+
+	response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+	require.NotNil(t, response.NextBackup)
+	assert.False(t, response.NextBackup.IsDue)
+	assert.True(t, dailySlot.Equal(response.NextBackup.ScheduledAt),
+		"next backup %s, reported %s", dailySlot, response.NextBackup.ScheduledAt)
+}
+
+func Test_GetNextScheduledBackup_WhenDailySlotWasMissed_ReportsDue(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	saveNextScheduledBackupTestConfig(t, database.ID, &storage.ID, true, intervals.Interval{
+		Type:      intervals.IntervalDaily,
+		TimeOfDay: new("03:00"),
+	})
+	CreateTestBackupWithOptions(database.ID, storage.ID, TestBackupOptions{
+		Status:    backups_core_logical.BackupStatusFailed,
+		CreatedAt: time.Now().UTC().AddDate(0, 0, -3),
+	})
+
+	response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+	require.NotNil(t, response.NextBackup)
+	assert.True(t, response.NextBackup.IsDue)
+}
+
+func Test_GetNextScheduledBackup_WhenHourlyBackupFailed_CountsFailedBackup(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	failedBackupTime := time.Now().UTC().Add(-20 * time.Minute).Truncate(time.Second)
+	saveNextScheduledBackupTestConfig(t, database.ID, &storage.ID, true, intervals.Interval{
+		Type: intervals.IntervalHourly,
+	})
+	CreateTestBackupWithOptions(database.ID, storage.ID, TestBackupOptions{
+		Status:    backups_core_logical.BackupStatusCompleted,
+		CreatedAt: failedBackupTime.Add(-5 * time.Hour),
+	})
+	CreateTestBackupWithOptions(database.ID, storage.ID, TestBackupOptions{
+		Status:    backups_core_logical.BackupStatusFailed,
+		CreatedAt: failedBackupTime,
+	})
+
+	response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+	require.NotNil(t, response.NextBackup)
+	assert.False(t, response.NextBackup.IsDue)
+	assert.True(t, failedBackupTime.Add(time.Hour).Equal(response.NextBackup.ScheduledAt),
+		"next backup %s, reported %s", failedBackupTime.Add(time.Hour), response.NextBackup.ScheduledAt)
+}
+
+func Test_GetNextScheduledBackup_WhenNoBackupExists_ReportsDue(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	saveNextScheduledBackupTestConfig(t, database.ID, &storage.ID, true, intervals.Interval{
+		Type:      intervals.IntervalDaily,
+		TimeOfDay: new("03:00"),
+	})
+
+	response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+	require.NotNil(t, response.NextBackup)
+	assert.True(t, response.NextBackup.IsDue)
+}
+
+func Test_GetNextScheduledBackup_WhenAutomaticBackupsWillNotRun_ReturnsNoNextBackup(t *testing.T) {
+	testCases := []struct {
+		name             string
+		isBackupsEnabled bool
+		hasStorage       bool
+	}{
+		{name: "backups disabled", isBackupsEnabled: false, hasStorage: true},
+		{name: "storage missing", isBackupsEnabled: true, hasStorage: false},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := createTestRouter()
+			owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+			workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+			database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+			storage := createTestStorage(workspace.ID)
+			defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+			var storageID *uuid.UUID
+			if testCase.hasStorage {
+				storageID = &storage.ID
+			}
+
+			saveNextScheduledBackupTestConfig(t, database.ID, storageID, testCase.isBackupsEnabled,
+				intervals.Interval{Type: intervals.IntervalDaily, TimeOfDay: new("03:00")})
+
+			response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+			assert.Nil(t, response.NextBackup)
+		})
+	}
+}
+
+func Test_GetNextScheduledBackup_WhenBackupConfigWasNeverSaved_ReturnsNoNextBackupAndCreatesNoConfig(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	response := getNextScheduledBackup(t, router, database.ID, owner.Token)
+
+	assert.Nil(t, response.NextBackup)
+
+	backupConfig, err := backups_config_logical.GetBackupConfigService().FindBackupConfigByDbId(database.ID)
+	require.NoError(t, err)
+	assert.Nil(t, backupConfig)
+}
+
+func Test_GetNextScheduledBackup_WhenDatabaseIsPhysical_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	notifier := notifiers.CreateTestNotifier(workspace.ID)
+	database := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
+	defer func() {
+		databases.RemoveTestDatabase(t.Context(), database)
+		notifiers.RemoveTestNotifier(notifier)
+		workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+	}()
+
+	response := test_utils.MakeGetRequest(
+		t,
+		router,
+		"/api/v1/backups/database/"+database.ID.String()+"/next-backup",
+		"Bearer "+owner.Token,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(response.Body), "physical backups")
+}
+
+func Test_GetNextScheduledBackup_WhenUserIsOutsideWorkspace_ReturnsBadRequest(t *testing.T) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	database := createTestDatabase("Test Database", workspace.ID, owner.Token, router)
+	storage := createTestStorage(workspace.ID)
+	defer cleanupNextScheduledBackupTest(t, database, storage, workspace, router)
+
+	saveNextScheduledBackupTestConfig(t, database.ID, &storage.ID, true, intervals.Interval{
+		Type:      intervals.IntervalDaily,
+		TimeOfDay: new("03:00"),
+	})
+	nonMember := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+
+	response := test_utils.MakeGetRequest(
+		t,
+		router,
+		"/api/v1/backups/database/"+database.ID.String()+"/next-backup",
+		"Bearer "+nonMember.Token,
+		http.StatusBadRequest,
+	)
+
+	assert.Contains(t, string(response.Body), "insufficient permissions")
+	assert.NotContains(t, string(response.Body), "nextBackup")
+}
+
+func Test_GetNextScheduledBackup_WhenRequestIsUnauthenticated_ReturnsUnauthorized(t *testing.T) {
+	router := createTestRouter()
+
+	test_utils.MakeGetRequest(
+		t,
+		router,
+		"/api/v1/backups/database/"+uuid.New().String()+"/next-backup",
+		"",
+		http.StatusUnauthorized,
+	)
+}
+
+func getNextScheduledBackup(
+	t *testing.T,
+	router *gin.Engine,
+	databaseID uuid.UUID,
+	token string,
+) *backups_dto_logical.GetNextScheduledBackupResponse {
+	t.Helper()
+
+	var response backups_dto_logical.GetNextScheduledBackupResponse
+	test_utils.MakeGetRequestAndUnmarshal(
+		t,
+		router,
+		"/api/v1/backups/database/"+databaseID.String()+"/next-backup",
+		"Bearer "+token,
+		http.StatusOK,
+		&response,
+	)
+
+	return &response
+}
+
+func saveNextScheduledBackupTestConfig(
+	t *testing.T,
+	databaseID uuid.UUID,
+	storageID *uuid.UUID,
+	isBackupsEnabled bool,
+	interval intervals.Interval,
+) {
+	t.Helper()
+
+	configService := backups_config_logical.GetBackupConfigService()
+
+	backupConfig, err := configService.GetBackupConfigByDbId(databaseID)
+	require.NoError(t, err)
+
+	backupConfig.IsBackupsEnabled = isBackupsEnabled
+	backupConfig.StorageID = storageID
+	backupConfig.Storage = nil
+	backupConfig.BackupInterval = interval
+
+	_, err = configService.SaveBackupConfig(t.Context(), backupConfig)
+	require.NoError(t, err)
+}
+
+func cleanupNextScheduledBackupTest(
+	t *testing.T,
+	database *databases.Database,
+	storage *storages.Storage,
+	workspace *workspaces_models.Workspace,
+	router *gin.Engine,
+) {
+	databases.RemoveTestDatabase(t.Context(), database)
+	time.Sleep(50 * time.Millisecond)
+	storages.RemoveTestStorage(t.Context(), storage.ID)
+	workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
 }

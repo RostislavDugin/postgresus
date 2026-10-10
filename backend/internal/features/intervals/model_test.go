@@ -795,259 +795,310 @@ func TestInterval_Validate(t *testing.T) {
 	})
 }
 
-func TestInterval_NextTriggerTime_NilLastBackup(t *testing.T) {
-	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+func Test_GetNextTrigger_ForEveryIntervalType_MatchesShouldTriggerBackup(t *testing.T) {
+	testCases := []struct {
+		name            string
+		interval        Interval
+		now             time.Time
+		lastBackupTime  *time.Time
+		nextScheduledAt time.Time
+		isDueNow        bool
+	}{
+		{
+			name:            "Hourly with a recent backup",
+			interval:        Interval{Type: IntervalHourly},
+			now:             time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 15, 11, 30, 15, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 12, 30, 15, 0, time.UTC),
+		},
+		{
+			name:            "Hourly with an hour elapsed",
+			interval:        Interval{Type: IntervalHourly},
+			now:             time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name:            "Daily without any backup",
+			interval:        Interval{Type: IntervalDaily, TimeOfDay: new("03:00")},
+			now:             time.Date(2026, 1, 15, 1, 0, 0, 0, time.UTC),
+			nextScheduledAt: time.Date(2026, 1, 15, 1, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name:            "Daily before today's slot",
+			interval:        Interval{Type: IntervalDaily, TimeOfDay: new("03:00")},
+			now:             time.Date(2026, 1, 15, 1, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 14, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name:            "Daily after today's backup",
+			interval:        Interval{Type: IntervalDaily, TimeOfDay: new("03:00")},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 15, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 16, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name:            "Daily with a missed slot",
+			interval:        Interval{Type: IntervalDaily, TimeOfDay: new("03:00")},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 13, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name:            "Daily exactly at the slot",
+			interval:        Interval{Type: IntervalDaily, TimeOfDay: new("03:00")},
+			now:             time.Date(2026, 1, 15, 3, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 14, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 3, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name: "Weekly before this week's slot",
+			interval: Interval{
+				Type:      IntervalWeekly,
+				TimeOfDay: new("03:00"),
+				Weekday:   new(int(time.Wednesday)),
+			},
+			now:             time.Date(2026, 1, 13, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 7, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 14, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Weekly with a slot missed in an earlier week",
+			interval: Interval{
+				Type:      IntervalWeekly,
+				TimeOfDay: new("03:00"),
+				Weekday:   new(int(time.Wednesday)),
+			},
+			now:             time.Date(2026, 1, 13, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2025, 12, 24, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 14, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Weekly after this week's backup",
+			interval: Interval{
+				Type:      IntervalWeekly,
+				TimeOfDay: new("03:00"),
+				Weekday:   new(int(time.Wednesday)),
+			},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 14, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 21, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Weekly with this week's slot missed",
+			interval: Interval{
+				Type:      IntervalWeekly,
+				TimeOfDay: new("03:00"),
+				Weekday:   new(int(time.Wednesday)),
+			},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 7, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name: "Weekly on Sunday written as 7",
+			interval: Interval{
+				Type:      IntervalWeekly,
+				TimeOfDay: new("03:00"),
+				Weekday:   new(7),
+			},
+			now:             time.Date(2026, 1, 13, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 11, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 18, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly before this month's slot",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("08:00"),
+				DayOfMonth: new(10),
+			},
+			now:             time.Date(2026, 1, 5, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2025, 12, 10, 8, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly after this month's backup",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("08:00"),
+				DayOfMonth: new(10),
+			},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 10, 8, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 2, 10, 8, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly with this month's slot missed",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("08:00"),
+				DayOfMonth: new(10),
+			},
+			now:             time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2025, 12, 10, 8, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name: "Monthly on day 31 skips February",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("03:00"),
+				DayOfMonth: new(31),
+			},
+			now:             time.Date(2026, 1, 31, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 31, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 3, 31, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly on day 31 skips a 30-day month",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("03:00"),
+				DayOfMonth: new(31),
+			},
+			now:             time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 3, 31, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 5, 31, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly on day 30 skips February",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("03:00"),
+				DayOfMonth: new(30),
+			},
+			now:             time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 30, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 3, 30, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly on day 29 skips February outside a leap year",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("03:00"),
+				DayOfMonth: new(29),
+			},
+			now:             time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 29, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 3, 29, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Monthly on day 29 keeps February in a leap year",
+			interval: Interval{
+				Type:       IntervalMonthly,
+				TimeOfDay:  new("03:00"),
+				DayOfMonth: new(29),
+			},
+			now:             time.Date(2028, 2, 1, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2028, 1, 29, 3, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2028, 2, 29, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name:            "Cron before the next run",
+			interval:        Interval{Type: IntervalCron, CronExpression: new("0 */6 * * *")},
+			now:             time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 15, 6, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			name:            "Cron with a missed run",
+			interval:        Interval{Type: IntervalCron, CronExpression: new("0 */6 * * *")},
+			now:             time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 15, 6, 0, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC),
+			isDueNow:        true,
+		},
+		{
+			name:            "Cron on the 1st and 15th",
+			interval:        Interval{Type: IntervalCron, CronExpression: new("30 4 1,15 * *")},
+			now:             time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC),
+			lastBackupTime:  new(time.Date(2026, 1, 1, 4, 30, 20, 0, time.UTC)),
+			nextScheduledAt: time.Date(2026, 1, 15, 4, 30, 0, 0, time.UTC),
+		},
+	}
 
-	t.Run("Hourly with nil lastBackup returns nil", func(t *testing.T) {
-		interval := &Interval{Type: IntervalHourly}
-		result := interval.NextTriggerTime(now, nil)
-		assert.Nil(t, result)
-	})
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.NoError(t, testCase.interval.Validate())
 
-	t.Run("Daily with nil lastBackup returns nil", func(t *testing.T) {
-		timeOfDay := "09:00"
-		interval := &Interval{Type: IntervalDaily, TimeOfDay: &timeOfDay}
-		result := interval.NextTriggerTime(now, nil)
-		assert.Nil(t, result)
-	})
+			nextTrigger := testCase.interval.GetNextTrigger(testCase.now, testCase.lastBackupTime)
 
-	t.Run("Weekly with nil lastBackup returns nil", func(t *testing.T) {
-		timeOfDay := "15:00"
-		weekday := 3
-		interval := &Interval{
-			Type:      IntervalWeekly,
-			TimeOfDay: &timeOfDay,
-			Weekday:   &weekday,
-		}
-		result := interval.NextTriggerTime(now, nil)
-		assert.Nil(t, result)
-	})
+			require.NotNil(t, nextTrigger)
+			assert.Equal(t, testCase.nextScheduledAt, nextTrigger.ScheduledAt)
+			assert.Equal(t, testCase.isDueNow, nextTrigger.IsDue)
+			assertNextTriggerMatchesShouldTriggerBackup(
+				t, &testCase.interval, testCase.now, testCase.lastBackupTime, nextTrigger)
+		})
+	}
+}
 
-	t.Run("Monthly with nil lastBackup returns nil", func(t *testing.T) {
-		timeOfDay := "08:00"
-		dayOfMonth := 10
-		interval := &Interval{
+func Test_GetNextTrigger_WhenIntervalCannotBeEvaluated_ReturnsNil(t *testing.T) {
+	testCases := []struct {
+		name     string
+		interval Interval
+	}{
+		{name: "Unknown type", interval: Interval{Type: IntervalType("UNKNOWN")}},
+		{name: "Daily without time of day", interval: Interval{Type: IntervalDaily}},
+		{name: "Daily with malformed time of day", interval: Interval{Type: IntervalDaily, TimeOfDay: new("25:99")}},
+		{name: "Weekly without weekday", interval: Interval{Type: IntervalWeekly, TimeOfDay: new("03:00")}},
+		{name: "Weekly without time of day", interval: Interval{Type: IntervalWeekly, Weekday: new(3)}},
+		{name: "Monthly without day of month", interval: Interval{Type: IntervalMonthly, TimeOfDay: new("03:00")}},
+		{name: "Monthly with day of month out of range", interval: Interval{
 			Type:       IntervalMonthly,
-			TimeOfDay:  &timeOfDay,
-			DayOfMonth: &dayOfMonth,
-		}
-		result := interval.NextTriggerTime(now, nil)
-		assert.Nil(t, result)
-	})
-
-	t.Run("Cron with nil lastBackup returns nil", func(t *testing.T) {
-		cronExpr := "0 2 * * *"
-		interval := &Interval{Type: IntervalCron, CronExpression: &cronExpr}
-		result := interval.NextTriggerTime(now, nil)
-		assert.Nil(t, result)
-	})
-}
-
-func TestInterval_NextTriggerTime_Hourly(t *testing.T) {
-	interval := &Interval{Type: IntervalHourly}
-	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
-
-	t.Run("Returns lastBackup + 1 hour", func(t *testing.T) {
-		lastBackup := time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Returns future time when last backup was recent", func(t *testing.T) {
-		lastBackup := time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 15, 12, 30, 0, 0, time.UTC), *result)
-	})
-}
-
-func TestInterval_NextTriggerTime_Daily(t *testing.T) {
-	timeOfDay := "09:00"
-	interval := &Interval{Type: IntervalDaily, TimeOfDay: &timeOfDay}
-
-	t.Run("Before today's slot: returns today's slot", func(t *testing.T) {
-		now := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 9, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("After today's slot: returns tomorrow's slot", func(t *testing.T) {
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 16, 9, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Exactly at today's slot: returns tomorrow's slot", func(t *testing.T) {
-		now := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 9, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 16, 9, 0, 0, 0, time.UTC), *result)
-	})
-}
-
-func TestInterval_NextTriggerTime_Weekly(t *testing.T) {
-	timeOfDay := "15:00"
-	weekday := 3 // Wednesday
-	interval := &Interval{
-		Type:      IntervalWeekly,
-		TimeOfDay: &timeOfDay,
-		Weekday:   &weekday,
+			TimeOfDay:  new("03:00"),
+			DayOfMonth: new(32),
+		}},
+		{name: "Cron without expression", interval: Interval{Type: IntervalCron}},
+		{name: "Cron with empty expression", interval: Interval{Type: IntervalCron, CronExpression: new("")}},
+		{name: "Cron with unparsable expression", interval: Interval{
+			Type:           IntervalCron,
+			CronExpression: new("invalid cron"),
+		}},
 	}
 
-	t.Run("Before this week's target: returns this week's target", func(t *testing.T) {
-		// Tuesday Jan 16, 2024
-		now := time.Date(2024, 1, 16, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 10, 15, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	lastBackupTime := time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC)
 
-		assert.NotNil(t, result)
-		// Wednesday Jan 17 at 15:00
-		assert.Equal(t, time.Date(2024, 1, 17, 15, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("After this week's target: returns next week's target", func(t *testing.T) {
-		// Thursday Jan 18, 2024
-		now := time.Date(2024, 1, 18, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 17, 15, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		// Next Wednesday Jan 24 at 15:00
-		assert.Equal(t, time.Date(2024, 1, 24, 15, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Friday interval: returns correct target", func(t *testing.T) {
-		fridayTimeOfDay := "00:00"
-		fridayWeekday := 5 // Friday
-		fridayInterval := &Interval{
-			Type:      IntervalWeekly,
-			TimeOfDay: &fridayTimeOfDay,
-			Weekday:   &fridayWeekday,
-		}
-
-		// Wednesday Jan 17, 2024
-		now := time.Date(2024, 1, 17, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 12, 0, 0, 0, 0, time.UTC)
-		result := fridayInterval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		// Friday Jan 19 at 00:00
-		assert.Equal(t, time.Date(2024, 1, 19, 0, 0, 0, 0, time.UTC), *result)
-	})
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Nil(t, testCase.interval.GetNextTrigger(now, &lastBackupTime))
+			assert.Nil(t, testCase.interval.GetNextTrigger(now, nil))
+		})
+	}
 }
 
-func TestInterval_NextTriggerTime_Monthly(t *testing.T) {
-	timeOfDay := "08:00"
-	dayOfMonth := 10
-	interval := &Interval{
-		Type:       IntervalMonthly,
-		TimeOfDay:  &timeOfDay,
-		DayOfMonth: &dayOfMonth,
+// The scheduler acts on ShouldTriggerBackup, so a reported next trigger is only
+// truthful when the due check stays false up to it and turns true exactly at it.
+func assertNextTriggerMatchesShouldTriggerBackup(
+	t *testing.T,
+	interval *Interval,
+	now time.Time,
+	lastBackupTime *time.Time,
+	nextTrigger *NextTrigger,
+) {
+	t.Helper()
+
+	require.Equal(t, interval.ShouldTriggerBackup(now, lastBackupTime), nextTrigger.IsDue)
+
+	if nextTrigger.IsDue {
+		require.Equal(t, now, nextTrigger.ScheduledAt)
+
+		return
 	}
 
-	t.Run("Before this month's target: returns this month's target", func(t *testing.T) {
-		now := time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2023, 12, 10, 8, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
+	for moment := now; moment.Before(nextTrigger.ScheduledAt); moment = moment.Add(time.Minute) {
+		require.Falsef(t, interval.ShouldTriggerBackup(moment, lastBackupTime),
+			"due check fired at %s, before the reported %s", moment, nextTrigger.ScheduledAt)
+	}
 
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 10, 8, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("After this month's target: returns next month's target", func(t *testing.T) {
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 10, 8, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 2, 10, 8, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Exactly at this month's target: returns next month's target", func(t *testing.T) {
-		now := time.Date(2024, 1, 10, 8, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2023, 12, 10, 8, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 2, 10, 8, 0, 0, 0, time.UTC), *result)
-	})
-}
-
-func TestInterval_NextTriggerTime_Cron(t *testing.T) {
-	t.Run("Daily cron: returns next trigger after lastBackup", func(t *testing.T) {
-		cronExpr := "0 2 * * *" // Daily at 2:00 AM
-		interval := &Interval{Type: IntervalCron, CronExpression: &cronExpr}
-
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 2, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 15, 2, 0, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Complex cron: 1st and 15th at 4:30", func(t *testing.T) {
-		cronExpr := "30 4 1,15 * *"
-		interval := &Interval{Type: IntervalCron, CronExpression: &cronExpr}
-
-		now := time.Date(2024, 1, 10, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 1, 4, 30, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.NotNil(t, result)
-		assert.Equal(t, time.Date(2024, 1, 15, 4, 30, 0, 0, time.UTC), *result)
-	})
-
-	t.Run("Invalid cron expression returns nil", func(t *testing.T) {
-		invalidCron := "invalid cron"
-		interval := &Interval{Type: IntervalCron, CronExpression: &invalidCron}
-
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.Nil(t, result)
-	})
-
-	t.Run("Empty cron expression returns nil", func(t *testing.T) {
-		emptyCron := ""
-		interval := &Interval{Type: IntervalCron, CronExpression: &emptyCron}
-
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.Nil(t, result)
-	})
-
-	t.Run("Nil cron expression returns nil", func(t *testing.T) {
-		interval := &Interval{Type: IntervalCron, CronExpression: nil}
-
-		now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-		lastBackup := time.Date(2024, 1, 14, 10, 0, 0, 0, time.UTC)
-		result := interval.NextTriggerTime(now, &lastBackup)
-
-		assert.Nil(t, result)
-	})
-}
-
-func TestInterval_NextTriggerTime_UnknownInterval(t *testing.T) {
-	interval := &Interval{Type: IntervalType("UNKNOWN")}
-
-	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
-	lastBackup := time.Date(2024, 1, 14, 12, 0, 0, 0, time.UTC)
-	result := interval.NextTriggerTime(now, &lastBackup)
-
-	assert.Nil(t, result)
+	require.False(t, interval.ShouldTriggerBackup(nextTrigger.ScheduledAt.Add(-time.Second), lastBackupTime))
+	require.True(t, interval.ShouldTriggerBackup(nextTrigger.ScheduledAt, lastBackupTime))
 }

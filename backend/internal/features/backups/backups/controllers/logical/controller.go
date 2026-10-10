@@ -26,6 +26,7 @@ type BackupController struct {
 
 func (c *BackupController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/backups", c.GetBackups)
+	router.GET("/backups/database/:id/next-backup", c.GetNextScheduledBackup)
 	router.POST("/backups", c.MakeBackup)
 	router.POST("/backups/:id/download-token", c.GenerateDownloadToken)
 	router.DELETE("/backups/:id", c.DeleteBackup)
@@ -83,6 +84,39 @@ func (c *BackupController) GetBackups(ctx *gin.Context) {
 		request.Offset,
 		filters,
 	)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
+// GetNextScheduledBackup
+// @Summary Get the next scheduled backup of a logical database
+// @Description Get when the scheduler will start the next automatic backup. nextBackup is null when no automatic backup will run.
+// @Tags backups
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Database ID"
+// @Success 200 {object} backups_dto_logical.GetNextScheduledBackupResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /backups/database/{id}/next-backup [get]
+func (c *BackupController) GetNextScheduledBackup(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	databaseID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
+		return
+	}
+
+	response, err := c.backupService.GetNextScheduledBackup(ctx.Request.Context(), user, databaseID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

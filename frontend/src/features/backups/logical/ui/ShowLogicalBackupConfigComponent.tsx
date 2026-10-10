@@ -1,6 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
-import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
 import { useEffect, useState } from 'react';
@@ -11,8 +10,13 @@ import {
   type LogicalBackupConfig,
   LogicalRetentionPolicyType,
   logicalBackupConfigApi,
+  logicalBackupsApi,
 } from '../../../../entity/backups/logical';
-import { BACKUP_ENCRYPTION_LABEL_KEYS } from '../../../../entity/backups/shared';
+import {
+  BACKUP_ENCRYPTION_LABEL_KEYS,
+  NextScheduledBackupComponent,
+  type ScheduledBackupTime,
+} from '../../../../entity/backups/shared';
 import { type Database, PERIOD_LABEL_KEYS } from '../../../../entity/databases';
 import {
   INTERVAL_TYPE_LABEL_KEYS,
@@ -21,8 +25,7 @@ import {
   type Weekday,
 } from '../../../../entity/intervals';
 import { getStorageLogoFromType } from '../../../../entity/storages/models/getStorageLogoFromType';
-import { type LocalizedText, translateLocalizedText, useLocale } from '../../../../shared/i18n';
-import { getUserTimeFormat } from '../../../../shared/time';
+import { type LocalizedText, translateLocalizedText } from '../../../../shared/i18n';
 import {
   getUserTimeFormat as getIs12Hour,
   getLocalDayOfMonth,
@@ -57,9 +60,9 @@ const getGfsRetentionTexts = (config: LogicalBackupConfig): LocalizedText[] => {
 
 export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
   const { t } = useTranslation();
-  const { formatRelativeTime } = useLocale();
   const listSeparator = t('common.listSeparator');
   const [backupConfig, setBackupConfig] = useState<LogicalBackupConfig>();
+  const [nextBackup, setNextBackup] = useState<ScheduledBackupTime | null>(null);
 
   const describeGfsRetention = (config: LogicalBackupConfig): string => {
     const texts = getGfsRetentionTexts(config);
@@ -76,13 +79,14 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
     };
   }, []);
 
-  const dateTimeFormat = useMemo(() => getUserTimeFormat(), []);
-
   useEffect(() => {
     if (database.id) {
       logicalBackupConfigApi.getBackupConfigByDbID(database.id).then((res) => {
         setBackupConfig(res);
       });
+      logicalBackupsApi
+        .getNextScheduledBackup(database.id)
+        .then((response) => setNextBackup(response.nextBackup));
     }
   }, [database]);
 
@@ -148,38 +152,14 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
           )}
 
           {backupInterval?.type === IntervalType.CRON && (
-            <>
-              <div className="mb-1 flex w-full items-center">
-                <div className="min-w-[150px] pr-2">
-                  {t('backups.config.schedule.cronExpression')}
-                </div>
-                <code className="rounded bg-gray-100 px-2 py-0.5 text-sm dark:bg-gray-700">
-                  {backupInterval?.cronExpression || ''}
-                </code>
+            <div className="mb-1 flex w-full items-center">
+              <div className="min-w-[150px] pr-2">
+                {t('backups.config.schedule.cronExpression')}
               </div>
-              {backupInterval?.cronExpression &&
-                (() => {
-                  try {
-                    const interval = CronExpressionParser.parse(backupInterval.cronExpression, {
-                      tz: 'UTC',
-                    });
-                    const nextRun = interval.next().toDate();
-                    return (
-                      <div className="mb-1 flex w-full items-center text-xs text-gray-600 dark:text-gray-400">
-                        <div className="min-w-[150px] pr-2" />
-                        <div>
-                          {t('backups.config.schedule.nextRun', {
-                            time: dayjs(nextRun).local().format(dateTimeFormat.format),
-                          })}
-                          <br />({formatRelativeTime(nextRun)})
-                        </div>
-                      </div>
-                    );
-                  } catch {
-                    return null;
-                  }
-                })()}
-            </>
+              <code className="rounded bg-gray-100 px-2 py-0.5 text-sm dark:bg-gray-700">
+                {backupInterval?.cronExpression || ''}
+              </code>
+            </div>
           )}
 
           {backupInterval?.type !== IntervalType.HOURLY &&
@@ -189,6 +169,13 @@ export const ShowLogicalBackupConfigComponent = ({ database }: Props) => {
                 <div>{formattedTime}</div>
               </div>
             )}
+
+          {nextBackup && (
+            <NextScheduledBackupComponent
+              scheduledBackupTime={nextBackup}
+              labelWidthClassName="min-w-[150px]"
+            />
+          )}
 
           <div className="mb-1 flex w-full items-center">
             <div className="min-w-[150px] pr-2">

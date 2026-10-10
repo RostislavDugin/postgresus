@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	"databasus-backend/internal/features/intervals"
 )
 
 // PhysicalBackupListItem is one row of the flat physical-backup list: a FULL, an
@@ -89,4 +90,9 @@ type GenerateRestoreTokenRequest struct {
 type GenerateRestoreTokenResponse struct {
 	Token string `json:"token"`
 	URL   string `json:"url"`
+}
+
+type GetNextScheduledBackupsResponse struct {
+	NextFullBackup        *intervals.NextTrigger `json:"nextFullBackup"`
+	NextIncrementalBackup *intervals.NextTrigger `json:"nextIncrementalBackup"`
 }

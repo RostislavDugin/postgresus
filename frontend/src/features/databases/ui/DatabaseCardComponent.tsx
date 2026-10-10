@@ -2,13 +2,19 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
-import { logicalBackupConfigApi } from '../../../entity/backups/logical';
-import { physicalBackupConfigApi } from '../../../entity/backups/physical';
+import { logicalBackupConfigApi, logicalBackupsApi } from '../../../entity/backups/logical';
+import { physicalBackupConfigApi, physicalBackupsApi } from '../../../entity/backups/physical';
+import { type ScheduledBackupTime, isScheduledBackupDue } from '../../../entity/backups/shared';
 import { type Database, DatabaseType, HEALTH_STATUS_LABEL_KEYS } from '../../../entity/databases';
 import { HealthStatus } from '../../../entity/databases/model/HealthStatus';
 import type { Storage } from '../../../entity/storages';
 import { getStorageLogoFromType } from '../../../entity/storages/models/getStorageLogoFromType';
-import { useLocale } from '../../../shared/i18n';
+import { type TranslationKey, useLocale } from '../../../shared/i18n';
+
+interface NextBackupLineKeys {
+  scheduledKey: TranslationKey;
+  dueKey: TranslationKey;
+}
 
 interface Props {
   database: Database;
@@ -24,6 +30,25 @@ export const DatabaseCardComponent = ({
   const { t } = useTranslation();
   const { formatRelativeTime } = useLocale();
   const [storage, setStorage] = useState<Storage | undefined>();
+  const [nextBackup, setNextBackup] = useState<ScheduledBackupTime | null>(null);
+  const [nextFullBackup, setNextFullBackup] = useState<ScheduledBackupTime | null>(null);
+  const [nextIncrementalBackup, setNextIncrementalBackup] = useState<ScheduledBackupTime | null>(
+    null,
+  );
+
+  const renderNextBackupLine = (
+    scheduledBackupTime: ScheduledBackupTime | null,
+    lineKeys: NextBackupLineKeys,
+  ) =>
+    scheduledBackupTime && (
+      <div className="text-gray-500 dark:text-gray-400">
+        {isScheduledBackupDue(scheduledBackupTime)
+          ? t(lineKeys.dueKey)
+          : t(lineKeys.scheduledKey, {
+              relativeTime: formatRelativeTime(scheduledBackupTime.scheduledAt),
+            })}
+      </div>
+    );
 
   useEffect(() => {
     if (!database.id) return;
@@ -35,6 +60,25 @@ export const DatabaseCardComponent = ({
 
     backupConfigRequest.then((config) => setStorage(config?.storage));
   }, [database.id, database.type]);
+
+  // Keyed on the database object, which the list replaces on every reload, so the
+  // next backup refreshes together with the last backup time.
+  useEffect(() => {
+    if (!database.id) return;
+
+    if (database.type === DatabaseType.POSTGRES_PHYSICAL) {
+      physicalBackupsApi.getNextScheduledBackups(database.id).then((response) => {
+        setNextFullBackup(response.nextFullBackup);
+        setNextIncrementalBackup(response.nextIncrementalBackup);
+      });
+
+      return;
+    }
+
+    logicalBackupsApi
+      .getNextScheduledBackup(database.id)
+      .then((response) => setNextBackup(response.nextBackup));
+  }, [database]);
 
   return (
     <div
@@ -86,6 +130,19 @@ export const DatabaseCardComponent = ({
           })}
         </div>
       )}
+
+      {renderNextBackupLine(nextBackup, {
+        scheduledKey: 'databases.card.nextBackup',
+        dueKey: 'databases.card.nextBackupDue',
+      })}
+      {renderNextBackupLine(nextFullBackup, {
+        scheduledKey: 'databases.card.nextFullBackup',
+        dueKey: 'databases.card.nextFullBackupDue',
+      })}
+      {renderNextBackupLine(nextIncrementalBackup, {
+        scheduledKey: 'databases.card.nextIncrementalBackup',
+        dueKey: 'databases.card.nextIncrementalBackupDue',
+      })}
 
       {database.lastBackupErrorMessage && (
         <div className="mt-1 flex items-center text-sm text-red-600 underline dark:text-red-400">
