@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,7 +8,10 @@ import {
   PhysicalBackupType,
 } from '../../../../entity/backups/physical';
 import { LocaleProvider } from '../../../../shared/i18n';
-import { PhysicalBackupTypeCellComponent } from './PhysicalBackupTypeCellComponent';
+import {
+  PhysicalBackupTypeCellComponent,
+  WalRangeSegmentsComponent,
+} from './PhysicalBackupTypeCellComponent';
 
 // The entity's public API imports its API client, and the client's config
 // module reads window at import time. The tests run in node, so they supply
@@ -39,49 +43,51 @@ const createWalRange = (change: Partial<PhysicalBackupListItem>): PhysicalBackup
   ...change,
 });
 
-const renderCell = (backup: PhysicalBackupListItem) =>
-  renderToStaticMarkup(
-    <LocaleProvider>
-      <PhysicalBackupTypeCellComponent backup={backup} />
-    </LocaleProvider>,
-  );
+const renderWithLocale = (element: JSX.Element) =>
+  renderToStaticMarkup(<LocaleProvider>{element}</LocaleProvider>);
 
 describe('PhysicalBackupTypeCellComponent', () => {
-  it('shows the segment count and the first and last segment of a WAL range', () => {
-    const markup = renderCell(createWalRange({}));
-
-    expect(markup).toContain('Segments: 240');
-    expect(markup).toContain(FIRST_SEGMENT);
-    expect(markup).toContain(LAST_SEGMENT);
-    expect(markup).not.toContain('Gap before this range');
-  });
-
-  it('marks a WAL range that follows a gap', () => {
-    const markup = renderCell(createWalRange({ hasGapBefore: true }));
-
-    expect(markup).toContain('Gap before this range');
-  });
-
-  it('shows one segment name for a single-segment range', () => {
-    const markup = renderCell(
-      createWalRange({ toWalFilename: FIRST_SEGMENT, walSegmentsCount: 1 }),
+  it('shows only the type badge for a WAL range', () => {
+    const markup = renderWithLocale(
+      <PhysicalBackupTypeCellComponent backup={createWalRange({})} />,
     );
 
-    expect(markup.split(FIRST_SEGMENT)).toHaveLength(2);
-    expect(markup).toContain('Segments: 1');
+    expect(markup).toContain('WAL');
+    expect(markup).not.toContain(FIRST_SEGMENT);
+    expect(markup).not.toContain('Segments:');
   });
 
   it('shows only the type badge for a backup', () => {
-    const markup = renderCell(
-      createWalRange({
-        type: PhysicalBackupType.FULL,
-        fromWalFilename: undefined,
-        toWalFilename: undefined,
-        walSegmentsCount: undefined,
-      }),
+    const markup = renderWithLocale(
+      <PhysicalBackupTypeCellComponent
+        backup={createWalRange({
+          type: PhysicalBackupType.FULL,
+          fromWalFilename: undefined,
+          toWalFilename: undefined,
+          walSegmentsCount: undefined,
+        })}
+      />,
     );
 
     expect(markup).toContain('Full');
-    expect(markup).not.toContain('Segments:');
+  });
+});
+
+describe('WalRangeSegmentsComponent', () => {
+  it('shows the first and last segment of a range', () => {
+    const markup = renderWithLocale(<WalRangeSegmentsComponent backup={createWalRange({})} />);
+
+    expect(markup).toContain(FIRST_SEGMENT);
+    expect(markup).toContain(LAST_SEGMENT);
+  });
+
+  it('shows one segment name for a single-segment range', () => {
+    const markup = renderWithLocale(
+      <WalRangeSegmentsComponent
+        backup={createWalRange({ toWalFilename: FIRST_SEGMENT, walSegmentsCount: 1 })}
+      />,
+    );
+
+    expect(markup.split(FIRST_SEGMENT)).toHaveLength(2);
   });
 });

@@ -1555,8 +1555,10 @@ export const pt: typeof en = {
         restoreFromThisBackup: 'Restaurar a partir deste backup',
         pointInTimeRestoreTitle: 'Restauração point-in-time',
         walRange: {
-          segments: 'Segmentos: {{count}}',
-          gapBefore: 'Lacuna antes deste intervalo',
+          from: 'De',
+          to: 'Até',
+          segments: 'Segmentos',
+          gap: 'Lacuna',
           gapBeforeTooltip:
             'Faltam segmentos WAL entre este intervalo e o anterior. A restauração point-in-time não consegue atravessar a lacuna.',
         },

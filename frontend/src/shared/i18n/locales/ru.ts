@@ -1538,8 +1538,10 @@ export const ru: typeof en = {
         restoreFromThisBackup: 'Восстановить из этого бекапа',
         pointInTimeRestoreTitle: 'Восстановление на момент времени',
         walRange: {
-          segments: 'Сегментов: {{count}}',
-          gapBefore: 'Разрыв перед диапазоном',
+          from: 'Начало',
+          to: 'Конец',
+          segments: 'Сегменты',
+          gap: 'Разрыв',
           gapBeforeTooltip:
             'Между этим диапазоном и предыдущим не хватает сегментов WAL. Восстановление на момент времени не может пройти через этот разрыв.',
         },

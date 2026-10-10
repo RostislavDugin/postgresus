@@ -1535,8 +1535,10 @@ export const en = {
         restoreFromThisBackup: 'Restore from this backup',
         pointInTimeRestoreTitle: 'Point-in-time restore',
         walRange: {
-          segments: 'Segments: {{count}}',
-          gapBefore: 'Gap before this range',
+          from: 'From',
+          to: 'To',
+          segments: 'Segments',
+          gap: 'Gap',
           gapBeforeTooltip:
             'WAL segments are missing between this range and the previous one. Point-in-time restore cannot replay across the gap.',
         },

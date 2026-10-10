@@ -1572,8 +1572,10 @@ export const fr: typeof en = {
         restoreFromThisBackup: 'Restaurer depuis cette sauvegarde',
         pointInTimeRestoreTitle: 'Restauration à un instant donné',
         walRange: {
-          segments: 'Segments : {{count}}',
-          gapBefore: 'Trou avant cette plage',
+          from: 'Début',
+          to: 'Fin',
+          segments: 'Segments',
+          gap: 'Trou',
           gapBeforeTooltip:
             'Des segments WAL manquent entre cette plage et la précédente. La restauration à un instant donné ne peut pas franchir ce trou.',
         },

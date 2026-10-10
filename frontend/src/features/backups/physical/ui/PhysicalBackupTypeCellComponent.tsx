@@ -40,6 +40,24 @@ const renderTypeBadge = (type: PhysicalBackupType, t: TFunction): JSX.Element =>
   );
 };
 
+// The segment names are only needed when investigating the archive, so they
+// stay in the badge tooltip instead of the row.
+export const WalRangeSegmentsComponent = ({ backup }: Props): JSX.Element => {
+  const isSingleSegment = backup.fromWalFilename === backup.toWalFilename;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
+      {backup.fromWalFilename}
+      {!isSingleSegment && (
+        <>
+          <ArrowRightOutlined className="text-[10px]" />
+          {backup.toWalFilename}
+        </>
+      )}
+    </div>
+  );
+};
+
 export const PhysicalBackupTypeCellComponent = ({ backup }: Props): JSX.Element => {
   const { t } = useTranslation();
 
@@ -49,34 +67,9 @@ export const PhysicalBackupTypeCellComponent = ({ backup }: Props): JSX.Element 
     return typeBadge;
   }
 
-  const isSingleSegment = backup.fromWalFilename === backup.toWalFilename;
-
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        {typeBadge}
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {t('backups.physical.list.walRange.segments', { count: backup.walSegmentsCount })}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1 font-mono text-xs text-gray-600 dark:text-gray-300">
-        {backup.fromWalFilename}
-        {!isSingleSegment && (
-          <>
-            <ArrowRightOutlined className="text-[10px]" />
-            {backup.toWalFilename}
-          </>
-        )}
-      </div>
-
-      {backup.hasGapBefore && (
-        <Tooltip title={t('backups.physical.list.walRange.gapBeforeTooltip')}>
-          <span className="inline-flex items-center rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-500/40 ring-inset dark:text-amber-300">
-            {t('backups.physical.list.walRange.gapBefore')}
-          </span>
-        </Tooltip>
-      )}
-    </div>
+    <Tooltip title={<WalRangeSegmentsComponent backup={backup} />}>
+      <span className="cursor-help">{typeBadge}</span>
+    </Tooltip>
   );
 };

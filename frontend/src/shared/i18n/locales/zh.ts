@@ -1478,8 +1478,10 @@ export const zh: typeof en = {
         restoreFromThisBackup: '从此备份恢复',
         pointInTimeRestoreTitle: '时间点恢复',
         walRange: {
-          segments: '段数：{{count}}',
-          gapBefore: '此范围前存在缺口',
+          from: '开始',
+          to: '结束',
+          segments: '段数',
+          gap: '缺口',
           gapBeforeTooltip: '此范围与上一个范围之间缺少 WAL 段，时间点恢复无法跨越该缺口。',
         },
         deleteFullConfirmation:

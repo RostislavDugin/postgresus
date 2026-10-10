@@ -1,5 +1,4 @@
 import {
-  ArrowRightOutlined,
   CloseCircleOutlined,
   CloudUploadOutlined,
   DeleteOutlined,
@@ -56,11 +55,32 @@ const formatSize = (sizeMb: number, formatNumber: LocaleContextValue['formatNumb
   return `${formatNumber(Number((sizeMb ?? 0).toFixed(2)))} MB`;
 };
 
+// A missing segment before a WAL range is its health state, so it takes the
+// place of the status badge, styled like the other broken-chain warning.
+const renderGapBadge = (t: TFunction): JSX.Element => {
+  const badgeStyle = PHYSICAL_BACKUP_STATUS_BADGE_STYLES[PhysicalBackupStatus.CHAIN_BROKEN];
+
+  return (
+    <Tooltip title={t('backups.physical.list.walRange.gapBeforeTooltip')}>
+      <span
+        className={`inline-flex cursor-help items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset ${badgeStyle.pillClasses}`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${badgeStyle.dotClasses}`} />
+        {t('backups.physical.list.walRange.gap')}
+      </span>
+    </Tooltip>
+  );
+};
+
 const renderStatusBadge = (
   backup: PhysicalBackupListItem,
   onShowError: (backup: PhysicalBackupListItem) => void,
   t: TFunction,
 ): JSX.Element => {
+  if (backup.hasGapBefore) {
+    return renderGapBadge(t);
+  }
+
   const badgeStyle = PHYSICAL_BACKUP_STATUS_BADGE_STYLES[backup.status];
   const label = t(PHYSICAL_BACKUP_STATUS_LABEL_KEYS[backup.status]);
 
@@ -270,6 +290,12 @@ export const PhysicalBackupsComponent = ({
   );
 
   const renderDuration = (record: PhysicalBackupListItem): string => {
+    // A WAL range's end is the receive time of its last segment, not the end
+    // of a backup run, so it has no duration to show.
+    if (record.type === PhysicalBackupType.WAL) {
+      return '-';
+    }
+
     if (record.completedAt) {
       return formatDuration(dayjs(record.completedAt).diff(dayjs(record.createdAt)));
     }
@@ -283,21 +309,46 @@ export const PhysicalBackupsComponent = ({
   };
 
   const renderCreatedAt = (backup: PhysicalBackupListItem): JSX.Element => {
-    const isWalRange = backup.type === PhysicalBackupType.WAL && backup.completedAt !== undefined;
-    const latestAt = isWalRange ? backup.completedAt : backup.createdAt;
+    const timeFormat = getUserTimeFormat().format;
+    const createdAt = dayjs.utc(backup.createdAt).local();
+
+    if (backup.type === PhysicalBackupType.WAL && backup.completedAt) {
+      const lastReceivedAt = dayjs.utc(backup.completedAt).local();
+
+      return (
+        <div className="grid grid-cols-[auto_1fr] gap-x-2">
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.from')}
+          </span>
+          <span>
+            {createdAt.format(timeFormat)}{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              ({formatRelativeTime(createdAt)})
+            </span>
+          </span>
+
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.to')}
+          </span>
+          <span>
+            {lastReceivedAt.format(timeFormat)}{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              ({formatRelativeTime(lastReceivedAt)})
+            </span>
+          </span>
+
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('backups.physical.list.walRange.segments')}
+          </span>
+          <span>{backup.walSegmentsCount}</span>
+        </div>
+      );
+    }
 
     return (
       <div>
-        {dayjs.utc(backup.createdAt).local().format(getUserTimeFormat().format)}
-        {isWalRange && (
-          <div className="flex items-center gap-1">
-            <ArrowRightOutlined className="text-[10px]" />
-            {dayjs.utc(latestAt).local().format(getUserTimeFormat().format)}
-          </div>
-        )}
-        <div className="text-gray-500 dark:text-gray-400">
-          ({formatRelativeTime(dayjs.utc(latestAt).local())})
-        </div>
+        {createdAt.format(timeFormat)}
+        <div className="text-gray-500 dark:text-gray-400">({formatRelativeTime(createdAt)})</div>
       </div>
     );
   };
@@ -425,7 +476,7 @@ export const PhysicalBackupsComponent = ({
         </Button>
       </div>
 
-      <div className="mt-5 w-full md:max-w-[850px]">
+      <div className="mt-5 w-full md:max-w-[890px]">
         {/* Mobile card view */}
         <div className="md:hidden">
           {isBackupsLoading ? (

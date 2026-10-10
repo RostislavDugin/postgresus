@@ -1563,8 +1563,10 @@ export const es: typeof en = {
         restoreFromThisBackup: 'Restaurar desde esta copia',
         pointInTimeRestoreTitle: 'Restauración a un punto en el tiempo',
         walRange: {
-          segments: 'Segmentos: {{count}}',
-          gapBefore: 'Hueco antes de este rango',
+          from: 'Desde',
+          to: 'Hasta',
+          segments: 'Segmentos',
+          gap: 'Hueco',
           gapBeforeTooltip:
             'Faltan segmentos WAL entre este rango y el anterior. La restauración a un punto en el tiempo no puede pasar por encima del hueco.',
         },
