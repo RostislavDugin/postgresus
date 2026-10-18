@@ -29,22 +29,42 @@ The hook that runs when the agent finishes a turn, in Claude Code and in Codex, 
 - **THEN** the full implementation review starts again
 
 ### Requirement: Read-only checks of the touched modules run first
-Before starting reviewers the hook SHALL run the checks of every module the working tree changes relative to the last commit: the Go linter for the backend and for the verification agent, the linter for the frontend, the linter and the build for the website, and the hook tests when the hooks changed. The checks MUST NOT modify files, so formatters do not run. The hook MUST NOT run the backend test suites. When a check fails, the hook SHALL block the turn and pass the agent the command and the end of its output. Reviewers MUST NOT start in that case.
+Before starting reviewers the hook SHALL run the checks of every module the working tree changes relative to the last commit: the Go linter for the backend and for the verification agent, the linter for the frontend, the linter and the build for the website, and the hook tests when the hooks changed. After them the hook SHALL run the change verification commands of every change it reviews, each command once even when several changes name it. The checks MUST NOT modify files in the working tree, so formatters do not run. The hook MUST NOT run the full backend suite or the Docker filesystem suite. When a check fails, the hook SHALL block the turn and pass the agent the command and the end of its output. Reviewers MUST NOT start in that case.
+
+Each check SHALL have its own time limit, and all checks of one review SHALL share a total time limit, both within the time budget of the requirement "The full review ends within the hook timeout". When a check exceeds either limit, the hook SHALL stop the check together with every process it started, block the turn and name the limit that was exceeded.
 
 #### Scenario: The backend linter fails
 - **WHEN** the change touches the backend and its linter fails
 - **THEN** the turn is blocked, the agent gets the end of the linter output, and no reviewer starts
 
 #### Scenario: Only the frontend changed
-- **WHEN** the change touches only the frontend
+- **WHEN** the change touches only the frontend and has no change verification commands
 - **THEN** the hook runs the frontend linter and no backend, agent or website check
 
 #### Scenario: The website changed
 - **WHEN** the change touches the website
 - **THEN** the hook runs both the website linter and the website build
 
+#### Scenario: A package test fails
+- **WHEN** the change verification commands run the tests of a backend package and one of them fails
+- **THEN** the turn is blocked, the agent gets the command and the end of the test output, and no reviewer starts
+
+#### Scenario: A test hangs
+- **WHEN** a change verification command runs longer than its time limit
+- **THEN** the hook stops the command and every process it started, blocks the turn and names the exceeded limit
+
+#### Scenario: The checks together exceed the total limit
+- **WHEN** each check stays under its own time limit, but together they run past the total limit
+- **THEN** the hook stops the running check and every process it started, blocks the turn and names the total limit
+
+#### Scenario: The linters pass and the change has no verification commands
+- **WHEN** the change has no "Change verification" section and the linters pass
+- **THEN** the reviewers start without any test run
+
 ### Requirement: What the full implementation review checks
-The full implementation review SHALL run several read-only reviewers in parallel: one per delta spec of the change and one for documentation and the task list. The delta spec reviewer SHALL find the code and the test for every requirement and scenario, check that the test actually proves the scenario, check the design decisions against the code, and look for bugs. The documentation reviewer SHALL check that everything each task states was done, including its verification, and that documentation agrees with itself and with the code. The documentation reviewer SHALL also check edits to agent instructions made by the change against the requirement "What belongs in agent instructions" of the `agent-instructions` capability.
+The full implementation review SHALL run several read-only reviewers in parallel: one per delta spec of the change, one for documentation and the task list, and one for tests. The delta spec reviewer SHALL find the code and the test for every requirement and scenario, check that the test actually proves the scenario, check the design decisions against the code, and look for bugs. The documentation reviewer SHALL check that everything each task states was done, including its verification, and that documentation agrees with itself and with the code. The documentation reviewer SHALL also check edits to agent instructions made by the change against the requirement "What belongs in agent instructions" of the `agent-instructions` capability.
+
+The tests reviewer SHALL check every test the change added or changed against the repository's testing skill and the testing rules of the module docs: the test fails without the behavior it pins, a bug fix has a test that reproduces the bug, the cases the module doc asks for are covered, the test waits for a condition instead of a fixed pause, and it cleans up its data. The tests reviewer SHALL also check that the change verification commands run the tests of every backend package, verification agent package and frontend test file the change added or changed tests in. Tests that no allowed command form runs and that a module check already runs, such as the hook tests, count as covered.
 
 #### Scenario: A scenario without a test
 - **WHEN** a delta spec scenario has no test, or its test passes without the described behavior
@@ -61,6 +81,26 @@ The full implementation review SHALL run several read-only reviewers in parallel
 #### Scenario: The change adds a rule to AGENTS.md
 - **WHEN** the change adds a rule to `AGENTS.md` that changes agent behavior and is written nowhere else
 - **THEN** the documentation reviewer returns no finding under the instruction content criterion
+
+#### Scenario: A change with two delta specs
+- **WHEN** the full implementation review starts for a change with two delta specs
+- **THEN** the hook starts four reviewers in parallel: one per delta spec, one for documentation and tasks, and one for tests
+
+#### Scenario: A test that waits with a fixed pause
+- **WHEN** a test the change added sleeps for a fixed time before checking that a backup finished
+- **THEN** the tests reviewer returns a finding that asks to wait for the condition instead
+
+#### Scenario: A bug fix without a reproducing test
+- **WHEN** a change fixes a bug and no test it added or changed fails on the code before the fix
+- **THEN** the tests reviewer returns a `missing_test` finding
+
+#### Scenario: Changed tests outside the verification commands
+- **WHEN** the change adds tests to a backend package that none of its change verification commands runs
+- **THEN** the tests reviewer returns a `missing_test` finding that names the package
+
+#### Scenario: A change with only hook tests
+- **WHEN** the change adds tests only to the hook tests and has no "Change verification" section
+- **THEN** the tests reviewer returns no finding about the missing section, because the module check runs the hook tests
 
 ### Requirement: Full review models
 The full review reviewers SHALL run on Opus with `medium` effort in Claude Code and on `gpt-6.1-sol` with `high` effort in Codex. The quick checks SHALL run on Opus with `low` effort in Claude Code and on `gpt-6.1-sol` with `low` effort in Codex.
@@ -109,3 +149,43 @@ While a change has an unaccepted full implementation review, the necessity check
 #### Scenario: The agent fixes a delta spec after a finding
 - **WHEN** after a `spec_mismatch` finding the agent edits the change's delta spec and finishes the turn
 - **THEN** the necessity check does not start, and the full review checks the edit
+
+### Requirement: Which change verification commands the hook runs
+The change verification commands SHALL be the lines of the first code block fenced as `sh` under the "Change verification" heading of the change's task list. A block fenced as `bash`, `shell` or without a language does not count. Empty lines and comment lines are skipped. The hook SHALL accept only these command forms:
+
+- backend package tests: `just test-package` followed by one or more package paths, run in the backend directory;
+- the verification agent's tests: `just --justfile agent/verification/Justfile test`, with no further arguments;
+- frontend tests: `pnpm --dir frontend test`, optionally followed by test file paths or filters.
+
+The hook SHALL run each command directly, without a shell. Every argument after the fixed prefix MUST consist only of letters, digits and the characters `.`, `/`, `_`, `-`, `=`, `:` and `@`, and a package path MUST start with `./`. This character set leaves out every shell operator and substitution. A line that is not one of the allowed forms or has an argument outside the allowed characters, a section without a closed `sh` block, and a block without commands SHALL each block the turn with the reason and the list of allowed forms. No check or reviewer runs in that case.
+
+#### Scenario: A full suite run in the block
+- **WHEN** the change verification block contains `just test`
+- **THEN** the turn is blocked with the reason that the command is not allowed, and nothing runs
+
+#### Scenario: A shell operator
+- **WHEN** a line reads `just test-package ./internal/features/intervals/... && rm -rf /tmp/x`
+- **THEN** the turn is blocked with the reason that the argument `&&` has a forbidden character, and nothing runs
+
+#### Scenario: An argument with a forbidden character
+- **WHEN** a line reads `just test-package ./internal/a;rm`
+- **THEN** the turn is blocked with the reason that an argument has a forbidden character, and nothing runs
+
+#### Scenario: Two changes name the same command
+- **WHEN** the hook reviews two changes whose blocks both contain `pnpm --dir frontend test`
+- **THEN** the command runs once
+
+#### Scenario: Backend package tests
+- **WHEN** a block contains `just test-package ./internal/features/intervals/...`
+- **THEN** the hook runs that command in the backend directory
+
+### Requirement: The full review ends within the hook timeout
+The full implementation review SHALL work within a time budget that ends before the hook timeout of the client configuration, with a margin for the hook's own Git, OpenSpec and file work. The checks SHALL run inside that budget. A reviewer SHALL start only when the budget still holds its whole time limit. A reviewer that cannot start for that reason SHALL count as a reviewer that could not run: the review is not accepted, and the agent gets the reason. The hook MUST NOT be killed by the client timeout without a message.
+
+#### Scenario: Too many reviewers for the budget
+- **WHEN** a change has so many delta specs that a third wave of reviewers would not fit in the remaining budget
+- **THEN** the reviewers of that wave do not start, the turn is blocked, and the agent gets the reason that the review time budget ran out
+
+#### Scenario: Two waves of reviewers after slow checks
+- **WHEN** the checks use their whole total limit and the change needs two waves of reviewers
+- **THEN** both waves run and the hook answers before the client timeout

@@ -39,6 +39,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 | `just pull-testcontainers` | Pull the database images the backend tests use |
 | `just lint` | Check every module without changing files |
 | `just format` | Format every module |
+| `just doctor` | Check that the review hooks find the tools they need |
 | `goose -dir backend/migrations create <name> sql` | Create a migration |
 | `goose -dir backend/migrations up` (or `down`), with `.env` exported | Apply or roll back migrations on the dev database; goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment |
 | `swag init -d . -g cmd/main.go -o swagger`, run in `backend/` | Regenerate the API docs |
@@ -55,6 +56,12 @@ Several agents may work on this repo at once, in different worktrees, sharing on
 - Test the packages you touched, and the packages that test the same feature, with `just test-package ./internal/features/<feature>/...` in `backend/`; the database slot it claims is described in [`backend/internal/config/config.go`](backend/internal/config/config.go). An agent never runs `just test`, not even at the end of a change, and never makes finishing a task depend on it: it resets the test containers and slot databases every other agent uses. The full suite is for the developer and CI. A fresh environment needs one full run first, which the developer starts.
 
 When a failure makes no sense — a container that vanished, a database that emptied itself — a parallel run is worth suspecting in maybe one case in twenty. Re-run before hunting the bug.
+
+---
+
+## Tests
+
+When you write, change, run or review tests, load the [testing skill](.agents/skills/testing/SKILL.md) first. It holds the rules every module shares; the module docs add the rules of their stack.
 
 ---
 
