@@ -315,6 +315,7 @@ export const pt: typeof en = {
       config: 'Configuração',
       backups: 'Backups',
       verifications: 'Verificações',
+      monitoring: 'Monitoramento',
     },
     create: {
       title: 'Adicionar banco de dados para backup',
@@ -1685,6 +1686,258 @@ export const pt: typeof en = {
           },
           missingConfigFiles:
             'Um backup base copia só o diretório de dados. Se o PostgreSQL de origem guarda a configuração fora dele (é o layout do Debian/Ubuntu, <configDir/>), então <code>postgresql.conf</code>, <code>pg_hba.conf</code> e <code>pg_ident.conf</code> não estão no backup e o servidor não vai iniciar. Consulte os caminhos reais na origem com <code>psql -Atc "SHOW config_file"</code>, copie os três arquivos e depois comente <code>data_directory</code>, <code>hba_file</code>, <code>ident_file</code>, <code>external_pid_file</code> e as linhas <code>ssl</code> / <code>ssl_*</code>, crie <code>conf.d</code> e defina <code>listen_addresses = \'*\'</code> para um container. Se esses arquivos estão presentes e o mesmo erro continua, o problema é o diretório montado, não a configuração.',
+        },
+      },
+      monitoring: {
+        periods: {
+          hour: 'Última hora',
+          day: 'Último dia',
+          week: 'Última semana',
+        },
+        levels: {
+          notStreaming: 'O salvamento contínuo de alterações está desligado',
+          collectingData: 'Coletando dados',
+          broken: 'Algo está quebrado',
+          needsAttention: 'Algo precisa de atenção',
+          healthy: 'Tudo em ordem',
+        },
+        reasonLevels: {
+          broken: 'Quebrado',
+          needsAttention: 'Precisa de atenção',
+          info: 'Para sua informação',
+        },
+        keepingUpStates: {
+          unknown: 'Desconhecido',
+          fallingBehind: 'Ficando para trás',
+          catchingUp: 'Recuperando o atraso',
+          idle: 'Sem atividade',
+          keepingUp: 'Em dia',
+        },
+        banner: {
+          collectingDataDescription:
+            'O streaming começou; os primeiros números aparecem em menos de um minuto.',
+          notStreamingDescription:
+            'Os backups estão desativados ou nenhum armazenamento foi selecionado. Você pode ativá-lo na <configLink>configuração</configLink>.',
+          cannotConfirm: 'Não é possível confirmar o estado atual',
+          cannotConfirmDescription: 'Último estado conhecido: {{level}}, há {{duration}}.',
+          measuredAgo: 'Medido há {{duration}}',
+          notMeasuredYet: 'Ainda sem medições',
+          refreshFailed:
+            'Não foi possível atualizar os dados. Os últimos números recebidos continuam na tela, e a próxima tentativa acontece em 30 segundos.',
+        },
+        keepingUp: {
+          keepingUp:
+            'O Databasus salva as alterações tão rápido quanto o banco de dados as grava: {{writeRate}} gravados, {{archiveRate}} salvos.',
+          fallingBehind:
+            'O banco de dados grava alterações mais rápido do que o Databasus consegue salvá-las, cerca de {{differenceRate}} a mais: {{writeRate}} contra {{archiveRate}}.',
+          fallingBehindBacklog:
+            'Ainda faltam salvar {{unsavedAmount}}, e esse volume cresce cerca de {{growthPerHour}} por hora.',
+          catchingUp:
+            'O Databasus está salvando as alterações acumuladas: faltam {{unsavedAmount}}, o que leva cerca de {{duration}}.',
+          catchingUpWithoutEstimate:
+            'O Databasus está salvando as alterações acumuladas: faltam {{unsavedAmount}}.',
+          idle: 'O banco de dados quase não grava nada; as novas alterações chegam ao armazenamento em poucos minutos.',
+          unknown: 'Não há números atuais disponíveis.',
+          rebuildConsequence:
+            'Nesse ritmo, o Databasus vai começar uma nova cadeia de backups a partir de um backup completo em cerca de {{duration}}.',
+          limitConsequence:
+            'Nesse ritmo, o banco de dados vai apagar alterações que o Databasus ainda não recebeu em cerca de {{duration}}.',
+        },
+        reasons: {
+          streamingStopped: {
+            title: 'O salvamento parou',
+            whatHappened: 'O Databasus parou de receber alterações há {{duration}}.',
+            whatToDo:
+              'O Databasus tenta de novo sozinho. Se isso continuar, verifique os logs do Databasus.',
+          },
+          sourceUnreachable: {
+            title: 'O banco de dados está inacessível',
+            whatHappened: 'O Databasus não consegue se conectar ao banco de dados há {{duration}}.',
+            whatToDo:
+              'Verifique se o servidor do banco de dados está em execução e acessível a partir do Databasus.',
+          },
+          walChainBroken: {
+            title: 'Alterações se perderam entre os backups',
+            whatHappened:
+              'Algumas alterações se perderam entre os backups, por isso as alterações recentes ainda não podem ser restauradas.',
+            whatToDo: 'Inicie um backup completo na aba Backups.',
+            whatToDoPending:
+              'Um novo backup completo já está a caminho. Você pode acompanhá-lo na aba Backups.',
+          },
+          slotMissing: {
+            title: 'O banco de dados parou de guardar alterações',
+            whatHappened:
+              'O banco de dados não guarda mais alterações para o Databasus: a reserva que o Databasus criou nele sumiu.',
+            whatToDo:
+              'O Databasus recria a reserva quando o streaming reinicia, mas as alterações feitas nesse meio-tempo se perdem. Inicie um backup completo na aba Backups e verifique se ninguém remove a reserva no banco de dados.',
+            whatToDoPending:
+              'O Databasus recria a reserva quando o streaming reinicia, e um novo backup completo já está a caminho. Verifique se ninguém remove a reserva no banco de dados.',
+          },
+          slotLost: {
+            title: 'O banco de dados apagou alterações não salvas',
+            whatHappened:
+              'O banco de dados apagou alterações que o Databasus ainda não tinha recebido.',
+            whatToDo:
+              'O Databasus recomeça sozinho com um novo backup completo. Para evitar isso da próxima vez, acelere o salvamento ou deixe o banco de dados guardar mais alterações.',
+          },
+          archiveNotAdvancing: {
+            title: 'As alterações não chegam ao armazenamento',
+            whatHappened:
+              'Há {{duration}} nenhuma alteração nova chega ao armazenamento, embora o banco de dados continue gravando.',
+            whatToDo: 'Verifique se o armazenamento está acessível e tem espaço livre.',
+          },
+          archiveSlowerThanSource: {
+            title: 'O salvamento está lento demais',
+            whatHappened:
+              'O banco de dados grava mais rápido do que o Databasus salva; o volume pendente cresceu {{amount}} em 10 minutos.',
+            whatToDo:
+              'Verifique a velocidade da rede até o armazenamento ou aproxime o armazenamento do Databasus.',
+          },
+          slotKeepsExtraWal: {
+            title: 'O banco de dados guarda alterações a mais',
+            whatHappened:
+              'Há {{duration}} o banco de dados guarda para o Databasus mais registro de alterações do que o normal, e o volume continua crescendo.',
+            whatToDo: 'Verifique se o servidor do banco de dados tem espaço livre em disco.',
+          },
+          slotLimitApproaching: {
+            title: 'Alterações não salvas serão apagadas em breve',
+            whatHappened:
+              'Nesse ritmo, o banco de dados vai apagar alterações que o Databasus ainda não recebeu em cerca de {{duration}}.',
+            whatToDo:
+              'Acelere o salvamento ou aumente <code>max_slot_wal_keep_size</code> no banco de dados.',
+          },
+          nearSlotRebuild: {
+            title: 'Perto de recomeçar',
+            whatHappened:
+              'As alterações ainda não recebidas pelo Databasus chegaram a {{amount}} dos {{limit}} em que o Databasus recomeça a partir de um backup completo.',
+            whatToDo: 'Acelere o salvamento ou aumente o limite nas configurações de backup.',
+          },
+          localQueueFilling: {
+            title: 'O buffer do Databasus está enchendo',
+            whatHappened: 'O buffer do Databasus tem {{amount}} de {{limit}}.',
+            whatToDo:
+              'O Databasus pausa o recebimento sozinho quando o buffer enche. Verifique a velocidade do armazenamento.',
+          },
+          frequentRestarts: {
+            title: 'O recebimento reinicia com frequência',
+            whatHappened: 'Reinícios do recebimento na última hora: {{count}}.',
+            whatToDo: 'Procure a causa nos logs do Databasus.',
+          },
+          forcedRotationRefused: {
+            title: 'Períodos tranquilos chegam atrasados ao armazenamento',
+            whatHappened:
+              'O banco de dados se recusa a fechar o arquivo de alterações na hora certa, por isso as alterações de períodos tranquilos chegam mais tarde ao armazenamento.',
+            whatToDo:
+              'Dê ao usuário de backup permissão para executar <code>pg_switch_wal()</code>.',
+          },
+        },
+        notices: {
+          noSlotWalLimit: {
+            title: 'Sem limite para alterações guardadas',
+            whatHappened: 'O banco de dados guarda alterações para o Databasus sem limite.',
+            whatToDo:
+              'Um limite protege o disco do servidor do banco de dados se o Databasus ficar parado por muito tempo. O custo é um novo backup completo quando o limite é atingido. Ele é definido por <code>max_slot_wal_keep_size</code>.',
+          },
+          slotKeepsExtraWalSteadily: {
+            title: 'O banco de dados guarda alterações a mais',
+            whatHappened:
+              'O banco de dados guarda para o Databasus mais registro de alterações do que o normal.',
+            whatToDo:
+              'Com carga alta isso é normal. Não é preciso fazer nada enquanto o volume não cresce.',
+          },
+          noFullBackupYet: {
+            title: 'Ainda não há backup completo',
+            whatHappened:
+              'O primeiro backup completo ainda não terminou, por isso as alterações salvas ainda não podem ser restauradas.',
+            whatToDo: 'Aguarde ou inicie-o na aba Backups.',
+          },
+        },
+        path: {
+          database: 'Banco de dados',
+          databasus: 'Databasus',
+          storage: 'Armazenamento',
+          notReceivedYet: 'Ainda não recebido pelo Databasus',
+          rebuildLimit:
+            'Com {{amount}}, o Databasus começa uma nova cadeia a partir de um backup completo',
+          allowanceLeft: 'Margem até o banco de dados apagar alterações: {{amount}}',
+          noAllowanceLimit: 'Sem limite para alterações guardadas',
+          waitingInBuffer: 'Aguardando no buffer',
+          pauseLimit: 'O recebimento pausa com {{amount}}',
+          receivingPaused: 'Recebimento pausado',
+          lastSaved: 'Última alteração salva {{relativeTime}}',
+          nothingSavedYet: 'Nada salvo ainda',
+          overLimit: 'Acima do limite',
+          writeRate: 'Grava {{rate}}',
+          saveRate: 'Salva {{rate}}',
+          unknownAmount: 'Desconhecido',
+        },
+        tooltips: {
+          notReceivedYet:
+            'Alterações que o banco de dados guarda para o Databasus porque o Databasus ainda não as recebeu. Nome técnico: atraso do slot de replicação.',
+          rebuildLimit:
+            'Acima desse volume, o Databasus remove o slot de replicação e começa uma nova cadeia de backups, para que o disco do servidor do banco de dados não encha. Nome técnico: limite de atraso do WAL.',
+          allowanceLeft:
+            'Quanto o banco de dados ainda pode gravar antes de apagar alterações que o Databasus não recebeu. Nome técnico: safe_wal_size, limitado por max_slot_wal_keep_size.',
+          waitingInBuffer:
+            'Alterações que o Databasus recebeu, mas ainda não salvou no armazenamento. Nome técnico: fila local de WAL.',
+          pauseLimit:
+            'Quando o buffer chega a esse tamanho, o Databasus pausa o recebimento até ele esvaziar. Nome técnico: limite superior de contrapressão.',
+          lastSaved:
+            'Quando o arquivo de alterações mais recente chegou ao armazenamento. Nome técnico: último segmento de WAL arquivado.',
+          writeRate:
+            'A velocidade com que o banco de dados grava alterações, em média nos últimos 10 minutos. Nome técnico: taxa de gravação do WAL.',
+          saveRate:
+            'A velocidade com que o Databasus salva alterações no armazenamento, em média nos últimos 10 minutos. Nome técnico: taxa de arquivamento do WAL.',
+        },
+        charts: {
+          keepingUpTitle: 'O Databasus está dando conta?',
+          unsavedTitle: 'Quanto ainda não foi salvo?',
+          unsavedSubtitle: 'Inclui o que o Databasus ainda não recebeu',
+          bufferTitle: 'Buffer do Databasus',
+          databaseWrites: 'Gravação do banco de dados',
+          savedToStorage: 'Salvo no armazenamento',
+          notSavedYet: 'Ainda não no armazenamento',
+          notReceivedYet: 'Ainda não recebido pelo Databasus',
+          waitingInBuffer: 'Aguardando no buffer',
+          pauseLimit: 'Aqui o recebimento pausa',
+          restarts: 'Reinícios',
+          pauses: 'Pausas',
+          noHistory: 'Os gráficos aparecem após alguns minutos de streaming.',
+          dataSince: 'Dados desde {{time}}',
+          perSecond: '{{amount}}/s',
+        },
+        details: {
+          title: 'Detalhes',
+          slotStatus: 'Status do slot (wal_status)',
+          allowance: 'Margem restante (safe_wal_size)',
+          noLimit: 'Sem limite',
+          averageSegmentWrite: 'Gravação média de um segmento',
+          longestSegmentWrite: 'Gravação mais longa de um segmento',
+          uploadConcurrency: 'Envios simultâneos',
+          walToStoredRatio: 'Proporção entre WAL e tamanho salvo',
+          walSegmentSize: 'Tamanho do segmento de WAL',
+          sessionStart: 'Início da sessão de streaming',
+          streamerState: 'Estado do streamer',
+          sourceState: 'Estado da origem',
+          restartsLastHour: 'Reinícios na última hora',
+          milliseconds: '{{value}} ms',
+          notAvailable: 'Indisponível',
+          streamerStates: {
+            running: 'Em execução',
+            notRunning: 'Parado',
+            notStarted: 'Ainda não iniciado',
+          },
+          sourceStates: {
+            reachable: 'Acessível',
+            unreachable: 'Inacessível',
+            slotMissing: 'Acessível, sem slot de replicação',
+          },
+        },
+        durations: {
+          seconds: '{{seconds}} s',
+          minutes: '{{minutes}} min',
+          hoursMinutes: '{{hours}} h {{minutes}} min',
+          daysHours: '{{days}} d {{hours}} h',
         },
       },
     },

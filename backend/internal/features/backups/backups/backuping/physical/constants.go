@@ -43,15 +43,9 @@ const (
 
 	// The WAL-stream supervisor reconciles owned streamers on the same 15 s
 	// cadence as the scheduler — cadence-driven work is cheap, and the tighter
-	// bound comes from streamer reclaim, where 15 s + streamerHeartbeatStaleness
+	// bound comes from streamer reclaim, where 15 s + wal_health.StreamerHeartbeatStaleness
 	// keeps detect-to-reclaim under ~2 min after a crash.
 	walStreamSupervisorTickInterval = 15 * time.Second
-
-	// A streamer row whose heartbeat is older than this is assumed dead and
-	// reclaimable by another process. Heartbeats fire every tick (15 s), so 90 s =
-	// 6 missed beats — tolerant of GC pauses without leaving a dead streamer
-	// unclaimed for long.
-	streamerHeartbeatStaleness = 90 * time.Second
 
 	// Bounds how long a reconcile waits for one streamer goroutine to drain on
 	// stop so a stuck pg_receivewal teardown can't stall the whole supervisor.

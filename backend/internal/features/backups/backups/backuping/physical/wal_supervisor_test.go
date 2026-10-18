@@ -1,18 +1,25 @@
 package backuping_physical
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"databasus-backend/internal/config"
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
+	"databasus-backend/internal/features/databases"
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/features/notifiers"
 	"databasus-backend/internal/storage"
 )
@@ -178,6 +185,7 @@ func Test_StopStreamer_WhenOwnedStreamerStops_MarksRowFailed(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, streamer)
 	require.Equal(t, physical_enums.PhysicalWalStreamerStatusFailed, streamer.Status)
+	require.Nil(t, streamer.FailingSince, "a deliberate stop is not a failure, so a deploy does not read as one")
 }
 
 func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T) {
@@ -185,7 +193,7 @@ func Test_RecoverStreamersOnStartup_WhenRunningRowStale_MarksFailed(t *testing.T
 	seedStreamerRow(
 		t,
 		prereqs.DB.ID,
-		time.Now().UTC().Add(-2*streamerHeartbeatStaleness),
+		time.Now().UTC().Add(-2*wal_health.StreamerHeartbeatStaleness),
 		physical_enums.PhysicalWalStreamerStatusRunning,
 	)
 
@@ -379,4 +387,149 @@ func Test_ChainRiskNotifier_WhenReasonsDiffer_UsesSeparateThrottleKinds(t *testi
 
 	require.Contains(t, sender.sentNotifications[1].Notification.Message, lastArchivedWalAt.Format(time.RFC3339))
 	require.Contains(t, sender.sentNotifications[2].Notification.Message, "pg_switch_wal()")
+}
+
+func seedBackupPrereqsOnSharedSource(t *testing.T, backupType postgresql_physical.BackupType) *backupPrereqs {
+	t.Helper()
+
+	port, err := strconv.Atoi(config.GetEnv().TestPhysicalPostgres17Port)
+	require.NoError(t, err)
+
+	return seedBackupPrereqsOnEndpoint(t, config.GetEnv().TestLocalhost, port, backupType)
+}
+
+func seedBackupPrereqsOnEndpoint(
+	t *testing.T,
+	host string,
+	port int,
+	backupType postgresql_physical.BackupType,
+) *backupPrereqs {
+	t.Helper()
+
+	return seedBackupPrereqsWithDatabase(
+		t,
+		func(workspaceID uuid.UUID, notifier *notifiers.Notifier) *databases.Database {
+			return databases.CreateTestPhysicalPostgresDatabaseWithType(
+				host,
+				port,
+				workspaceID,
+				notifier,
+				"17",
+				backupType,
+			)
+		},
+	)
+}
+
+// A supervisor that stops its streamers before the test drops their slots, so
+// no receiver re-attaches in between.
+func startReconcilingSupervisor(t *testing.T) (*PhysicalWalStreamSupervisor, context.Context) {
+	t.Helper()
+
+	supervisor := CreateTestWalStreamSupervisor(WalStreamSupervisorTestSpec{
+		NotificationSender: notifiers.GetNotifierService(),
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(func() {
+		cancel()
+		supervisor.stopAllStreamers()
+	})
+
+	return supervisor, ctx
+}
+
+func dropStreamerSlotOnCleanup(t *testing.T, prereqs *backupPrereqs) {
+	t.Helper()
+
+	adminConn := postgresql_executor.OpenAdminConn(t, &postgresql_executor.PhysicalDBFixture{DB: prereqs.DB})
+
+	t.Cleanup(func() {
+		postgresql_executor.DropReplicationSlotExternally(
+			t,
+			adminConn,
+			prereqs.DB.PostgresqlPhysical.ReplicationSlotName,
+		)
+	})
+}
+
+func countSamples(t *testing.T, databaseID uuid.UUID) int {
+	t.Helper()
+
+	samples, err := physical_repositories.GetWalStreamSampleRepository().FindSinceByDatabase(databaseID, time.Time{})
+	require.NoError(t, err)
+
+	return len(samples)
+}
+
+func Test_Reconcile_WhenDatabaseIsNotWalStreaming_RecordsNoSamplesForIt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs a real streamer until its first sample; skipped in -short")
+	}
+
+	streamingPrereqs := seedBackupPrereqsOnSharedSource(t, postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+	dropStreamerSlotOnCleanup(t, streamingPrereqs)
+
+	incrementalPrereqs := seedBackupPrereqsOnSharedSource(t, postgresql_physical.BackupTypeFullAndIncremental)
+
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(streamingPrereqs.DB.ID)
+	})
+
+	supervisor, ctx := startReconcilingSupervisor(t)
+	supervisor.reconcile(ctx)
+
+	require.Eventually(t, func() bool {
+		return countSamples(t, streamingPrereqs.DB.ID) > 0
+	}, 2*wal_health.SampleInterval+30*time.Second, time.Second,
+		"the WAL streaming database records its first sample within one lag-monitor tick")
+
+	require.Zero(t, countSamples(t, incrementalPrereqs.DB.ID),
+		"a database outside WAL streaming mode is never sampled")
+}
+
+func Test_Reconcile_WhenEverySessionFailsBeforeFirstSample_KeepsFirstFailingTime(t *testing.T) {
+	unreachablePrereqs := seedBackupPrereqsOnEndpoint(t, "127.0.0.1", 1,
+		postgresql_physical.BackupTypeFullIncrementalAndWalStream)
+
+	streamerRepository := physical_repositories.GetWalStreamerRepository()
+	t.Cleanup(func() {
+		_ = streamerRepository.DeleteByDatabaseID(unreachablePrereqs.DB.ID)
+	})
+
+	supervisor, ctx := startReconcilingSupervisor(t)
+
+	waitForFailedSession := func(previousStartedAt time.Time) *physical_models.PhysicalWalStreamer {
+		var failedStreamer *physical_models.PhysicalWalStreamer
+
+		require.Eventually(t, func() bool {
+			supervisor.mu.Lock()
+			_, isRunning := supervisor.running[unreachablePrereqs.DB.ID]
+			supervisor.mu.Unlock()
+
+			streamer, err := streamerRepository.FindByDatabaseID(unreachablePrereqs.DB.ID)
+			if err != nil || streamer == nil || isRunning {
+				return false
+			}
+
+			failedStreamer = streamer
+
+			return streamer.Status == physical_enums.PhysicalWalStreamerStatusFailed &&
+				streamer.StartedAt.After(previousStartedAt)
+		}, 60*time.Second, 200*time.Millisecond, "a session against an unreachable source fails at start")
+
+		return failedStreamer
+	}
+
+	supervisor.reconcile(ctx)
+	firstFailure := waitForFailedSession(time.Time{})
+	require.NotNil(t, firstFailure.FailingSince)
+
+	supervisor.reconcile(ctx)
+	secondFailure := waitForFailedSession(firstFailure.StartedAt)
+
+	require.NotNil(t, secondFailure.FailingSince)
+	require.True(t, firstFailure.FailingSince.Equal(*secondFailure.FailingSince),
+		"a crash loop keeps the time of its first failure")
+	require.Zero(t, countSamples(t, unreachablePrereqs.DB.ID))
 }

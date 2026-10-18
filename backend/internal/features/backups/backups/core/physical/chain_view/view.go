@@ -17,6 +17,11 @@ type ChainView struct {
 	Span LSNRange
 }
 
+type FullBackupWithGaps struct {
+	FullBackup *physical_models.PhysicalFullBackup
+	WalGaps    []LSNRange
+}
+
 // LSNMax is the unbounded upper sentinel for the latest chain on a timeline
 // (no successor FULL exists). Encoded as the maximum uint64 LSN so range
 // predicates against pg_lsn columns still work without a special case.

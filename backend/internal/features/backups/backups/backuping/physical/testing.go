@@ -99,6 +99,7 @@ func CreateTestWalStreamSupervisor(spec WalStreamSupervisorTestSpec) *PhysicalWa
 		physical_repositories.GetWalSegmentRepository(),
 		physical_repositories.GetWalHistoryRepository(),
 		physical_repositories.GetWalStreamerRepository(),
+		physical_repositories.GetWalStreamSampleRepository(),
 		spec.NotificationSender,
 		tasks_cancellation.GetRegistry(),
 		encryption_secrets.GetSecretKeyService(),
@@ -123,6 +124,7 @@ func CreateTestPhysicalCleaner() *PhysicalBackupCleaner {
 		backups_config_physical.GetBackupConfigService(),
 		physical_repositories.GetFullBackupRepository(),
 		physical_repositories.GetWalSegmentRepository(),
+		physical_repositories.GetWalStreamSampleRepository(),
 		logger.GetLogger(),
 		atomic.Bool{},
 	}

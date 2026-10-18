@@ -4,7 +4,11 @@ import { useTranslation } from 'react-i18next';
 
 import { type Database, DatabaseType, databaseApi } from '../../../entity/databases';
 import { LogicalBackupsComponent } from '../../backups/logical';
-import { PhysicalBackupsComponent } from '../../backups/physical';
+import {
+  PhysicalBackupsComponent,
+  WalStreamMonitoringComponent,
+  isMonitoringTabShown,
+} from '../../backups/physical';
 import { HealthckeckAttemptsComponent } from '../../healthcheck';
 import { VerificationsComponent } from '../../verification/runs';
 import { DatabaseConfigComponent } from './DatabaseConfigComponent';
@@ -25,7 +29,9 @@ export const DatabaseComponent = ({
   isCanManageDBs,
 }: Props) => {
   const { t } = useTranslation();
-  const [currentTab, setCurrentTab] = useState<'config' | 'backups' | 'verifications'>('backups');
+  const [currentTab, setCurrentTab] = useState<
+    'config' | 'backups' | 'verifications' | 'monitoring'
+  >('backups');
 
   const [database, setDatabase] = useState<Database | undefined>();
   const [editDatabase, setEditDatabase] = useState<Database | undefined>();
@@ -40,6 +46,7 @@ export const DatabaseComponent = ({
 
   const isLogicalDatabase = database?.type === DatabaseType.POSTGRES_LOGICAL;
   const isPhysicalDatabase = database?.type === DatabaseType.POSTGRES_PHYSICAL;
+  const isMonitoringShown = database !== undefined && isMonitoringTabShown(database);
 
   const loadSettings = () => {
     setDatabase(undefined);
@@ -84,6 +91,15 @@ export const DatabaseComponent = ({
             {t('databases.tabs.verifications')}
           </div>
         )}
+
+        {isMonitoringShown && (
+          <div
+            className={`mr-2 cursor-pointer rounded-tl-md rounded-tr-md px-6 py-2 ${currentTab === 'monitoring' ? 'bg-white dark:bg-gray-800' : 'bg-gray-200 dark:bg-gray-700'}`}
+            onClick={() => setCurrentTab('monitoring')}
+          >
+            {t('databases.tabs.monitoring')}
+          </div>
+        )}
       </div>
 
       {currentTab === 'config' && (
@@ -122,6 +138,14 @@ export const DatabaseComponent = ({
             />
           )}
         </>
+      )}
+
+      {currentTab === 'monitoring' && isMonitoringShown && (
+        <WalStreamMonitoringComponent
+          database={database}
+          isDirectlyUnderTab={true}
+          onOpenConfig={() => setCurrentTab('config')}
+        />
       )}
 
       {currentTab === 'verifications' && isLogicalDatabase && (

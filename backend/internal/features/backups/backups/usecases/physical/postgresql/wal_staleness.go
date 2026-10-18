@@ -7,11 +7,6 @@ import (
 	"databasus-backend/internal/util/walmath"
 )
 
-// A rarely-written database can legitimately hold its newest WAL locally for a
-// while, but past this the recovery point has silently stopped tracking the
-// source and only the operator can decide what to do about it.
-const DefaultArchiveStalenessThreshold = 30 * time.Minute
-
 type walArchiveSample struct {
 	SourceCurrentLSN     walmath.LSN
 	ArchiveProgressPoint walmath.LSN

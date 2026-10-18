@@ -43,12 +43,14 @@ const (
 // the single seam through which the cleaner mutates catalog rows — the cleaner
 // never issues raw DELETEs.
 type PhysicalBackupService struct {
-	fullBackupRepository *physical_repositories.PhysicalFullBackupRepository
-	walSegmentRepository *physical_repositories.PhysicalWalSegmentRepository
-	storageService       *storages.StorageService
-	fileStore            *storage_files.Store
-	fieldEncryptor       util_encryption.FieldEncryptor
-	logger               *slog.Logger
+	fullBackupRepository      *physical_repositories.PhysicalFullBackupRepository
+	walSegmentRepository      *physical_repositories.PhysicalWalSegmentRepository
+	walStreamSampleRepository *physical_repositories.PhysicalWalStreamSampleRepository
+	walStreamerRepository     *physical_repositories.PhysicalWalStreamerRepository
+	storageService            *storages.StorageService
+	fileStore                 *storage_files.Store
+	fieldEncryptor            util_encryption.FieldEncryptor
+	logger                    *slog.Logger
 }
 
 // GetLatestCompletedFullBackup returns the most recent completed FULL backup for

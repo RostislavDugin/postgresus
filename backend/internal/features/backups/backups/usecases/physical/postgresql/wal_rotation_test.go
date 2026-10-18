@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
 )
 
@@ -101,4 +104,40 @@ func Test_RecordRotation_WhenSwitchMovedTheInsertPoint_DoesNotCountItAsFreshWal(
 		CurrentLSN: currentLSNAfterRotation,
 		ObservedAt: base.Add(10 * testRotationInterval),
 	}, testRotationInterval), "the switch itself moved the insert point; that is not the source writing")
+}
+
+func Test_RunForcedWalRotation_WhenSourceRefusesSwitchWal_SetsRefusalFlag(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+	adminConn := OpenAdminConn(t, fixture)
+
+	supervisor := NewWalStreamSupervisor(WalStreamSpec{
+		DatabaseID:             uuid.New(),
+		SourceDB:               createReplicationOnlyRole(t, adminConn, fixture),
+		FieldEncryptor:         encryption.GetFieldEncryptor(),
+		WatchDirRoot:           t.TempDir(),
+		ForcedRotationInterval: time.Second,
+		Logger:                 logger.GetLogger(),
+	})
+
+	rotationDone := make(chan struct{})
+
+	go func() {
+		defer close(rotationDone)
+
+		supervisor.runForcedWalRotation(t.Context(), logger.GetLogger())
+	}()
+
+	require.False(t, supervisor.isForcedRotationDenied.Load())
+
+	require.Eventually(t, func() bool {
+		_, err := GenerateWalActivity(t.Context(), adminConn, 4096)
+
+		return err == nil && supervisor.isForcedRotationDenied.Load()
+	}, 60*time.Second, time.Second, "a refused pg_switch_wal must be visible to the samples")
+
+	select {
+	case <-rotationDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the rotation loop must stop after a permanent refusal")
+	}
 }

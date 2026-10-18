@@ -88,12 +88,37 @@ func (r *PhysicalWalStreamerRepository) Heartbeat(databaseID uuid.UUID) error {
 		Update("last_heartbeat_at", gorm.Expr("NOW()")).Error
 }
 
+// A crash loop keeps the failing_since of its first failure, so the time a
+// streamer has been failing survives every reclaim that fails again.
 func (r *PhysicalWalStreamerRepository) MarkFailed(databaseID uuid.UUID) error {
 	return storage.
 		GetDb().
 		Model(&physical_models.PhysicalWalStreamer{}).
 		Where("database_id = ?", databaseID).
+		Updates(map[string]any{
+			"status":        physical_enums.PhysicalWalStreamerStatusFailed,
+			"failing_since": gorm.Expr("COALESCE(failing_since, NOW())"),
+		}).Error
+}
+
+// A deliberate stop (shutdown, streaming switched off) releases the row for
+// reclaim like a failure does, but it is not one, so it leaves failing_since
+// alone and a deploy does not read as a streamer that has been failing.
+func (r *PhysicalWalStreamerRepository) MarkStopped(databaseID uuid.UUID) error {
+	return storage.
+		GetDb().
+		Model(&physical_models.PhysicalWalStreamer{}).
+		Where("database_id = ?", databaseID).
 		Update("status", physical_enums.PhysicalWalStreamerStatusFailed).Error
+}
+
+func (r *PhysicalWalStreamerRepository) ClearFailingSince(databaseID uuid.UUID) error {
+	return storage.
+		GetDb().
+		Model(&physical_models.PhysicalWalStreamer{}).
+		Where("database_id = ?", databaseID).
+		Where("failing_since IS NOT NULL").
+		Update("failing_since", nil).Error
 }
 
 func (r *PhysicalWalStreamerRepository) MarkStaleRunningFailed(stalenessSeconds int) (int64, error) {
@@ -102,7 +127,10 @@ func (r *PhysicalWalStreamerRepository) MarkStaleRunningFailed(stalenessSeconds 
 		Model(&physical_models.PhysicalWalStreamer{}).
 		Where("status = ?", physical_enums.PhysicalWalStreamerStatusRunning).
 		Where("last_heartbeat_at < NOW() - make_interval(secs => ?)", float64(stalenessSeconds)).
-		Update("status", physical_enums.PhysicalWalStreamerStatusFailed)
+		Updates(map[string]any{
+			"status":        physical_enums.PhysicalWalStreamerStatusFailed,
+			"failing_since": gorm.Expr("COALESCE(failing_since, NOW())"),
+		})
 
 	return result.RowsAffected, result.Error
 }

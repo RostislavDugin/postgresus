@@ -20,6 +20,15 @@ type SlotState struct {
 	RestartLSN      walmath.LSN
 	FlushLSN        walmath.LSN
 	LagBytes        int64
+
+	// The source's own position, read in the same query. Unlike restart_lsn plus
+	// the lag, it stays right for a lost slot, whose restart_lsn is NULL.
+	CurrentLSN walmath.LSN
+
+	// How much WAL the source can still write before the slot loses WAL. Nil when
+	// max_slot_wal_keep_size is -1 (no limit) and when the slot is already lost;
+	// WalStatus tells the two apart.
+	SafeWalSizeBytes *int64
 }
 
 // InspectSlot reads the row for slotName from pg_replication_slots and
@@ -39,7 +48,9 @@ func InspectSlot(ctx context.Context, conn *pgx.Conn, slotName string) (*SlotSta
 			COALESCE(s.wal_status, ''),
 			COALESCE(s.restart_lsn, '0/0'::pg_lsn),
 			COALESCE(s.confirmed_flush_lsn, '0/0'::pg_lsn),
-			COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), s.restart_lsn), 0)::bigint
+			COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), s.restart_lsn), 0)::bigint,
+			pg_current_wal_lsn(),
+			s.safe_wal_size
 		FROM pg_replication_slots s
 		LEFT JOIN pg_stat_replication r ON r.pid = s.active_pid
 		WHERE s.slot_name = $1
@@ -51,6 +62,8 @@ func InspectSlot(ctx context.Context, conn *pgx.Conn, slotName string) (*SlotSta
 		&restartLSN,
 		&flushLSN,
 		&state.LagBytes,
+		&state.CurrentLSN,
+		&state.SafeWalSizeBytes,
 	)
 
 	switch {

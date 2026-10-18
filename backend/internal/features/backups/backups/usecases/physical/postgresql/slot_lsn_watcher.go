@@ -17,6 +17,8 @@ const (
 	// restart_lsn unchanged this long while WAL is waiting means pg_receivewal is
 	// stuck (alive but flushing nothing); restart it locally.
 	slotLsnStallTimeout = 60 * time.Second
+
+	slotProbeTimeout = 10 * time.Second
 )
 
 type slotLivenessSample struct {
@@ -70,42 +72,63 @@ func (t *stallTracker) reset() {
 	t.lastAdvanceAt = time.Time{}
 }
 
-// isSourceReachable=false means defer to the lag monitor.
-func (s *WalStreamSupervisor) GetSlotStateIfReachable(
-	ctx context.Context,
-	logger *slog.Logger,
-) (state *SlotState, isSourceReachable bool) {
-	conn, err := s.spec.SourceDB.OpenInspectionConn(ctx, s.spec.FieldEncryptor)
-	if err != nil {
-		logger.DebugContext(ctx, "source unreachable, deferring to the lag monitor", "error", err)
+type slotProbeOutcome int
 
-		return nil, false
+const (
+	slotProbeOutcomeReachable slotProbeOutcome = iota
+
+	// The source answered, but our slot is gone from it, so WAL is no longer
+	// retained for us and the chain is already broken.
+	slotProbeOutcomeSlotMissing
+
+	slotProbeOutcomeUnreachable
+)
+
+// Only a reachable probe carries a slot state.
+type slotProbe struct {
+	Outcome slotProbeOutcome
+	State   *SlotState
+}
+
+func (p slotProbe) IsReachableWithSlot() bool {
+	return p.Outcome == slotProbeOutcomeReachable
+}
+
+// A source that accepts connections but never answers would otherwise hold
+// every caller's tick for as long as the TCP connection lives.
+func (s *WalStreamSupervisor) probeSlot(ctx context.Context, logger *slog.Logger) slotProbe {
+	probeCtx, cancel := context.WithTimeout(ctx, slotProbeTimeout)
+	defer cancel()
+
+	conn, err := s.spec.SourceDB.OpenInspectionConn(probeCtx, s.spec.FieldEncryptor)
+	if err != nil {
+		logger.DebugContext(ctx, "source unreachable during the slot probe", "error", err)
+
+		return slotProbe{Outcome: slotProbeOutcomeUnreachable}
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
 
-	state, err = InspectSlot(ctx, conn, s.slotName)
+	state, err := InspectSlot(probeCtx, conn, s.slotName)
 	if err != nil {
 		logger.DebugContext(ctx, "failed to inspect the replication slot", "error", err)
 
-		return nil, false
+		return slotProbe{Outcome: slotProbeOutcomeUnreachable}
 	}
 
 	if state == nil {
-		// The slot is gone from the source while we still believe we are streaming from it, so WAL
-		// is no longer retained for us and the chain is already at risk.
 		logger.WarnContext(ctx, "the replication slot no longer exists on the source")
 
-		return nil, false
+		return slotProbe{Outcome: slotProbeOutcomeSlotMissing}
 	}
 
 	var alive int
-	if err := conn.QueryRow(ctx, "SELECT 1").Scan(&alive); err != nil {
+	if err := conn.QueryRow(probeCtx, "SELECT 1").Scan(&alive); err != nil {
 		logger.DebugContext(ctx, "source stopped responding during the slot probe", "error", err)
 
-		return nil, false
+		return slotProbe{Outcome: slotProbeOutcomeUnreachable}
 	}
 
-	return state, true
+	return slotProbe{Outcome: slotProbeOutcomeReachable, State: state}
 }
 
 // A stall with an unreachable server is left to the lag monitor (slot loss /
@@ -122,10 +145,12 @@ func (s *WalStreamSupervisor) runSlotLsnWatcher(ctx context.Context, logger *slo
 			return
 
 		case <-ticker.C:
-			state, isSourceReachable := s.GetSlotStateIfReachable(ctx, logger)
-			if !isSourceReachable {
+			probe := s.probeSlot(ctx, logger)
+			if !probe.IsReachableWithSlot() {
 				continue
 			}
+
+			state := probe.State
 
 			sample := slotLivenessSample{
 				RestartLSN:        state.RestartLSN,

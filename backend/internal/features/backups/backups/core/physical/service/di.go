@@ -10,6 +10,8 @@ import (
 var physicalBackupService = &PhysicalBackupService{
 	physical_repositories.GetFullBackupRepository(),
 	physical_repositories.GetWalSegmentRepository(),
+	physical_repositories.GetWalStreamSampleRepository(),
+	physical_repositories.GetWalStreamerRepository(),
 	storages.GetStorageService(),
 	storages.GetStorageFileStore(),
 	encryption.GetFieldEncryptor(),

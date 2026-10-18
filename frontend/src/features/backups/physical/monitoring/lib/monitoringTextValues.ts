@@ -1,0 +1,48 @@
+import type { TFunction } from 'i18next';
+
+import { type LocaleContextValue, translateLocalizedText } from '../../../../../shared/i18n';
+import { formatBytes } from '../../../../../shared/lib';
+import type { MonitoringText } from '../model/MonitoringText';
+import type { MonitoringTextParam } from '../model/MonitoringTextParam';
+
+// Runs while a component renders, with that render's language, and turns the numbers and nested
+// keys of a sentence into the values its translation interpolates.
+export const getMonitoringTextValues = (
+  text: MonitoringText,
+  t: TFunction,
+  formatNumber: LocaleContextValue['formatNumber'],
+): Record<string, string> => {
+  const values: Record<string, string> = {};
+
+  for (const [name, param] of Object.entries(text.params ?? {})) {
+    values[name] = formatMonitoringTextParam(param, t, formatNumber);
+  }
+
+  return values;
+};
+
+export const formatBytesPerSecond = (
+  bytesPerSecond: number,
+  t: TFunction,
+  formatNumber: LocaleContextValue['formatNumber'],
+): string =>
+  t('backups.physical.monitoring.charts.perSecond', {
+    amount: formatBytes(bytesPerSecond, formatNumber),
+  });
+
+const formatMonitoringTextParam = (
+  param: MonitoringTextParam,
+  t: TFunction,
+  formatNumber: LocaleContextValue['formatNumber'],
+): string => {
+  switch (param.kind) {
+    case 'bytes':
+      return formatBytes(param.bytes, formatNumber);
+    case 'bytesPerSecond':
+      return formatBytesPerSecond(param.bytesPerSecond, t, formatNumber);
+    case 'count':
+      return formatNumber(param.count);
+    case 'text':
+      return translateLocalizedText(param.text, t);
+  }
+};

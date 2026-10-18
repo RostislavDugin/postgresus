@@ -18,6 +18,11 @@ type PhysicalWalStreamer struct {
 	StartedAt       time.Time                                `json:"startedAt"       gorm:"column:started_at"`
 	LastHeartbeatAt time.Time                                `json:"lastHeartbeatAt" gorm:"column:last_heartbeat_at"`
 	Status          physical_enums.PhysicalWalStreamerStatus `json:"status"          gorm:"column:status;type:text;not null"`
+
+	// The first failure since a session last recorded a sample. A crash loop keeps
+	// it, so a streamer that never gets as far as its first sample still shows how
+	// long it has been failing.
+	FailingSince *time.Time `json:"failingSince" gorm:"column:failing_since"`
 }
 
 func (PhysicalWalStreamer) TableName() string {

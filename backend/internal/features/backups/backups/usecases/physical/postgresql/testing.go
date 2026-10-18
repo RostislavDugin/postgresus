@@ -818,6 +818,11 @@ type WalStreamerTestSpec struct {
 	ArchiveStalenessThreshold time.Duration
 	OnSlotRebuilt             func(ctx context.Context, reason string) error
 	OnChainAtRisk             func(report ChainRiskReport)
+
+	// Overrides the local queue size at which the receiver is paused, so a test
+	// can reach back pressure with a few segments instead of half a gigabyte.
+	// Zero keeps the production size.
+	LocalQueuePauseBytes int64
 }
 
 // A replication slot is meant to outlive a streamer restart (so WAL is never
@@ -856,6 +861,10 @@ func StartWalStreamerForTest(t *testing.T, spec WalStreamerTestSpec) *WalStreame
 		OnChainAtRisk:             spec.OnChainAtRisk,
 		Logger:                    logger.GetLogger(),
 	})
+
+	if spec.LocalQueuePauseBytes > 0 {
+		supervisor.setLocalQueuePauseBytes(spec.LocalQueuePauseBytes)
+	}
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})

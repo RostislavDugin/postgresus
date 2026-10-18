@@ -1,11 +1,19 @@
 package usecases_physical_postgresql
 
 import (
+	"context"
+	"net"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
+	"databasus-backend/internal/util/encryption"
+	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/walmath"
 )
 
@@ -114,4 +122,109 @@ func Test_RecordSampleAndDetectStall_WhenReceiverNotRunning_DoesNotDetectStall(t
 	require.False(t, tracker.recordSampleAndDetectStall(stoppedSample(base), time.Minute))
 	require.False(t, tracker.recordSampleAndDetectStall(stoppedSample(base.Add(10*time.Minute)), time.Minute),
 		"a receiver we are deliberately holding down is not a stalled one")
+}
+
+func newProbeOnlySupervisor(
+	t *testing.T,
+	sourceDB *postgresql_physical.PostgresqlPhysicalDatabase,
+) *WalStreamSupervisor {
+	t.Helper()
+
+	return NewWalStreamSupervisor(WalStreamSpec{
+		DatabaseID:     uuid.New(),
+		SourceDB:       sourceDB,
+		FieldEncryptor: encryption.GetFieldEncryptor(),
+		WatchDirRoot:   t.TempDir(),
+		Logger:         logger.GetLogger(),
+	})
+}
+
+func Test_ProbeSlot_WhenSlotRemovedOnReachableSource_ReportsSlotMissing(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+	adminConn := OpenAdminConn(t, fixture)
+
+	sourceDB := *fixture.DB.PostgresqlPhysical
+	sourceDB.ReplicationSlotName = "databasus_probe_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:12]
+
+	_, err := adminConn.Exec(
+		t.Context(),
+		"SELECT pg_create_physical_replication_slot($1, true)",
+		sourceDB.ReplicationSlotName,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = adminConn.Exec(context.Background(), "SELECT pg_drop_replication_slot($1)", sourceDB.ReplicationSlotName)
+	})
+
+	supervisor := newProbeOnlySupervisor(t, &sourceDB)
+
+	probe := supervisor.probeSlot(t.Context(), logger.GetLogger())
+	require.Equal(t, slotProbeOutcomeReachable, probe.Outcome)
+	require.NotNil(t, probe.State)
+
+	DropReplicationSlotExternally(t, adminConn, sourceDB.ReplicationSlotName)
+
+	probe = supervisor.probeSlot(t.Context(), logger.GetLogger())
+	require.Equal(t, slotProbeOutcomeSlotMissing, probe.Outcome,
+		"a source that answers without the slot is not unreachable: the chain is already broken")
+	require.Nil(t, probe.State)
+}
+
+func Test_ProbeSlot_WhenSourceAcceptsButNeverAnswers_ReportsUnreachableWithinTimeout(t *testing.T) {
+	silentListener := startSilentListener(t)
+
+	supervisor := newProbeOnlySupervisor(t, &postgresql_physical.PostgresqlPhysicalDatabase{
+		Host:                "127.0.0.1",
+		Port:                silentListener.Addr().(*net.TCPAddr).Port,
+		Username:            "streamer",
+		Password:            "streamer",
+		ReplicationSlotName: "databasus_silent_source",
+	})
+
+	probeStartedAt := time.Now().UTC()
+	probe := supervisor.probeSlot(t.Context(), logger.GetLogger())
+
+	require.Equal(t, slotProbeOutcomeUnreachable, probe.Outcome)
+	require.Less(t, time.Since(probeStartedAt), 11*time.Second,
+		"a silent source must not hold the lag monitor's tick past the probe timeout")
+}
+
+// Accepts every connection and holds it open without ever writing a byte, the
+// way a hung server or a black-holing middlebox behaves.
+func startSilentListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var (
+		acceptedConnsMutex sync.Mutex
+		acceptedConns      []net.Conn
+	)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+
+			acceptedConnsMutex.Lock()
+			acceptedConns = append(acceptedConns, conn)
+			acceptedConnsMutex.Unlock()
+		}
+	}()
+
+	t.Cleanup(func() {
+		_ = listener.Close()
+
+		acceptedConnsMutex.Lock()
+		defer acceptedConnsMutex.Unlock()
+
+		for _, conn := range acceptedConns {
+			_ = conn.Close()
+		}
+	})
+
+	return listener
 }

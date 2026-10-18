@@ -6,18 +6,12 @@ import (
 	"log/slog"
 	"time"
 
+	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	"databasus-backend/internal/util/walmath"
 )
 
 const (
-	// Balances detection latency against query load on the source (one cheap
-	// indexed row).
-	lagMonitorPollInterval = 30 * time.Second
-
-	// A warning wal_status must persist this long before we alert on it (vs a
-	// transient write burst).
-	warningSlotStatusHoldPeriod = 5 * time.Minute
-
 	// Beyond this many rebuild ATTEMPTS in a sliding hour (counted regardless of
 	// outcome), mechanical retry won't help (creds rotated, pg_hba changed,
 	// source dead); stop and surface the condition instead of dropping+recreating
@@ -61,6 +55,41 @@ type slotBreakClassifier struct {
 	warningStatusSince time.Time
 }
 
+// What the lag monitor keeps from one tick to the next within a session. The
+// trackers decide the notifications, and their start times go into every
+// sample, so the samples and the notifications agree about when a condition
+// began.
+type lagMonitorState struct {
+	classifier       slotBreakClassifier
+	stalenessTracker walArchiveStalenessTracker
+
+	previousSourceLSN      *walmath.LSN
+	sourceUnreachableSince *time.Time
+	hasRecordedSample      bool
+}
+
+func (m *lagMonitorState) recordProbeOutcome(probe slotProbe, now time.Time) {
+	if probe.Outcome != slotProbeOutcomeUnreachable {
+		m.sourceUnreachableSince = nil
+
+		return
+	}
+
+	if m.sourceUnreachableSince == nil {
+		m.sourceUnreachableSince = new(now)
+	}
+}
+
+// A tick without source-side values forgets the position, so the next sample
+// has no write volume instead of one that spans the gap.
+func (m *lagMonitorState) rememberSourcePosition(probe slotProbe) {
+	m.previousSourceLSN = nil
+
+	if probe.IsReachableWithSlot() {
+		m.previousSourceLSN = new(probe.State.CurrentLSN)
+	}
+}
+
 // Only 'lost' and a stolen slot are unrecoverable enough to justify dropping the
 // slot, which always costs a WAL gap and a fresh FULL. 'extended' merely means
 // the slot retains WAL beyond max_wal_size — routine on a busy cluster, and
@@ -98,7 +127,7 @@ func (c *slotBreakClassifier) recordSampleAndClassifyBreak(
 			c.warningStatusSince = sample.ObservedAt
 		}
 
-		if sample.ObservedAt.Sub(c.warningStatusSince) > warningSlotStatusHoldPeriod {
+		if sample.ObservedAt.Sub(c.warningStatusSince) > wal_health.WarningSlotStatusHoldPeriod {
 			return breakReasonSlotRetention, slotBreakActionAlert
 		}
 
@@ -119,12 +148,10 @@ func (c *slotBreakClassifier) recordSampleAndClassifyBreak(
 // Source-side slot state only; consumer-side liveness is the slot-LSN watcher's
 // job (slot_lsn_watcher.go).
 func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Logger) {
-	ticker := time.NewTicker(lagMonitorPollInterval)
+	ticker := time.NewTicker(wal_health.SampleInterval)
 	defer ticker.Stop()
 
-	var classifier slotBreakClassifier
-
-	var stalenessTracker walArchiveStalenessTracker
+	monitorState := s.newLagMonitorState(logger)
 
 	for {
 		select {
@@ -132,38 +159,147 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 			return
 
 		case <-ticker.C:
-			state, isSourceReachable := s.GetSlotStateIfReachable(ctx, logger)
-			if !isSourceReachable {
-				continue
-			}
-
-			s.reportArchivingProgress(ctx, logger, state)
-
-			s.reportArchiveStalenessIfDue(logger, &stalenessTracker, state)
-
-			reason, action := classifier.recordSampleAndClassifyBreak(slotBreakSample{
-				SlotState:            state,
-				WalLagThresholdBytes: s.spec.WalLagThresholdBytes,
-				IsReceiverRunning:    s.isReceiverRunning.Load(),
-				ObservedAt:           time.Now().UTC(),
-			})
-
-			switch action {
-			case slotBreakActionNone:
-				continue
-
-			case slotBreakActionAlert:
-				s.reportChainAtRisk(logger, reason, state)
-
-			case slotBreakActionRebuild:
-				logger.WarnContext(ctx, "wal stream break observed", "reason", string(reason),
-					"lag_bytes", state.LagBytes, "wal_status", state.WalStatus)
-
-				if err := s.rebuildSlot(ctx, logger, reason); err != nil {
-					logger.ErrorContext(ctx, "slot rebuild failed", "reason", string(reason), "error", err)
-				}
-			}
+			s.runLagMonitorTick(ctx, logger, monitorState, time.Now().UTC())
 		}
+	}
+}
+
+// A down source makes every session fail within a minute, so the time it has
+// been unreachable is seeded from the newest stored sample instead of starting
+// over with each session.
+func (s *WalStreamSupervisor) newLagMonitorState(logger *slog.Logger) *lagMonitorState {
+	monitorState := &lagMonitorState{}
+
+	if s.spec.WalStreamSampleRepo == nil {
+		return monitorState
+	}
+
+	newestSample, err := s.spec.WalStreamSampleRepo.FindNewestByDatabase(s.spec.DatabaseID)
+	if err != nil {
+		logger.Error("failed to read the newest wal stream sample", "error", err)
+
+		return monitorState
+	}
+
+	if newestSample != nil &&
+		newestSample.SourceState == physical_enums.PhysicalWalStreamSourceStateUnreachable {
+		monitorState.sourceUnreachableSince = newestSample.SourceUnreachableSince
+	}
+
+	return monitorState
+}
+
+// The sample is recorded after classifying and before acting, so a rebuild in
+// this tick leaves the slot as it was probed in the sample rather than the fresh
+// slot it is replaced with. The upload snapshot resets on read, so it is taken
+// once and shared by the log line and the sample.
+func (s *WalStreamSupervisor) runLagMonitorTick(
+	ctx context.Context,
+	logger *slog.Logger,
+	monitorState *lagMonitorState,
+	now time.Time,
+) {
+	probe := s.probeSlot(ctx, logger)
+	snapshot := s.uploader.TakeArchivingSnapshot()
+
+	newestCommitted, lastCommittedWalAt := s.getLastCommittedWal(logger)
+	archiveProgressLSN := getArchiveProgressPoint(s.getLowestQueuedSegment(), newestCommitted)
+
+	var (
+		reason walBreakReason
+		action slotBreakAction
+	)
+
+	if probe.IsReachableWithSlot() {
+		state := probe.State
+
+		s.reportArchivingProgress(ctx, logger, state, snapshot)
+
+		s.reportArchiveStalenessIfDue(logger, &monitorState.stalenessTracker, state, walArchiveSample{
+			SourceCurrentLSN:     state.CurrentLSN,
+			ArchiveProgressPoint: archiveProgressLSN,
+			ObservedAt:           now,
+			StalenessThreshold:   s.spec.ArchiveStalenessThreshold,
+		}, lastCommittedWalAt)
+
+		reason, action = monitorState.classifier.recordSampleAndClassifyBreak(slotBreakSample{
+			SlotState:            state,
+			WalLagThresholdBytes: s.spec.WalLagThresholdBytes,
+			IsReceiverRunning:    s.isReceiverRunning.Load(),
+			ObservedAt:           now,
+		})
+	}
+
+	monitorState.recordProbeOutcome(probe, now)
+
+	s.recordWalStreamSample(logger, monitorState, walStreamSampleInput{
+		DatabaseID:             s.spec.DatabaseID,
+		SampledAt:              now,
+		SessionStartedAt:       s.sessionStartedAt,
+		Probe:                  probe,
+		SourceUnreachableSince: monitorState.sourceUnreachableSince,
+		PreviousSourceLSN:      monitorState.previousSourceLSN,
+		ArchiveProgressLSN:     archiveProgressLSN,
+		Snapshot:               snapshot,
+		WalSegmentSizeBytes:    walSegmentSizeBytes(s.spec.SourceDB),
+		SlotExtraWalSince:      monitorState.classifier.warningStatusSince,
+		ArchiveStalledSince:    monitorState.stalenessTracker.fallingBehindSince,
+		LocalQueueBytes:        s.backlogBytes(),
+		LocalQueuePauseBytes:   s.highWatermarkBytes.Load(),
+		IsReceiverRunning:      s.isReceiverRunning.Load(),
+		IsForcedRotationDenied: s.isForcedRotationDenied.Load(),
+	})
+
+	monitorState.rememberSourcePosition(probe)
+
+	switch action {
+	case slotBreakActionNone:
+		return
+
+	case slotBreakActionAlert:
+		s.reportChainAtRisk(logger, reason, probe.State)
+
+	case slotBreakActionRebuild:
+		logger.WarnContext(ctx, "wal stream break observed", "reason", string(reason),
+			"lag_bytes", probe.State.LagBytes, "wal_status", probe.State.WalStatus)
+
+		if err := s.rebuildSlot(ctx, logger, reason); err != nil {
+			logger.ErrorContext(ctx, "slot rebuild failed", "reason", string(reason), "error", err)
+		}
+	}
+}
+
+// Without a sample repository, as in tests that drive the streamer alone,
+// nothing is recorded and the receiver counters stay for the test to read.
+func (s *WalStreamSupervisor) recordWalStreamSample(
+	logger *slog.Logger,
+	monitorState *lagMonitorState,
+	input walStreamSampleInput,
+) {
+	if s.spec.WalStreamSampleRepo == nil {
+		return
+	}
+
+	input.ReceiverRestarts, input.ReceiverPauses = s.receiverRespawns.takeCounts()
+
+	if err := s.spec.WalStreamSampleRepo.Insert(buildWalStreamSample(input)); err != nil {
+		logger.Error("failed to record a wal stream sample", "error", err)
+
+		return
+	}
+
+	if monitorState.hasRecordedSample {
+		return
+	}
+
+	monitorState.hasRecordedSample = true
+
+	if s.spec.WalStreamerRepo == nil {
+		return
+	}
+
+	if err := s.spec.WalStreamerRepo.ClearFailingSince(s.spec.DatabaseID); err != nil {
+		logger.Error("failed to clear the wal streamer's failing time", "error", err)
 	}
 }
 
@@ -176,9 +312,8 @@ func (s *WalStreamSupervisor) reportArchivingProgress(
 	ctx context.Context,
 	logger *slog.Logger,
 	state *SlotState,
+	snapshot ArchivingSnapshot,
 ) {
-	snapshot := s.uploader.TakeArchivingSnapshot()
-
 	if snapshot.ArchivedSegments == 0 {
 		logger.DebugContext(ctx, fmt.Sprintf("no wal archived since the last report, %d bytes behind",
 			state.LagBytes), "wal_status", state.WalStatus)
@@ -206,21 +341,14 @@ func formatUploadStepTiming(timing uploadStepTiming, archivedSegments int64) str
 		timing.Longest.Round(time.Millisecond))
 }
 
-// The slot's restart_lsn plus its lag is where the source currently is, so the
-// staleness check needs no extra query on the source.
 func (s *WalStreamSupervisor) reportArchiveStalenessIfDue(
 	logger *slog.Logger,
 	stalenessTracker *walArchiveStalenessTracker,
 	state *SlotState,
+	archiveSample walArchiveSample,
+	lastCommittedWalAt *time.Time,
 ) {
-	newestCommitted, lastCommittedWalAt := s.getLastCommittedWal(logger)
-
-	isArchiveStale := stalenessTracker.recordSampleAndDetectStaleness(walArchiveSample{
-		SourceCurrentLSN:     state.RestartLSN + walmath.LSN(state.LagBytes),
-		ArchiveProgressPoint: getArchiveProgressPoint(s.getLowestQueuedSegment(), newestCommitted),
-		ObservedAt:           time.Now().UTC(),
-		StalenessThreshold:   s.spec.ArchiveStalenessThreshold,
-	})
+	isArchiveStale := stalenessTracker.recordSampleAndDetectStaleness(archiveSample)
 
 	if !isArchiveStale {
 		return

@@ -16,6 +16,7 @@ import (
 	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	physical_service "databasus-backend/internal/features/backups/backups/core/physical/service"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	usecases_physical_postgresql "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/intervals"
@@ -32,6 +33,7 @@ type PhysicalBackupCleaner struct {
 	backupConfigService   *backups_config_physical.BackupConfigService
 	fullRepo              *physical_repositories.PhysicalFullBackupRepository
 	walSegmentRepo        *physical_repositories.PhysicalWalSegmentRepository
+	walStreamSampleRepo   *physical_repositories.PhysicalWalStreamSampleRepository
 	logger                *slog.Logger
 
 	hasRun atomic.Bool
@@ -65,7 +67,24 @@ func (c *PhysicalBackupCleaner) Run(ctx context.Context) {
 			if err := c.cleanOrphans(ctx, logger); err != nil {
 				logger.ErrorContext(ctx, "failed to clean orphans", "error", err)
 			}
+
+			c.deleteExpiredWalStreamSamples(ctx, logger, time.Now().UTC())
 		}
+	}
+}
+
+// One statement for every database, so samples of a database that no longer
+// streams expire as well; a removed database's samples go with it by cascade.
+func (c *PhysicalBackupCleaner) deleteExpiredWalStreamSamples(ctx context.Context, logger *slog.Logger, now time.Time) {
+	deletedCount, err := c.walStreamSampleRepo.DeleteOlderThan(now.Add(-wal_health.SampleRetention))
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to delete expired wal stream samples", "error", err)
+
+		return
+	}
+
+	if deletedCount > 0 {
+		logger.DebugContext(ctx, fmt.Sprintf("deleted %d expired wal stream samples", deletedCount))
 	}
 }
 
