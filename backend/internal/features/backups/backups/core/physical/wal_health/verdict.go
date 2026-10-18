@@ -348,9 +348,9 @@ func getSlotLimitApproachingReason(input VerdictInput, samples verdictSamples) *
 	}
 }
 
-// Stays listed while the receiver is paused: the slot is rebuilt on the first
-// tick the receiver runs again above the rebuild lag, so a paused receiver
-// above it is exactly the risky case.
+// Stays listed while the receiver is paused: once it runs again above the
+// rebuild lag, the slot is rebuilt if the running receiver does not reduce the
+// lag, so a paused receiver above it is still at risk.
 func getNearSlotRebuildReason(input VerdictInput, samples verdictSamples) *Reason {
 	if !samples.isNewestWithSourceValues || input.SlotRebuildLagBytes <= 0 {
 		return nil

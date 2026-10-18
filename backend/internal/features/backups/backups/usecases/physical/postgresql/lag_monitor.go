@@ -47,12 +47,14 @@ const (
 type slotBreakSample struct {
 	SlotState            *SlotState
 	WalLagThresholdBytes int64
-	IsReceiverRunning    bool
+	// Zero when no receiver ran at the tick.
+	ReceiverRunStartedAt time.Time
 	ObservedAt           time.Time
 }
 
 type slotBreakClassifier struct {
 	warningStatusSince time.Time
+	lagWindow          slotLagWindow
 }
 
 // What the lag monitor keeps from one tick to the next within a session. The
@@ -96,8 +98,10 @@ func (m *lagMonitorState) rememberSourcePosition(probe slotProbe) {
 // guaranteed whenever back pressure pauses us — and 'unreserved' means PG will
 // trim that WAL at the next checkpoint, which already protects the primary. Both
 // alert instead. The operator's WalLagThresholdBytes stays the explicit
-// "sacrifice the chain to protect the primary" knob, but never fires against lag
-// we caused by holding the receiver down ourselves.
+// "sacrifice the chain to protect the primary" knob, but fires only when the
+// running receiver fails to reduce the lag (slot_lag_window.go), never against
+// lag we caused by holding the receiver down ourselves. Lag seen during a
+// warning status never counts afterwards.
 func (c *slotBreakClassifier) recordSampleAndClassifyBreak(
 	sample slotBreakSample,
 ) (walBreakReason, slotBreakAction) {
@@ -118,11 +122,14 @@ func (c *slotBreakClassifier) recordSampleAndClassifyBreak(
 
 	if state.WalStatus == "lost" {
 		c.warningStatusSince = time.Time{}
+		c.lagWindow.clear()
 
 		return breakReasonSlotLost, slotBreakActionRebuild
 	}
 
 	if state.WalStatus == "extended" || state.WalStatus == "unreserved" {
+		c.lagWindow.clear()
+
 		if c.warningStatusSince.IsZero() {
 			c.warningStatusSince = sample.ObservedAt
 		}
@@ -136,9 +143,7 @@ func (c *slotBreakClassifier) recordSampleAndClassifyBreak(
 
 	c.warningStatusSince = time.Time{}
 
-	if sample.WalLagThresholdBytes > 0 &&
-		state.LagBytes > sample.WalLagThresholdBytes &&
-		sample.IsReceiverRunning {
+	if c.lagWindow.recordSampleAndDetectUnreducedLag(sample) {
 		return breakReasonWalLag, slotBreakActionRebuild
 	}
 
@@ -222,12 +227,7 @@ func (s *WalStreamSupervisor) runLagMonitorTick(
 			StalenessThreshold:   s.spec.ArchiveStalenessThreshold,
 		}, lastCommittedWalAt)
 
-		reason, action = monitorState.classifier.recordSampleAndClassifyBreak(slotBreakSample{
-			SlotState:            state,
-			WalLagThresholdBytes: s.spec.WalLagThresholdBytes,
-			IsReceiverRunning:    s.isReceiverRunning.Load(),
-			ObservedAt:           now,
-		})
+		reason, action = monitorState.classifier.recordSampleAndClassifyBreak(s.buildSlotBreakSample(state, now))
 	}
 
 	monitorState.recordProbeOutcome(probe, now)
@@ -246,7 +246,7 @@ func (s *WalStreamSupervisor) runLagMonitorTick(
 		ArchiveStalledSince:    monitorState.stalenessTracker.fallingBehindSince,
 		LocalQueueBytes:        s.backlogBytes(),
 		LocalQueuePauseBytes:   s.highWatermarkBytes.Load(),
-		IsReceiverRunning:      s.isReceiverRunning.Load(),
+		IsReceiverRunning:      s.isReceiverRunning(),
 		IsForcedRotationDenied: s.isForcedRotationDenied.Load(),
 	})
 
@@ -266,6 +266,15 @@ func (s *WalStreamSupervisor) runLagMonitorTick(
 		if err := s.rebuildSlot(ctx, logger, reason); err != nil {
 			logger.ErrorContext(ctx, "slot rebuild failed", "reason", string(reason), "error", err)
 		}
+	}
+}
+
+func (s *WalStreamSupervisor) buildSlotBreakSample(state *SlotState, now time.Time) slotBreakSample {
+	return slotBreakSample{
+		SlotState:            state,
+		WalLagThresholdBytes: s.spec.WalLagThresholdBytes,
+		ReceiverRunStartedAt: s.getReceiverRunStartedAt(),
+		ObservedAt:           now,
 	}
 }
 

@@ -155,7 +155,7 @@ func (s *WalStreamSupervisor) runSlotLsnWatcher(ctx context.Context, logger *slo
 			sample := slotLivenessSample{
 				RestartLSN:        state.RestartLSN,
 				LagBytes:          state.LagBytes,
-				IsReceiverRunning: s.isReceiverRunning.Load(),
+				IsReceiverRunning: s.isReceiverRunning(),
 				ObservedAt:        time.Now().UTC(),
 			}
 

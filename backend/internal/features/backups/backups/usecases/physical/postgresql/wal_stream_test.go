@@ -966,19 +966,19 @@ func Test_WalStream_WhenQueueFillsAndReceiverExitsOnItsOwn_CountsOnePauseAndOneR
 
 	supervisor := streamer.Supervisor
 
-	require.Eventually(t, supervisor.isReceiverRunning.Load, 60*time.Second, 200*time.Millisecond)
+	require.Eventually(t, supervisor.isReceiverRunning, 60*time.Second, 200*time.Millisecond)
 
 	// Written once: WAL written during the pause would refill the queue as soon
 	// as the receiver resumes and pause it a second time.
 	ForceReplicationLag(t, adminConn, 4*segmentSizeBytes)
 
 	require.Eventually(t, func() bool {
-		return !supervisor.isReceiverRunning.Load() && supervisor.backlogBytes() >= supervisor.highWatermarkBytes.Load()
+		return !supervisor.isReceiverRunning() && supervisor.backlogBytes() >= supervisor.highWatermarkBytes.Load()
 	}, 90*time.Second, 200*time.Millisecond, "a full local queue must pause the receiver")
 
 	store.stopFailingSaves()
 
-	require.Eventually(t, supervisor.isReceiverRunning.Load, 90*time.Second, 200*time.Millisecond,
+	require.Eventually(t, supervisor.isReceiverRunning, 90*time.Second, 200*time.Millisecond,
 		"the receiver resumes once the queue drains")
 
 	var restarts, pauses int
@@ -1031,4 +1031,43 @@ func terminateWalReceiverBackend(t *testing.T, adminConn *pgx.Conn, slotName str
 
 		return err == nil && terminatedCount == 1
 	}, 30*time.Second, 200*time.Millisecond, "the receiver must be attached to the slot before it can be cut off")
+}
+
+func Test_WalStream_WhileReceiverRunsAndAfterItExits_SlotBreakSampleCarriesItsRunStartTime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	streamerStartedAt := time.Now().UTC()
+
+	streamer := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      newMockWalStorage(),
+		WatchDirRoot: t.TempDir(),
+	})
+	t.Cleanup(streamer.Stop)
+
+	supervisor := streamer.Supervisor
+
+	var runningSample slotBreakSample
+
+	require.Eventually(t, func() bool {
+		runningSample = supervisor.buildSlotBreakSample(&SlotState{}, time.Now().UTC())
+
+		return !runningSample.ReceiverRunStartedAt.IsZero()
+	}, 60*time.Second, 200*time.Millisecond, "a running receiver gives the sample its start time")
+
+	assert.False(t, runningSample.ReceiverRunStartedAt.Before(streamerStartedAt))
+	assert.False(t, runningSample.ReceiverRunStartedAt.After(runningSample.ObservedAt))
+
+	streamer.Stop()
+
+	require.Eventually(t, func() bool {
+		return supervisor.buildSlotBreakSample(&SlotState{}, time.Now().UTC()).ReceiverRunStartedAt.IsZero()
+	}, 30*time.Second, 200*time.Millisecond, "an exited receiver leaves the sample without a start time")
 }

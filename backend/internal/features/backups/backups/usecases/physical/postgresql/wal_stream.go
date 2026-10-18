@@ -155,7 +155,8 @@ type WalStreamSpec struct {
 	// recovery can re-process finalized-but-not-uploaded segments.
 	WatchDirRoot string
 
-	// A slot lag over this many bytes triggers a rebuild (lag_monitor.go).
+	// A slot lag over this many bytes that the running receiver does not reduce
+	// triggers a rebuild (slot_lag_window.go).
 	WalLagThresholdBytes int64
 
 	// How often a source that is being written to is asked to close its current WAL
@@ -216,9 +217,12 @@ type WalStreamSupervisor struct {
 	// drop+recreate the slot without the receiver re-attaching.
 	isPaused atomic.Bool
 
-	// Lets the slot-LSN watcher and the lag monitor tell a real problem from lag
-	// we are causing ourselves by holding the receiver down.
-	isReceiverRunning atomic.Bool
+	// When the current pg_receivewal run started, as Unix nanoseconds; zero while
+	// no receiver runs. One value carries both "running" and "since when", so the
+	// slot-LSN watcher and the lag monitor can tell a real problem from lag we are
+	// causing ourselves by holding the receiver down, and never see a running
+	// receiver without its start time.
+	receiverRunStartedAtUnixNano atomic.Int64
 
 	// Set by the back-pressure monitor when it stops the receiver, so the respawn
 	// that follows counts as a pause rather than a restart.
@@ -530,6 +534,20 @@ func (s *WalStreamSupervisor) drainRestartSignal() {
 	case <-s.restartSignal:
 	default:
 	}
+}
+
+// Zero while no receiver runs.
+func (s *WalStreamSupervisor) getReceiverRunStartedAt() time.Time {
+	startedAtUnixNano := s.receiverRunStartedAtUnixNano.Load()
+	if startedAtUnixNano == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, startedAtUnixNano).UTC()
+}
+
+func (s *WalStreamSupervisor) isReceiverRunning() bool {
+	return s.receiverRunStartedAtUnixNano.Load() != 0
 }
 
 func walSegmentSizeBytes(sourceDB *postgresql_physical.PostgresqlPhysicalDatabase) int64 {

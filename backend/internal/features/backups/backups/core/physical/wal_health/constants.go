@@ -11,8 +11,16 @@ const (
 	SampleRetention = 7 * 24 * time.Hour
 
 	// A warning wal_status must persist this long before the WAL streamer alerts
-	// on it, so a transient write burst stays quiet.
+	// on it, so a transient write burst stays quiet. A slot lag above the
+	// operator's threshold must go unreduced for this much receiver running time
+	// before the streamer rebuilds the slot, so a receiver catching up keeps the
+	// chain.
 	WarningSlotStatusHoldPeriod = 5 * time.Minute
+
+	// Over one hold period of running time, a lag above the threshold that shrinks
+	// by less than this share of the threshold counts as not reduced. It keeps a
+	// lag that wobbles on a busy source from passing as a drain.
+	SlotLagMinDrainPercentOfThreshold = 5
 
 	// A rarely-written database can legitimately hold its newest WAL locally for a
 	// while, but past this the recovery point has silently stopped tracking the

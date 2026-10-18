@@ -93,11 +93,12 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		return receiverRunResult{Exit: receiverRetryable}
 	}
 
-	s.isReceiverRunning.Store(true)
-	defer s.isReceiverRunning.Store(false)
+	startedAt := time.Now().UTC()
+
+	s.receiverRunStartedAtUnixNano.Store(startedAt.UnixNano())
+	defer s.receiverRunStartedAtUnixNano.Store(0)
 
 	stderr := newStderrCapture(stderrPipe)
-	startedAt := time.Now().UTC()
 
 	logger.InfoContext(ctx, "pg_receivewal started", "watch_dir", s.watchDir)
 
