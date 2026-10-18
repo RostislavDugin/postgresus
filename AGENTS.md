@@ -43,6 +43,10 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 | `goose -dir backend/migrations up` (or `down`), with `.env` exported | Apply or roll back migrations on the dev database; goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment |
 | `swag init -d . -g cmd/main.go -o swagger`, run in `backend/` | Regenerate the API docs |
 
+### Running commands
+
+Run tests, linters and builds as ordinary foreground commands, so the user sees which command runs and that the agent is working. A backend, frontend or other long-lived process the agent started to check its work is stopped before the task ends. Long-lived processes the user wants running are started by the user.
+
 ### Several agents, one set of containers
 
 Several agents may work on this repo at once, in different worktrees, sharing one Docker daemon, one set of test containers and one pool of test metadata databases. Don't let that stop you from running tests — simultaneous runs are rare and usually harmless. Two habits keep them that way:
@@ -84,10 +88,6 @@ The dictionaries are the only target-language text anywhere under `frontend/`, `
 5. **Deliver quality** — correct, testable, maintainable code with minimal tests/validation. Prefer controller tests over unit tests.
 6. **Fix root causes, not symptoms** — ask "why did this happen?" and address the underlying issue.
 
-### After each run: suggest refactorings
-
-Reread the diff with fresh eyes and **list** (don't silently apply) refactor suggestions: unclear names, duplication, dead code, deep nesting, misplaced responsibilities, leaky abstractions. Keep suggestions concrete (file + lines), behavior-preserving, and scoped to the current change. If the diff is already clean, say so in one line.
-
 ### Review hooks
 
 Every change answers to this document **and** the module doc for each area it touches. The module docs add stack-specific rules on top of this one; they never replace it, so a change under `backend/` answers to both.
@@ -99,6 +99,8 @@ What the agent does with findings:
 - A blocking finding is resolved by the agent itself, without asking the user, and then the agent finishes the turn again. It fixes the code, the documentation or the change's artifacts; when the implementation is right, it fixes the delta spec. A false finding is rejected with the reason in the response.
 - A `minor` finding is optional.
 - A `scope` finding proposes cutting the feature. The agent does not apply it; the summary shows the user what they lose and what they save, and the user decides.
+- After a full review blocks the turn, whether a reviewer found problems or a check before the reviewers failed, the agent finishes the turn again with one short line about its fixes that names every rejected finding with the reason. The repeat review reads that reply, and the summary for the user waits until the review accepts the result. After a quick check blocks a finished change, the next reply is that summary; after it blocks a plan, the agent revises the plan and shows it again.
+- The summary for the user describes the final state as if there had been no review: what was done, which decisions were made, which checks passed, what remains and the next step. It leaves out review rounds, the findings and the fixes made for them.
 - Run the linter and formatter for each directory the diff touches before finishing.
 
 ### The best code is unwritten
@@ -112,11 +114,15 @@ The user decides; the task is never cut without their consent. Simplify code wit
 
 ### Refactoring within a feature
 
-The system improves gradually, along with ordinary tasks. If code the task touches stands in the way of the task or breaks the rules of the module docs or an accepted ADR, the refactoring is part of the same task; no separate task for later. The refactoring is limited to the code the task works with and does not touch other agents' changes in the working tree. Agree a large rework that goes beyond the task with the user first.
+The system improves gradually, along with ordinary tasks. If code the task touches stands in the way of the task or breaks the rules of the module docs or an accepted ADR, the refactoring is part of the same task; no separate task for later. The refactoring is limited to the code the task works with and does not touch other agents' changes in the working tree. The agent refactors the touched code while implementing, without asking the user, and lists no refactoring suggestions for it. Its summary names only a refactoring that goes beyond the change, together with its cost, because such a rework needs the user's agreement first.
 
 ### Other agents' changes in the working tree
 
 Several agents sometimes work in one branch at once. A file or change the agent did not create within the current request belongs to someone else. Never delete, revert, format, stage or commit someone else's changes. If they must be moved aside with `git stash` before a commit, ask the user first.
+
+### Agent memory
+
+The agent writes no rules, preferences or facts to its local memory outside the repository, such as `~/.claude/projects/*/memory`. Other agents and people cannot read that memory, Claude Code and Codex keep separate ones, and it drifts from the repository rules. A rule or preference that must outlive the session goes, with the user's consent, into an `AGENTS.md` file or a repository skill.
 
 ### Naming
 
@@ -243,6 +249,8 @@ One rule is written in one place. Other documents link to it instead of retellin
 ## OpenSpec
 
 A request to write a spec, write up a change or write its artifacts goes through the `openspec-propose` skill, and an edit to a finished change through `openspec-update-change`. This way the change gets every artifact in OpenSpec format at once.
+
+When the user asks to pack a change, in any language, the agent first checks that every task in its `tasks.md` is checked; if one is not, it changes nothing and names the unchecked tasks. Otherwise it archives the change through the `openspec-archive-change` skill, and the pack request answers that skill's sync prompt: "Sync now" when the main specs need the delta specs, "Archive now" when they are already synced. Then it commits the implementation, the main specs and the archived change in one commit per the [Git commits skill](.agents/skills/git-commits/SKILL.md). The request is the user's consent to the sync and to that commit, so the agent asks about neither again. The commit leaves out changes the agent did not make, per [Other agents' changes in the working tree](#other-agents-changes-in-the-working-tree), and the agent does not push.
 
 ### Discussing a task in explore
 

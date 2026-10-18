@@ -94,6 +94,13 @@ OPENSPEC_PLANNING_COMMANDS = (
     "$openspec-update-change",
 )
 PLANNING_COMMANDS = (*OPENSPEC_PLANNING_COMMANDS, "/plan")
+# The repeat review reads the reply after a block, so the reply names the rejected findings,
+# and the summary for the user waits until the review accepts the result.
+FULL_REVIEW_REPLY_INSTRUCTION = (
+    "Then finish the turn again with one short line about your fixes that names every rejected finding "
+    "with the reason. Do not write the summary for the user yet: the hook asks for it once the review accepts the result. "
+    "The repeat review checks the previous findings and the new edits."
+)
 HUMANIZER_CONTEXT = (
     "Mandatory first step: load the communication skill (.agents/skills/humanizer/SKILL.md) "
     "before any other action and apply it to all prose you write. "
@@ -634,8 +641,15 @@ def gate_stop(session, gate, client):
         )
         return
 
-    feedback = f"{AUTOMATIC_REVIEW_PREFIX} {gate}\n{reason}\nFix the result and finish the turn again; the review will repeat."
-    emit({"decision": "block", "reason": feedback})
+    if subject == "plan":
+        instruction = "Revise the plan and show it again; the review will repeat."
+    else:
+        instruction = (
+            f"Fix the {subject}, then finish the turn again with a new reply written for the user: "
+            "a summary of the final state, without retelling this review, its findings or your fixes. "
+            "The review will repeat."
+        )
+    emit({"decision": "block", "reason": f"{AUTOMATIC_REVIEW_PREFIX} {gate}\n{reason}\n{instruction}"})
 
 
 def get_task_marks(change_dir):
@@ -915,7 +929,7 @@ def gate_full_review(session, client, full_review):
             session,
             full_review,
             f"{check_failure}\n\nNo reviewer ran.",
-            "Fix the failure and finish the turn again; the full review will repeat.",
+            "Fix the failure. " + FULL_REVIEW_REPLY_INSTRUCTION,
         )
         return
 
@@ -1030,13 +1044,13 @@ IMPLEMENTATION_REVIEW = FullReview(
     get_checks=lambda root, targets: get_module_checks(root),
     block_instruction="Resolve every finding yourself, without asking the user. Fix a bug in the code. "
     "On a spec mismatch, pick the right side and fix the other one, including the change's delta spec. "
-    "Reject a false finding and explain why in your final response. Minor findings are optional. "
-    "If a reviewer could not run, find the cause of the failure. "
-    "Then finish the turn again: the repeat review checks the previous findings and the new edits.",
+    "Reject a false finding. Minor findings are optional. "
+    "If a reviewer could not run, find the cause of the failure. " + FULL_REVIEW_REPLY_INSTRUCTION,
     optional_findings_title="Optional findings",
-    summary_instruction="Do not change files any more. Write the user a summary of the whole implementation, not only the last round: "
-    "what was done for the change's tasks; what the full review found in each round and how you resolved it, "
-    "which findings you rejected and why, which minor ones you left; which checks passed; the next step.",
+    summary_instruction="Do not change files any more. Write the user a summary of the implementation as if there had been no review: "
+    "what was done for the change's tasks, which decisions were made, which checks passed, "
+    "which minor findings you left, and the next step. "
+    "Leave out review rounds, findings and the fixes made for them.",
 )
 PROPOSAL_REVIEW = FullReview(
     gate="proposal",
@@ -1054,14 +1068,13 @@ PROPOSAL_REVIEW = FullReview(
         Check(".", ("openspec", "validate", target.change_dir.name, "--strict")) for target in targets
     ],
     block_instruction="Resolve every gap, mismatch, tasks and simplify finding yourself, without asking the user: "
-    "fix the change's artifacts, and reject a false finding with the reason in your final response. "
+    "fix the change's artifacts, and reject a false finding. "
     "Do not apply scope findings: cutting the feature needs the user's consent, and the user sees them in the summary. "
-    "Minor findings are optional. If a reviewer could not run, find the cause of the failure. "
-    "Then finish the turn again: the repeat review checks the previous findings and the new edits.",
+    "Minor findings are optional. If a reviewer could not run, find the cause of the failure. " + FULL_REVIEW_REPLY_INSTRUCTION,
     optional_findings_title="Findings that do not block the turn",
-    summary_instruction="Do not change files any more. Write the user a summary of the whole proposal, not only the last round: "
-    "what is proposed; what the full review found in each round and how you resolved it, "
-    "which findings you rejected and why, which minor ones you left. "
+    summary_instruction="Do not change files any more. Write the user a summary of the proposal as if there had been no review: "
+    "what is proposed and which decisions were made. "
+    "Leave out review rounds, findings and the fixes made for them. "
     "List every scope finding separately: what the user loses and what they save, the decision is theirs. "
     "End with the next step.",
 )

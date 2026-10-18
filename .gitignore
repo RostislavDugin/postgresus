@@ -19,6 +19,7 @@ node_modules/
 !.claude/settings.json
 !.claude/skills/
 .claude/skills/*
+!.claude/skills/git-commits/
 !.claude/skills/humanizer/
 backend/cleanup_test_db.exe
 plans/

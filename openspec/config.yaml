@@ -32,6 +32,8 @@ context: |
   - Review hooks gate plans, finished turns, full proposals and full
     implementations. Resolve their findings as the "Review hooks" section
     of AGENTS.md says.
+  - Refactor the code the change touches while implementing, as the
+    "Refactoring within a feature" section of AGENTS.md says.
 
 rules:
   proposal:
@@ -62,7 +64,7 @@ operations:
     guidance:
       - Run the linter for every directory the diff touches before finishing.
       - Resolve every blocking review hook finding before finishing; never apply a scope finding without the user's consent.
-      - Never commit or push without explicit approval. No AI attribution trailers in commit messages.
+      - Never commit or push without explicit approval. A "pack" request, as the OpenSpec section of AGENTS.md describes it, is approval to commit, not to push. No AI attribution trailers in commit messages.
   archive:
     guidance:
       - Confirm the module AGENTS.md files were updated if the change introduced a convention.

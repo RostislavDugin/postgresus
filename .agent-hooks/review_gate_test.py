@@ -196,6 +196,19 @@ def finding(category, summary, file="src/widgets.py:10"):
     return {"category": category, "file": file, "summary": summary}
 
 
+class ShortReplyAssertions:
+    def assert_asks_for_short_reply(self, reason):
+        self.assertIn("one short line about your fixes that names every rejected finding with the reason", reason)
+        self.assertIn("Do not write the summary for the user yet", reason)
+
+
+class SummaryAssertions:
+    def assert_asks_for_summary_without_review(self, reason):
+        self.assertIn("as if there had been no review", reason)
+        self.assertIn("Leave out review rounds, findings and the fixes made for them.", reason)
+        self.assertNotIn("each round", reason)
+
+
 class SessionStartTest(unittest.TestCase):
     def test_tells_agent_to_load_communication_skill(self):
         repository = HookRepository(self)
@@ -269,6 +282,20 @@ class DiffGateTest(unittest.TestCase):
 
         self.assertEqual(response["decision"], "block")
         self.assertIn("No test for an empty list.", response["reason"])
+        self.assertIn("a summary of the final state, without retelling this review", response["reason"])
+        self.assertNotIn("Fix the result", response["reason"])
+
+    def test_asks_to_revise_plan_when_necessity_blocks_codex_plan_in_final_message(self):
+        repository = HookRepository(self)
+        repository.set_reviewer_result({"ok": False, "reason": "The plan keeps a compatibility alias."})
+        repository.submit_prompt("/plan the widgets", client="codex")
+
+        response = repository.stop("necessity", client="codex", message="# Plan\n\nAdd widgets.\n")
+
+        self.assertEqual(response["decision"], "block")
+        self.assertIn("The plan keeps a compatibility alias.", response["reason"])
+        self.assertIn("Revise the plan and show it again", response["reason"])
+        self.assertNotIn("summary", response["reason"])
 
     def test_diff_reviewer_prompt_checks_agent_instructions(self):
         repository = HookRepository(self)
@@ -530,7 +557,7 @@ class ImplementationGateStartTest(unittest.TestCase):
         self.assertEqual(json.loads(process.stdout), {})
 
 
-class ImplementationGateChecksTest(unittest.TestCase):
+class ImplementationGateChecksTest(ShortReplyAssertions, unittest.TestCase):
     def test_runs_only_backend_linter_when_change_touches_backend(self):
         repository = HookRepository(self)
         repository.submit_prompt("Continue")
@@ -602,6 +629,7 @@ class ImplementationGateChecksTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("`golangci-lint run ./cmd/... ./internal/...` in `backend`", response["reason"])
         self.assertIn("service.go:12:2: ineffectual assignment to err", response["reason"])
+        self.assert_asks_for_short_reply(response["reason"])
         self.assertEqual(repository.reviewer_calls(), [])
 
     def test_never_runs_formatters_or_just(self):
@@ -644,7 +672,7 @@ class ImplementationGateChecksTest(unittest.TestCase):
         self.assertEqual(repository.reviewer_calls(), [])
 
 
-class ImplementationGateReviewTest(unittest.TestCase):
+class ImplementationGateReviewTest(ShortReplyAssertions, unittest.TestCase):
     def test_runs_reviewer_per_spec_and_one_for_docs_on_claude_with_medium_effort(self):
         repository = HookRepository(self)
         repository.write_change(spec_names=("widgets", "gadgets"), tasks="- [x] 1.1 Build\n")
@@ -704,6 +732,7 @@ class ImplementationGateReviewTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("[bug] src/widgets.py:10: Race between the check and the write.", response["reason"])
         self.assertIn("without asking the user", response["reason"])
+        self.assert_asks_for_short_reply(response["reason"])
 
     def test_marks_minor_findings_optional_when_turn_is_blocked(self):
         repository = HookRepository(self)
@@ -755,7 +784,7 @@ class ImplementationGateReviewTest(unittest.TestCase):
         self.assertIn("rate limit exceeded", response["reason"])
 
 
-class ImplementationGateRepeatTest(unittest.TestCase):
+class ImplementationGateRepeatTest(SummaryAssertions, unittest.TestCase):
     def block_with_bug(self, repository):
         repository.set_reviewer_result({"findings": [finding("bug", "Race between the check and the write.")]})
         repository.submit_prompt("Continue")
@@ -792,7 +821,7 @@ class ImplementationGateRepeatTest(unittest.TestCase):
 
         self.assertEqual(len(repository.reviewer_calls()), 2)
 
-    def test_asks_for_summary_of_whole_implementation_once_after_repeat_accepts_change(self):
+    def test_asks_for_summary_without_review_once_after_repeat_accepts_change(self):
         repository = HookRepository(self)
         self.block_with_bug(repository)
         repository.set_reviewer_result({"findings": [finding("minor", "Long function.")]})
@@ -804,7 +833,8 @@ class ImplementationGateRepeatTest(unittest.TestCase):
 
         self.assertEqual(response["decision"], "block")
         self.assertIn("accepted the change", response["reason"])
-        self.assertIn("summary of the whole implementation", response["reason"])
+        self.assertIn("summary of the implementation", response["reason"])
+        self.assert_asks_for_summary_without_review(response["reason"])
         self.assertIn("Long function.", response["reason"])
         self.assertEqual(summary_response, {})
         self.assertEqual(repository.calls(), [])
@@ -980,7 +1010,7 @@ class ProposalGateValidationTest(unittest.TestCase):
         self.assertEqual(repository.reviewer_calls(), [])
 
 
-class ProposalGateReviewTest(unittest.TestCase):
+class ProposalGateReviewTest(ShortReplyAssertions, SummaryAssertions, unittest.TestCase):
     def test_runs_reviewer_per_spec_and_for_proposal_and_tasks_on_claude_with_medium_effort(self):
         repository = HookRepository(self)
         repository.submit_prompt("Write a spec")
@@ -1040,6 +1070,7 @@ class ProposalGateReviewTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("[simplify] design.md:12: A field in an existing table replaces the new table.", response["reason"])
         self.assertIn("without asking the user", response["reason"])
+        self.assert_asks_for_short_reply(response["reason"])
 
     def test_asks_for_summary_with_scope_finding_without_requiring_fix(self):
         repository = HookRepository(self)
@@ -1054,7 +1085,8 @@ class ProposalGateReviewTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("Full proposal review accepted the proposal.", response["reason"])
         self.assertIn("[scope] (the user decides) proposal.md:5: The settings screen can be dropped.", response["reason"])
-        self.assertIn("summary of the whole proposal", response["reason"])
+        self.assertIn("summary of the proposal", response["reason"])
+        self.assert_asks_for_summary_without_review(response["reason"])
         self.assertIn("what the user loses and what they save", response["reason"])
         self.assertEqual(summary_response, {})
         self.assertEqual(repository.calls(), [])
@@ -1086,13 +1118,26 @@ class ProposalGateReviewTest(unittest.TestCase):
         self.assertIn("does not match the schema", response["reason"])
 
 
-class ProposalGateRepeatTest(unittest.TestCase):
+class ProposalGateRepeatTest(ShortReplyAssertions, SummaryAssertions, unittest.TestCase):
     def block_with_gap(self, repository):
         repository.set_reviewer_result({"findings": [finding("gap", "The answer for an empty list is missing.", file="specs/gadgets/spec.md:8")]})
         repository.submit_prompt("Write a spec")
         repository.write_proposal()
         repository.stop("proposal")
         repository.clear_calls()
+
+    def test_blocks_turn_with_gap_and_asks_for_short_reply_without_summary(self):
+        repository = HookRepository(self)
+        repository.set_reviewer_result({"findings": [finding("gap", "The answer for an empty list is missing.", file="specs/gadgets/spec.md:8")]})
+        repository.submit_prompt("Write a spec")
+        repository.write_proposal()
+
+        response = repository.stop("proposal")
+
+        self.assertEqual(response["decision"], "block")
+        self.assertIn("[gap] specs/gadgets/spec.md:8: The answer for an empty list is missing.", response["reason"])
+        self.assertIn("without asking the user", response["reason"])
+        self.assert_asks_for_short_reply(response["reason"])
 
     def test_repeat_runs_one_reviewer_with_previous_findings_and_files_changed_after_review(self):
         repository = HookRepository(self)
@@ -1108,7 +1153,7 @@ class ProposalGateRepeatTest(unittest.TestCase):
         self.assertIn(f"- openspec/changes/{PROPOSAL_NAME}/specs/gadgets/spec.md", changed_paths)
         self.assertNotIn("design.md", changed_paths)
 
-    def test_asks_for_summary_of_whole_proposal_once_after_repeat_accepts_it(self):
+    def test_asks_for_summary_without_review_once_after_repeat_accepts_proposal(self):
         repository = HookRepository(self)
         self.block_with_gap(repository)
         repository.set_reviewer_result({"findings": []})
@@ -1120,9 +1165,23 @@ class ProposalGateRepeatTest(unittest.TestCase):
 
         self.assertEqual(response["decision"], "block")
         self.assertIn("accepted the proposal", response["reason"])
-        self.assertIn("summary of the whole proposal", response["reason"])
+        self.assertIn("summary of the proposal", response["reason"])
+        self.assert_asks_for_summary_without_review(response["reason"])
         self.assertEqual(summary_response, {})
         self.assertEqual(repository.calls(), [])
+
+    def test_lists_scope_option_in_summary_without_review_when_repeat_accepts_proposal(self):
+        repository = HookRepository(self)
+        self.block_with_gap(repository)
+        repository.set_reviewer_result({"findings": [finding("scope", "The settings screen can be dropped.", file="proposal.md:5")]})
+        repository.write(f"openspec/changes/{PROPOSAL_NAME}/specs/gadgets/spec.md", "# gadgets\n\nEmpty list.\n")
+
+        response = repository.stop("proposal")
+
+        self.assertEqual(response["decision"], "block")
+        self.assertIn("[scope] (the user decides) proposal.md:5: The settings screen can be dropped.", response["reason"])
+        self.assertIn("List every scope finding separately: what the user loses and what they save", response["reason"])
+        self.assert_asks_for_summary_without_review(response["reason"])
 
     def test_stops_agent_with_remaining_findings_after_third_block(self):
         repository = HookRepository(self)
