@@ -57,6 +57,7 @@ const (
 
 	s3ErrCodeNoSuchBucket = "NoSuchBucket"
 	s3ErrCodeAccessDenied = "AccessDenied"
+	s3ErrCodeNoSuchKey    = "NoSuchKey"
 )
 
 type S3Storage struct {
@@ -977,9 +978,17 @@ func (s *S3Storage) removeObjects(ctx context.Context, client *minio.Client, key
 
 	var firstErr error
 	for removeResult := range client.RemoveObjects(ctx, s.S3Bucket, objectsCh, minio.RemoveObjectsOptions{}) {
-		if removeResult.Err != nil && firstErr == nil {
-			firstErr = removeResult.Err
+		if removeResult.Err == nil || firstErr != nil {
+			continue
 		}
+
+		// AWS reports a missing key as deleted, but some S3-compatible servers (Garage before
+		// v2.4.0) return it as a per-object NoSuchKey. Either way the object is confirmed absent.
+		if minio.ToErrorResponse(removeResult.Err).Code == s3ErrCodeNoSuchKey {
+			continue
+		}
+
+		firstErr = fmt.Errorf("object %s: %w", removeResult.ObjectName, removeResult.Err)
 	}
 
 	return firstErr
