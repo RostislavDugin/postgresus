@@ -1,8 +1,12 @@
 package postgresql_logical
 
 import (
+	"context"
+	"fmt"
 	"path"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"databasus-backend/internal/util/namelist"
 )
@@ -32,13 +36,30 @@ const dumpedRelationScope = `
 `
 
 type DumpFilter struct {
-	IncludeSchemas       []string
-	ExcludeTablePatterns []string
+	IncludeSchemas           []string
+	ExcludeTablePatterns     []string
+	ExcludeTableDataPatterns []string
 }
 
 type relationName struct {
-	SchemaName string
-	TableName  string
+	SchemaName            string
+	TableName             string
+	IsVisibleOnSearchPath bool
+}
+
+// pg_dump resolves table patterns right after RESET search_path, so whether an unqualified
+// pattern reaches a table depends on the role's default search path, not on this session's.
+func queryDumpedRelations(
+	ctx context.Context,
+	conn *pgx.Conn,
+	query string,
+	filter DumpFilter,
+) (pgx.Rows, error) {
+	if _, err := conn.Exec(ctx, "RESET search_path"); err != nil {
+		return nil, fmt.Errorf("failed to reset search path: %w", err)
+	}
+
+	return conn.Query(ctx, query, filter.getIncludedSchemaNames())
 }
 
 // The dump arguments are built from normalized names, so a pasted multiline value must be
@@ -51,6 +72,10 @@ func (f DumpFilter) getIncludedSchemaNames() []string {
 // normalized, so an unnormalized pattern here would demand SELECT on a table the dump skips.
 func (f DumpFilter) getExcludeTablePatterns() []string {
 	return namelist.NormalizeUniqueNames(f.ExcludeTablePatterns)
+}
+
+func (f DumpFilter) getExcludeTableDataPatterns() []string {
+	return namelist.NormalizeUniqueNames(f.ExcludeTableDataPatterns)
 }
 
 func isRelationExcluded(relation relationName, excludeTablePatterns []string) bool {
@@ -74,11 +99,15 @@ func (p dumpTablePattern) isMatchingRelation(relation relationName) bool {
 		return false
 	}
 
+	if !p.IsSchemaQualified && !relation.IsVisibleOnSearchPath {
+		return false
+	}
+
 	return p.TableGlob.isMatchingName(relation.TableName)
 }
 
-// Mirrors pg_dump's --exclude-table: an unqualified pattern hits the table name in
-// every schema, and the split happens on the first dot outside double quotes.
+// Mirrors pg_dump's table patterns: an unqualified pattern hits only tables visible on the
+// default search path, as in psql, and the split happens on the first dot outside double quotes.
 func parseDumpTablePattern(excludeTablePattern string) dumpTablePattern {
 	isInsideQuotes := false
 

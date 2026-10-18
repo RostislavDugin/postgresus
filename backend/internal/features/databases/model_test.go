@@ -291,6 +291,7 @@ func filledSourceDatabase(databaseType DatabaseType) *Database {
 			LocalTunnelEndpoint: &sshtunnel.Endpoint{Host: "127.0.0.1", Port: 41000},
 			IncludeSchemas:      []string{"public", "reporting"},
 			ExcludeTables:       []string{"audit_log"},
+			ExcludeTableData:    []string{"event_log"},
 			CpuCount:            4,
 			IsSkipUserMappings:  true,
 		}

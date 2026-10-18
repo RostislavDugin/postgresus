@@ -93,8 +93,15 @@ export const ShowPostgreSqlLogicalSpecificDataComponent = ({ database }: Props) 
 
       {!!database.postgresqlLogical?.excludeTables?.length && (
         <div className="mb-1 flex w-full items-center">
-          <div className="min-w-[150px] pr-2">{t('databases.fields.excludeTables')}</div>
+          <div className="min-w-[150px] pr-2">{t('databases.fields.excludeWholeTables')}</div>
           <div>{database.postgresqlLogical.excludeTables.join(', ')}</div>
+        </div>
+      )}
+
+      {!!database.postgresqlLogical?.excludeTableData?.length && (
+        <div className="mb-1 flex w-full items-center">
+          <div className="min-w-[150px] pr-2">{t('databases.fields.excludeTableData')}</div>
+          <div>{database.postgresqlLogical.excludeTableData.join(', ')}</div>
         </div>
       )}
 

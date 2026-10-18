@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -42,6 +43,37 @@ func Test_BuildPgDumpArgs_TreatsDuplicateParameterAsLiteralDatabaseName(t *testi
 	require.Less(t, databaseArgumentIndex, len(args))
 	require.GreaterOrEqual(t, databaseArgumentIndex, 0)
 	require.Equal(t, "dbname='postgres dbname=databasus'", args[databaseArgumentIndex])
+}
+
+func Test_BuildPgDumpArgs_WhenBothExclusionListsAreSet_AddsWholeTableThenDataFlagsNormalized(t *testing.T) {
+	databaseName := "appdb"
+	postgresDatabase := &pgtypes.PostgresqlLogicalDatabase{
+		Version:          tools.PostgresqlVersion17,
+		Host:             "localhost",
+		Port:             5437,
+		Username:         "postgres",
+		Database:         &databaseName,
+		ExcludeTables:    []string{" audit_tmp", "audit_tmp\n"},
+		ExcludeTableData: []string{"logs, history_*", "\nlogs", " "},
+	}
+
+	usecase := &CreatePostgresqlBackupUsecase{
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	args := usecase.buildPgDumpArgs(postgresDatabase)
+
+	var exclusionArgs []string
+	for _, argument := range args {
+		if strings.HasPrefix(argument, "--exclude-table") {
+			exclusionArgs = append(exclusionArgs, argument)
+		}
+	}
+
+	require.Equal(t, []string{
+		"--exclude-table=audit_tmp",
+		"--exclude-table-data=logs",
+		"--exclude-table-data=history_*",
+	}, exclusionArgs)
 }
 
 // Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue816 pins issue #816:

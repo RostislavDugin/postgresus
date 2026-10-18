@@ -48,12 +48,14 @@ type PostgresqlLogicalDatabase struct {
 	LocalTunnelEndpoint *sshtunnel.Endpoint `json:"-" gorm:"-"`
 
 	// backup settings
-	IncludeSchemas       []string `json:"includeSchemas"     gorm:"-"`
-	IncludeSchemasString string   `json:"-"                  gorm:"column:include_schemas;type:text;not null;default:''"`
-	ExcludeTables        []string `json:"excludeTables"      gorm:"-"`
-	ExcludeTablesString  string   `json:"-"                  gorm:"column:exclude_tables;type:text;not null;default:''"`
-	CpuCount             int      `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
-	IsSkipUserMappings   bool     `json:"isSkipUserMappings" gorm:"column:is_skip_user_mappings;type:bool;not null;default:false"`
+	IncludeSchemas         []string `json:"includeSchemas"     gorm:"-"`
+	IncludeSchemasString   string   `json:"-"                  gorm:"column:include_schemas;type:text;not null;default:''"`
+	ExcludeTables          []string `json:"excludeTables"      gorm:"-"`
+	ExcludeTablesString    string   `json:"-"                  gorm:"column:exclude_tables;type:text;not null;default:''"`
+	ExcludeTableData       []string `json:"excludeTableData"   gorm:"-"`
+	ExcludeTableDataString string   `json:"-"                  gorm:"column:exclude_table_data;type:text;not null;default:''"`
+	CpuCount               int      `json:"cpuCount"           gorm:"column:cpu_count;type:int;not null;default:1"`
+	IsSkipUserMappings     bool     `json:"isSkipUserMappings" gorm:"column:is_skip_user_mappings;type:bool;not null;default:false"`
 
 	// restore settings (not saved to DB)
 	IsExcludeExtensions bool `json:"isExcludeExtensions" gorm:"-"`
@@ -68,6 +70,7 @@ func (p *PostgresqlLogicalDatabase) TableName() string {
 func (p *PostgresqlLogicalDatabase) BeforeSave(_ *gorm.DB) error {
 	p.IncludeSchemasString = namelist.FormatUniqueNames(p.IncludeSchemas)
 	p.ExcludeTablesString = namelist.FormatUniqueNames(p.ExcludeTables)
+	p.ExcludeTableDataString = namelist.FormatUniqueNames(p.ExcludeTableData)
 
 	return nil
 }
@@ -75,6 +78,7 @@ func (p *PostgresqlLogicalDatabase) BeforeSave(_ *gorm.DB) error {
 func (p *PostgresqlLogicalDatabase) AfterFind(_ *gorm.DB) error {
 	p.IncludeSchemas = namelist.ParseUniqueNames(p.IncludeSchemasString)
 	p.ExcludeTables = namelist.ParseUniqueNames(p.ExcludeTablesString)
+	p.ExcludeTableData = namelist.ParseUniqueNames(p.ExcludeTableDataString)
 
 	return nil
 }
@@ -151,8 +155,9 @@ func (p *PostgresqlLogicalDatabase) GetRawDbSizeMb(
 	}()
 
 	sizeBytes, err := getDumpedRelationsSizeBytes(ctx, conn, DumpFilter{
-		IncludeSchemas:       p.IncludeSchemas,
-		ExcludeTablePatterns: p.ExcludeTables,
+		IncludeSchemas:           p.IncludeSchemas,
+		ExcludeTablePatterns:     p.ExcludeTables,
+		ExcludeTableDataPatterns: p.ExcludeTableData,
 	})
 	if err != nil {
 		return 0, err
@@ -186,6 +191,7 @@ func (p *PostgresqlLogicalDatabase) Update(incoming *PostgresqlLogicalDatabase) 
 	p.SslRootCert = incoming.SslRootCert
 	p.IncludeSchemas = incoming.IncludeSchemas
 	p.ExcludeTables = incoming.ExcludeTables
+	p.ExcludeTableData = incoming.ExcludeTableData
 	p.CpuCount = incoming.CpuCount
 	p.IsSkipUserMappings = incoming.IsSkipUserMappings
 	p.SshTunnel.Update(&incoming.SshTunnel)
@@ -210,6 +216,7 @@ func (p *PostgresqlLogicalDatabase) CopyForNewDatabase() *PostgresqlLogicalDatab
 	copiedDatabase.DatabaseID = nil
 	copiedDatabase.IncludeSchemas = slices.Clone(p.IncludeSchemas)
 	copiedDatabase.ExcludeTables = slices.Clone(p.ExcludeTables)
+	copiedDatabase.ExcludeTableData = slices.Clone(p.ExcludeTableData)
 	copiedDatabase.LocalTunnelEndpoint = nil
 
 	if p.Database != nil {
@@ -940,8 +947,9 @@ func testSingleDatabaseConnection(
 	postgresDb.Version = detectedVersion
 
 	if err := checkDumpReadPrivileges(ctx, conn, DumpFilter{
-		IncludeSchemas:       postgresDb.IncludeSchemas,
-		ExcludeTablePatterns: postgresDb.ExcludeTables,
+		IncludeSchemas:           postgresDb.IncludeSchemas,
+		ExcludeTablePatterns:     postgresDb.ExcludeTables,
+		ExcludeTableDataPatterns: postgresDb.ExcludeTableData,
 	}); err != nil {
 		return err
 	}

@@ -92,7 +92,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
   const { locale } = useLocale();
   const { message } = App.useApp();
 
-  const [editingDatabase, setEditingDatabase] = useState<Database>();
+  const [editingDatabase, setEditingDatabase] = useState<Database>({ ...database });
   const [isSaving, setIsSaving] = useState(false);
 
   const [isConnectionTested, setIsConnectionTested] = useState(false);
@@ -109,6 +109,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
         !!database.postgresqlLogical?.isRestorePrivileges
       : !!database.postgresqlLogical?.includeSchemas?.length ||
         !!database.postgresqlLogical?.excludeTables?.length ||
+        !!database.postgresqlLogical?.excludeTableData?.length ||
         !!database.postgresqlLogical?.isSkipUserMappings);
   const [isShowAdvanced, setShowAdvanced] = useState(hasAdvancedValues);
 
@@ -288,8 +289,6 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
 
     setEditingDatabase({ ...database });
   }, [database]);
-
-  if (!editingDatabase) return null;
 
   const renderFooter = (footerContent?: React.ReactNode) => (
     <div className="mt-5 flex">
@@ -701,7 +700,7 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
 
             {!isRestoreMode && (
               <div className="mb-1 flex w-full items-center">
-                <div className="min-w-[150px] pr-2">{t('databases.fields.excludeTables')}</div>
+                <div className="min-w-[150px] pr-2">{t('databases.fields.excludeWholeTables')}</div>
                 <Select
                   mode="tags"
                   value={editingDatabase.postgresqlLogical?.excludeTables || []}
@@ -725,6 +724,38 @@ export const EditPostgreSqlLogicalSpecificDataComponent = ({
                 <Tooltip
                   className="cursor-pointer"
                   title={t('databases.edit.postgresql.excludeTablesTooltip')}
+                >
+                  <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
+                </Tooltip>
+              </div>
+            )}
+
+            {!isRestoreMode && (
+              <div className="mb-1 flex w-full items-center">
+                <div className="min-w-[150px] pr-2">{t('databases.fields.excludeTableData')}</div>
+                <Select
+                  mode="tags"
+                  value={editingDatabase.postgresqlLogical?.excludeTableData || []}
+                  onChange={(values) => {
+                    if (!editingDatabase.postgresqlLogical) return;
+
+                    setEditingDatabase({
+                      ...editingDatabase,
+                      postgresqlLogical: {
+                        ...editingDatabase.postgresqlLogical,
+                        excludeTableData: normalizeNameList(values),
+                      },
+                    });
+                  }}
+                  size="small"
+                  className="max-w-[200px] grow"
+                  placeholder={t('databases.edit.postgresql.excludeTableDataPlaceholder')}
+                  tokenSeparators={NAME_LIST_TOKEN_SEPARATORS}
+                />
+
+                <Tooltip
+                  className="cursor-pointer"
+                  title={t('databases.edit.postgresql.excludeTableDataTooltip')}
                 >
                   <InfoCircleOutlined className="ml-2" style={{ color: 'gray' }} />
                 </Tooltip>

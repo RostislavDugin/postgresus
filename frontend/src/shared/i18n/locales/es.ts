@@ -385,6 +385,8 @@ export const es: typeof en = {
       serverCaCertificate: 'Certificado CA del servidor',
       includeSchemas: 'Incluir esquemas',
       excludeTables: 'Excluir tablas',
+      excludeWholeTables: 'Excluir tablas completas',
+      excludeTableData: 'Excluir datos de tablas',
       skipUserMappings: 'Omitir user mappings',
       excludeExtensions: 'Excluir extensiones',
       restoreOwnership: 'Restaurar propietarios',
@@ -432,7 +434,10 @@ export const es: typeof en = {
           '<docsLink>Lea este artículo</docsLink> para saber cómo hacer copias de seguridad de una base de datos de Supabase',
         includeSchemasPlaceholder: 'Todos los esquemas (predeterminado)',
         excludeTablesTooltip:
-          "Tablas que no se incluirán en la copia de seguridad. Use 'tablename' o 'schema.tablename'. Se admiten patrones glob (p. ej., 'logs_*'). Puede pegar una lista separada por comas o por saltos de línea.",
+          "Tablas que quedan fuera de la copia de seguridad por completo: después de restaurar no existirán. Use 'tablename' o 'schema.tablename'. Un nombre sin esquema solo encuentra tablas del search_path predeterminado, normalmente 'public'; use '*.tablename' para buscar en todos los esquemas. Se admiten patrones glob (p. ej., 'logs_*'). Puede pegar una lista separada por comas o por saltos de línea.",
+        excludeTableDataTooltip:
+          "Tablas que se guardan en la copia de seguridad sin sus filas: después de restaurar existen con su estructura, índices y restricciones, pero vacías. Use 'tablename' o 'schema.tablename'. Un nombre sin esquema solo encuentra tablas del search_path predeterminado, normalmente 'public'; use '*.tablename' para buscar en todos los esquemas. Se admiten patrones glob (p. ej., 'logs_*'). Una tabla indicada en ambos campos se excluye por completo. Las particiones de una tabla particionada necesitan su propio nombre o un patrón como 'events_*'. Si otra tabla de la copia tiene una clave foránea hacia filas de una tabla vaciada, la restauración no podrá recrear esa clave foránea. Puede pegar una lista separada por comas o por saltos de línea.",
+        excludeTableDataPlaceholder: 'No se excluyen datos de tablas',
         skipUserMappingsTooltip:
           'No restaura los user mappings (sentencias CREATE USER MAPPING). Active esta opción si el rol de la copia de seguridad no puede leer sus credenciales: si no, se vuelcan sin opciones y rompen la restauración con FDW como oracle_fdw.',
         excludeExtensionsTooltip:

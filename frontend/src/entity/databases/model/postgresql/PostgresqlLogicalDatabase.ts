@@ -25,6 +25,7 @@ export interface PostgresqlLogicalDatabase {
   // backup settings
   includeSchemas?: string[];
   excludeTables?: string[];
+  excludeTableData?: string[];
   cpuCount: number;
   isSkipUserMappings?: boolean;
 

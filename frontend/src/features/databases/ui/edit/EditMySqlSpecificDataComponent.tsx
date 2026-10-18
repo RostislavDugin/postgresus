@@ -61,7 +61,7 @@ export const EditMySqlSpecificDataComponent = ({
   const { locale } = useLocale();
   const { message } = App.useApp();
 
-  const [editingDatabase, setEditingDatabase] = useState<Database>();
+  const [editingDatabase, setEditingDatabase] = useState<Database>({ ...database });
   const [isSaving, setIsSaving] = useState(false);
 
   const [isConnectionTested, setIsConnectionTested] = useState(false);
@@ -185,8 +185,6 @@ export const EditMySqlSpecificDataComponent = ({
 
     setEditingDatabase({ ...database });
   }, [database]);
-
-  if (!editingDatabase) return null;
 
   const engineName = t(DATABASE_TYPE_LABEL_KEYS[DatabaseType.MYSQL]);
 

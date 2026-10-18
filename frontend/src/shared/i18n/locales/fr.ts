@@ -384,6 +384,8 @@ export const fr: typeof en = {
       serverCaCertificate: 'Certificat CA du serveur',
       includeSchemas: 'Schémas inclus',
       excludeTables: 'Tables exclues',
+      excludeWholeTables: 'Tables exclues entièrement',
+      excludeTableData: 'Données de tables exclues',
       skipUserMappings: "Ignorer les correspondances d'utilisateurs",
       excludeExtensions: 'Exclure les extensions',
       restoreOwnership: 'Restaurer les propriétaires',
@@ -432,7 +434,10 @@ export const fr: typeof en = {
           '<docsLink>Lisez cette page</docsLink> pour savoir comment sauvegarder une base de données Supabase',
         includeSchemasPlaceholder: 'Tous les schémas (par défaut)',
         excludeTablesTooltip:
-          "Tables à exclure de la sauvegarde. Utilisez 'tablename' ou 'schema.tablename'. Les motifs glob sont acceptés (par ex. 'logs_*'). Vous pouvez coller une liste séparée par des virgules ou des retours à la ligne.",
+          "Tables entièrement exclues de la sauvegarde : après une restauration, elles n'existeront pas. Utilisez 'tablename' ou 'schema.tablename'. Un nom sans schéma ne trouve que les tables du search_path par défaut, généralement 'public' ; utilisez '*.tablename' pour chercher dans tous les schémas. Les motifs glob sont acceptés (par ex. 'logs_*'). Vous pouvez coller une liste séparée par des virgules ou des retours à la ligne.",
+        excludeTableDataTooltip:
+          "Tables sauvegardées sans leurs lignes : après une restauration, elles existent avec leur structure, leurs index et leurs contraintes, mais vides. Utilisez 'tablename' ou 'schema.tablename'. Un nom sans schéma ne trouve que les tables du search_path par défaut, généralement 'public' ; utilisez '*.tablename' pour chercher dans tous les schémas. Les motifs glob sont acceptés (par ex. 'logs_*'). Une table indiquée dans les deux champs est entièrement exclue. Les partitions d'une table partitionnée doivent être indiquées une par une ou par un motif comme 'events_*'. Si une autre table sauvegardée a une clé étrangère vers des lignes d'une table vidée, la restauration ne pourra pas recréer cette clé étrangère. Vous pouvez coller une liste séparée par des virgules ou des retours à la ligne.",
+        excludeTableDataPlaceholder: 'Aucune donnée de table exclue',
         skipUserMappingsTooltip:
           "Ne pas restaurer les correspondances d'utilisateurs (user mappings, instructions CREATE USER MAPPING). Activez cette option si le rôle de sauvegarde ne peut pas lire les identifiants de ces correspondances : sinon, elles sont exportées sans options et font échouer la restauration des FDW comme oracle_fdw.",
         excludeExtensionsTooltip:
