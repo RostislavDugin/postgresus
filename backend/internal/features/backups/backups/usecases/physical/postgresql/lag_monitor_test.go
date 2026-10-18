@@ -1,6 +1,7 @@
 package usecases_physical_postgresql
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -142,4 +143,52 @@ func Test_RecordSampleAndClassifyBreak_WhenSlotHealthy_DoesNotRebuildAndClearsWa
 
 	require.Equal(t, slotBreakActionNone, actionAfterRecovery,
 		"a recovered slot restarts the hold window instead of inheriting the previous one")
+}
+
+func newSupervisorReportingTo(log *capturedLog) (*WalStreamSupervisor, *slog.Logger) {
+	return &WalStreamSupervisor{uploader: NewWalUploader(WalUploadDeps{})},
+		slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
+func Test_ReportArchivingProgress_AfterBusyInterval_LogsCountsStepTimingsAndConcurrency(t *testing.T) {
+	log := &capturedLog{}
+	supervisor, supervisorLogger := newSupervisorReportingTo(log)
+
+	supervisor.uploader.stats.recordArchived(3*1024*1024, segmentUploadTimings{
+		Claim:        4 * time.Millisecond,
+		SegmentWrite: 300 * time.Millisecond,
+		SidecarWrite: 60 * time.Millisecond,
+		Commit:       8 * time.Millisecond,
+	})
+	supervisor.uploader.stats.recordArchived(1024*1024, segmentUploadTimings{
+		Claim:        2 * time.Millisecond,
+		SegmentWrite: 100 * time.Millisecond,
+		SidecarWrite: 40 * time.Millisecond,
+		Commit:       4 * time.Millisecond,
+	})
+	supervisor.uploader.RecordConcurrentUploads(4)
+
+	supervisor.reportArchivingProgress(t.Context(), supervisorLogger, &SlotState{LagBytes: 2048, WalStatus: "reserved"})
+
+	logLine := log.String()
+	require.Contains(t, logLine, "level=INFO")
+	require.Contains(t, logLine, "archived 2 wal segments (4.0 MB)")
+	require.Contains(t, logLine, "up to 4 uploads at once")
+	require.Contains(t, logLine, "claim avg 3ms max 4ms")
+	require.Contains(t, logLine, "segment write avg 200ms max 300ms")
+	require.Contains(t, logLine, "sidecar write avg 50ms max 60ms")
+	require.Contains(t, logLine, "commit avg 6ms max 8ms")
+	require.Contains(t, logLine, "2048 bytes behind")
+}
+
+func Test_ReportArchivingProgress_AfterQuietInterval_LogsOnlyBytesBehindAtDebug(t *testing.T) {
+	log := &capturedLog{}
+	supervisor, supervisorLogger := newSupervisorReportingTo(log)
+
+	supervisor.reportArchivingProgress(t.Context(), supervisorLogger, &SlotState{LagBytes: 4096, WalStatus: "reserved"})
+
+	logLine := log.String()
+	require.Contains(t, logLine, "level=DEBUG")
+	require.Contains(t, logLine, "no wal archived since the last report, 4096 bytes behind")
+	require.NotContains(t, logLine, "avg")
 }

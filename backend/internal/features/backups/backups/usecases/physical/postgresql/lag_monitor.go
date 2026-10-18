@@ -169,24 +169,41 @@ func (s *WalStreamSupervisor) runLagMonitor(ctx context.Context, logger *slog.Lo
 
 // Archiving throughput and lag are only visible today once something has already broken, which
 // leaves no history to read after an incident. This rides the existing poll rather than adding a
-// ticker, and stays at INFO only when segments actually moved.
+// ticker, and stays at INFO only when segments actually moved. The step timings tell latency-bound
+// archiving from bandwidth-bound: a segment write near its size divided by the link speed means
+// more uploads at once will not help, a much longer one means the time goes to round trips.
 func (s *WalStreamSupervisor) reportArchivingProgress(
 	ctx context.Context,
 	logger *slog.Logger,
 	state *SlotState,
 ) {
-	archivedSegments, archivedBytes := s.uploader.TakeArchivedSinceLastReport()
+	snapshot := s.uploader.TakeArchivingSnapshot()
 
-	if archivedSegments == 0 {
+	if snapshot.ArchivedSegments == 0 {
 		logger.DebugContext(ctx, fmt.Sprintf("no wal archived since the last report, %d bytes behind",
 			state.LagBytes), "wal_status", state.WalStatus)
 
 		return
 	}
 
-	logger.InfoContext(ctx, fmt.Sprintf("archived %d wal segments (%.1f MB), %d bytes behind",
-		archivedSegments, float64(archivedBytes)/(1024*1024), state.LagBytes),
-		"wal_status", state.WalStatus)
+	logger.InfoContext(ctx, fmt.Sprintf(
+		"archived %d wal segments (%.1f MB), up to %d uploads at once; "+
+			"claim %s, segment write %s, sidecar write %s, commit %s; %d bytes behind",
+		snapshot.ArchivedSegments,
+		float64(snapshot.ArchivedBytes)/(1024*1024),
+		snapshot.HighestConcurrentUploads,
+		formatUploadStepTiming(snapshot.Claim, snapshot.ArchivedSegments),
+		formatUploadStepTiming(snapshot.SegmentWrite, snapshot.ArchivedSegments),
+		formatUploadStepTiming(snapshot.SidecarWrite, snapshot.ArchivedSegments),
+		formatUploadStepTiming(snapshot.Commit, snapshot.ArchivedSegments),
+		state.LagBytes,
+	), "wal_status", state.WalStatus)
+}
+
+func formatUploadStepTiming(timing uploadStepTiming, archivedSegments int64) string {
+	return fmt.Sprintf("avg %s max %s",
+		timing.GetAverage(archivedSegments).Round(time.Millisecond),
+		timing.Longest.Round(time.Millisecond))
 }
 
 // The slot's restart_lsn plus its lag is where the source currently is, so the
@@ -196,13 +213,13 @@ func (s *WalStreamSupervisor) reportArchiveStalenessIfDue(
 	stalenessTracker *walArchiveStalenessTracker,
 	state *SlotState,
 ) {
-	lastCommittedWalLSN, lastCommittedWalAt := s.getLastCommittedWal(logger)
+	newestCommitted, lastCommittedWalAt := s.getLastCommittedWal(logger)
 
 	isArchiveStale := stalenessTracker.recordSampleAndDetectStaleness(walArchiveSample{
-		SourceCurrentLSN:    state.RestartLSN + walmath.LSN(state.LagBytes),
-		LastCommittedWalLSN: lastCommittedWalLSN,
-		ObservedAt:          time.Now().UTC(),
-		StalenessThreshold:  s.spec.ArchiveStalenessThreshold,
+		SourceCurrentLSN:     state.RestartLSN + walmath.LSN(state.LagBytes),
+		ArchiveProgressPoint: getArchiveProgressPoint(s.getLowestQueuedSegment(), newestCommitted),
+		ObservedAt:           time.Now().UTC(),
+		StalenessThreshold:   s.spec.ArchiveStalenessThreshold,
 	})
 
 	if !isArchiveStale {

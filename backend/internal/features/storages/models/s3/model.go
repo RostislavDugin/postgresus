@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -14,7 +13,6 @@ import (
 	"hash"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -98,7 +96,7 @@ func (s *S3Storage) SaveFile(
 	default:
 	}
 
-	client, err := s.getClient(encryptor)
+	client, err := s.getClient(ctx, encryptor)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to build the s3 client", "bucket", s.S3Bucket, "error", err)
 
@@ -165,12 +163,7 @@ func (s *S3Storage) SaveFile(
 		return nil
 	}
 
-	coreClient, err := s.getCoreClient(encryptor)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to build the s3 core client", "bucket", s.S3Bucket, "error", err)
-
-		return err
-	}
+	coreClient := &minio.Core{Client: client}
 
 	source := io.MultiReader(bytes.NewReader(firstPart), bytes.NewReader(peek[:peekLen]), file)
 
@@ -209,12 +202,14 @@ func (s *S3Storage) GetFile(
 	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	coreClient, err := s.getCoreClient(encryptor)
+	client, err := s.getClient(ctx, encryptor)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to build the s3 core client", "bucket", s.S3Bucket, "error", err)
+		logger.ErrorContext(ctx, "failed to build the s3 client", "bucket", s.S3Bucket, "error", err)
 
 		return nil, err
 	}
+
+	coreClient := &minio.Core{Client: client}
 
 	baseKey := s.buildObjectKey(fileName)
 
@@ -263,17 +258,17 @@ func (s *S3Storage) DeleteFile(
 	logger *slog.Logger,
 	fileName string,
 ) error {
-	client, err := s.getClient(encryptor)
+	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
+	// operation carries its own deadline; the caller's ctx stays for log correlation only.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), s3DeleteTimeout)
+	defer cancel()
+
+	client, err := s.getClient(deleteCtx, encryptor)
 	if err != nil {
 		return err
 	}
 
 	baseKey := s.buildObjectKey(fileName)
-
-	// Deletes run from cleanup paths whose caller context is often already cancelled, so the
-	// operation carries its own deadline; the caller's ctx stays for log correlation only.
-	deleteCtx, cancel := context.WithTimeout(context.Background(), s3DeleteTimeout)
-	defer cancel()
 
 	keys, err := s.derivedObjectKeys(deleteCtx, client, baseKey)
 	if err != nil {
@@ -290,7 +285,7 @@ func (s *S3Storage) DeleteFile(
 		return fmt.Errorf("failed to delete file from S3: %w", err)
 	}
 
-	if err := s.abortDerivedMultipartUploads(deleteCtx, encryptor, client, baseKey); err != nil {
+	if err := s.abortDerivedMultipartUploads(deleteCtx, client, baseKey); err != nil {
 		logger.WarnContext(ctx, "failed to abort incomplete s3 uploads",
 			"file_name", fileName, "object_key", baseKey, "error", err)
 
@@ -321,7 +316,10 @@ func (s *S3Storage) Validate(encryptor encryption.FieldEncryptor) error {
 // probe stays on a single key inside the prefix and never lets a refused delete fail the storage:
 // writing and reading back is everything a backup needs from S3.
 func (s *S3Storage) TestConnection(encryptor encryption.FieldEncryptor) error {
-	client, err := s.getClient(encryptor)
+	ctx, cancel := context.WithTimeout(context.Background(), s3ConnectionTestTimeout)
+	defer cancel()
+
+	client, err := s.getClient(ctx, encryptor)
 	if err != nil {
 		return err
 	}
@@ -440,14 +438,10 @@ func (s *S3Storage) derivedObjectKeys(
 
 func (s *S3Storage) abortDerivedMultipartUploads(
 	ctx context.Context,
-	encryptor encryption.FieldEncryptor,
 	client *minio.Client,
 	baseKey string,
 ) error {
-	coreClient, err := s.getCoreClient(encryptor)
-	if err != nil {
-		return err
-	}
+	coreClient := &minio.Core{Client: client}
 
 	for upload := range client.ListIncompleteUploads(ctx, s.S3Bucket, baseKey, true) {
 		if upload.Err != nil {
@@ -776,21 +770,18 @@ func (s *S3Storage) buildObjectKey(fileName string) string {
 	return prefix + fileName
 }
 
-func (s *S3Storage) getClient(encryptor encryption.FieldEncryptor) (*minio.Client, error) {
-	endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, err := s.getClientParams(
-		encryptor,
-	)
+func (s *S3Storage) getClient(ctx context.Context, encryptor encryption.FieldEncryptor) (*minio.Client, error) {
+	params, err := s.getClientParams(encryptor)
 	if err != nil {
 		return nil, err
 	}
 
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure:       useSSL,
-		Region:       s.S3Region,
-		BucketLookup: bucketLookup,
-		Transport:    transport,
-	})
+	region := s.S3Region
+	if region == "" {
+		region = getCachedBucketRegion(ctx, params, s.S3Bucket)
+	}
+
+	minioClient, err := newMinioClient(params, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize MinIO client: %w", err)
 	}
@@ -798,33 +789,28 @@ func (s *S3Storage) getClient(encryptor encryption.FieldEncryptor) (*minio.Clien
 	return minioClient, nil
 }
 
-func (s *S3Storage) getCoreClient(encryptor encryption.FieldEncryptor) (*minio.Core, error) {
-	endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, err := s.getClientParams(
-		encryptor,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	coreClient, err := minio.NewCore(endpoint, &minio.Options{
-		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure:       useSSL,
-		Region:       s.S3Region,
-		BucketLookup: bucketLookup,
-		Transport:    transport,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize MinIO Core client: %w", err)
-	}
-
-	return coreClient, nil
+type clientParams struct {
+	endpoint     string
+	useSSL       bool
+	accessKey    string
+	secretKey    string
+	bucketLookup minio.BucketLookupType
+	transport    *http.Transport
 }
 
-func (s *S3Storage) getClientParams(
-	encryptor encryption.FieldEncryptor,
-) (endpoint string, useSSL bool, accessKey, secretKey string, bucketLookup minio.BucketLookupType, transport *http.Transport, err error) {
-	endpoint = s.S3Endpoint
-	useSSL = true
+func newMinioClient(params clientParams, region string) (*minio.Client, error) {
+	return minio.New(params.endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(params.accessKey, params.secretKey, ""),
+		Secure:       params.useSSL,
+		Region:       region,
+		BucketLookup: params.bucketLookup,
+		Transport:    params.transport,
+	})
+}
+
+func (s *S3Storage) getClientParams(encryptor encryption.FieldEncryptor) (clientParams, error) {
+	endpoint := s.S3Endpoint
+	useSSL := true
 
 	if after, ok := strings.CutPrefix(endpoint, "http://"); ok {
 		useSSL = false
@@ -837,35 +823,29 @@ func (s *S3Storage) getClientParams(
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", s.S3Region)
 	}
 
-	accessKey, err = encryptor.Decrypt(s.S3AccessKey)
+	accessKey, err := encryptor.Decrypt(s.S3AccessKey)
 	if err != nil {
-		return "", false, "", "", 0, nil, fmt.Errorf("failed to decrypt S3 access key: %w", err)
+		return clientParams{}, fmt.Errorf("failed to decrypt S3 access key: %w", err)
 	}
 
-	secretKey, err = encryptor.Decrypt(s.S3SecretKey)
+	secretKey, err := encryptor.Decrypt(s.S3SecretKey)
 	if err != nil {
-		return "", false, "", "", 0, nil, fmt.Errorf("failed to decrypt S3 secret key: %w", err)
+		return clientParams{}, fmt.Errorf("failed to decrypt S3 secret key: %w", err)
 	}
 
-	bucketLookup = minio.BucketLookupAuto
+	bucketLookup := minio.BucketLookupAuto
 	if s.S3UseVirtualHostedStyle {
 		bucketLookup = minio.BucketLookupDNS
 	}
 
-	transport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout: s3ConnectTimeout,
-		}).DialContext,
-		TLSHandshakeTimeout:   s3TLSHandshakeTimeout,
-		ResponseHeaderTimeout: s3ResponseTimeout,
-		IdleConnTimeout:       s3IdleConnTimeout,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: s.SkipTLSVerify,
-		},
-	}
-
-	return endpoint, useSSL, accessKey, secretKey, bucketLookup, transport, nil
+	return clientParams{
+		endpoint:     endpoint,
+		useSSL:       useSSL,
+		accessKey:    accessKey,
+		secretKey:    secretKey,
+		bucketLookup: bucketLookup,
+		transport:    getSharedTransport(s.SkipTLSVerify),
+	}, nil
 }
 
 // chunkedManifest lists, in order, the objects a single logical file was split into, with each

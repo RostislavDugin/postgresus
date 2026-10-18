@@ -22,6 +22,12 @@ const azuriteBlobPort = "10000/tcp"
 func StartAzurite(t *testing.T) Endpoint {
 	t.Helper()
 
+	return StartAzuriteContainer(t).Endpoint
+}
+
+func StartAzuriteContainer(t *testing.T) ContainerHandle {
+	t.Helper()
+
 	req := testcontainers.ContainerRequest{
 		Image:        "mcr.microsoft.com/azure-storage/azurite",
 		ExposedPorts: []string{azuriteBlobPort},
@@ -29,5 +35,5 @@ func StartAzurite(t *testing.T) Endpoint {
 		WaitingFor:   wait.ForListeningPort(azuriteBlobPort).WithStartupTimeout(120 * time.Second),
 	}
 
-	return start(t, req, azuriteBlobPort)
+	return startContainer(t, req, azuriteBlobPort)
 }

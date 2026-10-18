@@ -212,6 +212,10 @@ type WalStreamSupervisor struct {
 	// physical_wal_streamers heartbeat claim), so this is the only guard needed.
 	rebuildMu         sync.Mutex
 	rebuildTimestamps []time.Time
+
+	// Written by the uploader dispatcher, read by the lag monitor (wal_staleness.go).
+	lowestQueuedSegmentMutex sync.Mutex
+	lowestQueuedSegment      *walPosition
 }
 
 func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
@@ -234,6 +238,7 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 		WalSegmentRepo:      spec.WalSegmentRepo,
 		WalSegmentSizeBytes: walSegmentSizeBytes(spec.SourceDB),
 		Logger:              scopedLogger,
+		WatchDir:            watchDir,
 		OnGapDetected:       spec.OnGapDetected,
 	})
 

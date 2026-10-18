@@ -35,18 +35,11 @@ func Test_DeleteFile_WhenTheServerRefusesTheRemoval_ReturnsTheError(t *testing.T
 	encryptor := encryption.GetFieldEncryptor()
 	directory := "refused-" + uuid.New().String()
 
-	session, err := storage.createSessionWithContext(t.Context(), encryptor)
+	session, err := storage.dialSession(t.Context(), encryptor)
 	require.NoError(t, err)
+	t.Cleanup(func() { closeSession(session) })
 
-	share, err := session.Mount(storage.Share)
-	require.NoError(t, err)
-
-	require.NoError(t, share.MkdirAll(storage.getFilePath(directory), 0o755))
-
-	t.Cleanup(func() {
-		_ = share.Umount()
-		_ = session.Logoff()
-	})
+	require.NoError(t, session.getShare(t.Context()).MkdirAll(storage.getFilePath(directory), 0o755))
 
 	require.NoError(t, storage.SaveFile(
 		t.Context(), encryptor, logger.GetLogger(), directory+"/artifact", strings.NewReader("payload"),

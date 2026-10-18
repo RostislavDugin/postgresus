@@ -33,6 +33,12 @@ func sftpReady() wait.Strategy {
 func StartSftp(t *testing.T) Endpoint {
 	t.Helper()
 
+	return StartSftpContainer(t).Endpoint
+}
+
+func StartSftpContainer(t *testing.T) ContainerHandle {
+	t.Helper()
+
 	req := testcontainers.ContainerRequest{
 		Image:        "atmoz/sftp:latest",
 		ExposedPorts: []string{sftpPort},
@@ -40,5 +46,5 @@ func StartSftp(t *testing.T) Endpoint {
 		WaitingFor:   sftpReady(),
 	}
 
-	return start(t, req, sftpPort)
+	return startContainer(t, req, sftpPort)
 }
