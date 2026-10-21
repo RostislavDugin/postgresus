@@ -6,6 +6,7 @@ package containers
 
 import (
 	"context"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,8 @@ const loopbackIP = "127.0.0.1"
 // One retry covers a transient boot failure, a second covers a back-to-back repeat under the same
 // load spike. More would only delay the report of a genuinely broken image.
 const containerBootAttempts = 3
+
+const failedContainerOutputTailBytes = 8 * 1024
 
 // Endpoint is the reachable address of a started container's primary port.
 type Endpoint struct {
@@ -133,6 +136,7 @@ func bootContainer(t *testing.T, req testcontainers.ContainerRequest) testcontai
 
 		lastErr = err
 		t.Logf("attempt %d/%d to start %s container failed: %v", attempt, containerBootAttempts, req.Image, err)
+		logContainerOutputTail(t, container, req.Image)
 
 		// GenericContainer hands back the half-started container alongside the error.
 		if err := testcontainers.TerminateContainer(container); err != nil {
@@ -143,6 +147,35 @@ func bootContainer(t *testing.T, req testcontainers.ContainerRequest) testcontai
 	t.Fatalf("failed to start %s container after %d attempts: %v", req.Image, containerBootAttempts, lastErr)
 
 	return nil
+}
+
+// A container that exits during boot surfaces only as "exited with code N"; the reason sits in its
+// own output, which is gone once the container is terminated.
+func logContainerOutputTail(t *testing.T, container testcontainers.Container, image string) {
+	t.Helper()
+
+	if container == nil {
+		return
+	}
+
+	logs, err := container.Logs(context.Background())
+	if err != nil {
+		t.Logf("failed to read %s container output: %v", image, err)
+		return
+	}
+	defer func() { _ = logs.Close() }()
+
+	output, err := io.ReadAll(logs)
+	if err != nil {
+		t.Logf("failed to read %s container output: %v", image, err)
+		return
+	}
+
+	if len(output) > failedContainerOutputTailBytes {
+		output = output[len(output)-failedContainerOutputTailBytes:]
+	}
+
+	t.Logf("%s container output tail:\n%s", image, output)
 }
 
 // The MySQL client resolves the name "localhost" to a unix socket rather than TCP, and the server

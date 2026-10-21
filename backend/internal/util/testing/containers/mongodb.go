@@ -34,11 +34,15 @@ func mongodbReady() wait.Strategy {
 	)
 }
 
+// GLIBC_TUNABLES stops glibc from registering rseq, which the TCMalloc bundled in mongod needs for
+// itself; on Linux 6.19+ (GitHub runners ship 7.0) mongod otherwise exits at startup, see
+// SERVER-121912.
 func mongodbEnv() map[string]string {
 	return map[string]string{
 		"MONGO_INITDB_ROOT_USERNAME": MongodbUsername,
 		"MONGO_INITDB_ROOT_PASSWORD": MongodbPassword,
 		"MONGO_INITDB_DATABASE":      MongodbDatabase,
+		"GLIBC_TUNABLES":             "glibc.pthread.rseq=0",
 	}
 }
 
