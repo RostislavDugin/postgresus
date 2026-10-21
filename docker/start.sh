@@ -186,7 +186,6 @@ create_required_data_directories() {
     for required_directory in \
         /databasus-data \
         /databasus-data/pgdata \
-        /databasus-data/pgsocket \
         /databasus-data/temp \
         /databasus-data/backups; do
         if mkdir -p "${required_directory}" 2>/dev/null ||
@@ -204,12 +203,10 @@ normalize_data_permissions() {
     chmod 0770 /databasus-data 2>/dev/null || true
     chown "${runtime_uid}:${runtime_gid}" \
         /databasus-data/pgdata \
-        /databasus-data/pgsocket \
         /databasus-data/temp \
         /databasus-data/backups 2>/dev/null || true
     chmod 0700 \
         /databasus-data/pgdata \
-        /databasus-data/pgsocket \
         /databasus-data/temp 2>/dev/null || true
     chmod 0770 /databasus-data/backups 2>/dev/null || true
 }
@@ -329,8 +326,7 @@ verify_service_directories() {
 
     for required_write_directory in \
         /databasus-data \
-        /databasus-data/pgdata \
-        /databasus-data/pgsocket; do
+        /databasus-data/pgdata; do
         if verify_directory_file_lifecycle "${required_write_directory}" service-check; then
             continue
         fi
@@ -371,57 +367,51 @@ initialize_postgresql_cluster() {
     } >> /databasus-data/pgdata/postgresql.conf
 }
 
-write_bootstrap_postgresql_authentication() {
-    gosu databasus tee /databasus-data/pgdata/pg_ident.conf.new >/dev/null <<'PG_IDENT'
-databasus_bootstrap databasus postgres
-PG_IDENT
-    gosu databasus chmod 0600 /databasus-data/pgdata/pg_ident.conf.new
-    gosu databasus mv \
-        /databasus-data/pgdata/pg_ident.conf.new \
-        /databasus-data/pgdata/pg_ident.conf
+install_postgresql_configuration_file() {
+    local configuration_file="/databasus-data/pgdata/$1"
 
-    gosu databasus tee /databasus-data/pgdata/pg_hba.conf.new >/dev/null <<'PG_HBA'
-local all postgres peer map=databasus_bootstrap
-local all all reject
-local replication all reject
+    gosu databasus tee "${configuration_file}.new" >/dev/null
+    gosu databasus chmod 0600 "${configuration_file}.new"
+    gosu databasus mv "${configuration_file}.new" "${configuration_file}"
+}
+
+write_postgresql_authentication() {
+    install_postgresql_configuration_file pg_hba.conf <<'PG_HBA'
 host all all 127.0.0.1/32 scram-sha-256
 host all all ::1/128 scram-sha-256
 host replication all 127.0.0.1/32 reject
 host replication all ::1/128 reject
 PG_HBA
-    gosu databasus chmod 0600 /databasus-data/pgdata/pg_hba.conf.new
-    gosu databasus mv \
-        /databasus-data/pgdata/pg_hba.conf.new \
-        /databasus-data/pgdata/pg_hba.conf
+    install_postgresql_configuration_file pg_ident.conf </dev/null
 }
 
-start_postgresql() {
-    echo "Starting PostgreSQL..."
+# Single-user mode listens on nothing, so the cluster can be administered before any client can
+# connect. The database name must be the last argument.
+run_postgresql_single_user() {
     gosu databasus "${postgres_binary_directory}/postgres" \
+        --single \
         -D /databasus-data/pgdata \
-        -p 5437 \
-        -k /databasus-data/pgsocket \
-        -c password_encryption=scram-sha-256 &
-    postgres_pid=$!
+        "$@" \
+        postgres
+}
 
-    echo "Waiting for PostgreSQL to be ready..."
-    local postgres_readiness_attempt
-    for ((postgres_readiness_attempt = 1; postgres_readiness_attempt <= 30; postgres_readiness_attempt++)); do
-        if gosu databasus "${postgres_binary_directory}/pg_isready" \
-            -p 5437 -h /databasus-data/pgsocket >/dev/null 2>&1; then
-            echo "PostgreSQL is ready!"
-            return
-        fi
-        sleep 1
-    done
+# Opening the cluster replays the write-ahead log, so a failure here is the only sign of a log that
+# cannot be recovered without a reset.
+open_postgresql_cluster() {
+    local single_user_output
 
+    if single_user_output="$(run_postgresql_single_user </dev/null 2>&1)"; then
+        return
+    fi
+
+    printf '%s\n' "${single_user_output}"
     return 1
 }
 
 report_postgresql_recovery_failure() {
     echo ""
     echo "=========================================="
-    echo "ERROR: PostgreSQL failed to start even after WAL reset."
+    echo "ERROR: PostgreSQL could not open the database even after a WAL reset attempt."
     echo "The database may be severely corrupted."
     echo ""
     echo "Options:"
@@ -431,37 +421,26 @@ report_postgresql_recovery_failure() {
     return 1
 }
 
-start_postgresql_with_recovery() {
-    if start_postgresql; then
+open_postgresql_cluster_with_recovery() {
+    echo "Opening PostgreSQL database..."
+    if open_postgresql_cluster; then
         return
     fi
 
     echo ""
     echo "=========================================="
-    echo "PostgreSQL failed to start. Attempting WAL reset recovery..."
+    echo "PostgreSQL could not open the database. Attempting WAL reset recovery..."
     echo "=========================================="
     echo ""
 
-    kill -9 "${postgres_pid}" 2>/dev/null || true
-    sleep 2
+    # A single-user backend that panics leaves its lock file behind, and pg_resetwal refuses to run
+    # while one exists. No PostgreSQL process runs at this point, so the file is stale.
+    gosu databasus rm -f /databasus-data/pgdata/postmaster.pid
 
     echo "Running pg_resetwal to reset WAL..."
     if ! gosu databasus "${postgres_binary_directory}/pg_resetwal" \
-        -f /databasus-data/pgdata; then
-        echo ""
-        echo "=========================================="
-        echo "ERROR: pg_resetwal failed."
-        echo "The database may be severely corrupted."
-        echo ""
-        echo "Options:"
-        echo "  1. Delete the volume and start fresh (data loss)"
-        echo "  2. Manually inspect /databasus-data/pgdata for issues"
-        echo "=========================================="
-        return 1
-    fi
-
-    echo "WAL reset successful. Restarting PostgreSQL..."
-    if ! start_postgresql; then
+        -f /databasus-data/pgdata ||
+       ! open_postgresql_cluster; then
         report_postgresql_recovery_failure
         return 1
     fi
@@ -469,58 +448,72 @@ start_postgresql_with_recovery() {
     echo "PostgreSQL recovered successfully after WAL reset!"
 }
 
-configure_postgresql_database() {
+# printf is a shell builtin, so the password reaches PostgreSQL through a pipe and never through
+# the arguments of a process. log_min_error_statement=panic keeps a failing statement, and the
+# password inside it, out of the output.
+rotate_internal_postgres_password() {
+    local single_user_output
+
     internal_postgres_password="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
 
-    echo "Setting up database and user..."
-    gosu databasus "${postgres_binary_directory}/psql" \
-        -v ON_ERROR_STOP=1 \
-        -v internal_postgres_password="${internal_postgres_password}" \
+    echo "Setting the internal PostgreSQL password..."
+    if single_user_output="$(printf "ALTER ROLE postgres WITH PASSWORD '%s'\n" "${internal_postgres_password}" |
+        run_postgresql_single_user \
+            -c exit_on_error=on \
+            -c log_min_error_statement=panic \
+            -c password_encryption=scram-sha-256 2>&1)"; then
+        return
+    fi
+
+    printf '%s\n' "${single_user_output}" >&2
+    echo "ERROR: PostgreSQL rejected the internal password change." >&2
+    return 1
+}
+
+start_postgresql() {
+    echo "Starting PostgreSQL..."
+    gosu databasus "${postgres_binary_directory}/postgres" \
+        -D /databasus-data/pgdata \
         -p 5437 \
-        -h /databasus-data/pgsocket \
+        -c unix_socket_directories='' \
+        -c max_wal_senders=0 \
+        -c password_encryption=scram-sha-256 &
+    postgres_pid=$!
+
+    echo "Waiting for PostgreSQL to be ready..."
+    local postgres_readiness_attempt
+    for ((postgres_readiness_attempt = 1; postgres_readiness_attempt <= 30; postgres_readiness_attempt++)); do
+        if gosu databasus "${postgres_binary_directory}/pg_isready" \
+            -h localhost -p 5437 >/dev/null 2>&1; then
+            echo "PostgreSQL is ready!"
+            return
+        fi
+        if ! kill -0 "${postgres_pid}" 2>/dev/null; then
+            break
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: PostgreSQL did not start." >&2
+    return 1
+}
+
+create_metadata_database() {
+    echo "Setting up database..."
+    PGPASSWORD="${internal_postgres_password}" gosu databasus "${postgres_binary_directory}/psql" \
+        -v ON_ERROR_STOP=1 \
+        -h localhost \
+        -p 5437 \
         -U postgres \
         -d postgres <<'SQL'
-
-ALTER USER postgres WITH PASSWORD :'internal_postgres_password';
 SELECT 'CREATE DATABASE databasus OWNER postgres'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'databasus')
 \gexec
-\q
 SQL
 }
 
-activate_runtime_postgresql_authentication() {
-    gosu databasus tee /databasus-data/pgdata/pg_hba.conf.new >/dev/null <<'PG_HBA'
-local all all reject
-local replication all reject
-host all all 127.0.0.1/32 scram-sha-256
-host all all ::1/128 scram-sha-256
-host replication all 127.0.0.1/32 reject
-host replication all ::1/128 reject
-PG_HBA
-    gosu databasus chmod 0600 /databasus-data/pgdata/pg_hba.conf.new
-    gosu databasus mv \
-        /databasus-data/pgdata/pg_hba.conf.new \
-        /databasus-data/pgdata/pg_hba.conf
-    gosu databasus /bin/sh -c ': > /databasus-data/pgdata/pg_ident.conf'
-    gosu databasus chmod 0600 /databasus-data/pgdata/pg_ident.conf
-    gosu databasus "${postgres_binary_directory}/pg_ctl" \
-        -D /databasus-data/pgdata reload
-}
-
 verify_postgresql_runtime_authentication() {
-    if gosu databasus "${postgres_binary_directory}/psql" \
-        -p 5437 \
-        -h /databasus-data/pgsocket \
-        -U postgres \
-        -d postgres \
-        -c 'SELECT 1' >/dev/null 2>&1; then
-        echo "ERROR: Embedded PostgreSQL still accepts Unix-socket login after bootstrap." >&2
-        return 1
-    fi
-
-    if ! gosu databasus env PGPASSWORD="${internal_postgres_password}" \
-        "${postgres_binary_directory}/psql" \
+    if ! PGPASSWORD="${internal_postgres_password}" gosu databasus "${postgres_binary_directory}/psql" \
         -h localhost \
         -p 5437 \
         -U postgres \
@@ -545,10 +538,11 @@ configure_application_database_dsn() {
 
 bootstrap_postgresql() {
     initialize_postgresql_cluster
-    write_bootstrap_postgresql_authentication
-    start_postgresql_with_recovery
-    configure_postgresql_database
-    activate_runtime_postgresql_authentication
+    write_postgresql_authentication
+    open_postgresql_cluster_with_recovery
+    rotate_internal_postgres_password
+    start_postgresql
+    create_metadata_database
     verify_postgresql_runtime_authentication
     configure_application_database_dsn
 }
@@ -558,8 +552,8 @@ reject_legacy_wal_configuration() {
     local has_legacy_wal_database
 
     echo "Checking for legacy WAL backup configuration..."
-    has_backup_type_column="$(gosu databasus env PGPASSWORD="${internal_postgres_password}" \
-        "${postgres_binary_directory}/psql" \
+    has_backup_type_column="$(PGPASSWORD="${internal_postgres_password}" \
+        gosu databasus "${postgres_binary_directory}/psql" \
         -h localhost -p 5437 -U postgres -d databasus -tA \
         -c "SELECT 1 FROM information_schema.columns WHERE table_name='postgresql_databases' AND column_name='backup_type' LIMIT 1" \
         2>/dev/null || true)"
@@ -569,8 +563,8 @@ reject_legacy_wal_configuration() {
         return
     fi
 
-    has_legacy_wal_database="$(gosu databasus env PGPASSWORD="${internal_postgres_password}" \
-        "${postgres_binary_directory}/psql" \
+    has_legacy_wal_database="$(PGPASSWORD="${internal_postgres_password}" \
+        gosu databasus "${postgres_binary_directory}/psql" \
         -h localhost -p 5437 -U postgres -d databasus -tA \
         -c "SELECT 1 FROM postgresql_databases WHERE backup_type='WAL_V1' LIMIT 1" \
         2>/dev/null || true)"
