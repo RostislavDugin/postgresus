@@ -8,8 +8,28 @@ processes:
       echo "API docs http://localhost:4005/api/v1/docs/swagger/index.html"
 
   backend:
-    command: go run ./cmd
+    command: air
     working_dir: backend
+    # The probe only checks that the port accepts connections: process-compose keeps probing for
+    # the whole run, and an HTTP probe would add an access log line to the backend output every
+    # time. The seed asks the health endpoint itself. The first build of a fresh worktree takes a
+    # while, so the probe keeps waiting instead of giving up.
+    readiness_probe:
+      exec:
+        command: "bash -c '</dev/tcp/localhost/4005'"
+      initial_delay_seconds: 2
+      period_seconds: 2
+      timeout_seconds: 5
+      failure_threshold: 100000
+
+  seed:
+    command: go run ./cmd/seed_dev
+    working_dir: backend
+    depends_on:
+      backend:
+        condition: process_healthy
+    availability:
+      restart: "no"
 
   frontend:
     command: pnpm --dir frontend dev

@@ -10,3 +10,4 @@ ui/build/*
 pgdata-for-restore/
 temp/
 temp/
+tmp/
