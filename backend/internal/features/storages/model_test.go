@@ -38,6 +38,7 @@ import (
 	db "databasus-backend/internal/storage"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
+	test_utils "databasus-backend/internal/util/testing"
 	"databasus-backend/internal/util/testing/containers"
 )
 
@@ -217,19 +218,22 @@ func Test_Storage_BasicOperations(t *testing.T) {
 	}
 }
 
-// WAL archiving writes a 16 MiB segment and a 1 KiB metadata sidecar per segment, and a busy source
-// needs about 1.3 segments per second. Two pairs per second against a storage 50 ms away leaves room
-// for a loaded CI runner while still catching a write path that pays a round trip per block or a
-// handshake per file.
+// The storage answers every packet 50 ms late, so each round trip a write pays shows up in its
+// duration and in nothing else the runner's load can inflate as much. The check targets the two
+// mistakes that keep WAL archiving from keeping up with a distant storage: a handshake per file and
+// a round trip per block. The connection count catches the first exactly, while S3, Azure and
+// Rclone reconnect for only one TCP round trip, too little for any timing to tell apart.
 const (
-	throughputEgressDelay   = 50 * time.Millisecond
-	throughputPairCount     = 24
-	throughputWriterCount   = 4
-	throughputTimeLimit     = 12 * time.Second
-	segmentSizedFileBytes   = 16 * 1024 * 1024
-	metadataSizedFileBytes  = 1024
-	writeFailureReportLimit = 3
+	roundTripEgressDelay   = 50 * time.Millisecond
+	reusedFileWriteCount   = 10
+	segmentSizedFileBytes  = 16 * 1024 * 1024
+	metadataSizedFileBytes = 1024
 )
+
+// A round trip per 32 KiB block, the buffer io.Copy streams with, costs a segment 512 round trips,
+// about 25s. A streamed segment takes 0.5-1s on a developer machine, so a quarter of the slow path
+// leaves the loaded CI runner several times the room it needs and still fails the slow path.
+const segmentWriteLimit = 128 * roundTripEgressDelay
 
 type remoteStorageTarget struct {
 	name           string
@@ -248,124 +252,58 @@ func getRemoteStorageTargets() []remoteStorageTarget {
 	}
 }
 
-func Test_WriteFile_WhenStorageAnswers50msLate_SustainsTwoSegmentsPerSecond(t *testing.T) {
-	targets := append(getRemoteStorageTargets(), remoteStorageTarget{"Local", StorageTypeLocal, nil})
-
-	for _, target := range targets {
+func Test_WriteFile_WhenStorageAnswers50msLate_PaysNoHandshakePerFileOrRoundTripPerBlock(t *testing.T) {
+	for _, target := range getRemoteStorageTargets() {
 		t.Run(target.name, func(t *testing.T) {
 			t.Parallel()
 
-			var container containers.ContainerHandle
-			if target.startContainer != nil {
-				container = target.startContainer(t)
-				containers.AddEgressDelay(t, container, throughputEgressDelay)
-			}
+			container := target.startContainer(t)
+			containers.AddEgressDelay(t, container, roundTripEgressDelay)
+			t.Cleanup(func() { containers.ClearEgressShaping(t, container) })
 
-			storage := createTestStorageOfType(t, target.storageType, container)
+			// FTP data connections still go straight to the container's passive ports, so only
+			// control connections, one per session, cross the forwarder.
+			forwarder := test_utils.StartCountingForwarder(t, addressOf(container.Endpoint))
+			forwardedContainer := container
+			forwardedContainer.Endpoint = containers.Endpoint{Host: forwarder.Host, Port: forwarder.Port}
 
-			segmentContent := generateRandomContent(t, segmentSizedFileBytes)
+			storage := createTestStorageOfType(t, target.storageType, forwardedContainer)
+			writtenFiles := trackWrittenFiles(t, storage.ID)
 			metadataContent := generateRandomContent(t, metadataSizedFileBytes)
+			segmentContent := generateRandomContent(t, segmentSizedFileBytes)
 
-			written := writeSegmentPairsConcurrently(t, storage.ID, segmentContent, metadataContent)
+			// The first write opens the session, and its handshake is not what the test measures.
+			require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), metadataContent))
+			connectionsAfterFirstWrite := forwarder.GetAcceptedCount()
 
-			if target.startContainer != nil {
-				t.Cleanup(func() { containers.ClearEgressShaping(t, container) })
+			for range reusedFileWriteCount {
+				require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), metadataContent))
 			}
 
-			require.Empty(t, written.failures, "writes failed after %d pairs in %s", written.pairCount, written.elapsed)
-			require.Equal(
+			assert.Equal(
 				t,
-				throughputPairCount,
-				written.pairCount,
-				"only %d of %d pairs were written within %s, the writers stopped after %s",
-				written.pairCount,
-				throughputPairCount,
-				throughputTimeLimit,
-				written.elapsed,
+				connectionsAfterFirstWrite,
+				forwarder.GetAcceptedCount(),
+				"%d files written one after another must reuse the connection the first write opened",
+				reusedFileWriteCount,
 			)
 
-			t.Logf("%d pairs written in %s", written.pairCount, written.elapsed)
+			startedAt := time.Now()
+			require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), segmentContent))
+			segmentWriteDuration := time.Since(startedAt)
+
+			assert.Less(
+				t,
+				segmentWriteDuration,
+				segmentWriteLimit,
+				"a %d MiB segment took %s, as long as paying a round trip for every four 32 KiB blocks",
+				segmentSizedFileBytes/1024/1024,
+				segmentWriteDuration,
+			)
+
+			t.Logf("segment written in %s", segmentWriteDuration)
 		})
 	}
-}
-
-type writtenPairs struct {
-	pairCount int
-	elapsed   time.Duration
-	failures  []error
-}
-
-// Writers stop taking jobs once the time limit passes, and the call waits for the writes already in
-// flight, so every file that reached the storage is handed to cleanup.
-func writeSegmentPairsConcurrently(
-	t *testing.T,
-	storageID uuid.UUID,
-	segmentContent []byte,
-	metadataContent []byte,
-) writtenPairs {
-	t.Helper()
-
-	var (
-		resultMutex      sync.Mutex
-		result           writtenPairs
-		writersWaitGroup sync.WaitGroup
-	)
-
-	writtenFiles := trackWrittenFiles(t, storageID)
-
-	pairIndexes := make(chan int, throughputPairCount)
-	for pairIndex := range throughputPairCount {
-		pairIndexes <- pairIndex
-	}
-	close(pairIndexes)
-
-	startedAt := time.Now()
-
-	writePair := func(pairIndex int) error {
-		pairName := fmt.Sprintf("throughput-%s-%d", uuid.New(), pairIndex)
-
-		if err := writtenFiles.write(t.Context(), pairName, segmentContent); err != nil {
-			return err
-		}
-
-		return writtenFiles.write(t.Context(), pairName+".metadata", metadataContent)
-	}
-
-	for range throughputWriterCount {
-		writersWaitGroup.Go(func() {
-			for pairIndex := range pairIndexes {
-				if time.Since(startedAt) > throughputTimeLimit {
-					return
-				}
-
-				err := writePair(pairIndex)
-				isWithinLimit := time.Since(startedAt) <= throughputTimeLimit
-
-				resultMutex.Lock()
-				if err != nil && len(result.failures) < writeFailureReportLimit {
-					result.failures = append(result.failures, err)
-				}
-
-				if err == nil && isWithinLimit {
-					result.pairCount++
-					result.elapsed = time.Since(startedAt)
-				}
-				resultMutex.Unlock()
-
-				if err != nil {
-					return
-				}
-			}
-		})
-	}
-
-	writersWaitGroup.Wait()
-
-	if result.pairCount < throughputPairCount {
-		result.elapsed = time.Since(startedAt)
-	}
-
-	return result
 }
 
 // Every file a test writes, the failed attempts included, is handed to the deletion worker at the
