@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 
@@ -45,6 +48,20 @@ func (s *FailingBackupFileStore) GetReadBytes() int64 {
 	return s.readBytes.Load()
 }
 
+// discardingBackupFileStore reads every write to the end and keeps nothing, for tests whose
+// backup fails for a reason other than the storage.
+type discardingBackupFileStore struct{}
+
+func (s *discardingBackupFileStore) WriteFile(
+	_ context.Context,
+	_ storage_files.StoredFileReference,
+	file io.Reader,
+) (storage_files.WriteReceipt, error) {
+	_, err := io.Copy(io.Discard, file)
+
+	return storage_files.WriteReceipt{}, err
+}
+
 // ExecuteBackupInto runs one engine's real backup use case against a test database, writing into
 // the given file store.
 type ExecuteBackupInto func(
@@ -67,7 +84,7 @@ func AssertStorageTimeoutReportedAsStorageFailure(t *testing.T, executeBackupInt
 
 		backupErr := executeBackupInto(
 			t.Context(),
-			newStorageFailureTestBackup(),
+			newTestBackup(),
 			newUnencryptedTestBackupConfig(),
 			fileStore,
 		)
@@ -81,13 +98,54 @@ func AssertStorageTimeoutReportedAsStorageFailure(t *testing.T, executeBackupInt
 
 		backupErr := executeBackupInto(
 			t.Context(),
-			newStorageFailureTestBackup(),
+			newTestBackup(),
 			newUnencryptedTestBackupConfig(),
 			fileStore,
 		)
 
 		assertStorageErrorReported(t, backupErr, storageErr)
 	})
+}
+
+// ExecuteBackupWithDumpTool runs one engine's backup use case with the given binary in place of
+// its dump tool, writing into the given file store.
+type ExecuteBackupWithDumpTool func(
+	ctx context.Context,
+	backup *LogicalBackup,
+	backupConfig *backups_config_logical.LogicalBackupConfig,
+	fileStore BackupFileStore,
+	dumpToolBin string,
+) error
+
+// AssertDumpToolErrorReported runs an engine's backup with a dump tool that writes an error and
+// exits before producing any data, and checks the engine reports that error.
+func AssertDumpToolErrorReported(t *testing.T, executeBackupWithDumpTool ExecuteBackupWithDumpTool) {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("stub dump tool relies on a POSIX shell")
+	}
+
+	const dumpToolError = "error: query failed: ERROR:  permission denied for sequence orders_id_seq"
+
+	// The error reaches the error output only after the dump tool has exited, which is how a
+	// fast-exiting tool looks when the reader of its output is scheduled late, as on a loaded CI
+	// runner. A capture that stops reading when the process exits loses it every time.
+	dumpToolBin := filepath.Join(t.TempDir(), "dump-tool")
+	dumpToolScript := "#!/bin/sh\n(sleep 0.2; echo '" + dumpToolError + "' >&2) >/dev/null &\nexit 1\n"
+	require.NoError(t, os.WriteFile(dumpToolBin, []byte(dumpToolScript), 0o700))
+
+	backupErr := executeBackupWithDumpTool(
+		t.Context(),
+		newTestBackup(),
+		newUnencryptedTestBackupConfig(),
+		&discardingBackupFileStore{},
+		dumpToolBin,
+	)
+
+	require.Error(t, backupErr)
+	assert.Contains(t, backupErr.Error(), dumpToolError)
+	assert.NotContains(t, backupErr.Error(), "save to storage")
 }
 
 func assertStorageErrorReported(t *testing.T, backupErr, storageErr error) {
@@ -99,14 +157,14 @@ func assertStorageErrorReported(t *testing.T, backupErr, storageErr error) {
 	assert.NotContains(t, backupErr.Error(), "backup cancelled")
 }
 
-func newStorageFailureTestBackup() *LogicalBackup {
+func newTestBackup() *LogicalBackup {
 	backupID := uuid.New()
 
 	return &LogicalBackup{
 		ID:         backupID,
 		DatabaseID: uuid.New(),
 		StorageID:  uuid.New(),
-		FileName:   "storage-failure-" + backupID.String(),
+		FileName:   "test-backup-" + backupID.String(),
 		Status:     BackupStatusInProgress,
 	}
 }

@@ -36,7 +36,10 @@ func StartSambaContainer(t *testing.T) ContainerHandle {
 			"-s", SambaShare + ";/shared;yes;no;no;" + SambaUsername,
 			"-p",
 		},
-		WaitingFor: wait.ForListeningPort(sambaPort).WithStartupTimeout(120 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort(sambaPort).WithStartupTimeout(120*time.Second),
+			forSmbShare(sambaPort, 120*time.Second, SambaUsername, SambaPassword, SambaShare),
+		),
 	}
 
 	return startContainer(t, req, sambaPort)

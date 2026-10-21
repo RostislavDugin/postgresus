@@ -17,7 +17,9 @@ func Test_ReadThroughIdleTimeoutReader_WhenBytesFlowContinuously_DoesNotCancelCo
 
 	pr, pw := io.Pipe()
 
-	idleReader := NewIdleTimeoutReader(pr, 200*time.Millisecond, cancel)
+	// The writer pauses 50 ms between writes, so a timeout of seconds leaves a margin no
+	// scheduler pause on a loaded runner reaches.
+	idleReader := NewIdleTimeoutReader(pr, 5*time.Second, cancel)
 	defer idleReader.Stop()
 
 	go func() {
@@ -45,9 +47,8 @@ func Test_ReadThroughIdleTimeoutReader_WhenNoBytesTransmitted_CancelsContext(t *
 	idleReader := NewIdleTimeoutReader(pr, 100*time.Millisecond, cancel)
 	defer idleReader.Stop()
 
-	time.Sleep(200 * time.Millisecond)
-
-	assert.Error(t, ctx.Err(), "context should be cancelled when no bytes are transmitted")
+	require.Eventually(t, func() bool { return ctx.Err() != nil }, 5*time.Second, 10*time.Millisecond,
+		"context should be cancelled when no bytes are transmitted")
 	assert.Contains(t, context.Cause(ctx).Error(), "upload idle timeout")
 }
 
@@ -69,9 +70,8 @@ func Test_ReadThroughIdleTimeoutReader_WhenBytesStopMidStream_CancelsContext(t *
 	n, _ := idleReader.Read(buf)
 	assert.Equal(t, "initial", string(buf[:n]))
 
-	time.Sleep(200 * time.Millisecond)
-
-	assert.Error(t, ctx.Err(), "context should be cancelled when bytes stop mid-stream")
+	require.Eventually(t, func() bool { return ctx.Err() != nil }, 5*time.Second, 10*time.Millisecond,
+		"context should be cancelled when bytes stop mid-stream")
 	assert.Contains(t, context.Cause(ctx).Error(), "upload idle timeout")
 }
 

@@ -1,6 +1,7 @@
 package usecases_logical_mysql
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -212,21 +213,14 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 		"LANG=C.UTF-8",
 	)
 
-	pgStdout, err := cmd.StdoutPipe()
+	dumpStdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
-	pgStderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		stderrOutput, _ := io.ReadAll(pgStderr)
-		stderrCh <- stderrOutput
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = backups_core_logical.DumpToolOutputWaitDelay
 
 	storageReader, storageWriter := io.Pipe()
 
@@ -247,6 +241,12 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 		return nil, fmt.Errorf("failed to create zstd writer: %w", err)
 	}
 
+	// The dump tool starts before the storage write, so a storage that fails at once cannot
+	// cancel the context the tool is started with and hide its own error.
+	if err = cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start %s: %w", filepath.Base(mysqlBin), err)
+	}
+
 	fileWrite := storage_files.StartBackgroundWrite(
 		ctx,
 		fileStore,
@@ -255,17 +255,11 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 		cancel,
 	)
 
-	if err = cmd.Start(); err != nil {
-		uc.cleanupOnCancellation(zstdWriter, encryptionWriter, storageWriter, fileWrite.Errors)
-
-		return nil, fmt.Errorf("start %s: %w", filepath.Base(mysqlBin), err)
-	}
-
 	copyResultCh := make(chan error, 1)
 	go func() {
 		copyResultCh <- uc.copyWithShutdownCheck(ctx, compressedCopySpec{
 			Destination:            zstdWriter,
-			Source:                 pgStdout,
+			Source:                 dumpStdout,
 			CompressedBytesCounter: compressedBytesCounter,
 			ProgressListener:       backupProgressListener,
 		})
@@ -301,7 +295,6 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 	}
 
 	saveErr := <-fileWrite.Errors
-	stderrOutput := <-stderrCh
 
 	if waitErr == nil && copyErr == nil && saveErr == nil && backupProgressListener != nil {
 		compressedSizeMB := float64(compressedBytesCounter.GetBytesWritten()) / (1024 * 1024)
@@ -310,7 +303,7 @@ func (uc *CreateMysqlBackupUsecase) streamToStorage(
 
 	switch {
 	case waitErr != nil:
-		return nil, uc.buildMysqldumpErrorMessage(waitErr, stderrOutput, mysqlBin)
+		return nil, uc.buildMysqldumpErrorMessage(waitErr, stderrOutput.Bytes(), mysqlBin)
 	case copyErr != nil:
 		return nil, fmt.Errorf("copy to storage: %w", copyErr)
 	case saveErr != nil:

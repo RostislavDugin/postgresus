@@ -1,6 +1,7 @@
 package usecases_physical_postgresql
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -80,12 +81,10 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		return receiverRunResult{Exit: receiverRetryable}
 	}
 
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		logger.ErrorContext(ctx, "pg_receivewal stderr pipe", "error", err)
-
-		return receiverRunResult{Exit: receiverRetryable}
-	}
+	// Wait returns only after the whole error output is in the buffer, bounded by the command's
+	// WaitDelay, so reading it once exited delivers always sees what pg_receivewal wrote.
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
 		logger.ErrorContext(ctx, "start pg_receivewal", "error", err)
@@ -98,8 +97,6 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	s.receiverRunStartedAtUnixNano.Store(startedAt.UnixNano())
 	defer s.receiverRunStartedAtUnixNano.Store(0)
 
-	stderr := newStderrCapture(stderrPipe)
-
 	logger.InfoContext(ctx, "pg_receivewal started", "watch_dir", s.watchDir)
 
 	exited := make(chan error, 1)
@@ -110,7 +107,6 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 	case <-ctx.Done():
 		procCancel()
 		<-exited
-		stderr.stop()
 
 		return receiverRunResult{Exit: receiverCtxCancelled}
 
@@ -118,12 +114,10 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 		logger.InfoContext(ctx, "restarting pg_receivewal on internal signal (back pressure or slot stall)")
 		procCancel()
 		<-exited
-		stderr.stop()
 
 		return receiverRunResult{Exit: receiverInternalRestart, RanFor: time.Since(startedAt)}
 
 	case waitErr := <-exited:
-		stderr.stop()
 		ranFor := time.Since(startedAt)
 
 		if waitErr == nil || procCtx.Err() != nil {
@@ -132,7 +126,7 @@ func (s *WalStreamSupervisor) spawnAndSupervise(
 			return receiverRunResult{Exit: receiverRetryable, RanFor: ranFor}
 		}
 
-		stderrText := stderr.contents()
+		stderrText := stderr.Bytes()
 
 		if isResumeMismatchError(stderrText) {
 			logger.WarnContext(ctx, "pg_receivewal asked for WAL the server has recycled; realigning the resume point",

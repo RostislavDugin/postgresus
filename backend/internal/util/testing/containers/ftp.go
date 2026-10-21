@@ -53,7 +53,10 @@ func StartFtpContainer(t *testing.T) ContainerHandle {
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.PortBindings = withPassivePortRange(hc.PortBindings)
 		},
-		WaitingFor: wait.ForListeningPort(ftpControlPort).WithStartupTimeout(120 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort(ftpControlPort).WithStartupTimeout(120*time.Second),
+			forGreeting(ftpControlPort, 120*time.Second, "220"),
+		),
 	}
 
 	return startContainer(t, req, ftpControlPort)

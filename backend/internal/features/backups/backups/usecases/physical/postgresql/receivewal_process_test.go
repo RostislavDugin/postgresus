@@ -1,6 +1,9 @@
 package usecases_physical_postgresql
 
 import (
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -110,4 +113,36 @@ func Test_NewReceivewalCommand_WithoutATunnel_SendsNoPgHostAddr(t *testing.T) {
 	require.NoError(t, err)
 
 	assertNoPgHostAddr(t, cmd.Env)
+}
+
+// A rejected password exits pg_receivewal at once. The error reaches its error output only after
+// the process has exited, which is how that exit looks when the reader of the output is
+// scheduled late, as on a loaded CI runner. A capture that stops reading when the process exits
+// loses it and treats the exit as one worth retrying.
+func Test_SpawnAndSupervise_WhenReceiverExitsRightAfterAuthenticationFailure_EndsAsFatal(t *testing.T) {
+	receiverStub := filepath.Join(t.TempDir(), "pg_receivewal")
+	receiverScript := "#!/bin/sh\n" +
+		"(sleep 0.2; echo 'pg_receivewal: error: connection to server failed: " +
+		"FATAL:  password authentication failed for user \"repl\"' >&2) >/dev/null &\n" +
+		"exit 1\n"
+	require.NoError(t, os.WriteFile(receiverStub, []byte(receiverScript), 0o700))
+
+	supervisor := &WalStreamSupervisor{
+		spec: WalStreamSpec{
+			SourceDB: &postgresql_physical.PostgresqlPhysicalDatabase{
+				ID:       uuid.New(),
+				Host:     "localhost",
+				Port:     5432,
+				Username: "repl",
+			},
+		},
+		watchDir:      t.TempDir(),
+		slotName:      "slot",
+		restartSignal: make(chan struct{}, 1),
+	}
+
+	runResult := supervisor.spawnAndSupervise(t.Context(), slog.New(slog.DiscardHandler), receiverStub)
+
+	require.Equal(t, receiverFatal, runResult.Exit)
+	require.ErrorContains(t, runResult.FatalErr, "FATAL:  password authentication failed")
 }

@@ -1,6 +1,7 @@
 package usecases_mariadb
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -221,23 +222,15 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 		"LANG=C.UTF-8",
 	)
 
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		output, _ := io.ReadAll(stderrPipe)
-		stderrCh <- output
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = restores_core.ToolOutputWaitDelay
 
 	if err = cmd.Start(); err != nil {
 		return fmt.Errorf("start mariadb: %w", err)
 	}
 
 	waitErr := cmd.Wait()
-	stderrOutput := <-stderrCh
 
 	// Check for cancellation
 	select {
@@ -260,7 +253,7 @@ func (uc *RestoreMariadbBackupUsecase) executeMariadbRestore(
 	}
 
 	if waitErr != nil {
-		return uc.handleMariadbRestoreError(database, waitErr, stderrOutput, mariadbBin)
+		return uc.handleMariadbRestoreError(database, waitErr, stderrOutput.Bytes(), mariadbBin)
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package usecases_logical_mongodb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -157,21 +158,14 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 		"LANG=C.UTF-8",
 	)
 
-	pgStdout, err := cmd.StdoutPipe()
+	dumpStdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
-	pgStderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		stderrOutput, _ := io.ReadAll(pgStderr)
-		stderrCh <- stderrOutput
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = backups_core_logical.DumpToolOutputWaitDelay
 
 	storageReader, storageWriter := io.Pipe()
 
@@ -184,6 +178,12 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
+	// The dump tool starts before the storage write, so a storage that fails at once cannot
+	// cancel the context the tool is started with and hide its own error.
+	if err = cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start %s: %w", filepath.Base(mongodumpBin), err)
+	}
+
 	fileWrite := storage_files.StartBackgroundWrite(
 		ctx,
 		fileStore,
@@ -192,19 +192,13 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 		cancel,
 	)
 
-	if err = cmd.Start(); err != nil {
-		uc.cleanupOnCancellation(encryptionWriter, storageWriter, fileWrite.Errors)
-
-		return nil, fmt.Errorf("start %s: %w", filepath.Base(mongodumpBin), err)
-	}
-
 	copyResultCh := make(chan error, 1)
 	bytesWrittenCh := make(chan int64, 1)
 	go func() {
 		bytesWritten, copyErr := uc.copyWithShutdownCheck(
 			ctx,
 			finalWriter,
-			pgStdout,
+			dumpStdout,
 			backupProgressListener,
 		)
 		bytesWrittenCh <- bytesWritten
@@ -238,7 +232,6 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 	}
 
 	saveErr := <-fileWrite.Errors
-	stderrOutput := <-stderrCh
 
 	if waitErr == nil && copyErr == nil && saveErr == nil && backupProgressListener != nil {
 		sizeMB := float64(bytesWritten) / (1024 * 1024)
@@ -247,7 +240,7 @@ func (uc *CreateMongodbBackupUsecase) streamToStorage(
 
 	switch {
 	case waitErr != nil:
-		return nil, uc.buildMongodumpErrorMessage(waitErr, stderrOutput, mongodumpBin)
+		return nil, uc.buildMongodumpErrorMessage(waitErr, stderrOutput.Bytes(), mongodumpBin)
 	case copyErr != nil:
 		return nil, fmt.Errorf("copy to storage: %w", copyErr)
 	case saveErr != nil:
