@@ -9,6 +9,8 @@ readonly selected_case="${CASE:-all}"
 readonly databasus_image="${DATABASUS_IMAGE:?DATABASUS_IMAGE must be set}"
 readonly samba_fixture_image="dockurr/samba@sha256:dbd8ebd6392cc1e8e98312d96d163f0039b644b84aee741d89efdd0abd3d32bf"
 readonly nfs_fixture_image="itsthenetwork/nfs-server-alpine@sha256:7fa99ae65c23c5af87dd4300e543a86b119ed15ba61422444207efc7abd0ba20"
+suite_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly suite_directory
 
 case_root=""
 
@@ -105,12 +107,11 @@ wait_for_log() {
     return 1
 }
 
-wait_for_exit() {
+wait_for_stop() {
     local container_name="$1"
 
     for ((exit_attempt = 1; exit_attempt <= 100; exit_attempt++)); do
         if [[ "$(docker inspect --format '{{.State.Running}}' "${container_name}")" != "true" ]]; then
-            [[ "$(docker inspect --format '{{.State.ExitCode}}' "${container_name}")" != "0" ]]
             return
         fi
         sleep 0.1
@@ -118,6 +119,19 @@ wait_for_exit() {
 
     echo "container did not stop" >&2
     return 1
+}
+
+get_exit_code() {
+    local container_name="$1"
+
+    docker inspect --format '{{.State.ExitCode}}' "${container_name}"
+}
+
+wait_for_exit() {
+    local container_name="$1"
+
+    wait_for_stop "${container_name}"
+    [[ "$(get_exit_code "${container_name}")" != "0" ]]
 }
 
 start_databasus() {
@@ -216,20 +230,34 @@ assert_single_runtime_identity() {
     [[ "$(docker exec "${container_name}" stat -c %g "/proc/${service_pid}")" == "${runtime_gid}" ]]
 }
 
-assert_postgresql_runtime_authentication() {
+get_generated_database_password() {
     local container_name="$1"
 
-    grep -Fxq "local all all reject" < <(
-        docker exec "${container_name}" cat /databasus-data/pgdata/pg_hba.conf
-    )
+    docker exec "${container_name}" \
+        sed -n 's/.* password=\([^ ]*\) .*/\1/p' /dev/shm/databasus-database-dsn
+}
+
+can_log_in_over_loopback() {
+    local container_name="$1"
+    local database_password="$2"
+
+    docker exec -i --user databasus "${container_name}" /bin/sh -c '
+        IFS= read -r PGPASSWORD
+        export PGPASSWORD
+        /usr/lib/postgresql/17/bin/psql -h localhost -p 5437 -U postgres -d postgres -c "SELECT 1"
+    ' <<<"${database_password}" >/dev/null 2>&1
+}
+
+assert_postgresql_runtime_authentication() {
+    local container_name="$1"
+    local database_password
+    local replication_probe_output
+
     [[ "$(docker exec "${container_name}" stat -c %a /databasus-data/pgdata/pg_hba.conf)" == "600" ]]
     [[ "$(docker exec "${container_name}" stat -c %a /databasus-data/pgdata/pg_ident.conf)" == "600" ]]
 
-    if docker exec --user databasus "${container_name}" \
-        /usr/lib/postgresql/17/bin/psql \
-        -h /databasus-data/pgsocket -p 5437 -U postgres -d postgres \
-        -c 'SELECT 1' >/dev/null 2>&1; then
-        echo "PostgreSQL accepted a runtime Unix-socket login" >&2
+    if docker exec "${container_name}" grep -Fq ".s.PGSQL" /proc/net/unix; then
+        echo "PostgreSQL created a Unix socket" >&2
         return 1
     fi
 
@@ -238,6 +266,31 @@ assert_postgresql_runtime_authentication() {
         -h localhost -p 5437 -U postgres -d postgres \
         -c 'SELECT 1' >/dev/null 2>&1; then
         echo "PostgreSQL accepted a loopback login without its generated password" >&2
+        return 1
+    fi
+
+    database_password="$(get_generated_database_password "${container_name}")"
+    [[ -n "${database_password}" ]]
+    if docker logs "${container_name}" 2>&1 | grep -F "${database_password}" >/dev/null; then
+        echo "The container log contains the generated PostgreSQL password" >&2
+        return 1
+    fi
+    if docker exec "${container_name}" /bin/sh -c 'cat /proc/[0-9]*/cmdline 2>/dev/null' |
+        tr '\0' ' ' | grep -F "${database_password}" >/dev/null; then
+        echo "A process in the container carries the generated PostgreSQL password in its arguments" >&2
+        return 1
+    fi
+
+    replication_probe_output="$(docker exec -i --user databasus "${container_name}" /bin/sh -c '
+        IFS= read -r PGPASSWORD
+        export PGPASSWORD
+        /usr/lib/postgresql/17/bin/psql \
+            "host=localhost port=5437 user=postgres dbname=postgres replication=database" \
+            -c IDENTIFY_SYSTEM
+    ' <<<"${database_password}" 2>&1 || true)"
+    if ! grep -Fq "number of requested standby connections exceeds" \
+        <<<"${replication_probe_output}"; then
+        echo "PostgreSQL did not reject a replication connection: ${replication_probe_output}" >&2
         return 1
     fi
 }
@@ -260,11 +313,11 @@ prepare_bind_tree() {
     mkdir -p "${data_root}"
     docker run --rm --label "${harness_label}" --entrypoint /bin/sh \
         --volume "${data_root}:/data" "${databasus_image}" -eu -c '
-        mkdir -p /data/pgdata /data/pgsocket /data/temp /data/backups
-        chown "$1:$2" /data /data/pgdata /data/pgsocket /data/temp
+        mkdir -p /data/pgdata /data/temp /data/backups
+        chown "$1:$2" /data /data/pgdata /data/temp
         chown "$3:$4" /data/backups
         chmod 0770 /data /data/backups
-        chmod 0700 /data/pgdata /data/pgsocket /data/temp
+        chmod 0700 /data/pgdata /data/temp
     ' sh "${data_uid}" "${data_gid}" "${backup_uid}" "${backup_gid}"
 }
 
@@ -419,6 +472,17 @@ run_split_mounts() {
     assert_running_container "${container_name}"
 }
 
+run_no_unix_sockets() {
+    local container_name="databasus-storage-no-unix-sockets-${run_id}"
+    local volume_name="databasus-storage-no-unix-sockets-${run_id}"
+
+    docker volume create --label "${harness_label}" "${volume_name}" >/dev/null
+    start_databasus "${container_name}" \
+        --security-opt "seccomp=${suite_directory}/no-unix-sockets.json" \
+        --volume "${volume_name}:/databasus-data"
+    assert_running_container "${container_name}"
+}
+
 run_metadata_changes_denied() {
     local container_name="databasus-storage-metadata-denied-${run_id}"
     local data_root="${case_root}/metadata-denied"
@@ -568,9 +632,9 @@ run_nfs_root_squash() {
     docker volume create --label "${harness_label}" "${pgdata_volume_name}" >/dev/null
     docker run --rm --label "${harness_label}" --entrypoint /bin/sh \
         --volume "${server_volume_name}:/nfsshare" "${databasus_image}" -c \
-        'mkdir -p /nfsshare/pgdata /nfsshare/pgsocket /nfsshare/temp &&
+        'mkdir -p /nfsshare/pgdata /nfsshare/temp &&
          chown -R 999:999 /nfsshare &&
-         chmod 0755 /nfsshare /nfsshare/pgdata /nfsshare/pgsocket /nfsshare/temp'
+         chmod 0755 /nfsshare /nfsshare/pgdata /nfsshare/temp'
     docker run --detach \
         --name "${server_container_name}" \
         --label "${harness_label}" \
@@ -602,14 +666,12 @@ run_nfs_root_squash() {
     start_databasus "${client_container_name}" \
         --volume "${client_volume_name}:/databasus-data" \
         --volume "${pgdata_volume_name}:/databasus-data/pgdata" \
-        --tmpfs /databasus-data/pgsocket:rw,nosuid,size=16m,mode=0700,uid=999,gid=999 \
         --tmpfs /databasus-data/temp:rw,nosuid,size=64m,mode=0700,uid=999,gid=999
     assert_running_container "${client_container_name}"
     docker rm -fv "${client_container_name}" >/dev/null
     start_databasus "${client_container_name}" \
         --volume "${client_volume_name}:/databasus-data" \
         --volume "${pgdata_volume_name}:/databasus-data/pgdata" \
-        --tmpfs /databasus-data/pgsocket:rw,nosuid,size=16m,mode=0700,uid=999,gid=999 \
         --tmpfs /databasus-data/temp:rw,nosuid,size=64m,mode=0700,uid=999,gid=999
     assert_running_container "${client_container_name}"
 }
@@ -618,7 +680,10 @@ get_application_database_dsn() {
     local container_name="$1"
 
     docker exec --user databasus "${container_name}" /bin/sh -eu -c '
-        database_dsn="$(tr "\0" "\n" < /proc/1/environ | sed -n "s/^DATABASE_DSN=//p")"
+        database_dsn="$(cat /dev/shm/databasus-database-dsn 2>/dev/null || true)"
+        if [ -z "${database_dsn}" ]; then
+            database_dsn="$(tr "\0" "\n" < /proc/1/environ | sed -n "s/^DATABASE_DSN=//p")"
+        fi
         if [ -z "${database_dsn}" ]; then
             set -a
             . /.env
@@ -725,6 +790,7 @@ run_upgrade() {
     local secret_hash
     local system_identifier
     local log_size_before_update
+    local had_socket_directory_before_update=false
 
     docker image inspect "${release_image}" >/dev/null 2>&1 || docker pull "${release_image}" >/dev/null
     docker volume create --label "${harness_label}" "${volume_name}" >/dev/null
@@ -741,6 +807,9 @@ run_upgrade() {
     log_size_before_update="$(docker exec "${old_container_name}" stat -c %s /databasus-data/databasus.log)"
     system_identifier="$(docker exec "${old_container_name}" /usr/lib/postgresql/17/bin/pg_controldata \
         /databasus-data/pgdata | sed -n 's/^Database system identifier: *//p')"
+    if docker exec "${old_container_name}" test -d /databasus-data/pgsocket; then
+        had_socket_directory_before_update=true
+    fi
     docker stop "${old_container_name}" >/dev/null
 
     start_databasus "${new_container_name}" --volume "${volume_name}:/databasus-data"
@@ -750,15 +819,418 @@ run_upgrade() {
         "${secret_hash}" \
         "${system_identifier}" \
         "${log_size_before_update}"
+    case "${release_tag}" in
+        v3.56.0 | v3.60.0) [[ "${had_socket_directory_before_update}" == true ]] ;;
+    esac
+    if [[ "${had_socket_directory_before_update}" == true ]]; then
+        docker exec "${new_container_name}" test -d /databasus-data/pgsocket
+    fi
     assert_running_container "${new_container_name}"
 }
 
 run_upgrades() {
     local release_tag
 
-    for release_tag in v3.54.0 v3.55.0 v3.55.1 v3.56.0; do
+    for release_tag in v3.54.0 v3.55.0 v3.55.1 v3.56.0 v3.60.0; do
         run_upgrade "${release_tag}"
     done
+}
+
+edit_stopped_volume() {
+    local volume_name="$1"
+    local edit_script="$2"
+
+    docker run --rm --label "${harness_label}" --entrypoint /bin/sh \
+        --volume "${volume_name}:/databasus-data" "${databasus_image}" -eu -c "${edit_script}"
+}
+
+create_initialized_volume() {
+    local volume_name="$1"
+    local container_name="${volume_name}-initializer"
+
+    docker volume create --label "${harness_label}" "${volume_name}" >/dev/null
+    start_databasus "${container_name}" --volume "${volume_name}:/databasus-data"
+    docker rm -fv "${container_name}" >/dev/null
+}
+
+assert_log_contains() {
+    local container_name="$1"
+    local required_log_line="$2"
+
+    if ! docker logs "${container_name}" 2>&1 | grep -F "${required_log_line}" >/dev/null; then
+        echo "The container log lacks: ${required_log_line}" >&2
+        return 1
+    fi
+}
+
+assert_log_lacks() {
+    local container_name="$1"
+    local forbidden_log_line="$2"
+
+    if docker logs "${container_name}" 2>&1 | grep -F "${forbidden_log_line}" >/dev/null; then
+        echo "The container log contains: ${forbidden_log_line}" >&2
+        return 1
+    fi
+}
+
+run_postgresql_recovery() {
+    local volume_name="databasus-storage-recovery-${run_id}"
+    local listen_volume_name="databasus-storage-recovery-listen-${run_id}"
+    local read_only_volume_name="databasus-storage-recovery-read-only-${run_id}"
+    local killed_container_name="databasus-storage-recovery-killed-${run_id}"
+    local replayed_container_name="databasus-storage-recovery-replayed-${run_id}"
+    local reset_container_name="databasus-storage-recovery-reset-${run_id}"
+    local unrecoverable_container_name="databasus-storage-recovery-unrecoverable-${run_id}"
+    local unbindable_container_name="databasus-storage-recovery-unbindable-${run_id}"
+    local read_only_container_name="databasus-storage-recovery-read-only-${run_id}"
+    local previous_password
+    local read_only_logs
+
+    docker volume create --label "${harness_label}" "${volume_name}" >/dev/null
+    start_databasus "${killed_container_name}" --volume "${volume_name}:/databasus-data"
+    previous_password="$(get_generated_database_password "${killed_container_name}")"
+    docker exec --user databasus "${killed_container_name}" /bin/sh -eu -c '
+        /usr/lib/postgresql/17/bin/psql "$(cat /dev/shm/databasus-database-dsn)" -v ON_ERROR_STOP=1 \
+            -c "CREATE TABLE filesystem_recovery_markers (marker text PRIMARY KEY)" \
+            -c "INSERT INTO filesystem_recovery_markers VALUES ('\''survives-kill'\'')"
+    ' >/dev/null
+    docker kill --signal KILL "${killed_container_name}" >/dev/null
+    docker rm -fv "${killed_container_name}" >/dev/null
+
+    start_databasus "${replayed_container_name}" --volume "${volume_name}:/databasus-data"
+    [[ "$(docker exec --user databasus "${replayed_container_name}" /bin/sh -eu -c '
+        /usr/lib/postgresql/17/bin/psql "$(cat /dev/shm/databasus-database-dsn)" -tA \
+            -c "SELECT marker FROM filesystem_recovery_markers"
+    ')" == "survives-kill" ]]
+    assert_log_lacks "${replayed_container_name}" "pg_resetwal"
+    if can_log_in_over_loopback "${replayed_container_name}" "${previous_password}"; then
+        echo "PostgreSQL accepted the password of the previous run" >&2
+        return 1
+    fi
+    can_log_in_over_loopback "${replayed_container_name}" \
+        "$(get_generated_database_password "${replayed_container_name}")"
+    docker stop "${replayed_container_name}" >/dev/null
+    docker rm -fv "${replayed_container_name}" >/dev/null
+
+    edit_stopped_volume "${volume_name}" '
+        find /databasus-data/pgdata/pg_wal -maxdepth 1 -type f -name "000000*" -delete
+    '
+    start_databasus "${reset_container_name}" --volume "${volume_name}:/databasus-data"
+    assert_log_contains "${reset_container_name}" "PostgreSQL recovered successfully after WAL reset!"
+    docker stop "${reset_container_name}" >/dev/null
+    docker rm -fv "${reset_container_name}" >/dev/null
+
+    edit_stopped_volume "${volume_name}" 'printf "16\n" > /databasus-data/pgdata/PG_VERSION'
+    start_failing_databasus "${unrecoverable_container_name}" --volume "${volume_name}:/databasus-data"
+    assert_log_contains "${unrecoverable_container_name}" \
+        "ERROR: PostgreSQL could not open the database even after a WAL reset attempt."
+    assert_log_lacks "${unrecoverable_container_name}" "Starting Databasus application..."
+
+    create_initialized_volume "${listen_volume_name}"
+    edit_stopped_volume "${listen_volume_name}" '
+        echo "listen_addresses = '\''192.0.2.1'\''" >> /databasus-data/pgdata/postgresql.conf
+    '
+    start_failing_databasus "${unbindable_container_name}" --volume "${listen_volume_name}:/databasus-data"
+    assert_log_contains "${unbindable_container_name}" "Setting the internal PostgreSQL password..."
+    assert_log_lacks "${unbindable_container_name}" "ERROR: PostgreSQL rejected the internal password change."
+    assert_log_contains "${unbindable_container_name}" "Starting PostgreSQL..."
+    assert_log_contains "${unbindable_container_name}" "ERROR: PostgreSQL did not start."
+    assert_log_lacks "${unbindable_container_name}" "pg_resetwal"
+    assert_log_lacks "${unbindable_container_name}" "Starting Databasus application..."
+
+    create_initialized_volume "${read_only_volume_name}"
+    edit_stopped_volume "${read_only_volume_name}" '
+        echo "default_transaction_read_only = on" >> /databasus-data/pgdata/postgresql.conf
+    '
+    start_failing_databasus "${read_only_container_name}" --volume "${read_only_volume_name}:/databasus-data"
+    assert_log_contains "${read_only_container_name}" "ERROR: PostgreSQL rejected the internal password change."
+    assert_log_lacks "${read_only_container_name}" "Starting PostgreSQL..."
+    assert_log_lacks "${read_only_container_name}" "Starting Databasus application..."
+    read_only_logs="$(docker logs "${read_only_container_name}" 2>&1)"
+    if grep -Fq "ALTER ROLE postgres WITH PASSWORD" <<<"${read_only_logs}" ||
+       grep -Fq "PASSWORD '" <<<"${read_only_logs}" ||
+       grep -Eq '[0-9a-f]{64}' <<<"${read_only_logs}"; then
+        echo "The container log contains the password statement" >&2
+        return 1
+    fi
+}
+
+get_cluster_state() {
+    local volume_name="$1"
+
+    docker run --rm --label "${harness_label}" \
+        --entrypoint /usr/lib/postgresql/17/bin/pg_controldata \
+        --volume "${volume_name}:/databasus-data" "${databasus_image}" \
+        /databasus-data/pgdata | sed -n 's/^Database cluster state: *//p'
+}
+
+assert_cluster_shut_down() {
+    local volume_name="$1"
+    local cluster_state
+
+    cluster_state="$(get_cluster_state "${volume_name}")"
+    if [[ "${cluster_state}" != "shut down" ]]; then
+        echo "The stopped cluster reports the state '${cluster_state}', not 'shut down'" >&2
+        return 1
+    fi
+}
+
+assert_exit_code() {
+    local container_name="$1"
+    local required_exit_code="$2"
+    local exit_code
+
+    exit_code="$(get_exit_code "${container_name}")"
+    if [[ "${exit_code}" != "${required_exit_code}" ]]; then
+        docker logs "${container_name}" >&2
+        echo "The container exited with status ${exit_code}, not ${required_exit_code}" >&2
+        return 1
+    fi
+}
+
+start_databasus_on_new_volume() {
+    local container_name="$1"
+
+    docker volume create --label "${harness_label}" "${container_name}" >/dev/null
+    start_databasus "${container_name}" --volume "${container_name}:/databasus-data"
+}
+
+check_docker_stop_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-stop-${run_id}"
+    local stop_started_at_ms
+    local stop_duration_ms
+
+    start_databasus_on_new_volume "${container_name}"
+    stop_started_at_ms="$(date +%s%3N)"
+    docker stop "${container_name}" >/dev/null
+    stop_duration_ms="$(($(date +%s%3N) - stop_started_at_ms))"
+
+    if ((stop_duration_ms >= 10000)); then
+        echo "docker stop took ${stop_duration_ms} ms, so the stop timeout ended the container" >&2
+        return 1
+    fi
+    assert_exit_code "${container_name}" 0
+    assert_cluster_shut_down "${container_name}"
+    assert_application_exit_precedes_postgresql_shutdown "${container_name}"
+}
+
+get_first_log_line_number() {
+    local container_name="$1"
+    local searched_log_line="$2"
+
+    docker logs "${container_name}" 2>&1 | grep -nF "${searched_log_line}" | head -1 | cut -d: -f1
+}
+
+assert_application_exit_precedes_postgresql_shutdown() {
+    local container_name="$1"
+    local application_exit_line_number
+    local postgresql_shutdown_line_number
+
+    application_exit_line_number="$(get_first_log_line_number "${container_name}" \
+        "Databasus application exited with status 0")"
+    postgresql_shutdown_line_number="$(get_first_log_line_number "${container_name}" \
+        "received fast shutdown request")"
+    if [[ -z "${application_exit_line_number}" || -z "${postgresql_shutdown_line_number}" ]] ||
+       ((application_exit_line_number > postgresql_shutdown_line_number)); then
+        docker logs "${container_name}" >&2
+        echo "The application exit is not logged before the PostgreSQL shutdown request" >&2
+        return 1
+    fi
+}
+
+check_interrupt_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-interrupt-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    docker kill --signal INT "${container_name}" >/dev/null
+    wait_for_stop "${container_name}"
+    assert_cluster_shut_down "${container_name}"
+}
+
+check_application_exit_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-application-exit-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    send_signal_in_container "${container_name}" TERM "$(docker exec "${container_name}" pidof main)"
+    wait_for_stop "${container_name}"
+    assert_exit_code "${container_name}" 0
+    assert_cluster_shut_down "${container_name}"
+}
+
+check_postgresql_exit_stops_container() {
+    local container_name="databasus-storage-clean-postgresql-exit-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    send_signal_in_container "${container_name}" KILL \
+        "$(docker exec "${container_name}" head -1 /databasus-data/pgdata/postmaster.pid)"
+    wait_for_exit "${container_name}"
+    assert_log_contains "${container_name}" "ERROR: PostgreSQL exited with status"
+    assert_log_lacks "${container_name}" "Databasus application exited with status"
+}
+
+run_clean_shutdown() {
+    check_docker_stop_shuts_down_cleanly
+    check_interrupt_shuts_down_cleanly
+    check_application_exit_shuts_down_cleanly
+    check_postgresql_exit_stops_container
+}
+
+# The loop polls without a delay, because the open step of a clean cluster lasts about 0.1 seconds.
+# A single-user step started by initdb works on template1, so matching the final postgres argument
+# skips it.
+readonly postgresql_freeze_script='
+    target_kind="$1"
+    while :; do
+        for process_directory in /proc/[0-9]*; do
+            mapfile -d "" -t process_arguments < "${process_directory}/cmdline" 2>/dev/null || continue
+            [[ "${process_arguments[0]:-}" == /usr/lib/postgresql/17/bin/postgres ]] || continue
+            process_id="${process_directory#/proc/}"
+            case "${target_kind}" in
+                single-user)
+                    [[ "${process_arguments[1]:-}" == --single &&
+                       "${process_arguments[-1]}" == postgres ]] || continue
+                    ;;
+                regular-server)
+                    [[ "${process_arguments[1]:-}" != --single ]] || continue
+                    IFS= read -r postmaster_pid < /databasus-data/pgdata/postmaster.pid 2>/dev/null || continue
+                    [[ "${postmaster_pid}" == "${process_id}" ]] || continue
+                    ;;
+            esac
+            kill -STOP "${process_id}"
+            printf "%s" "${process_id}" > /tmp/frozen-postgresql-pid
+            exit 0
+        done
+    done
+'
+
+start_databasus_with_frozen_postgresql() {
+    local container_name="$1"
+    local target_kind="$2"
+    local frozen_pid
+
+    docker volume create --label "${harness_label}" "${container_name}" >/dev/null
+    docker run --detach \
+        --name "${container_name}" \
+        --label "${harness_label}" \
+        --volume "${container_name}:/databasus-data" \
+        "${databasus_image}" >/dev/null
+    docker exec --detach "${container_name}" \
+        /bin/bash -c "${postgresql_freeze_script}" freeze-postgresql "${target_kind}"
+
+    for ((freeze_attempt = 1; freeze_attempt <= 300; freeze_attempt++)); do
+        if frozen_pid="$(docker exec "${container_name}" cat /tmp/frozen-postgresql-pid 2>/dev/null)"; then
+            echo "${frozen_pid}"
+            return
+        fi
+        sleep 0.1
+    done
+
+    docker logs "${container_name}" >&2
+    echo "No ${target_kind} PostgreSQL process appeared to freeze" >&2
+    return 1
+}
+
+send_signal_in_container() {
+    local container_name="$1"
+    local signal_name="$2"
+    local process_id="$3"
+
+    docker exec "${container_name}" /bin/bash -c 'kill -"$1" "$2"' send-signal "${signal_name}" "${process_id}"
+}
+
+is_process_stopped() {
+    local container_name="$1"
+    local process_id="$2"
+
+    [[ "$(docker exec "${container_name}" awk '/^State:/ { print $2 }' "/proc/${process_id}/status")" == "T" ]]
+}
+
+wait_for_log_within_two_seconds() {
+    local container_name="$1"
+    local required_log_line="$2"
+
+    for ((log_attempt = 1; log_attempt <= 20; log_attempt++)); do
+        if docker logs "${container_name}" 2>&1 | grep -F "${required_log_line}" >/dev/null; then
+            return
+        fi
+        sleep 0.1
+    done
+
+    docker logs "${container_name}" >&2
+    echo "The container did not log within two seconds: ${required_log_line}" >&2
+    return 1
+}
+
+wait_for_kill_event() {
+    local container_name="$1"
+    local container_created_at
+
+    container_created_at="$(docker inspect --format '{{.Created}}' "${container_name}")"
+    for ((event_attempt = 1; event_attempt <= 50; event_attempt++)); do
+        if docker events \
+            --since "${container_created_at}" \
+            --until "$(date +%s.%N)" \
+            --filter "container=${container_name}" \
+            --filter event=kill \
+            --format '{{.Action}}' | grep -q .; then
+            return
+        fi
+        sleep 0.1
+    done
+
+    echo "Docker did not report sending the stop signal" >&2
+    return 1
+}
+
+# Status 143 comes from the startup stop handler, while a kill by the stop timeout gives 137.
+assert_startup_ended_without_application() {
+    local container_name="$1"
+
+    assert_exit_code "${container_name}" 143
+    assert_log_lacks "${container_name}" "Starting Databasus application..."
+}
+
+check_stop_during_single_user_step() {
+    local container_name="databasus-storage-startup-stop-single-user-${run_id}"
+    local frozen_pid
+    local stop_pid
+
+    frozen_pid="$(start_databasus_with_frozen_postgresql "${container_name}" single-user)"
+    docker stop "${container_name}" >/dev/null &
+    stop_pid=$!
+
+    wait_for_log_within_two_seconds "${container_name}" "Stop requested during startup"
+    if ! is_process_stopped "${container_name}" "${frozen_pid}"; then
+        echo "The single-user step ended before the container reported the stop" >&2
+        return 1
+    fi
+
+    send_signal_in_container "${container_name}" CONT "${frozen_pid}"
+    wait "${stop_pid}"
+    assert_startup_ended_without_application "${container_name}"
+}
+
+# The script may be waiting in pg_isready or psql on the frozen server, and Bash runs a trap only
+# after that call returns, so this part cannot see the stop before the server resumes.
+check_stop_while_regular_server_starts() {
+    local container_name="databasus-storage-startup-stop-regular-server-${run_id}"
+    local frozen_pid
+    local stop_pid
+
+    frozen_pid="$(start_databasus_with_frozen_postgresql "${container_name}" regular-server)"
+    docker stop "${container_name}" >/dev/null &
+    stop_pid=$!
+
+    wait_for_kill_event "${container_name}"
+    send_signal_in_container "${container_name}" CONT "${frozen_pid}"
+    wait "${stop_pid}"
+    assert_startup_ended_without_application "${container_name}"
+    assert_cluster_shut_down "${container_name}"
+}
+
+run_startup_stop() {
+    check_stop_during_single_user_step
+    check_stop_while_regular_server_starts
 }
 
 run_legacy_directory_guard() {
@@ -789,6 +1261,7 @@ run_case() {
         bind-root) run_bind_root ;;
         named-volume) run_named_volume ;;
         split-mounts) run_split_mounts ;;
+        no-unix-sockets) run_no_unix_sockets ;;
         metadata-changes-denied) run_metadata_changes_denied ;;
         read-only) run_read_only ;;
         wrong-owner) run_wrong_owner ;;
@@ -797,6 +1270,9 @@ run_case() {
         cifs) run_cifs ;;
         nfs-root-squash) run_nfs_root_squash ;;
         upgrades) run_upgrades ;;
+        postgresql-recovery) run_postgresql_recovery ;;
+        clean-shutdown) run_clean_shutdown ;;
+        startup-stop) run_startup_stop ;;
         legacy-directory-guard) run_legacy_directory_guard ;;
         *)
             echo "unknown Docker filesystem case: ${case_name}" >&2
@@ -808,9 +1284,9 @@ run_case() {
 if [[ "${selected_case}" == all ]]; then
     for case_name in \
         build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids invalid-ids \
-        bind-root named-volume split-mounts metadata-changes-denied read-only wrong-owner \
+        bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only wrong-owner \
         unwritable-data-root \
-        cifs nfs-root-squash upgrades legacy-directory-guard; do
+        cifs nfs-root-squash upgrades postgresql-recovery clean-shutdown startup-stop legacy-directory-guard; do
         run_case "${case_name}"
         cleanup
         case_root="$(mktemp -d /tmp/databasus-storage-test.XXXXXXXX)"

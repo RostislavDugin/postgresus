@@ -40,9 +40,9 @@ When an override is absent, startup SHALL select that ID independently from the 
 
 ### Requirement: Startup validates storage through required operations
 
-Startup SHALL attempt to prepare the data root, PostgreSQL data, PostgreSQL socket, temporary and backup paths with the selected identity and required modes. A failed ownership or mode change SHALL NOT stop startup when the selected account can still perform every required operation.
+Startup SHALL attempt to prepare the data root, PostgreSQL data, temporary and backup paths with the selected identity and required modes. A failed ownership or mode change SHALL NOT stop startup when the selected account can still perform every required operation.
 
-Startup SHALL run the main Databasus binary with `--test-storage` under the selected account before starting PostgreSQL or the Databasus application. The storage probe SHALL save a unique file through the configured local storage and remove that file through the same storage path. Startup SHALL also verify the operations required for PostgreSQL data, its socket and Databasus control files. A failed check SHALL stop startup before PostgreSQL or the Databasus application runs. Startup SHALL NOT start or wait for a separate cache service.
+Startup SHALL run the main Databasus binary with `--test-storage` under the selected account before starting PostgreSQL or the Databasus application. The storage probe SHALL save a unique file through the configured local storage and remove that file through the same storage path. Startup SHALL also verify the operations required for PostgreSQL data and Databasus control files. A failed check SHALL stop startup before PostgreSQL or the Databasus application runs. Startup SHALL NOT start or wait for a separate cache service.
 
 #### Scenario: Filesystem denies metadata changes but permits operations
 
@@ -68,7 +68,7 @@ Startup SHALL run the main Databasus binary with `--test-storage` under the sele
 
 #### Scenario: Data root cannot create control files
 
-- **WHEN** temporary, backup, PostgreSQL data and socket paths are writable but the data root cannot create a control file
+- **WHEN** temporary, backup and PostgreSQL data paths are writable but the data root cannot create a control file
 - **THEN** the container exits before starting PostgreSQL or the Databasus application
 - **AND** the English error identifies the data root and required operation
 
@@ -79,7 +79,7 @@ Startup SHALL run the main Databasus binary with `--test-storage` under the sele
 
 ### Requirement: Existing Docker data remains usable after an image update
 
-The current image SHALL start with persistent data created by versions `v3.54.0`, `v3.55.0`, `v3.55.1`, and `v3.56.0` when the mounted filesystem permits the selected account's required operations. Startup SHALL preserve the metadata database, secret key, application log, existing backup files, resumable nested WAL queues, and the existing PostgreSQL cluster. It SHALL prepare an existing WAL queue recursively and verify directory creation plus non-mutating file opens under the selected account before PostgreSQL or the Databasus application starts.
+The current image SHALL start with persistent data created by versions `v3.54.0`, `v3.55.0`, `v3.55.1`, `v3.56.0` and `v3.60.0` when the mounted filesystem permits the selected account's required operations. Startup SHALL preserve the metadata database, secret key, application log, existing backup files, resumable nested WAL queues, and the existing PostgreSQL cluster. It SHALL prepare an existing WAL queue recursively and verify directory creation plus non-mutating file opens under the selected account before PostgreSQL or the Databasus application starts.
 
 #### Scenario: Existing installation is updated
 
@@ -126,7 +126,7 @@ Each positive case SHALL start the real container and invoke `databasus --test-s
 
 ### Requirement: The matrix covers supported mount behavior
 
-The suite SHALL cover an ext4 bind-mounted data root, a Docker named volume, separate temporary, backup, and PostgreSQL mounts, automatic and explicit runtime IDs, rejected backup and data-root permission layouts, CIFS numeric ownership and forced file modes, writable NFS with root squash, and upgrades from the covered earlier images. It SHALL verify one non-root numeric identity for all bundled services, bootstrap and runtime PostgreSQL authentication, and restrictive modes for generated credential files.
+The suite SHALL cover an ext4 bind-mounted data root, a Docker named volume, separate temporary, backup, and PostgreSQL mounts, automatic and explicit runtime IDs, rejected backup and data-root permission layouts, CIFS numeric ownership and forced file modes, writable NFS with root squash, a container that cannot create Unix sockets, and upgrades from the covered earlier images. It SHALL verify one non-root numeric identity for all bundled services, runtime PostgreSQL authentication, the absence of a PostgreSQL Unix socket, and restrictive modes for generated credential files.
 
 #### Scenario: Local Docker storage layouts
 
@@ -150,7 +150,56 @@ The suite SHALL cover an ext4 bind-mounted data root, a Docker named volume, sep
 - **THEN** the selected identity creates the backups directory and the container becomes healthy
 - **AND** the storage command succeeds without requiring ownership changes
 
+#### Scenario: Container cannot create Unix sockets
+
+- **WHEN** the container runs with Unix-socket creation denied for every process
+- **THEN** the container becomes healthy and completes the storage command
+
 #### Scenario: Mounted path denies required access
 
 - **WHEN** a mounted path does not permit an operation required by the selected identity
 - **THEN** startup fails with the documented actionable error
+
+### Requirement: Startup does not depend on Unix-socket support in the data mount
+
+The container SHALL start when the mounted data root cannot hold Unix sockets, provided the selected account can perform every other required operation there. Startup SHALL NOT create, prepare or verify a PostgreSQL socket directory. A socket directory left by an earlier image SHALL be ignored.
+
+#### Scenario: No Unix socket can be created in the container
+
+- **WHEN** no process in the container can create a Unix socket, in the data root or anywhere else, as happens on a host folder that Docker Desktop on macOS shares as the data root
+- **THEN** the embedded PostgreSQL server starts and the container becomes healthy
+- **AND** the container lists no PostgreSQL Unix socket
+
+#### Scenario: Socket directory from an earlier image
+
+- **WHEN** the data root contains a PostgreSQL socket directory created by an earlier image
+- **THEN** startup leaves the directory in place and ignores it
+- **AND** the container becomes healthy
+
+### Requirement: A write-ahead log reset is limited to a cluster that cannot be opened
+
+Startup SHALL reset the embedded cluster's write-ahead log only when the cluster cannot be opened for startup administration, which includes replaying the existing log. After a reset, startup SHALL try to open the cluster once more, and SHALL exit with an error that reports the failed recovery when the reset or that attempt fails. When administration succeeds and the regular server then fails to start, the container SHALL exit with an error and SHALL NOT reset the write-ahead log.
+
+#### Scenario: Interrupted shutdown
+
+- **WHEN** the previous container stopped without a clean PostgreSQL shutdown and the write-ahead log is intact
+- **THEN** startup replays the log and keeps every committed transaction
+- **AND** the container becomes healthy without a write-ahead log reset
+
+#### Scenario: Missing checkpoint record
+
+- **WHEN** the cluster cannot be opened because its write-ahead log lacks a valid checkpoint record
+- **THEN** the log reports a write-ahead log reset
+- **AND** the container becomes healthy
+
+#### Scenario: Reset does not make the cluster open
+
+- **WHEN** the write-ahead log reset fails, or the cluster still cannot be opened after the reset
+- **THEN** the container exits with an error before the Databasus application starts
+- **AND** the log reports the failed recovery
+
+#### Scenario: Server start fails after administration
+
+- **WHEN** startup administration succeeds but the regular server cannot start
+- **THEN** the container exits with an error
+- **AND** the write-ahead log is not reset

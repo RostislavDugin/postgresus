@@ -164,21 +164,16 @@ Scheduled healthchecks SHALL test a database already loaded by the system withou
 - **WHEN** an HTTP caller requests a direct connection test
 - **THEN** the system uses the workspace-authorized path rather than the trusted healthcheck path
 
-### Requirement: The embedded PostgreSQL instance stays private under the shared runtime account
+### Requirement: The embedded PostgreSQL instance accepts only authenticated loopback TCP
 
-The embedded PostgreSQL server SHALL run under the same non-root operating-system account as the Databasus application. During bootstrap only, peer mapping SHALL allow that account to administer the PostgreSQL role named `postgres`. After bootstrap, Unix-socket database login SHALL be rejected. Loopback TCP connections SHALL require SCRAM authentication with the generated credential and replication connections to the embedded cluster SHALL be rejected.
+The embedded PostgreSQL server SHALL run under the same non-root operating-system account as the Databasus application. The server SHALL create no Unix socket, so no process in the container can open a socket connection to it. Loopback TCP connections SHALL require SCRAM authentication with the generated credential from the first connection the server accepts, and replication connections to the embedded cluster SHALL be rejected.
 
 The embedded PostgreSQL port SHALL remain unpublished by the image.
 
-#### Scenario: Application account opens the private socket
+#### Scenario: A process looks for a local socket
 
-- **WHEN** the Databasus application account attempts a Unix-socket database login after bootstrap
-- **THEN** PostgreSQL authentication rejects the connection
-
-#### Scenario: Shared runtime account performs startup administration
-
-- **WHEN** the shared `databasus` operating-system account connects as role `postgres` during startup
-- **THEN** the temporary peer mapping permits the administrative connection
+- **WHEN** any process in a running container attempts a Unix-socket connection to the embedded PostgreSQL server
+- **THEN** the connection fails because the server exposes no socket
 
 #### Scenario: Loopback TCP connection without the generated password
 
@@ -194,6 +189,37 @@ The embedded PostgreSQL port SHALL remain unpublished by the image.
 
 - **WHEN** a client requests a replication connection to the embedded PostgreSQL server
 - **THEN** PostgreSQL rejects it
+
+### Requirement: Startup administration of the embedded cluster opens no connection path
+
+The container SHALL set the generated password on the internal role before the embedded PostgreSQL server accepts any connection. That step SHALL run while the cluster has no network listener and no Unix socket. No startup step SHALL grant a password-less or identity-mapped login to the embedded cluster.
+
+#### Scenario: First connection after startup administration
+
+- **WHEN** the embedded PostgreSQL server accepts its first connection after a container start
+- **THEN** the internal role already carries the newly generated password
+- **AND** the connection must authenticate with that password
+
+#### Scenario: Password from the previous run after a restart
+
+- **WHEN** the container restarts and a process logs in over loopback with the password published by the previous run
+- **THEN** SCRAM authentication rejects the connection
+- **AND** a loopback login with the newly published password succeeds
+
+### Requirement: The generated password stays out of process arguments and server logs
+
+Startup SHALL NOT pass the generated password to any process through its command-line arguments. When the statement that sets the password fails, the container SHALL exit with an error before the Databasus application starts, and the container log SHALL NOT contain that statement or the password.
+
+#### Scenario: Process list during startup
+
+- **WHEN** a process in the container reads the command-line arguments of the startup processes
+- **THEN** none of them contains the generated password
+
+#### Scenario: Password statement fails
+
+- **WHEN** the statement that sets the generated password fails
+- **THEN** the container exits before starting the Databasus application
+- **AND** the container log contains neither the statement nor the generated password
 
 ### Requirement: Internal PostgreSQL credentials are generated at startup
 
