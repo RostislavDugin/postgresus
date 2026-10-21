@@ -97,6 +97,20 @@ type backupPrereqs struct {
 func seedBackupPrereqs(t *testing.T) *backupPrereqs {
 	t.Helper()
 
+	return seedBackupPrereqsWithDatabase(
+		t,
+		func(workspaceID uuid.UUID, notifier *notifiers.Notifier) *databases.Database {
+			return databases.CreateTestPhysicalPostgresDatabase(workspaceID, notifier, "17")
+		},
+	)
+}
+
+func seedBackupPrereqsWithDatabase(
+	t *testing.T,
+	createDatabase func(workspaceID uuid.UUID, notifier *notifiers.Notifier) *databases.Database,
+) *backupPrereqs {
+	t.Helper()
+
 	router := backuping_logical.CreateTestRouter()
 
 	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleAdmin)
@@ -110,7 +124,7 @@ func seedBackupPrereqs(t *testing.T) *backupPrereqs {
 	notifier := notifiers.CreateTestNotifier(workspace.ID)
 	t.Cleanup(func() { notifiers.RemoveTestNotifier(notifier) })
 
-	db := databases.CreateTestPhysicalPostgresDatabase(workspace.ID, notifier, "17")
+	db := createDatabase(workspace.ID, notifier)
 	t.Cleanup(func() { databases.RemoveTestDatabase(t.Context(), db) })
 
 	cfgService := backups_config_physical.GetBackupConfigService()

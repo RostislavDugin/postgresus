@@ -101,8 +101,14 @@ func (s *ChainViewService) FindWalGapsInChain(rootFullBackupID uuid.UUID) ([]LSN
 		return nil, err
 	}
 
+	return findGapsBetweenSegments(segments), nil
+}
+
+// findGapsBetweenSegments lists the holes between consecutive segments ordered
+// by start_lsn; nil for fewer than two segments.
+func findGapsBetweenSegments(segments []*physical_models.PhysicalWalSegment) []LSNRange {
 	if len(segments) < 2 {
-		return nil, nil
+		return nil
 	}
 
 	gaps := make([]LSNRange, 0)
@@ -119,7 +125,7 @@ func (s *ChainViewService) FindWalGapsInChain(rootFullBackupID uuid.UUID) ([]LSN
 		}
 	}
 
-	return gaps, nil
+	return gaps
 }
 
 func (s *ChainViewService) CheckHistoryFilePresence(

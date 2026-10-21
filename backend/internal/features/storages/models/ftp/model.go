@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/textproto"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jlaffaye/ftp"
 
+	storage_connections "databasus-backend/internal/features/storages/connections"
 	"databasus-backend/internal/util/encryption"
 	io_utils "databasus-backend/internal/util/io"
 )
@@ -55,46 +57,18 @@ func (f *FTPStorage) SaveFile(
 
 	logger.InfoContext(ctx, "starting to save file to FTP storage", "file_name", fileName, "host", f.Host)
 
-	conn, err := f.connect(encryptor, ftpConnectTimeout)
+	lease, err := f.checkoutSession(ctx, encryptor)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to connect to FTP", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to connect to FTP: %w", err)
-	}
-	defer func() {
-		if quitErr := conn.Quit(); quitErr != nil {
-			logger.ErrorContext(
-				ctx,
-				"failed to close FTP connection",
-				"file_name",
-				fileName,
-				"error",
-				quitErr,
-			)
-		}
-	}()
-
-	if f.Path != "" {
-		if err := f.ensureDirectory(conn, f.Path); err != nil {
-			logger.ErrorContext(
-				ctx,
-				"failed to ensure directory",
-				"file_name",
-				fileName,
-				"path",
-				f.Path,
-				"error",
-				err,
-			)
-			return fmt.Errorf("failed to ensure directory: %w", err)
-		}
 	}
 
 	filePath := f.getFilePath(fileName)
 	logger.DebugContext(ctx, "uploading file to FTP", "file_name", fileName, "file_path", filePath)
 
-	ctxReader := &contextReader{ctx: ctx, reader: file}
+	err = lease.GetSession().serverConn.Stor(filePath, &contextReader{ctx: ctx, reader: file})
+	lease.Release(ignoreFtpReply(err))
 
-	err = conn.Stor(filePath, ctxReader)
 	if err != nil {
 		select {
 		case <-ctx.Done():
@@ -123,20 +97,20 @@ func (f *FTPStorage) GetFile(
 	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	conn, err := f.connect(encryptor, ftpConnectTimeout)
+	lease, err := f.checkoutSession(ctx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to FTP: %w", err)
 	}
 
 	filePath := f.getFilePath(fileName)
 
-	totalBytes, err := conn.FileSize(filePath)
+	totalBytes, err := lease.GetSession().serverConn.FileSize(filePath)
 	if err != nil {
 		// A server that does not implement SIZE still serves the file, so an unsupported command
 		// costs the completeness check rather than the whole restore. Any other reply, 550 above
 		// all, means the file itself is unreachable.
 		if !isUnsupportedFtpCommand(err) {
-			_ = conn.Quit()
+			lease.Release(ignoreFtpReply(err))
 
 			return nil, fmt.Errorf("failed to stat file on FTP: %w", err)
 		}
@@ -146,9 +120,7 @@ func (f *FTPStorage) GetFile(
 		totalBytes = io_utils.UnknownTotalBytes
 	}
 
-	if err := conn.Quit(); err != nil {
-		logger.WarnContext(ctx, "failed to close the FTP connection used for stat", "error", err)
-	}
+	lease.Release(nil)
 
 	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
 		StreamCtx:  ctx,
@@ -172,17 +144,15 @@ func (f *FTPStorage) DeleteFile(
 	deleteCtx, cancel := context.WithTimeout(context.Background(), ftpDeleteTimeout)
 	defer cancel()
 
-	conn, err := f.connectWithContext(deleteCtx, encryptor, ftpDeleteTimeout)
+	lease, err := f.checkoutSession(deleteCtx, encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
-	defer func() {
-		_ = conn.Quit()
-	}()
 
-	filePath := f.getFilePath(fileName)
+	err = lease.GetSession().serverConn.Delete(f.getFilePath(fileName))
+	lease.Release(ignoreFtpReply(err))
 
-	if err := conn.Delete(filePath); err != nil && !isFtpFileUnavailable(err) {
+	if err != nil && !isFtpFileUnavailable(err) {
 		return fmt.Errorf("failed to delete file from FTP: %w", err)
 	}
 
@@ -212,16 +182,14 @@ func (f *FTPStorage) TestConnection(encryptor encryption.FieldEncryptor) error {
 	ctx, cancel := context.WithTimeout(context.Background(), ftpTestConnectTimeout)
 	defer cancel()
 
-	conn, err := f.connectWithContext(ctx, encryptor, ftpTestConnectTimeout)
+	session, err := f.connectWithContext(ctx, encryptor, ftpTestConnectTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to FTP: %w", err)
 	}
-	defer func() {
-		_ = conn.Quit()
-	}()
+	defer closeSession(session)
 
 	if f.Path != "" {
-		if err := f.ensureDirectory(conn, f.Path); err != nil {
+		if err := f.ensureDirectory(session.serverConn, f.Path); err != nil {
 			return fmt.Errorf("failed to access or create path '%s': %w", f.Path, err)
 		}
 	}
@@ -258,18 +226,11 @@ func (f *FTPStorage) Update(incoming *FTPStorage) {
 	}
 }
 
-func (f *FTPStorage) connect(
-	encryptor encryption.FieldEncryptor,
-	timeout time.Duration,
-) (*ftp.ServerConn, error) {
-	return f.connectWithContext(context.Background(), encryptor, timeout)
-}
-
 func (f *FTPStorage) connectWithContext(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	timeout time.Duration,
-) (*ftp.ServerConn, error) {
+) (*ftpSession, error) {
 	password, err := encryptor.Decrypt(f.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt FTP password: %w", err)
@@ -280,30 +241,48 @@ func (f *FTPStorage) connectWithContext(
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var conn *ftp.ServerConn
+	connections := &trackedConnections{
+		open:       map[*trackedConnection]struct{}{},
+		dialer:     net.Dialer{Timeout: timeout},
+		controlCtx: dialCtx,
+	}
+
+	dialOptions := []ftp.DialOption{ftp.DialWithDialFunc(connections.dial)}
+
 	if f.UseSSL {
-		tlsConfig := &tls.Config{
+		connections.tlsConfig = &tls.Config{
 			ServerName:         f.Host,
 			InsecureSkipVerify: f.SkipTLSVerify,
 		}
-		conn, err = ftp.Dial(address,
-			ftp.DialWithContext(dialCtx),
-			ftp.DialWithExplicitTLS(tlsConfig),
-		)
-	} else {
-		conn, err = ftp.Dial(address, ftp.DialWithContext(dialCtx))
+		dialOptions = append(dialOptions, ftp.DialWithExplicitTLS(connections.tlsConfig))
 	}
+
+	session := &ftpSession{connections: connections}
+
+	// The greeting, the TLS upgrade and the login ignore the context, so a server that accepts the
+	// TCP connection and then goes silent would hold the dial forever without this.
+	stopCloseOnCancel := context.AfterFunc(dialCtx, func() {
+		closeSession(session)
+	})
+	defer stopCloseOnCancel()
+
+	session.serverConn, err = ftp.Dial(address, dialOptions...)
 	if err != nil {
+		closeSession(session)
 		return nil, fmt.Errorf("failed to dial FTP server: %w", err)
 	}
 
-	err = conn.Login(f.Username, password)
-	if err != nil {
-		_ = conn.Quit()
+	if err := session.serverConn.Login(f.Username, password); err != nil {
+		closeSession(session)
 		return nil, fmt.Errorf("failed to login to FTP server: %w", err)
 	}
 
-	return conn, nil
+	if !stopCloseOnCancel() {
+		closeSession(session)
+		return nil, fmt.Errorf("failed to connect to FTP server: %w", dialCtx.Err())
+	}
+
+	return session, nil
 }
 
 func (f *FTPStorage) ensureDirectory(conn *ftp.ServerConn, path string) error {
@@ -329,16 +308,16 @@ func (f *FTPStorage) ensureDirectory(conn *ftp.ServerConn, path string) error {
 			continue
 		}
 
-		err := conn.ChangeDir(part)
-		if err != nil {
-			err = conn.MakeDir(part)
-			if err != nil {
-				return fmt.Errorf("failed to create directory '%s': %w", part, err)
-			}
-			err = conn.ChangeDir(part)
-			if err != nil {
-				return fmt.Errorf("failed to change into directory '%s': %w", part, err)
-			}
+		if err := conn.ChangeDir(part); err == nil {
+			continue
+		}
+
+		// Concurrent sessions dial at once, and the one that loses the race to create the directory
+		// finds it in place, so a failed MKD is judged by whether the directory can be entered.
+		makeDirErr := conn.MakeDir(part)
+
+		if err := conn.ChangeDir(part); err != nil {
+			return fmt.Errorf("failed to create directory '%s': %w", part, errors.Join(makeDirErr, err))
 		}
 	}
 
@@ -357,39 +336,29 @@ func (f *FTPStorage) getFilePath(filename string) string {
 }
 
 type ftpFileReader struct {
-	response             *ftp.Response
-	conn                 *ftp.ServerConn
-	stopDeadlineOnCancel func() bool
+	response *ftp.Response
+	lease    *storage_connections.Lease[*ftpSession]
+	readErr  error
 }
 
-func (r *ftpFileReader) Read(p []byte) (n int, err error) {
-	return r.response.Read(p)
+func (r *ftpFileReader) Read(p []byte) (int, error) {
+	readBytes, err := r.response.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.readErr = err
+	}
+
+	return readBytes, err
 }
 
 func (r *ftpFileReader) Close() error {
-	var errs []error
-
-	if r.stopDeadlineOnCancel != nil {
-		r.stopDeadlineOnCancel()
+	closeErr := r.response.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("failed to close response: %w", closeErr)
 	}
 
-	if r.response != nil {
-		if err := r.response.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close response: %w", err))
-		}
-	}
+	r.lease.Release(errors.Join(r.readErr, closeErr))
 
-	if r.conn != nil {
-		if err := r.conn.Quit(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close connection: %w", err))
-		}
-	}
-
-	if len(errs) > 0 {
-		return errs[0]
-	}
-
-	return nil
+	return closeErr
 }
 
 type contextReader struct {
@@ -406,37 +375,38 @@ func (r *contextReader) Read(p []byte) (n int, err error) {
 	}
 }
 
-// Each attempt dials a fresh control connection: an FTP data transfer dies together with the
-// control channel that opened it, so a resumed REST cannot reuse the broken one.
+// Each attempt takes its own session: an FTP data transfer dies together with the control channel
+// that opened it, and a session whose read failed was closed, so a resumed REST gets a live one.
 func (f *FTPStorage) retrieveFileFromOffset(
 	attemptCtx context.Context,
 	encryptor encryption.FieldEncryptor,
 	filePath string,
 	offsetBytes int64,
 ) (io.ReadCloser, error) {
-	conn, err := f.connect(encryptor, ftpConnectTimeout)
+	lease, err := f.checkoutSession(attemptCtx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to FTP: %w", err)
 	}
 
-	response, err := conn.RetrFrom(filePath, uint64(offsetBytes))
+	response, err := lease.GetSession().serverConn.RetrFrom(filePath, uint64(offsetBytes))
 	if err != nil {
-		_ = conn.Quit()
+		lease.Release(ignoreFtpReply(err))
 
 		return nil, fmt.Errorf("failed to retrieve file from FTP: %w", err)
 	}
 
-	// The FTP client takes no context, so a read blocked on a silent server would ignore the
-	// caller's cancellation; an expired deadline is what unblocks it.
-	stopDeadlineOnCancel := context.AfterFunc(attemptCtx, func() {
-		_ = response.SetDeadline(time.Now())
-	})
+	return &ftpFileReader{response: response, lease: lease}, nil
+}
 
-	return &ftpFileReader{
-		response:             response,
-		conn:                 conn,
-		stopDeadlineOnCancel: stopDeadlineOnCancel,
-	}, nil
+// A protocol reply such as 550 leaves the control channel in a clean state, so only transport
+// failures make a session unusable.
+func ignoreFtpReply(err error) error {
+	var protocolError *textproto.Error
+	if errors.As(err, &protocolError) {
+		return nil
+	}
+
+	return err
 }
 
 // 550 is the only reply an FTP server has for a missing file, and also its reply

@@ -29,16 +29,20 @@ The hook that runs when the agent finishes a turn, in Claude Code and in Codex, 
 - **THEN** the full proposal review starts again
 
 ### Requirement: OpenSpec validation runs first
-Before starting reviewers the hook SHALL run strict OpenSpec validation of the change. When validation fails, the hook SHALL block the turn and pass the agent the end of its output. Reviewers MUST NOT start in that case.
+Before starting reviewers the hook SHALL check the format of the change's "Change verification" section by the rules the full implementation review applies to it, without running its commands, and then run strict OpenSpec validation of the change. When the section's format is wrong or validation fails, the hook SHALL block the turn and pass the agent the reason or the end of the validation output. Reviewers MUST NOT start in that case.
 
 #### Scenario: A requirement without a scenario
 - **WHEN** a delta spec has a requirement without a scenario and validation fails
 - **THEN** the turn is blocked, the agent gets the validation output, and no reviewer starts
 
+#### Scenario: A forbidden command in the verification section
+- **WHEN** the change's "Change verification" section contains `just test`
+- **THEN** the turn is blocked with the reason and the list of allowed forms, the command does not run, and no reviewer starts
+
 ### Requirement: What the full proposal review checks
 The full proposal review SHALL run several read-only reviewers in parallel, on the same models as the full implementation review: one per delta spec of the change, one for the proposal and design, and one for the task list.
 
-The delta spec reviewer SHALL check that requirements are complete and testable, do not contradict the main specs, the proposal or the design, and that claims about existing code are true. The proposal and design reviewer SHALL look for a noticeably simpler way to reach the same result, following the repository rule that the best code is unwritten, check the design decisions against the module architecture rules and accepted ADRs, and check that decisions agree with each other. The task reviewer SHALL check that a task with a test covers every scenario, that every task has a verification, and that the task order is feasible.
+The delta spec reviewer SHALL check that requirements are complete and testable, do not contradict the main specs, the proposal or the design, and that claims about existing code are true. The proposal and design reviewer SHALL look for a noticeably simpler way to reach the same result, following the repository rule that the best code is unwritten, check the design decisions against the module architecture rules and accepted ADRs, and check that decisions agree with each other. The task reviewer SHALL check that a task with a test covers every scenario, that every task has a verification, and that the task order is feasible. The task reviewer SHALL also check that a change whose tasks add or change tests in a backend package, a verification agent package or the frontend has a "Change verification" section, and that the section runs the tests of every such package the tasks' verifications name. Tests that no allowed command form runs and that a module check already runs, such as the hook tests, need no section.
 
 #### Scenario: A change with two delta specs
 - **WHEN** the full proposal review starts for a change with two delta specs
@@ -46,7 +50,19 @@ The delta spec reviewer SHALL check that requirements are complete and testable,
 
 #### Scenario: The task reviewer's role
 - **WHEN** the hook starts the task reviewer
-- **THEN** its prompt names the role and requires checking that a task with a test covers every scenario, every task has a verification, and the task order is feasible
+- **THEN** its prompt names the role and requires checking that a task with a test covers every scenario, every task has a verification, the task order is feasible, and the "Change verification" section covers the tested packages
+
+#### Scenario: Tests without a verification section
+- **WHEN** the tasks add tests to a backend package and the change has no "Change verification" section
+- **THEN** the task reviewer returns a `tasks` finding that asks for the section with that package
+
+#### Scenario: A section that leaves out a package
+- **WHEN** a task's verification runs the tests of two backend packages and the "Change verification" section runs only one of them
+- **THEN** the task reviewer returns a `tasks` finding that names the missing package
+
+#### Scenario: A change with only hook tests
+- **WHEN** the tasks add tests only to the hook tests and the change has no "Change verification" section
+- **THEN** the task reviewer returns no finding about the missing section
 
 ### Requirement: The agent resolves findings itself, except cutting the feature
 A reviewer SHALL return findings, each with a category, a path and a description. The categories are `gap` (a requirement is incomplete or a case is missing), `mismatch` (artifacts contradict each other, the main specs, the code or the architecture rules), `tasks` (a scenario without a task with a test, a task without verification, an infeasible order), `simplify` (the same result for the user, noticeably simpler), `scope` (an option that cuts the feature) and `minor`. The hook SHALL block the turn when there is a `gap`, `mismatch`, `tasks` or `simplify` finding, and require the agent to resolve each one without asking the user. `scope` and `minor` findings MUST NOT block the turn. The agent MUST NOT apply a `scope` finding itself: cutting the task is the user's decision.
@@ -60,15 +76,23 @@ A reviewer SHALL return findings, each with a category, a path and a description
 - **THEN** the hook does not require a fix and once asks the agent for a summary that shows this option to the user
 
 ### Requirement: Repeat and summary of the full proposal review
-After a blocked review the next run SHALL check the previous findings and the change's files that changed after that review, not the whole proposal again. There SHALL be at most two repeats per user request, after which the hook SHALL stop the agent and show the remaining findings. When the review accepts the proposal after at least one block in this request, or returns `scope` findings, the hook SHALL block the turn once and ask the agent to write the user a summary of the whole proposal: what is proposed, what each review round found and how it was resolved, and separately each option to cut the feature with what the user loses and saves. The next turn without edits to the change's files MUST NOT be blocked.
+After a blocked review the next run SHALL check the previous findings and the change's files that changed after that review, not the whole proposal again. The block text SHALL require the agent to finish the turn again with one short line about its fixes that names every rejected finding with the reason, and to leave the summary for the user until the review accepts the proposal. There SHALL be at most two repeats per user request, after which the hook SHALL stop the agent and show the remaining findings. When the review accepts the proposal after at least one block in this request, or returns `scope` findings, the hook SHALL block the turn once and ask the agent to write the user a summary of the proposal as if there had been no review: what is proposed and which decisions were made, without review rounds, findings or the fixes made for them, and separately each option to cut the feature with what the user loses and saves. The next turn without edits to the change's files MUST NOT be blocked.
+
+#### Scenario: A gap blocks the turn
+- **WHEN** the proposal review blocks the turn with a `gap` finding
+- **THEN** the block text asks the agent to resolve the finding without asking the user and to finish the turn with one short line about the fixes that names each rejected finding with its reason, and not to write the user summary yet
 
 #### Scenario: Accepted after fixes
 - **WHEN** a repeat review accepts a proposal the previous review blocked
-- **THEN** the hook once asks the agent for a summary of the whole proposal, and the next turn without edits is not blocked
+- **THEN** the hook once asks the agent for a summary of the proposal that leaves out review rounds and the fixes made for them, and the next turn without edits is not blocked
 
 #### Scenario: Accepted at once without cuts
 - **WHEN** the first review returns only `minor` findings
 - **THEN** the turn is not blocked and the user sees the findings
+
+#### Scenario: Accepted after fixes with an option to cut the feature
+- **WHEN** a repeat review accepts a proposal the previous review blocked, and returns a `scope` finding
+- **THEN** the summary request asks to list that option with what the user loses and saves, and to leave out the review rounds and the fixes made for them
 
 #### Scenario: Repeat limit
 - **WHEN** the third proposal review in a row within one user request blocks the turn again
@@ -84,3 +108,10 @@ When only files of changes that have every artifact and no checked task changed 
 #### Scenario: An unfinished proposal
 - **WHEN** the agent wrote only the proposal and finishes the turn with a question to the user
 - **THEN** the full proposal review does not start, and the quick necessity check reviews the proposal
+
+### Requirement: The full proposal review ends within the hook timeout
+The full proposal review SHALL work within the same kind of time budget as the full implementation review: the budget ends before the hook timeout with a margin, validation runs inside it, and a reviewer starts only when the budget still holds its whole time limit. A reviewer that cannot start for that reason SHALL count as a reviewer that could not run. The hook MUST NOT be killed by the client timeout without a message.
+
+#### Scenario: Too many reviewers for the budget
+- **WHEN** a proposal has so many delta specs that a third wave of reviewers would not fit in the remaining budget
+- **THEN** the reviewers of that wave do not start, the turn is blocked, and the agent gets the reason that the review time budget ran out

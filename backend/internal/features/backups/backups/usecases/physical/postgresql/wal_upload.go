@@ -8,8 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,8 +48,12 @@ type WalUploadDeps struct {
 	WalSegmentSizeBytes int64
 	Logger              *slog.Logger
 
-	// OnGapDetected fires at most once per newly-observed WAL gap (de-duplicated
-	// by lastNotifiedGapEnd inside the uploader). nil disables notification.
+	// The local queue: segments waiting here, or in its pending-upload/, are still coming, so a hole
+	// in front of a committed segment is not a gap while its predecessor sits here.
+	WatchDir string
+
+	// OnGapDetected fires once per WAL gap: only the first segment after a hole reports it, and that
+	// segment commits once. nil disables notification.
 	OnGapDetected func(gapStart, gapEnd walmath.LSN)
 }
 
@@ -60,15 +64,13 @@ type WalUploadDeps struct {
 type WalUploader struct {
 	deps WalUploadDeps
 
-	mu                 sync.Mutex
-	lastNotifiedGapEnd walmath.LSN
+	mu sync.Mutex
 
 	// The uploader loop retries every second, so a torn segment that never gets
 	// re-streamed would otherwise warn once per second forever.
 	warnedIncompleteSegments map[string]struct{}
 
-	archivedSegments atomic.Int64
-	archivedBytes    atomic.Int64
+	stats archivingStats
 }
 
 func NewWalUploader(deps WalUploadDeps) *WalUploader {
@@ -106,6 +108,8 @@ func (u *WalUploader) ProcessSegment(ctx context.Context, localPath, walFilename
 		ClaimedAt:   time.Now().UTC(),
 	}
 
+	claimStartedAt := time.Now()
+
 	inserted, err := u.deps.WalSegmentRepo.ClaimInsert(claim)
 	if err != nil {
 		return fmt.Errorf("claim wal segment: %w", err)
@@ -115,7 +119,7 @@ func (u *WalUploader) ProcessSegment(ctx context.Context, localPath, walFilename
 		return u.handleClaimConflict(localPath, claim)
 	}
 
-	return u.uploadAndCommit(ctx, localPath, claim)
+	return u.uploadAndCommit(ctx, localPath, claim, time.Since(claimStartedAt))
 }
 
 // RecoverSegment runs the insert-first flow for a leftover finalized segment
@@ -152,13 +156,15 @@ func (u *WalUploader) RecoverSegment(ctx context.Context, localPath, walFilename
 		ClaimedAt:   time.Now().UTC(),
 	}
 
+	claimStartedAt := time.Now()
+
 	inserted, err := u.deps.WalSegmentRepo.ClaimInsert(claim)
 	if err != nil {
 		return fmt.Errorf("claim wal segment: %w", err)
 	}
 
 	if inserted {
-		return u.uploadAndCommit(ctx, localPath, claim)
+		return u.uploadAndCommit(ctx, localPath, claim, time.Since(claimStartedAt))
 	}
 
 	existing, err := u.deps.WalSegmentRepo.FindByChainKey(claim.DatabaseID, claim.TimelineID, claim.StartLSN)
@@ -177,12 +183,18 @@ func (u *WalUploader) RecoverSegment(ctx context.Context, localPath, walFilename
 	}
 
 	// Own pre-crash NULL claim: take it over by uploading against the existing row.
-	return u.uploadAndCommit(ctx, localPath, existing)
+	return u.uploadAndCommit(ctx, localPath, existing, time.Since(claimStartedAt))
 }
 
-// One rollup line per interval, so the counters are consumed rather than read.
-func (u *WalUploader) TakeArchivedSinceLastReport() (int64, int64) {
-	return u.archivedSegments.Swap(0), u.archivedBytes.Swap(0)
+// One rollup line per interval, so the snapshot is consumed rather than read.
+func (u *WalUploader) TakeArchivingSnapshot() ArchivingSnapshot {
+	return u.stats.takeSnapshot()
+}
+
+// The dispatcher knows how many uploads run, the uploader knows what they cost; reporting the count
+// here keeps both in the one snapshot the rollup takes.
+func (u *WalUploader) RecordConcurrentUploads(count int) {
+	u.stats.recordConcurrentUploads(count)
 }
 
 // handleClaimConflict resolves a lost ClaimInsert race by probing the existing
@@ -230,7 +242,10 @@ func (u *WalUploader) uploadAndCommit(
 	ctx context.Context,
 	localPath string,
 	claim *physical_models.PhysicalWalSegment,
+	claimDuration time.Duration,
 ) error {
+	timings := segmentUploadTimings{Claim: claimDuration}
+
 	// One name per upload attempt, minted here and passed down: a retry under the
 	// same segment identity must not address the object a pending cleanup owns.
 	objectName := walSegmentObjectName(claim.DatabaseID, claim.TimelineID, claim.WalFilename, uuid.New())
@@ -244,6 +259,8 @@ func (u *WalUploader) uploadAndCommit(
 
 	saveCtx, cancel := context.WithTimeout(ctx, walSegmentUploadTimeout)
 	defer cancel()
+
+	segmentWriteStartedAt := time.Now()
 
 	receipt, err := u.deps.FileStore.WriteFile(saveCtx, u.reference(objectName), artifact)
 	if err != nil {
@@ -263,6 +280,9 @@ func (u *WalUploader) uploadAndCommit(
 		return fmt.Errorf("stream wal segment artifact: %w", err)
 	}
 
+	timings.SegmentWrite = time.Since(segmentWriteStartedAt)
+	sidecarWriteStartedAt := time.Now()
+
 	sidecarReceipt, err := u.uploadSidecar(saveCtx, claim, objectName, salt, iv, compressedSizeBytes)
 	if err != nil {
 		u.discardAttempt(ctx, objectName)
@@ -270,6 +290,9 @@ func (u *WalUploader) uploadAndCommit(
 
 		return fmt.Errorf("upload wal segment sidecar: %w", err)
 	}
+
+	timings.SidecarWrite = time.Since(sidecarWriteStartedAt)
+	commitStartedAt := time.Now()
 
 	committed, err := u.commitSegment(ctx, commitSegmentSpec{
 		Claim:            claim,
@@ -296,8 +319,6 @@ func (u *WalUploader) uploadAndCommit(
 		return nil
 	}
 
-	u.recordArchived(compressedSizeBytes)
-
 	// Per segment rather than per archive: a busy cluster finalizes one every few seconds, which
 	// would swamp INFO. The periodic rollup carries the same information at a readable rate.
 	u.deps.Logger.DebugContext(ctx, fmt.Sprintf("archived wal segment %s (%.2f MB)",
@@ -305,22 +326,20 @@ func (u *WalUploader) uploadAndCommit(
 		"wal_segment_id", claim.ID, "timeline_id", claim.TimelineID)
 
 	u.probeChainGap(claim)
+
+	timings.Commit = time.Since(commitStartedAt)
+	u.stats.recordArchived(compressedSizeBytes, timings)
+
 	u.removeLocal(localPath, claim.WalFilename)
 
 	return nil
 }
 
-// recordArchived accumulates what the periodic rollup reports, so that INFO can answer "is WAL
-// reaching storage" without a line per segment.
-func (u *WalUploader) recordArchived(compressedSizeBytes int64) {
-	u.archivedSegments.Add(1)
-	u.archivedBytes.Add(compressedSizeBytes)
-}
-
-// probeChainGap emits one notification when the just-committed segment is not
-// LSN-contiguous with the previous committed segment on its timeline. It is a
-// read-only check (no catalog row is written for the gap) de-duplicated by
-// lastNotifiedGapEnd so a backlog drained after a storage outage notifies once.
+// probeChainGap reports a gap in front of the just-committed segment only when the segment directly
+// before it will never arrive. Under concurrent uploads a later segment often commits first, so a
+// missing predecessor that still waits in the local queue, or that commits meanwhile, is not a gap.
+// Only the first segment after a real hole reports it, and that segment commits once, which keeps
+// each gap to one notification without any bookkeeping.
 func (u *WalUploader) probeChainGap(claim *physical_models.PhysicalWalSegment) {
 	prevEnd, err := u.deps.WalSegmentRepo.FindLatestCommittedBefore(claim.DatabaseID, claim.TimelineID, claim.StartLSN)
 	if err != nil {
@@ -333,22 +352,30 @@ func (u *WalUploader) probeChainGap(claim *physical_models.PhysicalWalSegment) {
 		return
 	}
 
-	u.mu.Lock()
-	alreadyNotified := claim.StartLSN <= u.lastNotifiedGapEnd
-	if !alreadyNotified {
-		u.lastNotifiedGapEnd = claim.StartLSN
-	}
-	u.mu.Unlock()
-
-	// Log and notify once per outage: a drained backlog re-enters this path for
-	// the first segment past the gap only (later segments are contiguous and
-	// returned above), and the lastNotifiedGapEnd guard covers re-processing.
-	if alreadyNotified {
+	// The local check runs before the catalog check: a predecessor that commits concurrently writes
+	// its row before it removes its file, so at least one of the two sees it.
+	queuedSegments := listQueuedWalSegments(u.deps.WatchDir, u.deps.WalSegmentSizeBytes)
+	if isPredecessorQueued(queuedSegments, claim) {
 		return
 	}
 
+	predecessorStartLSN := claim.StartLSN - walmath.LSN(u.deps.WalSegmentSizeBytes)
+
+	predecessor, err := u.deps.WalSegmentRepo.FindByChainKey(claim.DatabaseID, claim.TimelineID, predecessorStartLSN)
+	if err != nil {
+		u.deps.Logger.Error("wal gap probe query failed", "wal_filename", claim.WalFilename, "error", err)
+
+		return
+	}
+
+	if predecessor != nil {
+		return
+	}
+
+	gapStart := max(*prevEnd, getHighestQueuedEndBelow(queuedSegments, claim))
+
 	u.deps.Logger.Warn(
-		fmt.Sprintf("wal_gap_detected_post_upload: gap [%s, %s)", prevEnd.String(), claim.StartLSN.String()),
+		fmt.Sprintf("wal_gap_detected_post_upload: gap [%s, %s)", gapStart.String(), claim.StartLSN.String()),
 		"database_id", claim.DatabaseID,
 		"timeline_id", claim.TimelineID,
 	)
@@ -357,7 +384,33 @@ func (u *WalUploader) probeChainGap(claim *physical_models.PhysicalWalSegment) {
 		return
 	}
 
-	u.deps.OnGapDetected(*prevEnd, claim.StartLSN)
+	u.deps.OnGapDetected(gapStart, claim.StartLSN)
+}
+
+// A short file never counts: pg_receivewal resumes after the highest complete segment and never
+// streams a segment below that point again, so counting a torn file would hide its hole forever.
+// Such a file surfaces through the archive staleness alert instead.
+func isPredecessorQueued(queuedSegments []queuedWalSegment, claim *physical_models.PhysicalWalSegment) bool {
+	return slices.ContainsFunc(queuedSegments, func(queued queuedWalSegment) bool {
+		return queued.isComplete && queued.timelineID == claim.TimelineID && queued.endLSN == claim.StartLSN
+	})
+}
+
+// The newest committed predecessor can lag behind a segment that is still uploading, which would make
+// the reported hole wider than the real one.
+func getHighestQueuedEndBelow(
+	queuedSegments []queuedWalSegment,
+	claim *physical_models.PhysicalWalSegment,
+) walmath.LSN {
+	var highestEnd walmath.LSN
+
+	for _, queued := range queuedSegments {
+		if queued.isComplete && queued.timelineID == claim.TimelineID && queued.endLSN <= claim.StartLSN {
+			highestEnd = max(highestEnd, queued.endLSN)
+		}
+	}
+
+	return highestEnd
 }
 
 // uploadSidecar writes the `<object>.metadata` JSON describing the segment so a
@@ -594,7 +647,15 @@ func buildWalSegmentArtifactReader(
 }
 
 func streamWalSegmentArtifact(source io.Reader, output io.Writer, encryptionWriter io.Closer) error {
-	encoder, err := zstd.NewWriter(output, zstd.WithEncoderLevel(zstd.SpeedDefault))
+	// Up to four segments compress at once per database. One goroutine per encoder and the
+	// lower-memory history buffer take each encoder from about 18 MB to about 9.5 MB, and neither
+	// changes the compressed format or the window.
+	encoder, err := zstd.NewWriter(
+		output,
+		zstd.WithEncoderLevel(zstd.SpeedDefault),
+		zstd.WithEncoderConcurrency(1),
+		zstd.WithLowerEncoderMem(true),
+	)
 	if err != nil {
 		return fmt.Errorf("init zstd writer: %w", err)
 	}

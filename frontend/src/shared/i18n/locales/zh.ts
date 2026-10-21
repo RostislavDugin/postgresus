@@ -301,6 +301,7 @@ export const zh: typeof en = {
       config: '配置',
       backups: '备份',
       verifications: '恢复验证',
+      monitoring: '监控',
     },
     create: {
       title: '添加要备份的数据库',
@@ -1596,6 +1597,265 @@ export const zh: typeof en = {
           },
           missingConfigFiles:
             '基础备份只复制数据目录。如果源 PostgreSQL 把配置放在数据目录之外（Debian/Ubuntu 的布局，<configDir/>），那么 <code>postgresql.conf</code>、<code>pg_hba.conf</code> 和 <code>pg_ident.conf</code> 不在备份中，服务器将无法启动。在源服务器上用 <code>psql -Atc "SHOW config_file"</code> 查出它们的实际路径，把三个文件都复制过来，然后注释掉 <code>data_directory</code>、<code>hba_file</code>、<code>ident_file</code>、<code>external_pid_file</code> 以及 <code>ssl</code> / <code>ssl_*</code> 这些行，创建 <code>conf.d</code>；如果在容器中运行，还要设置 <code>listen_addresses = \'*\'</code>。如果这些文件都在，却仍然出现同样的错误，那么出错的是挂载的目录，而不是配置。',
+        },
+      },
+      monitoring: {
+        periods: {
+          hour: '最近 1 小时',
+          day: '最近 1 天',
+          week: '最近 1 周',
+        },
+        levels: {
+          notStreaming: '变更的持续保存已关闭',
+          collectingData: '正在收集数据',
+          broken: '出现故障',
+          needsAttention: '有情况需要注意',
+          healthy: '一切正常',
+        },
+        reasonLevels: {
+          broken: '故障',
+          needsAttention: '需要注意',
+          info: '提示',
+        },
+        keepingUpStates: {
+          unknown: '未知',
+          fallingBehind: '跟不上',
+          catchingUp: '正在追赶',
+          idle: '空闲',
+          keepingUp: '跟得上',
+        },
+        banner: {
+          collectingDataDescription: '流式传输已开始，一分钟内会出现第一批数据。',
+          notStreamingDescription:
+            '备份已停用或未选择存储。可在<configLink>配置</configLink>中开启。',
+          cannotConfirm: '无法确认当前状态',
+          cannotConfirmDescription: '最后已知状态：{{level}}，{{duration}}前。',
+          measuredAgo: '{{duration}}前测量',
+          healthyHeadline: '所有变更都在保存',
+          restoreUpTo: '可以把数据库恢复到 {{moment}}（{{age}}前）之前的任意时刻。',
+          restoreOnlyUpTo: '在新的完整备份完成之前，数据库只能恢复到 {{moment}}（{{age}}前）。',
+          restoreFromUpTo: '可以把数据库恢复到 {{from}} 至 {{moment}}（{{age}}前）之间的任意时刻。',
+          restoreFromUpToWithoutAge: '可以把数据库恢复到 {{from}} 至 {{moment}} 之间的任意时刻。',
+          restoreUpToWithoutAge: '数据库可以恢复到 {{moment}} 之前的任意时刻。',
+          restoreOnlyUpToWithoutAge: '在新的完整备份完成之前，数据库只能恢复到 {{moment}}。',
+          restoreNothingPending: '第一次完整备份完成之前无法恢复任何内容。该备份已在进行中。',
+          restoreNothing: '暂时没有可恢复的内容，因为还没有任何完整备份完成。',
+          startFullBackup: '启动完整备份',
+          fullBackupRequested: '已请求完整备份。',
+          notMeasuredYet: '尚无测量',
+          refreshFailed: '数据刷新失败。屏幕上保留最后收到的数据，30 秒后会再次尝试。',
+        },
+        keepingUp: {
+          keepingUp:
+            'Databasus 保存变更的速度与数据库写入一样快：写入 {{writeRate}}，保存 {{archiveRate}}。',
+          fallingBehind:
+            '数据库写入变更的速度比 Databasus 保存得快，大约快 {{differenceRate}}：{{writeRate}} 对 {{archiveRate}}。',
+          fallingBehindBacklog:
+            '还有 {{unsavedAmount}} 未保存，并且每小时大约增加 {{growthPerHour}}。',
+          catchingUp:
+            'Databasus 正在保存积压的变更：还剩 {{unsavedAmount}}，大约需要 {{duration}}。',
+          catchingUpWithoutEstimate: 'Databasus 正在保存积压的变更：还剩 {{unsavedAmount}}。',
+          idle: '数据库几乎没有写入，新的变更会在几分钟内进入存储。',
+          rebuildConsequence:
+            '按这个速度，大约 {{duration}}后 Databasus 将从完整备份开始新的备份链。',
+          limitConsequence:
+            '按这个速度，大约 {{duration}}后数据库将删除 Databasus 尚未接收的变更。',
+        },
+        reasons: {
+          streamingStopped: {
+            title: '保存已停止',
+            whatHappened: 'Databasus 在 {{duration}}前停止接收变更。',
+            whatToDo: 'Databasus 会自动重试。如果持续这样，请查看 Databasus 的日志。',
+          },
+          sourceUnreachable: {
+            title: '无法连接数据库',
+            whatHappened: 'Databasus 已有 {{duration}}无法连接数据库。',
+            whatToDo: '请检查数据库服务器是否在运行，以及 Databasus 能否访问它。',
+          },
+          walChainBroken: {
+            title: '备份之间丢失了变更',
+            whatHappened: '部分变更历史未能到达存储，因此之后的变更无法恢复。',
+            whatToDo: '请在“备份”标签页启动一次完整备份。',
+            whatToDoPending: '新的完整备份已在进行中，可以在“备份”标签页查看进度。',
+          },
+          slotMissing: {
+            title: '数据库不再保留变更',
+            whatHappened: '数据库不再为 Databasus 保留变更：Databasus 在数据库上创建的预留已消失。',
+            whatToDo:
+              '流式传输重启时 Databasus 会重新创建预留，但这期间的变更已经丢失。请在“备份”标签页启动一次完整备份，并检查是否有人删除数据库上的预留。',
+            whatToDoPending:
+              '流式传输重启时 Databasus 会重新创建预留，新的完整备份也已在进行中。请检查是否有人删除数据库上的预留。',
+          },
+          slotLost: {
+            title: '数据库删除了未保存的变更',
+            whatHappened: '数据库删除了 Databasus 尚未接收的变更。',
+            whatToDo:
+              'Databasus 会自动从新的完整备份重新开始。为避免再次发生，请加快保存，或让数据库保留更多变更。',
+          },
+          archiveNotAdvancing: {
+            title: '变更没有进入存储',
+            whatHappened: '已有 {{duration}}没有新的变更进入存储，而数据库仍在写入。',
+            whatToDo: '请检查存储是否可以访问，以及是否还有可用空间。',
+          },
+          archiveSlowerThanSource: {
+            title: '保存太慢',
+            whatHappened: '数据库写入比 Databasus 保存得快，10 分钟内积压增加了 {{amount}}。',
+            whatToDo: '请检查到存储的网络速度，或把存储放得离 Databasus 更近。',
+          },
+          slotKeepsExtraWal: {
+            title: '数据库保留了额外的变更',
+            whatHappened:
+              '已有 {{duration}}，数据库为 Databasus 保留的变更日志比平时多，而且还在增加。',
+            whatToDo: '请确认数据库服务器有足够的可用磁盘空间。',
+          },
+          slotLimitApproaching: {
+            title: '未保存的变更即将被删除',
+            whatHappened: '按这个速度，大约 {{duration}}后数据库将删除 Databasus 尚未接收的变更。',
+            whatToDo: '请加快保存，或在数据库上调大 <code>max_slot_wal_keep_size</code>。',
+          },
+          nearSlotRebuild: {
+            title: '即将重新开始',
+            whatHappened:
+              'Databasus 尚未接收的变更已达到 {{amount}}，达到 {{limit}} 时 Databasus 将从完整备份重新开始。',
+            whatToDo: '请加快保存，或在备份设置中调高这个上限。',
+          },
+          localQueueFilling: {
+            title: 'Databasus 缓冲区正在填满',
+            whatHappened: 'Databasus 缓冲区已用 {{amount}}，上限 {{limit}}。',
+            whatToDo: '缓冲区满时 Databasus 会自动暂停接收。请检查存储的速度。',
+          },
+          frequentRestarts: {
+            title: '接收频繁重启',
+            whatHappened: '最近 1 小时内接收重启次数：{{count}}。',
+            whatToDo: '请在 Databasus 的日志中查找原因。',
+          },
+          forcedRotationRefused: {
+            title: '空闲时段的变更会晚到存储',
+            whatHappened: '数据库拒绝按时关闭变更文件，因此空闲时段的变更会更晚进入存储。',
+            whatToDo: '请授予备份用户执行 <code>pg_switch_wal()</code> 的权限。',
+          },
+        },
+        notices: {
+          noSlotWalLimit: {
+            title: '保留的变更没有上限',
+            whatHappened: '数据库为 Databasus 保留变更时没有上限。',
+            whatToDo:
+              '如果 Databasus 长时间停止，上限可以保护数据库服务器的磁盘。代价是达到上限时需要新的完整备份。可通过 <code>max_slot_wal_keep_size</code> 设置。',
+          },
+          slotKeepsExtraWalSteadily: {
+            title: '数据库保留了额外的变更',
+            whatHappened: '数据库为 Databasus 保留的变更日志比平时多。',
+            whatToDo: '高负载下这很正常。只要数量不再增加，就无需处理。',
+          },
+          noFullBackupYet: {
+            title: '还没有完整备份',
+            whatHappened: '第一次完整备份尚未完成，因此已保存的变更暂时无法恢复。',
+            whatToDo: '请等待它完成，或在“备份”标签页启动。',
+          },
+        },
+        figures: {
+          lastSaved: '最近一次变更保存于',
+          waitingToBeSaved: '等待保存',
+          notMeasured: '尚未测量',
+          averageHint: '10 分钟平均',
+        },
+        restoreTimeline: {
+          title: '可以恢复到哪些时刻',
+          restorable: '可以恢复',
+          lost: '无法恢复',
+          notSavedYet: '尚未保存到存储',
+          lostSentence: '数据库无法恢复到 {{from}} 至 {{to}} 之间的时刻：这些变更从未到达存储。',
+          moreLost: '其他无法恢复的时间段：{{count}}。',
+          range: '{{from}} 至 {{to}}',
+        },
+        technicalDetails: {
+          title: '技术详情',
+        },
+        path: {
+          database: '数据库',
+          databasus: 'Databasus',
+          storage: '存储',
+          notReceivedYet: 'Databasus 尚未接收',
+          rebuildLimit: '达到 {{amount}} 时 Databasus 将从完整备份开始新的链',
+          allowanceLeft: '数据库开始删除变更前的余量：{{amount}}',
+          nothingWaiting: '没有等待中的变更',
+          ratesCaption:
+            '速度是最近 10 分钟的平均值，数量是当前值。数据库分批写入时，会显示速度，但没有等待中的变更。',
+          waitingInBuffer: '缓冲区中等待',
+          pauseLimit: '达到 {{amount}} 时暂停接收',
+          receivingPaused: '接收已暂停',
+          nothingSavedYet: '尚未保存任何内容',
+          overLimit: '超出上限',
+          ofLimit: '{{amount}} / {{limit}}',
+          notSavedYetAmount: '尚未保存到存储：{{amount}}',
+          unknownAmount: '未知',
+        },
+        tooltips: {
+          notSavedYet:
+            '数据库已写入但尚未进入存储的变更：包括 Databasus 尚未接收的部分和在其缓冲区中等待的部分。技术名称：未归档的 WAL。',
+          notReceivedYet:
+            '数据库为 Databasus 保留的、Databasus 尚未接收的变更。技术名称：复制槽延迟。',
+          rebuildLimit:
+            '超过这个数量后，Databasus 会删除复制槽并开始新的备份链，以免数据库服务器磁盘被占满。技术名称：WAL 延迟阈值。',
+          allowanceLeft:
+            '数据库在删除 Databasus 尚未接收的变更前还能写入多少。技术名称：safe_wal_size，受 max_slot_wal_keep_size 限制。',
+          waitingInBuffer: 'Databasus 已接收但尚未保存到存储的变更。技术名称：本地 WAL 队列。',
+          pauseLimit:
+            '缓冲区达到这个大小时，Databasus 会暂停接收，直到缓冲区清空。技术名称：背压高水位。',
+          lastSaved: '最新的变更文件进入存储的时间。技术名称：最新归档的 WAL 段。',
+          writeRate: '数据库写入变更的速度，按最近 10 分钟平均。技术名称：WAL 写入速率。',
+          saveRate:
+            'Databasus 把变更保存到存储的速度，按最近 10 分钟平均。技术名称：WAL 归档速率。',
+        },
+        charts: {
+          keepingUpTitle: 'Databasus 跟得上吗？',
+          unsavedTitle: '还有多少未保存？',
+          unsavedSubtitle: '其中包括 Databasus 尚未接收的部分',
+          bufferTitle: 'Databasus 缓冲区',
+          databaseWrites: '数据库写入',
+          savedToStorage: '已保存到存储',
+          notSavedYet: '尚未进入存储',
+          notReceivedYet: 'Databasus 尚未接收',
+          waitingInBuffer: '缓冲区中等待',
+          pauseLimit: '在此暂停接收',
+          restarts: '重启',
+          pauses: '暂停',
+          notEnoughData: '该时间段的数据还不够。更短的时间段可能已经有图表。',
+          dataSince: '数据起始于 {{time}}',
+          noMeasurements: '{{from}} 至 {{to}} 之间没有测量数据。',
+          perSecond: '{{amount}}/秒',
+        },
+        details: {
+          slotStatus: '槽状态（wal_status）',
+          allowance: '剩余余量（safe_wal_size）',
+          noLimit: '无上限',
+          averageSegmentWrite: '段的平均写入时间',
+          longestSegmentWrite: '段的最长写入时间',
+          uploadConcurrency: '同时上传数',
+          walToStoredRatio: 'WAL 与保存大小之比',
+          walSegmentSize: 'WAL 段大小',
+          sessionStart: '流式传输会话开始时间',
+          streamerState: '流式传输进程状态',
+          sourceState: '源状态',
+          restartsLastHour: '最近 1 小时重启次数',
+          milliseconds: '{{value}} 毫秒',
+          notAvailable: '不可用',
+          streamerStates: {
+            running: '运行中',
+            notRunning: '未运行',
+            notStarted: '尚未启动',
+          },
+          sourceStates: {
+            reachable: '可访问',
+            unreachable: '不可访问',
+            slotMissing: '可访问，但复制槽不存在',
+          },
+        },
+        durations: {
+          seconds: '{{seconds}} 秒',
+          minutes: '{{minutes}} 分钟',
+          hoursMinutes: '{{hours}} 小时 {{minutes}} 分钟',
+          daysHours: '{{days}} 天 {{hours}} 小时',
         },
       },
     },

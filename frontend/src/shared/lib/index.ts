@@ -1,3 +1,4 @@
+export { formatBytes } from './formatBytes';
 export { formatDuration } from './formatDuration';
 export { FormValidator } from './FormValidator';
 export { type PagedListPage, appendNextPage, mergeRefreshedFirstPage } from './pagedList';

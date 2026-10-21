@@ -143,12 +143,20 @@ type WalStreamSpec struct {
 	WalSegmentRepo *physical_repositories.PhysicalWalSegmentRepository
 	HistoryRepo    *physical_repositories.PhysicalWalHistoryRepository
 
+	// Where the lag monitor records one sample per tick; nil records none.
+	WalStreamSampleRepo *physical_repositories.PhysicalWalStreamSampleRepository
+
+	// The lag monitor clears the streamer's failing time with a session's first
+	// sample; nil leaves it alone.
+	WalStreamerRepo *physical_repositories.PhysicalWalStreamerRepository
+
 	// config.DataFolder; the per-DB queue lives under
 	// <root>/wal-queue/<database_id>/. It must survive a process restart so crash
 	// recovery can re-process finalized-but-not-uploaded segments.
 	WatchDirRoot string
 
-	// A slot lag over this many bytes triggers a rebuild (lag_monitor.go).
+	// A slot lag over this many bytes that the running receiver does not reduce
+	// triggers a rebuild (slot_lag_window.go).
 	WalLagThresholdBytes int64
 
 	// How often a source that is being written to is asked to close its current WAL
@@ -189,10 +197,16 @@ type WalStreamSupervisor struct {
 	watchDir string
 	slotName string
 
+	// Every sample of this session carries it, so the read path can count session
+	// starts within a window.
+	sessionStartedAt time.Time
+
 	// Derived once from the source's (immutable) wal_segment_size; recomputing
-	// them on every poll tick would be wasted work.
-	highWatermarkBytes int64
-	lowWatermarkBytes  int64
+	// them on every poll tick would be wasted work. Atomic because the
+	// back-pressure monitor, the supervision loop and the lag monitor read them
+	// from their own goroutines while a test may lower them.
+	highWatermarkBytes atomic.Int64
+	lowWatermarkBytes  atomic.Int64
 
 	// Asks the supervision loop to SIGTERM the current pg_receivewal and respawn
 	// (sent by the back-pressure monitor and the slot-LSN watcher). Buffered size
@@ -203,15 +217,35 @@ type WalStreamSupervisor struct {
 	// drop+recreate the slot without the receiver re-attaching.
 	isPaused atomic.Bool
 
-	// Lets the slot-LSN watcher and the lag monitor tell a real problem from lag
-	// we are causing ourselves by holding the receiver down.
-	isReceiverRunning atomic.Bool
+	// When the current pg_receivewal run started, as Unix nanoseconds; zero while
+	// no receiver runs. One value carries both "running" and "since when", so the
+	// slot-LSN watcher and the lag monitor can tell a real problem from lag we are
+	// causing ourselves by holding the receiver down, and never see a running
+	// receiver without its start time.
+	receiverRunStartedAtUnixNano atomic.Int64
+
+	// Set by the back-pressure monitor when it stops the receiver, so the respawn
+	// that follows counts as a pause rather than a restart.
+	isBackpressureStopPending atomic.Bool
+
+	// Taken and reset by the lag monitor with each sample.
+	receiverRespawns receiverRespawnCounter
+
+	// The source refused pg_switch_wal in this session; every later sample says so.
+	isForcedRotationDenied atomic.Bool
 
 	// rebuildMu serializes slot rebuilds in this process; rebuildTimestamps powers
 	// the per-hour loop-protection cap. One supervisor owns a DB at a time (the
 	// physical_wal_streamers heartbeat claim), so this is the only guard needed.
 	rebuildMu         sync.Mutex
 	rebuildTimestamps []time.Time
+
+	// Written by the uploader dispatcher, read by the lag monitor (wal_staleness.go).
+	lowestQueuedSegmentMutex sync.Mutex
+	lowestQueuedSegment      *walPosition
+
+	// The newest slot probe of any caller, read by GetLiveState.
+	latestProbe atomic.Pointer[timedSlotProbe]
 }
 
 func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
@@ -234,21 +268,23 @@ func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {
 		WalSegmentRepo:      spec.WalSegmentRepo,
 		WalSegmentSizeBytes: walSegmentSizeBytes(spec.SourceDB),
 		Logger:              scopedLogger,
+		WatchDir:            watchDir,
 		OnGapDetected:       spec.OnGapDetected,
 	})
 
-	highWatermarkBytes := max(walLocalMinHighWatermarkBytes, 8*walSegmentSizeBytes(spec.SourceDB))
-
-	return &WalStreamSupervisor{
-		spec:               spec,
-		logger:             scopedLogger,
-		uploader:           uploader,
-		watchDir:           watchDir,
-		slotName:           spec.SourceDB.ReplicationSlotName,
-		highWatermarkBytes: highWatermarkBytes,
-		lowWatermarkBytes:  highWatermarkBytes / 5,
-		restartSignal:      make(chan struct{}, 1),
+	supervisor := &WalStreamSupervisor{
+		spec:             spec,
+		logger:           scopedLogger,
+		uploader:         uploader,
+		watchDir:         watchDir,
+		slotName:         spec.SourceDB.ReplicationSlotName,
+		sessionStartedAt: time.Now().UTC(),
+		restartSignal:    make(chan struct{}, 1),
 	}
+
+	supervisor.setLocalQueuePauseBytes(getDefaultLocalQueuePauseBytes(spec.SourceDB))
+
+	return supervisor
 }
 
 func (s *WalStreamSupervisor) Run(ctx context.Context) error {
@@ -323,6 +359,8 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 		failureEscalator  rapidFailureEscalator
 	)
 
+	hasSpawnedReceiver := false
+
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -332,7 +370,8 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 			return nil
 		}
 
-		if !s.waitForBacklogBelowLow(ctx, logger) {
+		hasWaitedForBacklogDrain, isRunning := s.waitForBacklogBelowLow(ctx, logger)
+		if !isRunning {
 			return nil
 		}
 
@@ -341,6 +380,14 @@ func (s *WalStreamSupervisor) runReceivewalSupervision(ctx context.Context, logg
 		s.drainRestartSignal()
 		s.removePartials(logger)
 		s.realignResumePath(ctx, logger)
+
+		isBackpressureStop := s.isBackpressureStopPending.Swap(false)
+
+		if hasSpawnedReceiver {
+			s.receiverRespawns.recordRespawn(hasWaitedForBacklogDrain || isBackpressureStop)
+		}
+
+		hasSpawnedReceiver = true
 
 		receiverRun := s.spawnAndSupervise(ctx, logger, pgBin)
 
@@ -490,6 +537,20 @@ func (s *WalStreamSupervisor) drainRestartSignal() {
 	case <-s.restartSignal:
 	default:
 	}
+}
+
+// Zero while no receiver runs.
+func (s *WalStreamSupervisor) getReceiverRunStartedAt() time.Time {
+	startedAtUnixNano := s.receiverRunStartedAtUnixNano.Load()
+	if startedAtUnixNano == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, startedAtUnixNano).UTC()
+}
+
+func (s *WalStreamSupervisor) isReceiverRunning() bool {
+	return s.receiverRunStartedAtUnixNano.Load() != 0
 }
 
 func walSegmentSizeBytes(sourceDB *postgresql_physical.PostgresqlPhysicalDatabase) int64 {

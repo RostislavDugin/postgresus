@@ -316,6 +316,7 @@ export const fr: typeof en = {
       config: 'Configuration',
       backups: 'Sauvegardes',
       verifications: 'Vérifications',
+      monitoring: 'Surveillance',
     },
     create: {
       title: 'Ajouter une base de données à sauvegarder',
@@ -1702,6 +1703,305 @@ export const fr: typeof en = {
           },
           missingConfigFiles:
             "Une sauvegarde de base ne copie que le répertoire de données. Si votre PostgreSQL source garde sa configuration en dehors (disposition Debian/Ubuntu, <configDir/>), alors <code>postgresql.conf</code>, <code>pg_hba.conf</code> et <code>pg_ident.conf</code> ne sont pas dans la sauvegarde et le serveur ne démarrera pas. Demandez leurs chemins réels à la source avec <code>psql -Atc \"SHOW config_file\"</code>, copiez les trois fichiers, puis commentez <code>data_directory</code>, <code>hba_file</code>, <code>ident_file</code>, <code>external_pid_file</code> et les lignes <code>ssl</code> / <code>ssl_*</code>, créez <code>conf.d</code> et, pour un conteneur, définissez <code>listen_addresses = '*'</code>. Si ces fichiers sont présents et que vous obtenez toujours la même erreur, c'est le répertoire monté qui est en cause, pas la configuration.",
+        },
+      },
+      monitoring: {
+        periods: {
+          hour: 'Dernière heure',
+          day: 'Dernier jour',
+          week: 'Dernière semaine',
+        },
+        levels: {
+          notStreaming: "L'enregistrement continu des modifications est désactivé",
+          collectingData: 'Collecte des données',
+          broken: 'Quelque chose ne fonctionne plus',
+          needsAttention: 'Quelque chose demande votre attention',
+          healthy: 'Tout va bien',
+        },
+        reasonLevels: {
+          broken: 'En panne',
+          needsAttention: 'Demande votre attention',
+          info: 'Pour information',
+        },
+        keepingUpStates: {
+          unknown: 'Inconnu',
+          fallingBehind: 'Prend du retard',
+          catchingUp: 'Rattrape son retard',
+          idle: 'Calme',
+          keepingUp: 'Suit le rythme',
+        },
+        banner: {
+          collectingDataDescription:
+            "Le streaming a démarré ; les premiers chiffres arrivent d'ici une minute.",
+          notStreamingDescription:
+            "Les sauvegardes sont désactivées ou aucun stockage n'est sélectionné. Vous pouvez l'activer dans la <configLink>configuration</configLink>.",
+          cannotConfirm: "Impossible de confirmer l'état actuel",
+          cannotConfirmDescription: 'Dernier état connu : {{level}}, il y a {{duration}}.',
+          measuredAgo: 'Mesuré il y a {{duration}}',
+          healthyHeadline: 'Toutes les modifications sont enregistrées',
+          restoreUpTo:
+            "Vous pouvez restaurer la base à n'importe quel moment jusqu'à {{moment}} (il y a {{age}}).",
+          restoreOnlyUpTo:
+            "Tant qu'une nouvelle sauvegarde complète n'est pas terminée, vous ne pouvez restaurer la base que jusqu'à {{moment}} (il y a {{age}}).",
+          restoreFromUpTo:
+            "Vous pouvez restaurer la base à n'importe quel moment entre {{from}} et {{moment}} (il y a {{age}}).",
+          restoreFromUpToWithoutAge:
+            "Vous pouvez restaurer la base à n'importe quel moment entre {{from}} et {{moment}}.",
+          restoreUpToWithoutAge:
+            "Vous pouvez restaurer la base à n'importe quel moment jusqu'à {{moment}}.",
+          restoreOnlyUpToWithoutAge:
+            "Tant qu'une nouvelle sauvegarde complète n'est pas terminée, vous ne pouvez restaurer la base que jusqu'à {{moment}}.",
+          restoreNothingPending:
+            "Rien ne peut être restauré tant que la première sauvegarde complète n'est pas terminée. Elle est déjà en route.",
+          restoreNothing:
+            "Rien ne peut encore être restauré, car aucune sauvegarde complète n'est terminée.",
+          startFullBackup: 'Lancer une sauvegarde complète',
+          fullBackupRequested: 'Sauvegarde complète demandée.',
+          notMeasuredYet: 'Pas encore de mesure',
+          refreshFailed:
+            "Impossible d'actualiser les données. Les derniers chiffres reçus restent affichés, et la prochaine tentative a lieu dans 30 secondes.",
+        },
+        keepingUp: {
+          keepingUp:
+            'Databasus enregistre les modifications aussi vite que la base de données les écrit : {{writeRate}} écrits, {{archiveRate}} enregistrés.',
+          fallingBehind:
+            "La base de données écrit des modifications plus vite que Databasus ne les enregistre, d'environ {{differenceRate}} : {{writeRate}} contre {{archiveRate}}.",
+          fallingBehindBacklog:
+            "{{unsavedAmount}} ne sont pas encore enregistrés, et ce volume augmente d'environ {{growthPerHour}} par heure.",
+          catchingUp:
+            'Databasus enregistre le retard accumulé : il reste {{unsavedAmount}}, soit environ {{duration}}.',
+          catchingUpWithoutEstimate:
+            'Databasus enregistre le retard accumulé : il reste {{unsavedAmount}}.',
+          idle: "La base de données n'écrit presque rien ; les nouvelles modifications arrivent dans le stockage en quelques minutes.",
+          rebuildConsequence:
+            "À ce rythme, Databasus commencera une nouvelle chaîne de sauvegardes à partir d'une sauvegarde complète dans environ {{duration}}.",
+          limitConsequence:
+            "À ce rythme, la base de données supprimera des modifications que Databasus n'a pas encore reçues dans environ {{duration}}.",
+        },
+        reasons: {
+          streamingStopped: {
+            title: "L'enregistrement s'est arrêté",
+            whatHappened: 'Databasus a cessé de recevoir des modifications il y a {{duration}}.',
+            whatToDo:
+              'Databasus réessaie de lui-même. Si cela dure, consultez les journaux de Databasus.',
+          },
+          sourceUnreachable: {
+            title: 'La base de données est injoignable',
+            whatHappened:
+              "Databasus n'arrive pas à joindre la base de données depuis {{duration}}.",
+            whatToDo:
+              "Vérifiez que le serveur de la base de données fonctionne et qu'il est joignable depuis Databasus.",
+          },
+          walChainBroken: {
+            title: 'Des modifications ont été perdues entre les sauvegardes',
+            whatHappened:
+              "Une partie de l'historique des modifications n'a jamais atteint le stockage, les modifications suivantes ne peuvent donc pas être restaurées.",
+            whatToDo: "Lancez une sauvegarde complète dans l'onglet Sauvegardes.",
+            whatToDoPending:
+              "Une nouvelle sauvegarde complète est en cours. Vous pouvez la suivre dans l'onglet Sauvegardes.",
+          },
+          slotMissing: {
+            title: 'La base de données ne conserve plus les modifications',
+            whatHappened:
+              'La base de données ne conserve plus de modifications pour Databasus : la réservation que Databasus y avait créée a disparu.',
+            whatToDo:
+              "Databasus recrée la réservation au redémarrage du streaming, mais les modifications faites entre-temps sont perdues. Lancez une sauvegarde complète dans l'onglet Sauvegardes et vérifiez que personne ne supprime la réservation sur la base de données.",
+            whatToDoPending:
+              'Databasus recrée la réservation au redémarrage du streaming, et une nouvelle sauvegarde complète est en cours. Vérifiez que personne ne supprime la réservation sur la base de données.',
+          },
+          slotLost: {
+            title: 'La base de données a supprimé des modifications non enregistrées',
+            whatHappened:
+              "La base de données a supprimé des modifications que Databasus n'avait pas encore reçues.",
+            whatToDo:
+              "Databasus repart de lui-même avec une nouvelle sauvegarde complète. Pour l'éviter la prochaine fois, accélérez l'enregistrement ou laissez la base de données conserver plus de modifications.",
+          },
+          archiveNotAdvancing: {
+            title: "Les modifications n'arrivent pas dans le stockage",
+            whatHappened:
+              "Aucune nouvelle modification n'est arrivée dans le stockage depuis {{duration}}, alors que la base de données continue d'écrire.",
+            whatToDo:
+              "Vérifiez que le stockage est joignable et qu'il lui reste de l'espace libre.",
+          },
+          archiveSlowerThanSource: {
+            title: "L'enregistrement est trop lent",
+            whatHappened:
+              "La base de données écrit plus vite que Databasus n'enregistre ; le volume en attente a augmenté de {{amount}} en 10 minutes.",
+            whatToDo:
+              'Vérifiez le débit réseau vers le stockage, ou rapprochez le stockage de Databasus.',
+          },
+          slotKeepsExtraWal: {
+            title: 'La base de données conserve trop de modifications',
+            whatHappened:
+              "Depuis {{duration}}, la base de données conserve pour Databasus plus de journal de modifications que d'habitude, et le volume continue d'augmenter.",
+            whatToDo:
+              "Vérifiez qu'il reste de l'espace disque sur le serveur de la base de données.",
+          },
+          slotLimitApproaching: {
+            title: 'Des modifications non enregistrées seront bientôt supprimées',
+            whatHappened:
+              "À ce rythme, la base de données supprimera des modifications que Databasus n'a pas encore reçues dans environ {{duration}}.",
+            whatToDo:
+              "Accélérez l'enregistrement, ou augmentez <code>max_slot_wal_keep_size</code> sur la base de données.",
+          },
+          nearSlotRebuild: {
+            title: 'Bientôt un nouveau départ',
+            whatHappened:
+              "Les modifications pas encore reçues par Databasus atteignent {{amount}} sur les {{limit}} à partir desquels Databasus repart d'une sauvegarde complète.",
+            whatToDo:
+              "Accélérez l'enregistrement, ou relevez la limite dans les paramètres de sauvegarde.",
+          },
+          localQueueFilling: {
+            title: 'Le tampon de Databasus se remplit',
+            whatHappened: 'Le tampon de Databasus contient {{amount}} sur {{limit}}.',
+            whatToDo:
+              'Databasus suspend la réception de lui-même quand le tampon est plein. Vérifiez le débit du stockage.',
+          },
+          frequentRestarts: {
+            title: 'La réception redémarre souvent',
+            whatHappened: 'Redémarrages de la réception au cours de la dernière heure : {{count}}.',
+            whatToDo: 'Cherchez la cause dans les journaux de Databasus.',
+          },
+          forcedRotationRefused: {
+            title: 'Les périodes calmes arrivent en retard dans le stockage',
+            whatHappened:
+              'La base de données refuse de fermer son fichier de modifications à temps, donc les modifications des périodes calmes arrivent plus tard dans le stockage.',
+            whatToDo:
+              "Accordez à l'utilisateur des sauvegardes le droit d'exécuter <code>pg_switch_wal()</code>.",
+          },
+        },
+        notices: {
+          noSlotWalLimit: {
+            title: 'Aucune limite sur les modifications conservées',
+            whatHappened:
+              'La base de données conserve des modifications pour Databasus sans limite.',
+            whatToDo:
+              'Une limite protège le disque du serveur de la base de données si Databasus reste arrêté longtemps. En contrepartie, une nouvelle sauvegarde complète est nécessaire quand la limite est atteinte. Elle se règle avec <code>max_slot_wal_keep_size</code>.',
+          },
+          slotKeepsExtraWalSteadily: {
+            title: 'La base de données conserve trop de modifications',
+            whatHappened:
+              "La base de données conserve pour Databasus plus de journal de modifications que d'habitude.",
+            whatToDo:
+              "C'est normal sous forte charge. Rien à faire tant que le volume n'augmente pas.",
+          },
+          noFullBackupYet: {
+            title: 'Pas encore de sauvegarde complète',
+            whatHappened:
+              "La première sauvegarde complète n'est pas terminée, les modifications enregistrées ne peuvent donc pas encore être restaurées.",
+            whatToDo: "Attendez-la, ou lancez-la dans l'onglet Sauvegardes.",
+          },
+        },
+        figures: {
+          lastSaved: 'Dernière modification enregistrée',
+          waitingToBeSaved: "En attente d'enregistrement",
+          notMeasured: 'Pas encore mesuré',
+          averageHint: 'moy. 10 min',
+        },
+        restoreTimeline: {
+          title: 'Ce que vous pouvez restaurer',
+          restorable: 'Restaurable',
+          lost: 'Non restaurable',
+          notSavedYet: 'Pas encore enregistré dans le stockage',
+          lostSentence:
+            "Vous ne pouvez pas restaurer la base à un moment entre {{from}} et {{to}} : ces modifications n'ont jamais atteint le stockage.",
+          moreLost: 'Autres périodes non restaurables : {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Détails techniques',
+        },
+        path: {
+          database: 'Base de données',
+          databasus: 'Databasus',
+          storage: 'Stockage',
+          notReceivedYet: 'Pas encore reçu par Databasus',
+          rebuildLimit:
+            "À {{amount}}, Databasus commence une nouvelle chaîne à partir d'une sauvegarde complète",
+          allowanceLeft:
+            'Marge avant que la base de données ne supprime des modifications : {{amount}}',
+          nothingWaiting: 'Rien en attente',
+          ratesCaption:
+            "Les débits sont des moyennes sur les 10 dernières minutes ; les volumes sont ceux de cet instant. Une base qui écrit par à-coups affiche un débit alors que rien n'attend.",
+          waitingInBuffer: 'En attente dans le tampon',
+          pauseLimit: 'La réception est suspendue à {{amount}}',
+          receivingPaused: 'Réception suspendue',
+          nothingSavedYet: "Rien n'est encore enregistré",
+          overLimit: 'Au-delà de la limite',
+          ofLimit: '{{amount}} sur {{limit}}',
+          notSavedYetAmount: 'Pas encore enregistré dans le stockage : {{amount}}',
+          unknownAmount: 'Inconnu',
+        },
+        tooltips: {
+          notSavedYet:
+            "Modifications écrites par la base qui ne sont pas encore dans le stockage : celles que Databasus n'a pas reçues et celles qui attendent dans sa mémoire tampon. Nom technique : WAL non archivé.",
+          notReceivedYet:
+            'Modifications que la base de données conserve pour Databasus parce que Databasus ne les a pas encore reçues. Nom technique : retard du slot de réplication.',
+          rebuildLimit:
+            'Au-delà de ce volume, Databasus supprime le slot de réplication et commence une nouvelle chaîne de sauvegardes, pour que le disque du serveur de la base de données ne se remplisse pas. Nom technique : seuil de retard du WAL.',
+          allowanceLeft:
+            "Ce que la base de données peut encore écrire avant de supprimer des modifications que Databasus n'a pas reçues. Nom technique : safe_wal_size, limité par max_slot_wal_keep_size.",
+          waitingInBuffer:
+            'Modifications reçues par Databasus mais pas encore enregistrées dans le stockage. Nom technique : file locale du WAL.',
+          pauseLimit:
+            "Quand le tampon atteint cette taille, Databasus suspend la réception jusqu'à ce qu'il se vide. Nom technique : seuil haut de la contre-pression.",
+          lastSaved:
+            'Quand le fichier de modifications le plus récent est arrivé dans le stockage. Nom technique : dernier segment WAL archivé.',
+          writeRate:
+            "La vitesse à laquelle la base de données écrit des modifications, en moyenne sur les 10 dernières minutes. Nom technique : débit d'écriture du WAL.",
+          saveRate:
+            "La vitesse à laquelle Databasus enregistre les modifications dans le stockage, en moyenne sur les 10 dernières minutes. Nom technique : débit d'archivage du WAL.",
+        },
+        charts: {
+          keepingUpTitle: 'Databasus suit-il le rythme ?',
+          unsavedTitle: "Qu'est-ce qui n'est pas encore enregistré ?",
+          unsavedSubtitle: "Inclut ce que Databasus n'a pas encore reçu",
+          bufferTitle: 'Tampon de Databasus',
+          databaseWrites: 'Écriture de la base de données',
+          savedToStorage: 'Enregistré dans le stockage',
+          notSavedYet: 'Pas encore dans le stockage',
+          notReceivedYet: 'Pas encore reçu par Databasus',
+          waitingInBuffer: 'En attente dans le tampon',
+          pauseLimit: 'La réception est suspendue ici',
+          restarts: 'Redémarrages',
+          pauses: 'Pauses',
+          notEnoughData:
+            'Pas encore assez de données pour cette période. Une période plus courte a peut-être déjà un graphique.',
+          dataSince: 'Données depuis {{time}}',
+          noMeasurements: 'Aucune mesure de {{from}} à {{to}}.',
+          perSecond: '{{amount}}/s',
+        },
+        details: {
+          slotStatus: 'Statut du slot (wal_status)',
+          allowance: 'Marge restante (safe_wal_size)',
+          noLimit: 'Aucune limite',
+          averageSegmentWrite: "Écriture moyenne d'un segment",
+          longestSegmentWrite: "Écriture la plus longue d'un segment",
+          uploadConcurrency: 'Envois simultanés',
+          walToStoredRatio: 'Rapport entre WAL et taille enregistrée',
+          walSegmentSize: 'Taille du segment WAL',
+          sessionStart: 'Début de la session de streaming',
+          streamerState: 'État du streamer',
+          sourceState: 'État de la source',
+          restartsLastHour: 'Redémarrages au cours de la dernière heure',
+          milliseconds: '{{value}} ms',
+          notAvailable: 'Non disponible',
+          streamerStates: {
+            running: 'En marche',
+            notRunning: 'Arrêté',
+            notStarted: 'Pas encore démarré',
+          },
+          sourceStates: {
+            reachable: 'Joignable',
+            unreachable: 'Injoignable',
+            slotMissing: 'Joignable, slot de réplication absent',
+          },
+        },
+        durations: {
+          seconds: '{{seconds}} s',
+          minutes: '{{minutes}} min',
+          hoursMinutes: '{{hours}} h {{minutes}} min',
+          daysHours: '{{days}} j {{hours}} h',
         },
       },
     },

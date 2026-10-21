@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
+	storage_connections "databasus-backend/internal/features/storages/connections"
 	"databasus-backend/internal/util/encryption"
 	io_utils "databasus-backend/internal/util/io"
 )
@@ -55,65 +56,18 @@ func (s *SFTPStorage) SaveFile(
 
 	logger.InfoContext(ctx, "starting to save file to SFTP storage", "file_name", fileName, "host", s.Host)
 
-	client, sshConn, err := s.connect(encryptor, sftpConnectTimeout)
+	lease, err := s.checkoutSession(ctx, encryptor)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to connect to SFTP", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to connect to SFTP: %w", err)
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			logger.ErrorContext(
-				ctx,
-				"failed to close SFTP client",
-				"file_name",
-				fileName,
-				"error",
-				closeErr,
-			)
-		}
-		if closeErr := sshConn.Close(); closeErr != nil {
-			logger.ErrorContext(
-				ctx,
-				"failed to close SSH connection",
-				"file_name",
-				fileName,
-				"error",
-				closeErr,
-			)
-		}
-	}()
-
-	if s.Path != "" {
-		if err := s.ensureDirectory(client, s.Path); err != nil {
-			logger.ErrorContext(
-				ctx,
-				"failed to ensure directory",
-				"file_name",
-				fileName,
-				"path",
-				s.Path,
-				"error",
-				err,
-			)
-			return fmt.Errorf("failed to ensure directory: %w", err)
-		}
 	}
 
 	filePath := s.getFilePath(fileName)
 	logger.DebugContext(ctx, "uploading file to SFTP", "file_name", fileName, "file_path", filePath)
 
-	remoteFile, err := client.Create(filePath)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to create remote file", "file_name", fileName, "error", err)
-		return fmt.Errorf("failed to create remote file: %w", err)
-	}
-	defer func() {
-		_ = remoteFile.Close()
-	}()
+	err = writeRemoteFile(lease.GetSession().sftpClient, filePath, &contextReader{ctx: ctx, reader: file})
+	lease.Release(err)
 
-	ctxReader := &contextReader{ctx: ctx, reader: file}
-
-	_, err = io.Copy(remoteFile, ctxReader)
 	if err != nil {
 		select {
 		case <-ctx.Done():
@@ -136,31 +90,50 @@ func (s *SFTPStorage) SaveFile(
 	return nil
 }
 
+// The plain copy ends in the library's ReadFrom, which for a reader of unknown size, such as the
+// compression pipe, writes one 32 KB block at a time and waits for each answer. Over a distant
+// server that is hundreds of round trips per WAL segment. The concurrent path keeps blocks in flight
+// whatever the reader's size. A failed write may leave holes in the remote file, and the caller
+// discards the attempt as it does any failed write.
+func writeRemoteFile(client *sftp.Client, filePath string, source io.Reader) error {
+	remoteFile, err := client.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create remote file: %w", err)
+	}
+
+	if _, err := remoteFile.ReadFromWithConcurrency(source, 0); err != nil {
+		_ = remoteFile.Close()
+		return err
+	}
+
+	if err := remoteFile.Close(); err != nil {
+		return fmt.Errorf("failed to close remote file: %w", err)
+	}
+
+	return nil
+}
+
 func (s *SFTPStorage) GetFile(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	client, sshConn, err := s.connect(encryptor, sftpConnectTimeout)
+	lease, err := s.checkoutSession(ctx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SFTP: %w", err)
 	}
 
 	filePath := s.getFilePath(fileName)
 
-	fileInfo, err := client.Stat(filePath)
-	if err != nil {
-		_ = client.Close()
-		_ = sshConn.Close()
+	fileInfo, err := lease.GetSession().sftpClient.Stat(filePath)
+	lease.Release(ignoreNotExist(err))
 
+	if err != nil {
 		return nil, fmt.Errorf("failed to stat file on SFTP: %w", err)
 	}
 
 	totalBytes := fileInfo.Size()
-
-	_ = client.Close()
-	_ = sshConn.Close()
 
 	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
 		StreamCtx:  ctx,
@@ -184,18 +157,15 @@ func (s *SFTPStorage) DeleteFile(
 	deleteCtx, cancel := context.WithTimeout(context.Background(), sftpDeleteTimeout)
 	defer cancel()
 
-	client, sshConn, err := s.connectWithContext(deleteCtx, encryptor, sftpDeleteTimeout)
+	lease, err := s.checkoutSession(deleteCtx, encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SFTP: %w", err)
 	}
-	defer func() {
-		_ = client.Close()
-		_ = sshConn.Close()
-	}()
 
-	filePath := s.getFilePath(fileName)
+	err = ignoreNotExist(lease.GetSession().sftpClient.Remove(s.getFilePath(fileName)))
+	lease.Release(err)
 
-	if err := client.Remove(filePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err != nil {
 		return fmt.Errorf("failed to delete file from SFTP: %w", err)
 	}
 
@@ -284,13 +254,6 @@ func (s *SFTPStorage) Update(incoming *SFTPStorage) {
 	}
 }
 
-func (s *SFTPStorage) connect(
-	encryptor encryption.FieldEncryptor,
-	timeout time.Duration,
-) (*sftp.Client, *ssh.Client, error) {
-	return s.connectWithContext(context.Background(), encryptor, timeout)
-}
-
 func (s *SFTPStorage) connectWithContext(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
@@ -336,6 +299,13 @@ func (s *SFTPStorage) connectWithContext(
 		return nil, nil, fmt.Errorf("failed to dial SFTP server: %w", err)
 	}
 
+	// The SSH handshake and the SFTP init ignore the context, so a server that accepts the TCP
+	// connection and then goes silent would hold the dial forever without this.
+	stopCloseOnCancel := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+	})
+	defer stopCloseOnCancel()
+
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, address, config)
 	if err != nil {
 		_ = conn.Close()
@@ -348,6 +318,11 @@ func (s *SFTPStorage) connectWithContext(
 	if err != nil {
 		_ = sshClient.Close()
 		return nil, nil, fmt.Errorf("failed to create SFTP client: %w", err)
+	}
+
+	if !stopCloseOnCancel() {
+		closeSession(&sftpSession{sshClient: sshClient, sftpClient: sftpClient})
+		return nil, nil, fmt.Errorf("failed to connect to SFTP server: %w", ctx.Err())
 	}
 
 	return sftpClient, sshClient, nil
@@ -375,12 +350,18 @@ func (s *SFTPStorage) ensureDirectory(client *sftp.Client, path string) error {
 			currentPath = currentPath + "/" + part
 		}
 
-		_, err := client.Stat(currentPath)
-		if err != nil {
-			err = client.Mkdir(currentPath)
-			if err != nil {
-				return fmt.Errorf("failed to create directory '%s': %w", currentPath, err)
+		if _, err := client.Stat(currentPath); err == nil {
+			continue
+		}
+
+		// Concurrent sessions dial at once, and the one that loses the race to create the directory
+		// finds it in place.
+		if err := client.Mkdir(currentPath); err != nil {
+			if info, statErr := client.Stat(currentPath); statErr == nil && info.IsDir() {
+				continue
 			}
+
+			return fmt.Errorf("failed to create directory '%s': %w", currentPath, err)
 		}
 	}
 
@@ -399,46 +380,29 @@ func (s *SFTPStorage) getFilePath(filename string) string {
 }
 
 type sftpFileReader struct {
-	file              *sftp.File
-	client            *sftp.Client
-	sshConn           *ssh.Client
-	stopCloseOnCancel func() bool
+	file    *sftp.File
+	lease   *storage_connections.Lease[*sftpSession]
+	readErr error
 }
 
-func (r *sftpFileReader) Read(p []byte) (n int, err error) {
-	return r.file.Read(p)
+func (r *sftpFileReader) Read(p []byte) (int, error) {
+	readBytes, err := r.file.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.readErr = err
+	}
+
+	return readBytes, err
 }
 
 func (r *sftpFileReader) Close() error {
-	var errs []error
-
-	if r.stopCloseOnCancel != nil {
-		r.stopCloseOnCancel()
+	closeErr := r.file.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("failed to close file: %w", closeErr)
 	}
 
-	if r.file != nil {
-		if err := r.file.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close file: %w", err))
-		}
-	}
+	r.lease.Release(errors.Join(r.readErr, closeErr))
 
-	if r.client != nil {
-		if err := r.client.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SFTP client: %w", err))
-		}
-	}
-
-	if r.sshConn != nil {
-		if err := r.sshConn.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close SSH connection: %w", err))
-		}
-	}
-
-	if len(errs) > 0 {
-		return errs[0]
-	}
-
-	return nil
+	return closeErr
 }
 
 type contextReader struct {
@@ -455,47 +419,41 @@ func (r *contextReader) Read(p []byte) (n int, err error) {
 	}
 }
 
-// Each attempt dials a fresh SSH connection: a resumed read follows a dropped one, and the client
-// that carried it is no longer usable.
+// Each attempt takes its own session. A resumed read follows a dropped one, and the session that
+// carried it was closed when its read failed, so the retry gets a live one.
 func (s *SFTPStorage) openFileAtOffset(
 	attemptCtx context.Context,
 	encryptor encryption.FieldEncryptor,
 	filePath string,
 	offsetBytes int64,
 ) (io.ReadCloser, error) {
-	client, sshConn, err := s.connect(encryptor, sftpConnectTimeout)
+	lease, err := s.checkoutSession(attemptCtx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SFTP: %w", err)
 	}
 
-	remoteFile, err := client.Open(filePath)
+	remoteFile, err := lease.GetSession().sftpClient.Open(filePath)
 	if err != nil {
-		_ = client.Close()
-		_ = sshConn.Close()
-
+		lease.Release(ignoreNotExist(err))
 		return nil, fmt.Errorf("failed to open file from SFTP: %w", err)
 	}
 
 	if offsetBytes > 0 {
 		if _, err := remoteFile.Seek(offsetBytes, io.SeekStart); err != nil {
 			_ = remoteFile.Close()
-			_ = client.Close()
-			_ = sshConn.Close()
+			lease.Release(err)
 
 			return nil, fmt.Errorf("failed to resume SFTP read at offset %d: %w", offsetBytes, err)
 		}
 	}
 
-	// The SFTP client takes no context, so a read blocked on a silent server would ignore the
-	// caller's cancellation; closing the connection is what unblocks it.
-	stopCloseOnCancel := context.AfterFunc(attemptCtx, func() {
-		_ = sshConn.Close()
-	})
+	return &sftpFileReader{file: remoteFile, lease: lease}, nil
+}
 
-	return &sftpFileReader{
-		file:              remoteFile,
-		client:            client,
-		sshConn:           sshConn,
-		stopCloseOnCancel: stopCloseOnCancel,
-	}, nil
+func ignoreNotExist(err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	return err
 }

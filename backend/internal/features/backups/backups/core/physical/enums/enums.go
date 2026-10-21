@@ -93,3 +93,14 @@ const (
 	// the scheduler creates.
 	PhysicalBackupTypeWal PhysicalBackupType = "WAL"
 )
+
+type PhysicalWalStreamSourceState string
+
+const (
+	PhysicalWalStreamSourceStateReachable   PhysicalWalStreamSourceState = "REACHABLE"
+	PhysicalWalStreamSourceStateUnreachable PhysicalWalStreamSourceState = "UNREACHABLE"
+
+	// The source answered, but Databasus's replication slot no longer exists there.
+	// Unlike an unreachable source, this means the WAL chain is already broken.
+	PhysicalWalStreamSourceStateSlotMissing PhysicalWalStreamSourceState = "SLOT_MISSING"
+)

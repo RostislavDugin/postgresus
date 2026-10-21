@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -22,21 +24,27 @@ import (
 )
 
 // newTestUploader wires a WalUploader against the real catalog repo and a mock
-// storage, using the fixture's database/storage IDs for FK integrity.
+// storage, using the fixture's database/storage IDs for FK integrity. Tests write
+// the segments they upload into its watch directory, which the gap probe reads.
 func newTestUploader(
+	t *testing.T,
 	fixture *PhysicalDBFixture,
 	store *mockWalStorage,
 	onGap func(walmath.LSN, walmath.LSN),
 ) *WalUploader {
-	return newTestUploaderWithStore(fixture, store, newMockWalStoreFor(store), onGap)
+	t.Helper()
+
+	return newTestUploaderWithStore(t, fixture, newMockWalStoreFor(store), onGap)
 }
 
 func newTestUploaderWithStore(
+	t *testing.T,
 	fixture *PhysicalDBFixture,
-	store *mockWalStorage,
 	fileStore *storage_files.Store,
 	onGap func(walmath.LSN, walmath.LSN),
 ) *WalUploader {
+	t.Helper()
+
 	return NewWalUploader(WalUploadDeps{
 		DatabaseID:          fixture.DB.ID,
 		StorageID:           fixture.Storage.ID,
@@ -46,6 +54,7 @@ func newTestUploaderWithStore(
 		WalSegmentRepo:      physical_repositories.GetWalSegmentRepository(),
 		WalSegmentSizeBytes: testWalSegmentSize,
 		Logger:              logger.GetLogger(),
+		WatchDir:            t.TempDir(),
 		OnGapDetected:       onGap,
 	})
 }
@@ -68,9 +77,9 @@ func Test_WalUpload_ClaimSucceeds_SaveFileLands_FileNameUpdatedFromNullToNonNull
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	name := walName(1, 5)
 	localPath := writeWalFile(t, dir, name)
 
@@ -95,9 +104,9 @@ func Test_WalUpload_SaveFileFails_ClaimRowDeletedLocalRetained_NextTickSucceeds(
 
 	store := newMockWalStorage()
 	store.failSaveTimes = 1
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	name := walName(1, 9)
 	localPath := writeWalFile(t, dir, name)
 
@@ -121,9 +130,9 @@ func Test_WalUpload_WhenSegmentFileIsShort_SkipsClaimAndRetainsFile(t *testing.T
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	name := walName(1, 21)
 	tornSegmentPath := writeSegmentOfSize(t, dir, name, testWalSegmentSize/2)
 
@@ -138,9 +147,9 @@ func Test_WalUpload_WhenSegmentFileIsShort_WritesNothingToStorage(t *testing.T) 
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	name := walName(1, 22)
 
 	require.NoError(t, uploader.ProcessSegment(
@@ -157,9 +166,9 @@ func Test_WalUpload_DuplicateClaim_CompletedRow_DropsLocalNoStorageWrite(t *test
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	name := walName(1, 11)
 
 	// First uploader commits the segment.
@@ -182,7 +191,7 @@ func Test_WalUpload_DuplicateClaim_InFlightClaim_RetainsLocalNoStorageWrite(t *t
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
 	name := walName(1, 13)
 	startLSN := walmath.LSN(13 * uint64(testWalSegmentSize))
@@ -202,7 +211,7 @@ func Test_WalUpload_DuplicateClaim_InFlightClaim_RetainsLocalNoStorageWrite(t *t
 	require.NoError(t, err)
 	require.True(t, inserted)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	local := writeWalFile(t, dir, name)
 
 	require.NoError(t, uploader.ProcessSegment(context.Background(), local, name))
@@ -226,9 +235,9 @@ func Test_WalUpload_DeleteCascadesIntoNullClaim_UploadCompletes_DeleteFileCleans
 	store.blockOn = name
 	store.started = make(chan struct{})
 	store.release = make(chan struct{})
-	uploader := newTestUploaderWithStore(fixture, store, walStore, nil)
+	uploader := newTestUploaderWithStore(t, fixture, walStore, nil)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	local := writeWalFile(t, dir, name)
 
 	uploadErr := make(chan error, 1)
@@ -270,12 +279,12 @@ func Test_WalUpload_PostUpdateGapProbe_EmitsSingleNotificationPerOutage(t *testi
 	var gapStart, gapEnd walmath.LSN
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, func(start, end walmath.LSN) {
+	uploader := newTestUploader(t, fixture, store, func(start, end walmath.LSN) {
 		gapCount.Add(1)
 		gapStart, gapEnd = start, end
 	})
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 
 	// Commit segment 20, then a discontiguous backlog 22, 23, 24 (segment 21 was
 	// lost to a storage outage). Only the first post-gap segment (22) is
@@ -296,9 +305,9 @@ func Test_WalUpload_ContiguousSegments_NoGapNotification(t *testing.T) {
 	var gapCount atomic.Int64
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, func(_, _ walmath.LSN) { gapCount.Add(1) })
+	uploader := newTestUploader(t, fixture, store, func(_, _ walmath.LSN) { gapCount.Add(1) })
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 
 	for _, segNo := range []uint64{30, 31, 32} {
 		name := walName(1, segNo)
@@ -327,7 +336,7 @@ func Test_WalUpload_RecoverSegment_TakesOverOwnNullClaim_CommitsExistingRow(t *t
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
 	name := walName(1, 23)
 	startLSN := walmath.LSN(23 * uint64(testWalSegmentSize))
@@ -351,7 +360,7 @@ func Test_WalUpload_RecoverSegment_TakesOverOwnNullClaim_CommitsExistingRow(t *t
 	require.NotNil(t, claim)
 	require.Nil(t, claim.FileName)
 
-	dir := t.TempDir()
+	dir := uploader.deps.WatchDir
 	local := writeWalFile(t, dir, name)
 
 	require.NoError(t, uploader.RecoverSegment(context.Background(), local, name))
@@ -369,12 +378,12 @@ func Test_WalUpload_RecoverSegment_WhenAlreadyCommitted_DropsLocalNoReupload(t *
 	fixture := SetupPhysicalDBForBackup(t)
 
 	store := newMockWalStorage()
-	uploader := newTestUploader(fixture, store, nil)
+	uploader := newTestUploader(t, fixture, store, nil)
 
 	name := walName(1, 29)
 
 	// A normal upload commits the segment (the crash landed after the commit).
-	dir1 := t.TempDir()
+	dir1 := uploader.deps.WatchDir
 	require.NoError(t, uploader.ProcessSegment(context.Background(), writeWalFile(t, dir1, name), name))
 
 	savesAfterCommit := store.saveCount.Load()
@@ -461,4 +470,172 @@ func Test_WalUpload_ConcurrentClaimSameSegment_OnlyWinnerInserts(t *testing.T) {
 	}
 
 	require.Equal(t, 1, winners, "exactly one concurrent claim may win the (db, tl, start_lsn) slot")
+}
+
+func Test_TakeArchivingSnapshot_AfterTwoSegmentsArchived_ReportsCountsTimingsAndConcurrencyOnce(t *testing.T) {
+	fixture := SetupPhysicalDBForBackup(t)
+
+	store := newMockWalStorage()
+	uploader := newTestUploader(t, fixture, store, nil)
+
+	for _, segmentNo := range []uint64{60, 61} {
+		name := walName(1, segmentNo)
+		require.NoError(t, uploader.ProcessSegment(t.Context(), writeWalFile(t, uploader.deps.WatchDir, name), name))
+	}
+
+	uploader.RecordConcurrentUploads(3)
+	uploader.RecordConcurrentUploads(2)
+
+	snapshot := uploader.TakeArchivingSnapshot()
+
+	require.Equal(t, int64(2), snapshot.ArchivedSegments)
+	require.Positive(t, snapshot.ArchivedBytes)
+	require.Positive(t, snapshot.Claim.Longest)
+	require.Positive(t, snapshot.SegmentWrite.Longest)
+	require.Positive(t, snapshot.SidecarWrite.Longest)
+	require.Positive(t, snapshot.Commit.Longest)
+	require.Equal(t, 3, snapshot.HighestConcurrentUploads)
+
+	require.Equal(t, ArchivingSnapshot{}, uploader.TakeArchivingSnapshot(),
+		"each rollup interval reports only what happened since the previous one")
+}
+
+type recordedGap struct {
+	start walmath.LSN
+	end   walmath.LSN
+}
+
+type gapRecorder struct {
+	mutex sync.Mutex
+	gaps  []recordedGap
+}
+
+func (r *gapRecorder) record(start, end walmath.LSN) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.gaps = append(r.gaps, recordedGap{start: start, end: end})
+}
+
+func (r *gapRecorder) getGaps() []recordedGap {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	return slices.Clone(r.gaps)
+}
+
+func newGapProbeUploader(t *testing.T) (*WalUploader, *mockWalStorage, *gapRecorder) {
+	t.Helper()
+
+	fixture := SetupPhysicalDBForBackup(t)
+	store := newMockWalStorage()
+	recorder := &gapRecorder{}
+
+	return newTestUploader(t, fixture, store, recorder.record), store, recorder
+}
+
+func archiveSegment(t *testing.T, uploader *WalUploader, segmentNo uint64) {
+	t.Helper()
+
+	name := walName(1, segmentNo)
+	require.NoError(t, uploader.ProcessSegment(t.Context(), writeWalFile(t, uploader.deps.WatchDir, name), name))
+}
+
+func segmentStartLSN(segmentNo uint64) walmath.LSN {
+	return walmath.LSN(segmentNo * uint64(testWalSegmentSize))
+}
+
+func Test_WalUpload_WhenLaterSegmentFinishesFirst_ReportsNoGap(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 9)
+
+	earlierPath := writeWalFile(t, uploader.deps.WatchDir, walName(1, 10))
+	archiveSegment(t, uploader, 11)
+	require.NoError(t, uploader.ProcessSegment(t.Context(), earlierPath, walName(1, 10)))
+
+	require.Empty(t, recorder.getGaps(), "a segment still uploading is not a gap, before or after it finishes")
+}
+
+func Test_WalUpload_WhenEarlierSegmentFailedAndWaitsForRetry_ReportsNoGap(t *testing.T) {
+	uploader, store, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 9)
+
+	store.failSaveTimes = 1
+	failedPath := writeWalFile(t, uploader.deps.WatchDir, walName(1, 10))
+	require.Error(t, uploader.ProcessSegment(t.Context(), failedPath, walName(1, 10)))
+
+	archiveSegment(t, uploader, 11)
+
+	require.Empty(t, recorder.getGaps(), "a failed segment retried on a later pass is still coming")
+}
+
+func Test_WalUpload_WhenSegmentWasNeverReceived_ReportsGapFromNewestArchived(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 18)
+	archiveSegment(t, uploader, 20)
+
+	require.Equal(t, []recordedGap{{start: segmentStartLSN(19), end: segmentStartLSN(20)}}, recorder.getGaps())
+}
+
+func Test_WalUpload_WhenSegmentBeforeHoleIsStillUploading_StartsGapAfterIt(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 17)
+	writeWalFile(t, uploader.deps.WatchDir, walName(1, 18))
+	archiveSegment(t, uploader, 20)
+
+	require.Equal(t, []recordedGap{{start: segmentStartLSN(19), end: segmentStartLSN(20)}}, recorder.getGaps(),
+		"the hole starts after the segment that is still uploading, not after the newest archived one")
+}
+
+func Test_WalUpload_WhenHoleSpansSeveralSegments_ReportsOneGap(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 27)
+	archiveSegment(t, uploader, 30)
+
+	require.Equal(t, []recordedGap{{start: segmentStartLSN(28), end: segmentStartLSN(30)}}, recorder.getGaps())
+}
+
+func Test_WalUpload_WhenTwoGapsFinishOutOfOrder_ReportsBoth(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 28)
+
+	lowerSegmentPath := writeWalFile(t, uploader.deps.WatchDir, walName(1, 30))
+	archiveSegment(t, uploader, 40)
+	require.NoError(t, uploader.ProcessSegment(t.Context(), lowerSegmentPath, walName(1, 30)))
+
+	require.Equal(t, []recordedGap{
+		{start: segmentStartLSN(31), end: segmentStartLSN(40)},
+		{start: segmentStartLSN(29), end: segmentStartLSN(30)},
+	}, recorder.getGaps(), "a lower gap found after a higher one is a separate gap")
+}
+
+func Test_WalUpload_WhenPredecessorWaitsInPendingUpload_ReportsNoGap(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 9)
+
+	pendingUploadDir := filepath.Join(uploader.deps.WatchDir, pendingUploadDirName)
+	require.NoError(t, os.MkdirAll(pendingUploadDir, 0o700))
+	writeWalFile(t, pendingUploadDir, walName(1, 10))
+
+	archiveSegment(t, uploader, 11)
+
+	require.Empty(t, recorder.getGaps())
+}
+
+func Test_WalUpload_WhenSegmentBeforeGapLeftOnlyShortFile_ReportsGap(t *testing.T) {
+	uploader, _, recorder := newGapProbeUploader(t)
+
+	archiveSegment(t, uploader, 19)
+	writeSegmentOfSize(t, uploader.deps.WatchDir, walName(1, 20), testWalSegmentSize/2)
+	archiveSegment(t, uploader, 21)
+
+	require.Equal(t, []recordedGap{{start: segmentStartLSN(20), end: segmentStartLSN(21)}}, recorder.getGaps(),
+		"the receiver never streams a segment below its resume point again, so a short file is a hole")
 }

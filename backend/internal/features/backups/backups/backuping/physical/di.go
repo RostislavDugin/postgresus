@@ -66,6 +66,7 @@ var physicalBackupCleaner = &PhysicalBackupCleaner{
 	backups_config_physical.GetBackupConfigService(),
 	physical_repositories.GetFullBackupRepository(),
 	physical_repositories.GetWalSegmentRepository(),
+	physical_repositories.GetWalStreamSampleRepository(),
 	logger.GetLogger(),
 	atomic.Bool{},
 }
@@ -80,6 +81,7 @@ var physicalWalStreamSupervisor = &PhysicalWalStreamSupervisor{
 	physical_repositories.GetWalSegmentRepository(),
 	physical_repositories.GetWalHistoryRepository(),
 	physical_repositories.GetWalStreamerRepository(),
+	physical_repositories.GetWalStreamSampleRepository(),
 	notifiers.GetNotifierService(),
 	tasks_cancellation.GetRegistry(),
 	encryption_secrets.GetSecretKeyService(),

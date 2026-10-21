@@ -3,20 +3,28 @@ package storages
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
+	storage_files "databasus-backend/internal/features/storages/files"
 	azure_blob_storage "databasus-backend/internal/features/storages/models/azure_blob"
 	ftp_storage "databasus-backend/internal/features/storages/models/ftp"
 	local_storage "databasus-backend/internal/features/storages/models/local"
@@ -24,6 +32,10 @@ import (
 	rclone_storage "databasus-backend/internal/features/storages/models/rclone"
 	s3_storage "databasus-backend/internal/features/storages/models/s3"
 	sftp_storage "databasus-backend/internal/features/storages/models/sftp"
+	users_enums "databasus-backend/internal/features/users/enums"
+	users_testing "databasus-backend/internal/features/users/testing"
+	workspaces_testing "databasus-backend/internal/features/workspaces/testing"
+	db "databasus-backend/internal/storage"
 	"databasus-backend/internal/util/encryption"
 	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/testing/containers"
@@ -37,33 +49,26 @@ type S3Container struct {
 	region     string
 }
 
-type AzuriteContainer struct {
-	endpoint         string
-	accountName      string
-	accountKey       string
-	containerNameKey string
-	containerNameStr string
-	connectionString string
-}
-
 func Test_Storage_BasicOperations(t *testing.T) {
-	ctx := t.Context()
-
-	minioEndpoint := containers.StartMinio(t)
-	azuriteEndpoint := containers.StartAzurite(t)
-	nasEndpoint := containers.StartSamba(t)
-	ftpEndpoint := containers.StartFtp(t)
-	sftpEndpoint := containers.StartSftp(t)
-
-	s3Container, err := setupS3Container(ctx, addressOf(minioEndpoint))
-	require.NoError(t, err, "Failed to setup S3 container")
-
-	azuriteContainer, err := setupAzuriteContainer(ctx, addressOf(azuriteEndpoint))
-	require.NoError(t, err, "Failed to setup Azurite container")
+	minio := containers.StartMinioContainer(t)
+	azurite := containers.StartAzuriteContainer(t)
+	samba := containers.StartSambaContainer(t)
+	ftp := containers.StartFtpContainer(t)
+	sftp := containers.StartSftpContainer(t)
 
 	testFilePath, err := setupTestFile()
 	require.NoError(t, err, "Failed to setup test file")
 	defer os.Remove(testFilePath)
+
+	s3WithStorageClass := buildTestStorage(t, StorageTypeS3, minio)
+	s3WithStorageClass.S3Storage.S3StorageClass = s3_storage.S3StorageClassStandard
+
+	azureWithConnectionString := buildTestStorage(t, StorageTypeAzureBlob, azurite)
+	azureWithConnectionString.AzureBlobStorage = &azure_blob_storage.AzureBlobStorage{
+		AuthMethod:       azure_blob_storage.AuthMethodConnectionString,
+		ConnectionString: getAzuriteConnectionString(addressOf(azurite.Endpoint)),
+		ContainerName:    azureWithConnectionString.AzureBlobStorage.ContainerName,
+	}
 
 	testCases := []struct {
 		name    string
@@ -71,102 +76,39 @@ func Test_Storage_BasicOperations(t *testing.T) {
 	}{
 		{
 			name:    "LocalStorage",
-			storage: &local_storage.LocalStorage{StorageID: uuid.New()},
+			storage: createTestStorageOfType(t, StorageTypeLocal, containers.ContainerHandle{}),
 		},
 		{
-			name: "S3Storage",
-			storage: &s3_storage.S3Storage{
-				StorageID:   uuid.New(),
-				S3Bucket:    s3Container.bucketName,
-				S3Region:    s3Container.region,
-				S3AccessKey: s3Container.accessKey,
-				S3SecretKey: s3Container.secretKey,
-				S3Endpoint:  "http://" + s3Container.endpoint,
-			},
+			name:    "S3Storage",
+			storage: createTestStorageOfType(t, StorageTypeS3, minio),
 		},
 		{
-			name: "S3Storage_WithStorageClass",
-			storage: &s3_storage.S3Storage{
-				StorageID:      uuid.New(),
-				S3Bucket:       s3Container.bucketName,
-				S3Region:       s3Container.region,
-				S3AccessKey:    s3Container.accessKey,
-				S3SecretKey:    s3Container.secretKey,
-				S3Endpoint:     "http://" + s3Container.endpoint,
-				S3StorageClass: s3_storage.S3StorageClassStandard,
-			},
+			name:    "S3Storage_WithStorageClass",
+			storage: saveTestStorage(t, s3WithStorageClass),
 		},
 		{
-			name: "NASStorage",
-			storage: &nas_storage.NASStorage{
-				StorageID: uuid.New(),
-				Host:      nasEndpoint.Host,
-				Port:      nasEndpoint.Port,
-				Share:     containers.SambaShare,
-				Username:  containers.SambaUsername,
-				Password:  containers.SambaPassword,
-				UseSSL:    false,
-				Domain:    "",
-				Path:      "test-files",
-			},
+			name:    "NASStorage",
+			storage: createTestStorageOfType(t, StorageTypeNAS, samba),
 		},
 		{
-			name: "AzureBlobStorage_AccountKey",
-			storage: &azure_blob_storage.AzureBlobStorage{
-				StorageID:     uuid.New(),
-				AuthMethod:    azure_blob_storage.AuthMethodAccountKey,
-				AccountName:   azuriteContainer.accountName,
-				AccountKey:    azuriteContainer.accountKey,
-				ContainerName: azuriteContainer.containerNameKey,
-				Endpoint:      azuriteContainer.endpoint,
-			},
+			name:    "AzureBlobStorage_AccountKey",
+			storage: createTestStorageOfType(t, StorageTypeAzureBlob, azurite),
 		},
 		{
-			name: "AzureBlobStorage_ConnectionString",
-			storage: &azure_blob_storage.AzureBlobStorage{
-				StorageID:        uuid.New(),
-				AuthMethod:       azure_blob_storage.AuthMethodConnectionString,
-				ConnectionString: azuriteContainer.connectionString,
-				ContainerName:    azuriteContainer.containerNameStr,
-			},
+			name:    "AzureBlobStorage_ConnectionString",
+			storage: saveTestStorage(t, azureWithConnectionString),
 		},
 		{
-			name: "FTPStorage",
-			storage: &ftp_storage.FTPStorage{
-				StorageID: uuid.New(),
-				Host:      ftpEndpoint.Host,
-				Port:      ftpEndpoint.Port,
-				Username:  containers.FtpUsername,
-				Password:  containers.FtpPassword,
-				UseSSL:    false,
-				Path:      "test-files",
-			},
+			name:    "FTPStorage",
+			storage: createTestStorageOfType(t, StorageTypeFTP, ftp),
 		},
 		{
-			name: "SFTPStorage",
-			storage: &sftp_storage.SFTPStorage{
-				StorageID:         uuid.New(),
-				Host:              sftpEndpoint.Host,
-				Port:              sftpEndpoint.Port,
-				Username:          containers.SftpUsername,
-				Password:          containers.SftpPassword,
-				SkipHostKeyVerify: true,
-				Path:              containers.SftpUploadDir,
-			},
+			name:    "SFTPStorage",
+			storage: createTestStorageOfType(t, StorageTypeSFTP, sftp),
 		},
 		{
-			name: "RcloneStorage",
-			storage: &rclone_storage.RcloneStorage{
-				StorageID: uuid.New(),
-				ConfigContent: fmt.Sprintf(`[minio]
-type = s3
-provider = Other
-access_key_id = %s
-secret_access_key = %s
-endpoint = http://%s
-acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoint),
-				RemotePath: s3Container.bucketName,
-			},
+			name:    "RcloneStorage",
+			storage: createTestStorageOfType(t, StorageTypeRclone, minio),
 		},
 	}
 
@@ -275,6 +217,412 @@ acl = private`, s3Container.accessKey, s3Container.secretKey, s3Container.endpoi
 	}
 }
 
+// WAL archiving writes a 16 MiB segment and a 1 KiB metadata sidecar per segment, and a busy source
+// needs about 1.3 segments per second. Two pairs per second against a storage 50 ms away leaves room
+// for a loaded CI runner while still catching a write path that pays a round trip per block or a
+// handshake per file.
+const (
+	throughputEgressDelay   = 50 * time.Millisecond
+	throughputPairCount     = 24
+	throughputWriterCount   = 4
+	throughputTimeLimit     = 12 * time.Second
+	segmentSizedFileBytes   = 16 * 1024 * 1024
+	metadataSizedFileBytes  = 1024
+	writeFailureReportLimit = 3
+)
+
+type remoteStorageTarget struct {
+	name           string
+	storageType    StorageType
+	startContainer func(t *testing.T) containers.ContainerHandle
+}
+
+func getRemoteStorageTargets() []remoteStorageTarget {
+	return []remoteStorageTarget{
+		{"S3", StorageTypeS3, containers.StartMinioContainer},
+		{"AzureBlob", StorageTypeAzureBlob, containers.StartAzuriteContainer},
+		{"SFTP", StorageTypeSFTP, containers.StartSftpContainer},
+		{"FTP", StorageTypeFTP, containers.StartFtpContainer},
+		{"NAS", StorageTypeNAS, containers.StartSambaContainer},
+		{"Rclone", StorageTypeRclone, containers.StartMinioContainer},
+	}
+}
+
+func Test_WriteFile_WhenStorageAnswers50msLate_SustainsTwoSegmentsPerSecond(t *testing.T) {
+	targets := append(getRemoteStorageTargets(), remoteStorageTarget{"Local", StorageTypeLocal, nil})
+
+	for _, target := range targets {
+		t.Run(target.name, func(t *testing.T) {
+			t.Parallel()
+
+			var container containers.ContainerHandle
+			if target.startContainer != nil {
+				container = target.startContainer(t)
+				containers.AddEgressDelay(t, container, throughputEgressDelay)
+			}
+
+			storage := createTestStorageOfType(t, target.storageType, container)
+
+			segmentContent := generateRandomContent(t, segmentSizedFileBytes)
+			metadataContent := generateRandomContent(t, metadataSizedFileBytes)
+
+			written := writeSegmentPairsConcurrently(t, storage.ID, segmentContent, metadataContent)
+
+			if target.startContainer != nil {
+				t.Cleanup(func() { containers.ClearEgressShaping(t, container) })
+			}
+
+			require.Empty(t, written.failures, "writes failed after %d pairs in %s", written.pairCount, written.elapsed)
+			require.Equal(
+				t,
+				throughputPairCount,
+				written.pairCount,
+				"only %d of %d pairs were written within %s, the writers stopped after %s",
+				written.pairCount,
+				throughputPairCount,
+				throughputTimeLimit,
+				written.elapsed,
+			)
+
+			t.Logf("%d pairs written in %s", written.pairCount, written.elapsed)
+		})
+	}
+}
+
+type writtenPairs struct {
+	pairCount int
+	elapsed   time.Duration
+	failures  []error
+}
+
+// Writers stop taking jobs once the time limit passes, and the call waits for the writes already in
+// flight, so every file that reached the storage is handed to cleanup.
+func writeSegmentPairsConcurrently(
+	t *testing.T,
+	storageID uuid.UUID,
+	segmentContent []byte,
+	metadataContent []byte,
+) writtenPairs {
+	t.Helper()
+
+	var (
+		resultMutex      sync.Mutex
+		result           writtenPairs
+		writersWaitGroup sync.WaitGroup
+	)
+
+	writtenFiles := trackWrittenFiles(t, storageID)
+
+	pairIndexes := make(chan int, throughputPairCount)
+	for pairIndex := range throughputPairCount {
+		pairIndexes <- pairIndex
+	}
+	close(pairIndexes)
+
+	startedAt := time.Now()
+
+	writePair := func(pairIndex int) error {
+		pairName := fmt.Sprintf("throughput-%s-%d", uuid.New(), pairIndex)
+
+		if err := writtenFiles.write(t.Context(), pairName, segmentContent); err != nil {
+			return err
+		}
+
+		return writtenFiles.write(t.Context(), pairName+".metadata", metadataContent)
+	}
+
+	for range throughputWriterCount {
+		writersWaitGroup.Go(func() {
+			for pairIndex := range pairIndexes {
+				if time.Since(startedAt) > throughputTimeLimit {
+					return
+				}
+
+				err := writePair(pairIndex)
+				isWithinLimit := time.Since(startedAt) <= throughputTimeLimit
+
+				resultMutex.Lock()
+				if err != nil && len(result.failures) < writeFailureReportLimit {
+					result.failures = append(result.failures, err)
+				}
+
+				if err == nil && isWithinLimit {
+					result.pairCount++
+					result.elapsed = time.Since(startedAt)
+				}
+				resultMutex.Unlock()
+
+				if err != nil {
+					return
+				}
+			}
+		})
+	}
+
+	writersWaitGroup.Wait()
+
+	if result.pairCount < throughputPairCount {
+		result.elapsed = time.Since(startedAt)
+	}
+
+	return result
+}
+
+// Every file a test writes, the failed attempts included, is handed to the deletion worker at the
+// end of the test, the way a backup that never publishes its files hands them back.
+type writtenFileTracker struct {
+	storageID uuid.UUID
+
+	mutex      sync.Mutex
+	references []storage_files.StoredFileReference
+}
+
+func trackWrittenFiles(t *testing.T, storageID uuid.UUID) *writtenFileTracker {
+	t.Helper()
+
+	tracker := &writtenFileTracker{storageID: storageID}
+	t.Cleanup(tracker.requestDeletionAndDrainFunc(t))
+
+	return tracker
+}
+
+func (w *writtenFileTracker) write(ctx context.Context, fileName string, content []byte) error {
+	reference := storage_files.StoredFileReference{StorageID: w.storageID, FileName: fileName}
+
+	w.mutex.Lock()
+	w.references = append(w.references, reference)
+	w.mutex.Unlock()
+
+	_, err := GetStorageFileStore().WriteFile(ctx, reference, bytes.NewReader(content))
+
+	return err
+}
+
+func (w *writtenFileTracker) writeUniqueFile(ctx context.Context, content []byte) error {
+	return w.write(ctx, "test-file-"+uuid.New().String(), content)
+}
+
+func (w *writtenFileTracker) requestDeletionAndDrainFunc(t *testing.T) func() {
+	return func() {
+		w.mutex.Lock()
+		references := slices.Clone(w.references)
+		w.references = nil
+		w.mutex.Unlock()
+
+		requestDeletionAndDrain(t, references)
+	}
+}
+
+func requestDeletionAndDrain(t *testing.T, references []storage_files.StoredFileReference) {
+	t.Helper()
+
+	if len(references) == 0 {
+		return
+	}
+
+	ctx := context.WithoutCancel(t.Context())
+
+	err := db.GetDb().Transaction(func(tx *gorm.DB) error {
+		return GetStorageFileStore().RequestFileDeletions(ctx, tx, references)
+	})
+	if err != nil {
+		t.Errorf("failed to request deletion of written files: %v", err)
+		return
+	}
+
+	if err := DrainStorageFileDeletions(ctx, references...); err != nil {
+		t.Errorf("failed to drain deletion of written files: %v", err)
+	}
+}
+
+func generateRandomContent(t *testing.T, size int) []byte {
+	t.Helper()
+
+	content := make([]byte, size)
+	_, err := rand.Read(content)
+	require.NoError(t, err)
+
+	return content
+}
+
+func Test_WriteFile_WhenCredentialsChangeToWrongOnes_NextWriteFailsUntilCorrected(t *testing.T) {
+	for _, target := range getRemoteStorageTargets() {
+		t.Run(target.name, func(t *testing.T) {
+			t.Parallel()
+
+			storage := createTestStorageOfType(t, target.storageType, target.startContainer(t))
+			writtenFiles := trackWrittenFiles(t, storage.ID)
+			content := generateRandomContent(t, metadataSizedFileBytes)
+
+			require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), content))
+
+			setTestStorageSecret(t, storage.ID, getWrongTestSecret(t, target.storageType))
+			require.Error(
+				t,
+				writtenFiles.writeUniqueFile(t.Context(), content),
+				"a write after the credentials changed must use the new, wrong ones",
+			)
+
+			setTestStorageSecret(t, storage.ID, getCorrectTestSecret(t, target.storageType))
+			require.NoError(
+				t,
+				writtenFiles.writeUniqueFile(t.Context(), content),
+				"a write after the credentials were corrected must use the corrected ones",
+			)
+		})
+	}
+}
+
+func Test_WriteFile_AfterStorageIsDeleted_Fails(t *testing.T) {
+	for _, target := range getRemoteStorageTargets() {
+		t.Run(target.name, func(t *testing.T) {
+			t.Parallel()
+
+			storage := createTestStorageOfType(t, target.storageType, target.startContainer(t))
+			writtenFiles := trackWrittenFiles(t, storage.ID)
+			content := generateRandomContent(t, metadataSizedFileBytes)
+
+			require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), content))
+
+			// The written file is removed while its storage still exists, since the deletion worker
+			// can no longer reach a deleted storage.
+			writtenFiles.requestDeletionAndDrainFunc(t)()
+			RemoveTestStorage(t.Context(), storage.ID)
+
+			// The write is not tracked: no file can reach a deleted storage, and a deletion request
+			// for it would name a storage that no longer exists.
+			_, err := GetStorageFileStore().WriteFile(
+				t.Context(),
+				storage_files.StoredFileReference{
+					StorageID: storage.ID,
+					FileName:  "after-deletion-" + uuid.New().String(),
+				},
+				bytes.NewReader(content),
+			)
+			assert.Error(t, err)
+		})
+	}
+}
+
+// The deadline plus the three seconds the spec allows a write to outlive it.
+const (
+	silentStorageWriteDeadline = 5 * time.Second
+	silentStorageReturnLimit   = 8 * time.Second
+)
+
+func Test_WriteFile_WhenStorageGoesSilentMidConnection_FailsByDeadlineAndRedials(t *testing.T) {
+	for _, target := range getRemoteStorageTargets() {
+		if target.storageType == StorageTypeRclone {
+			continue
+		}
+
+		t.Run(target.name, func(t *testing.T) {
+			t.Parallel()
+
+			container := target.startContainer(t)
+			storage := createTestStorageOfType(t, target.storageType, container)
+			writtenFiles := trackWrittenFiles(t, storage.ID)
+			content := generateRandomContent(t, segmentSizedFileBytes)
+
+			require.NoError(t, writtenFiles.writeUniqueFile(t.Context(), content))
+
+			containers.SetEgressLoss(t, container)
+			t.Cleanup(func() { containers.ClearEgressShaping(t, container) })
+
+			writeCtx, cancel := context.WithTimeout(t.Context(), silentStorageWriteDeadline)
+			defer cancel()
+
+			writeResult := make(chan error, 1)
+			go func() {
+				writeResult <- writtenFiles.writeUniqueFile(writeCtx, content)
+			}()
+
+			select {
+			case err := <-writeResult:
+				require.Error(t, err, "a write to a silent storage must fail")
+			case <-time.After(silentStorageReturnLimit):
+				t.Fatalf("a write to a silent storage did not return within %s", silentStorageReturnLimit)
+			}
+
+			containers.ClearEgressShaping(t, container)
+
+			require.NoError(
+				t,
+				writtenFiles.writeUniqueFile(t.Context(), content),
+				"the next write must not reuse the connection that went silent",
+			)
+		})
+	}
+}
+
+var rcloneSecretLine = regexp.MustCompile(`(?m)^secret_access_key = .*$`)
+
+func setTestStorageSecret(t *testing.T, storageID uuid.UUID, secret string) {
+	t.Helper()
+
+	storage, err := storageRepository.FindByID(t.Context(), storageID)
+	require.NoError(t, err)
+
+	switch storage.Type {
+	case StorageTypeS3:
+		storage.S3Storage.S3SecretKey = secret
+	case StorageTypeAzureBlob:
+		storage.AzureBlobStorage.AccountKey = secret
+	case StorageTypeSFTP:
+		storage.SFTPStorage.Password = secret
+	case StorageTypeFTP:
+		storage.FTPStorage.Password = secret
+	case StorageTypeNAS:
+		storage.NASStorage.Password = secret
+	case StorageTypeRclone:
+		configContent, err := encryption.GetFieldEncryptor().Decrypt(storage.RcloneStorage.ConfigContent)
+		require.NoError(t, err)
+
+		storage.RcloneStorage.ConfigContent = rcloneSecretLine.ReplaceAllLiteralString(
+			configContent, "secret_access_key = "+secret,
+		)
+	default:
+		t.Fatalf("no test secret for storage type %s", storage.Type)
+	}
+
+	require.NoError(t, storage.EncryptSensitiveData(encryption.GetFieldEncryptor()))
+
+	_, err = storageRepository.Save(storage)
+	require.NoError(t, err)
+}
+
+func getCorrectTestSecret(t *testing.T, storageType StorageType) string {
+	t.Helper()
+
+	switch storageType {
+	case StorageTypeS3, StorageTypeRclone:
+		return containers.MinioRootPassword
+	case StorageTypeAzureBlob:
+		return containers.AzuriteAccountKey
+	case StorageTypeSFTP:
+		return containers.SftpPassword
+	case StorageTypeFTP:
+		return containers.FtpPassword
+	case StorageTypeNAS:
+		return containers.SambaPassword
+	default:
+		t.Fatalf("no test secret for storage type %s", storageType)
+		return ""
+	}
+}
+
+// An Azure account key must stay valid base64, or the client fails on decoding it and the test
+// would never reach the server.
+func getWrongTestSecret(t *testing.T, storageType StorageType) string {
+	t.Helper()
+
+	if storageType == StorageTypeAzureBlob {
+		return base64.StdEncoding.EncodeToString(generateRandomContent(t, 64))
+	}
+
+	return "wrong-secret-" + uuid.New().String()
+}
+
 func addressOf(endpoint containers.Endpoint) string {
 	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 }
@@ -344,42 +692,158 @@ func setupS3Container(ctx context.Context, address string) (*S3Container, error)
 	}, nil
 }
 
-// setupAzuriteContainer creates the two blob containers on the Azurite server at address (host:port).
-func setupAzuriteContainer(ctx context.Context, address string) (*AzuriteContainer, error) {
-	accountName := containers.AzuriteAccountName
-	accountKey := containers.AzuriteAccountKey
-	serviceURL := fmt.Sprintf("http://%s/%s", address, accountName)
-	containerNameKey := "test-container-key"
-	containerNameStr := "test-container-connstr"
+const testAzuriteContainerName = "test-container"
 
-	connectionString := fmt.Sprintf(
+func getAzuriteConnectionString(address string) string {
+	return fmt.Sprintf(
 		"DefaultEndpointsProtocol=http;AccountName=%s;AccountKey=%s;BlobEndpoint=http://%s/%s",
-		accountName,
-		accountKey,
+		containers.AzuriteAccountName,
+		containers.AzuriteAccountKey,
 		address,
-		accountName,
+		containers.AzuriteAccountName,
 	)
+}
 
-	client, err := azblob.NewClientFromConnectionString(connectionString, nil)
+func createAzuriteBlobContainer(ctx context.Context, address string) error {
+	client, err := azblob.NewClientFromConnectionString(getAzuriteConnectionString(address), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create azblob client: %w", err)
+		return fmt.Errorf("failed to create azblob client: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// The containers may already exist on a reused server; an AlreadyExists error is harmless here.
-	_, _ = client.CreateContainer(ctx, containerNameKey, nil)
-	_, _ = client.CreateContainer(ctx, containerNameStr, nil)
+	_, err = client.CreateContainer(ctx, testAzuriteContainerName, nil)
+	if err != nil && !bloberror.HasCode(err, bloberror.ContainerAlreadyExists) {
+		return fmt.Errorf("failed to create blob container: %w", err)
+	}
 
-	return &AzuriteContainer{
-		endpoint:         serviceURL,
-		accountName:      accountName,
-		accountKey:       accountKey,
-		containerNameKey: containerNameKey,
-		containerNameStr: containerNameStr,
-		connectionString: connectionString,
-	}, nil
+	return nil
+}
+
+// buildTestStorage points a storage of the given type at the container and prepares whatever the
+// server needs first, such as a bucket. Credentials stay in plain text so a caller can still edit
+// them; saveTestStorage encrypts them.
+func buildTestStorage(t *testing.T, storageType StorageType, container containers.ContainerHandle) *Storage {
+	t.Helper()
+
+	storage := &Storage{
+		Type: storageType,
+		Name: "Test " + string(storageType) + " " + uuid.New().String(),
+	}
+
+	address := addressOf(container.Endpoint)
+
+	switch storageType {
+	case StorageTypeLocal:
+		storage.LocalStorage = &local_storage.LocalStorage{}
+	case StorageTypeS3:
+		s3Container, err := setupS3Container(t.Context(), address)
+		require.NoError(t, err, "failed to set up the S3 container")
+
+		storage.S3Storage = &s3_storage.S3Storage{
+			S3Bucket:    s3Container.bucketName,
+			S3Region:    s3Container.region,
+			S3AccessKey: s3Container.accessKey,
+			S3SecretKey: s3Container.secretKey,
+			S3Endpoint:  "http://" + address,
+		}
+	case StorageTypeAzureBlob:
+		require.NoError(t, createAzuriteBlobContainer(t.Context(), address))
+
+		storage.AzureBlobStorage = &azure_blob_storage.AzureBlobStorage{
+			AuthMethod:    azure_blob_storage.AuthMethodAccountKey,
+			AccountName:   containers.AzuriteAccountName,
+			AccountKey:    containers.AzuriteAccountKey,
+			ContainerName: testAzuriteContainerName,
+			Endpoint:      fmt.Sprintf("http://%s/%s", address, containers.AzuriteAccountName),
+		}
+	case StorageTypeNAS:
+		storage.NASStorage = &nas_storage.NASStorage{
+			Host:     container.Host,
+			Port:     container.Port,
+			Share:    containers.SambaShare,
+			Username: containers.SambaUsername,
+			Password: containers.SambaPassword,
+			Path:     "test-files",
+		}
+	case StorageTypeFTP:
+		storage.FTPStorage = &ftp_storage.FTPStorage{
+			Host:     container.Host,
+			Port:     container.Port,
+			Username: containers.FtpUsername,
+			Password: containers.FtpPassword,
+			Path:     "test-files",
+		}
+	case StorageTypeSFTP:
+		storage.SFTPStorage = &sftp_storage.SFTPStorage{
+			Host:              container.Host,
+			Port:              container.Port,
+			Username:          containers.SftpUsername,
+			Password:          containers.SftpPassword,
+			SkipHostKeyVerify: true,
+			Path:              containers.SftpUploadDir,
+		}
+	case StorageTypeRclone:
+		s3Container, err := setupS3Container(t.Context(), address)
+		require.NoError(t, err, "failed to set up the S3 container behind rclone")
+
+		storage.RcloneStorage = &rclone_storage.RcloneStorage{
+			ConfigContent: getRcloneMinioConfig(s3Container, s3Container.secretKey),
+			RemotePath:    s3Container.bucketName,
+		}
+	default:
+		t.Fatalf("no test setup for storage type %s", storageType)
+	}
+
+	return storage
+}
+
+func getRcloneMinioConfig(s3Container *S3Container, secretKey string) string {
+	return fmt.Sprintf(`[minio]
+type = s3
+provider = Other
+access_key_id = %s
+secret_access_key = %s
+endpoint = http://%s
+acl = private`, s3Container.accessKey, secretKey, s3Container.endpoint)
+}
+
+func saveTestStorage(t *testing.T, storage *Storage) *Storage {
+	t.Helper()
+
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+
+	workspace, err := workspaces_testing.CreateTestWorkspaceDirect("Storage Test Workspace", owner.UserID)
+	require.NoError(t, err)
+
+	storage.WorkspaceID = workspace.ID
+	require.NoError(t, storage.EncryptSensitiveData(encryption.GetFieldEncryptor()))
+
+	savedStorage, err := storageRepository.Save(storage)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if _, err := storageRepository.FindByID(context.WithoutCancel(t.Context()), savedStorage.ID); err == nil {
+			RemoveTestStorage(t.Context(), savedStorage.ID)
+		}
+
+		if err := workspaces_testing.RemoveTestWorkspaceDirect(workspace.ID); err != nil {
+			t.Logf("failed to remove test workspace: %v", err)
+		}
+	})
+
+	return savedStorage
+}
+
+func createTestStorageOfType(
+	t *testing.T,
+	storageType StorageType,
+	container containers.ContainerHandle,
+) *Storage {
+	t.Helper()
+
+	return saveTestStorage(t, buildTestStorage(t, storageType, container))
 }
 
 func Test_RcloneStorage_DeleteFile_WhenAuthFailsOnLookup_ReturnsErrorAndDoesNotDeleteObject(t *testing.T) {
@@ -420,15 +884,9 @@ func Test_RcloneStorage_DeleteFile_WhenAuthFailsOnLookup_ReturnsErrorAndDoesNotD
 	})
 
 	rcloneStorage := &rclone_storage.RcloneStorage{
-		StorageID: uuid.New(),
-		ConfigContent: fmt.Sprintf(`[minio]
-type = s3
-provider = Other
-access_key_id = %s
-secret_access_key = totally-wrong-secret-key
-endpoint = http://%s
-acl = private`, s3Container.accessKey, s3Container.endpoint),
-		RemotePath: s3Container.bucketName,
+		StorageID:     uuid.New(),
+		ConfigContent: getRcloneMinioConfig(s3Container, "totally-wrong-secret-key"),
+		RemotePath:    s3Container.bucketName,
 	}
 
 	encryptor := encryption.GetFieldEncryptor()

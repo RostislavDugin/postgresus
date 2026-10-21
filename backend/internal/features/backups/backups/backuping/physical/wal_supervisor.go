@@ -17,6 +17,7 @@ import (
 	"databasus-backend/internal/config"
 	backups_core_enums "databasus-backend/internal/features/backups/backups/core/enums"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/databases"
@@ -41,6 +42,7 @@ type PhysicalWalStreamSupervisor struct {
 	walSegmentRepo           *physical_repositories.PhysicalWalSegmentRepository
 	historyRepo              *physical_repositories.PhysicalWalHistoryRepository
 	walStreamerRepo          *physical_repositories.PhysicalWalStreamerRepository
+	walStreamSampleRepo      *physical_repositories.PhysicalWalStreamSampleRepository
 	notificationSender       NotificationSender
 	taskCancellationRegistry *tasks_cancellation.Registry
 	secretKeyService         *encryption_secrets.SecretKeyService
@@ -68,6 +70,29 @@ type runningStreamer struct {
 	done                 chan struct{}
 	watchDir             string
 	shouldRemoveWatchDir atomic.Bool
+
+	// Read by GetLiveState; the HTTP handlers and the streamers share one
+	// process, so the running streamer's memory is the live source.
+	walStreamSupervisor *postgresql_executor.WalStreamSupervisor
+}
+
+// GetLiveState returns the current values of the database's running WAL
+// stream, or false while no streamer runs for it in this process.
+func (s *PhysicalWalStreamSupervisor) GetLiveState(
+	databaseID uuid.UUID,
+	now time.Time,
+) (*postgresql_executor.WalStreamLiveState, bool) {
+	s.mu.Lock()
+	streamer, isRunning := s.running[databaseID]
+	s.mu.Unlock()
+
+	if !isRunning || streamer.walStreamSupervisor == nil {
+		return nil, false
+	}
+
+	liveState := streamer.walStreamSupervisor.GetLiveState(now)
+
+	return &liveState, true
 }
 
 func (s *PhysicalWalStreamSupervisor) IsRunning() bool {
@@ -124,7 +149,7 @@ func (s *PhysicalWalStreamSupervisor) Run(ctx context.Context) {
 }
 
 func (s *PhysicalWalStreamSupervisor) recoverStreamersOnStartup() error {
-	failed, err := s.walStreamerRepo.MarkStaleRunningFailed(int(streamerHeartbeatStaleness.Seconds()))
+	failed, err := s.walStreamerRepo.MarkStaleRunningFailed(int(wal_health.StreamerHeartbeatStaleness.Seconds()))
 	if err != nil {
 		return err
 	}
@@ -154,7 +179,7 @@ func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	candidates := make(map[uuid.UUID]bool)
 
 	for _, backupConfig := range configs {
-		if !isWalStreamCandidate(backupConfig) {
+		if !backupConfig.IsWalStreamingExpected() {
 			continue
 		}
 
@@ -172,15 +197,6 @@ func (s *PhysicalWalStreamSupervisor) reconcile(ctx context.Context) {
 	s.heartbeatOwnedStreamers()
 }
 
-func isWalStreamCandidate(backupConfig *backups_config_physical.PhysicalBackupConfig) bool {
-	if backupConfig.PostgresqlPhysical == nil ||
-		!backupConfig.PostgresqlPhysical.BackupType.IsWalStreaming() {
-		return false
-	}
-
-	return backupConfig.StorageID != nil
-}
-
 func (s *PhysicalWalStreamSupervisor) ensureStreamerRunning(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -195,7 +211,7 @@ func (s *PhysicalWalStreamSupervisor) ensureStreamerRunning(
 	}
 
 	claimed, err := s.walStreamerRepo.ClaimIfClaimable(
-		backupConfig.DatabaseID, int(streamerHeartbeatStaleness.Seconds()),
+		backupConfig.DatabaseID, int(wal_health.StreamerHeartbeatStaleness.Seconds()),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "claim failed", "error", err)
@@ -282,15 +298,19 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		FieldEncryptor:            s.fieldEncryptor,
 		WalSegmentRepo:            s.walSegmentRepo,
 		HistoryRepo:               s.historyRepo,
+		WalStreamSampleRepo:       s.walStreamSampleRepo,
+		WalStreamerRepo:           s.walStreamerRepo,
 		WatchDirRoot:              config.GetEnv().DataFolder,
 		WalLagThresholdBytes:      backupConfig.WalLagThresholdBytes,
 		ForcedRotationInterval:    postgresql_executor.DefaultForcedRotationInterval,
-		ArchiveStalenessThreshold: postgresql_executor.DefaultArchiveStalenessThreshold,
+		ArchiveStalenessThreshold: wal_health.DefaultArchiveStalenessThreshold,
 		OnGapDetected:             s.gapNotifier(ctx, db, backupConfig),
 		OnSlotRebuilt:             s.slotRebuildFullRequester(ctx, logger, db, backupConfig),
 		OnChainAtRisk:             s.chainRiskNotifier(ctx, db, backupConfig),
 		Logger:                    s.logger,
 	})
+
+	streamer.walStreamSupervisor = supervisor
 
 	s.mu.Lock()
 	s.running[db.ID] = streamer
@@ -534,9 +554,9 @@ func (s *PhysicalWalStreamSupervisor) stopStreamer(databaseID uuid.UUID, shouldR
 
 	s.mu.Unlock()
 
-	if err := s.walStreamerRepo.MarkFailed(databaseID); err != nil {
+	if err := s.walStreamerRepo.MarkStopped(databaseID); err != nil {
 		s.logger.Error(
-			"failed to mark stopped streamer failed",
+			"failed to mark stopped streamer released",
 			"database_id",
 			databaseID,
 			"error",

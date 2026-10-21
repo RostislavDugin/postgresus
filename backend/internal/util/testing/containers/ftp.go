@@ -34,6 +34,12 @@ const (
 func StartFtp(t *testing.T) Endpoint {
 	t.Helper()
 
+	return StartFtpContainer(t).Endpoint
+}
+
+func StartFtpContainer(t *testing.T) ContainerHandle {
+	t.Helper()
+
 	req := testcontainers.ContainerRequest{
 		Image:        "stilliard/pure-ftpd:latest",
 		ExposedPorts: ftpExposedPorts(),
@@ -50,7 +56,7 @@ func StartFtp(t *testing.T) Endpoint {
 		WaitingFor: wait.ForListeningPort(ftpControlPort).WithStartupTimeout(120 * time.Second),
 	}
 
-	return start(t, req, ftpControlPort)
+	return startContainer(t, req, ftpControlPort)
 }
 
 // ftpExposedPorts lists the control port plus every passive port. testcontainers drops any host

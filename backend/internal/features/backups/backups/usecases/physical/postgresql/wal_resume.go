@@ -106,10 +106,12 @@ func segmentNoAtLSN(lsn walmath.LSN, segmentSizeBytes int64) walmath.WalSegmentN
 }
 
 func (s *WalStreamSupervisor) realignResumePath(ctx context.Context, logger *slog.Logger) {
-	state, isSourceReachable := s.GetSlotStateIfReachable(ctx, logger)
-	if !isSourceReachable {
+	probe := s.probeSlot(ctx, logger)
+	if !probe.IsReachableWithSlot() {
 		return
 	}
+
+	state := probe.State
 
 	segmentSizeBytes := walSegmentSizeBytes(s.spec.SourceDB)
 

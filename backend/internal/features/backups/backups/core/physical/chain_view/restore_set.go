@@ -42,6 +42,49 @@ func (s *ChainViewService) ResolveRestoreSet(
 	databaseID uuid.UUID,
 	targetTime *time.Time,
 ) (*RestoreSet, error) {
+	reach, err := s.resolveRestoreReach(databaseID, targetTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// A target later than the furthest point we can actually replay to means a
+	// WAL gap (or simply missing WAL) sits before it. Refuse loudly; the caller
+	// surfaces reachableLSN as the latest restorable point.
+	if targetTime != nil && targetTime.After(reach.reachableTime) {
+		return nil, WalGapBeforeTargetError{LatestRestorableLSN: reach.reachableLSN}
+	}
+
+	historyFiles, err := s.walHistoryRepository.FindAllByDatabase(databaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RestoreSet{
+		RootFull:            reach.chain.RootFull,
+		Incrementals:        reach.incrementals,
+		WalSegments:         reach.walRun,
+		HistoryFiles:        historyFiles,
+		LastIncludedStopLSN: reach.lastStopLSN,
+		MaxReplayableLSN:    reach.reachableLSN,
+	}, nil
+}
+
+type restoreReach struct {
+	chain         *ChainView
+	incrementals  []*physical_models.PhysicalIncrementalBackup
+	lastStopLSN   walmath.LSN
+	walSegments   []*physical_models.PhysicalWalSegment
+	walRun        []*physical_models.PhysicalWalSegment
+	reachableLSN  walmath.LSN
+	reachableTime time.Time
+}
+
+// resolveRestoreReach picks the chain and backups for targetTime (nil ⇒ latest)
+// and walks the WAL after the last of them up to the first gap.
+func (s *ChainViewService) resolveRestoreReach(
+	databaseID uuid.UUID,
+	targetTime *time.Time,
+) (*restoreReach, error) {
 	candidates, err := s.orderedRestoreCandidates(databaseID)
 	if err != nil {
 		return nil, err
@@ -70,25 +113,14 @@ func (s *ChainViewService) ResolveRestoreSet(
 
 	walRun, reachableLSN, reachableTime := contiguousWalRun(restoreWalSegments, lastStopLSN, lastBackupTime)
 
-	// A target later than the furthest point we can actually replay to means a
-	// WAL gap (or simply missing WAL) sits before it. Refuse loudly; the caller
-	// surfaces reachableLSN as the latest restorable point.
-	if targetTime != nil && targetTime.After(reachableTime) {
-		return nil, WalGapBeforeTargetError{LatestRestorableLSN: reachableLSN}
-	}
-
-	historyFiles, err := s.walHistoryRepository.FindAllByDatabase(databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RestoreSet{
-		RootFull:            chain.RootFull,
-		Incrementals:        incrementals,
-		WalSegments:         walRun,
-		HistoryFiles:        historyFiles,
-		LastIncludedStopLSN: lastStopLSN,
-		MaxReplayableLSN:    reachableLSN,
+	return &restoreReach{
+		chain:         chain,
+		incrementals:  incrementals,
+		lastStopLSN:   lastStopLSN,
+		walSegments:   restoreWalSegments,
+		walRun:        walRun,
+		reachableLSN:  reachableLSN,
+		reachableTime: reachableTime,
 	}, nil
 }
 

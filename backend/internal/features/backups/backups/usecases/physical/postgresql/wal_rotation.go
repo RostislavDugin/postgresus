@@ -108,6 +108,8 @@ func (s *WalStreamSupervisor) runForcedWalRotation(ctx context.Context, logger *
 				logger.WarnContext(ctx, "source refuses pg_switch_wal; forced wal rotation disabled for this streamer",
 					"error", err)
 
+				s.isForcedRotationDenied.Store(true)
+
 				s.reportChainAtRisk(logger, breakReasonRotationDenied, nil)
 
 				return

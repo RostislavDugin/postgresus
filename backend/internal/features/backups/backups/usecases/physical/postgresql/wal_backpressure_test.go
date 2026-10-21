@@ -22,8 +22,8 @@ func Test_WalStream_BackpressureWatermarks_ScaleWithWalSegmentSize(t *testing.T)
 		Logger:       logger.GetLogger(),
 	})
 
-	require.Equal(t, 8*customSegSize, supervisor.highWatermarkBytes)
-	require.Equal(t, 8*customSegSize/5, supervisor.lowWatermarkBytes)
+	require.Equal(t, 8*customSegSize, supervisor.highWatermarkBytes.Load())
+	require.Equal(t, 8*customSegSize/5, supervisor.lowWatermarkBytes.Load())
 }
 
 func Test_BacklogBytes_WhenSegmentsStagedOutOfResumePath_CountsThemTowardTheWatermark(t *testing.T) {

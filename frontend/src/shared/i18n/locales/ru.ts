@@ -310,6 +310,7 @@ export const ru: typeof en = {
       config: 'Настройки',
       backups: 'Бекапы',
       verifications: 'Проверки',
+      monitoring: 'Мониторинг',
     },
     create: {
       title: 'Добавить базу данных для бекапа',
@@ -1666,6 +1667,290 @@ export const ru: typeof en = {
           },
           missingConfigFiles:
             'Базовый бекап копирует только каталог данных. Если исходный PostgreSQL хранит конфигурацию вне его (так устроены Debian и Ubuntu: <configDir/>), то <code>postgresql.conf</code>, <code>pg_hba.conf</code> и <code>pg_ident.conf</code> в бекап не попадают и сервер не запустится. Узнайте их настоящие пути на исходном сервере командой <code>psql -Atc "SHOW config_file"</code>, скопируйте все три файла, затем закомментируйте <code>data_directory</code>, <code>hba_file</code>, <code>ident_file</code>, <code>external_pid_file</code> и строки <code>ssl</code> / <code>ssl_*</code>, создайте <code>conf.d</code>, а для контейнера задайте <code>listen_addresses = \'*\'</code>. Если эти файлы на месте, а ошибка та же, значит, неверно смонтирован каталог, а не конфигурация.',
+        },
+      },
+      monitoring: {
+        periods: {
+          hour: 'Последний час',
+          day: 'Последние сутки',
+          week: 'Последняя неделя',
+        },
+        levels: {
+          notStreaming: 'Непрерывное сохранение изменений выключено',
+          collectingData: 'Собираем данные',
+          broken: 'Что-то сломано',
+          needsAttention: 'Что-то требует внимания',
+          healthy: 'Все в порядке',
+        },
+        reasonLevels: {
+          broken: 'Сломано',
+          needsAttention: 'Требует внимания',
+          info: 'Для информации',
+        },
+        keepingUpStates: {
+          unknown: 'Неизвестно',
+          fallingBehind: 'Отстает',
+          catchingUp: 'Догоняет',
+          idle: 'Тишина',
+          keepingUp: 'Успевает',
+        },
+        banner: {
+          collectingDataDescription: 'Стриминг запущен, первые цифры появятся в течение минуты.',
+          notStreamingDescription:
+            'Бекапы выключены или не выбрано хранилище. Включить можно в <configLink>настройках</configLink>.',
+          cannotConfirm: 'Не удается подтвердить текущее состояние',
+          cannotConfirmDescription: 'Последнее известное состояние: {{level}}, {{duration}} назад.',
+          measuredAgo: 'Замер {{duration}} назад',
+          healthyHeadline: 'Все изменения сохраняются',
+          restoreUpTo: 'Базу можно восстановить на любой момент до {{moment}} ({{age}} назад).',
+          restoreOnlyUpTo:
+            'Пока не завершится новый полный бекап, базу можно восстановить только до {{moment}} ({{age}} назад).',
+          restoreFromUpTo:
+            'Базу можно восстановить на любой момент с {{from}} до {{moment}} ({{age}} назад).',
+          restoreFromUpToWithoutAge:
+            'Базу можно восстановить на любой момент с {{from}} до {{moment}}.',
+          restoreUpToWithoutAge: 'Базу можно восстановить на любой момент до {{moment}}.',
+          restoreOnlyUpToWithoutAge:
+            'Пока не завершится новый полный бекап, базу можно восстановить только до {{moment}}.',
+          restoreNothingPending:
+            'Восстановить ничего не получится, пока не завершится первый полный бекап. Он уже запрошен.',
+          restoreNothing: 'Восстанавливать пока нечего: ни один полный бекап еще не завершился.',
+          startFullBackup: 'Запустить полный бекап',
+          fullBackupRequested: 'Полный бекап запрошен.',
+          notMeasuredYet: 'Замеров еще нет',
+          refreshFailed:
+            'Не удалось обновить данные. На экране остаются последние полученные цифры, следующая попытка через 30 секунд.',
+        },
+        keepingUp: {
+          keepingUp:
+            'Databasus сохраняет изменения так же быстро, как база их пишет: запись {{writeRate}}, сохранение {{archiveRate}}.',
+          fallingBehind:
+            'База пишет изменения быстрее, чем Databasus успевает их сохранять, примерно на {{differenceRate}}: {{writeRate}} против {{archiveRate}}.',
+          fallingBehindBacklog:
+            'Еще не сохранено {{unsavedAmount}}, и этот объем растет примерно на {{growthPerHour}} в час.',
+          catchingUp:
+            'Databasus сохраняет накопившиеся изменения: осталось {{unsavedAmount}}, это займет около {{duration}}.',
+          catchingUpWithoutEstimate:
+            'Databasus сохраняет накопившиеся изменения: осталось {{unsavedAmount}}.',
+          idle: 'База почти ничего не пишет, новые изменения попадают в хранилище в течение нескольких минут.',
+          rebuildConsequence:
+            'Если так пойдет дальше, примерно через {{duration}} Databasus начнет новую цепочку бекапов с полного бекапа.',
+          limitConsequence:
+            'Если так пойдет дальше, примерно через {{duration}} база удалит изменения, которые Databasus еще не получил.',
+        },
+        reasons: {
+          streamingStopped: {
+            title: 'Сохранение остановилось',
+            whatHappened: 'Databasus перестал получать изменения {{duration}} назад.',
+            whatToDo:
+              'Databasus сам повторяет попытки. Если это затянется, посмотрите логи Databasus.',
+          },
+          sourceUnreachable: {
+            title: 'База недоступна',
+            whatHappened: 'Databasus не может подключиться к базе уже {{duration}}.',
+            whatToDo: 'Проверьте, что сервер базы работает и доступен из Databasus.',
+          },
+          walChainBroken: {
+            title: 'Между бекапами потерялись изменения',
+            whatHappened:
+              'Часть истории изменений не дошла до хранилища, поэтому изменения после неё восстановить нельзя.',
+            whatToDo: 'Запустите полный бекап на вкладке «Бекапы».',
+            whatToDoPending:
+              'Новый полный бекап уже в работе, за ним можно следить на вкладке «Бекапы».',
+          },
+          slotMissing: {
+            title: 'База перестала хранить изменения',
+            whatHappened:
+              'База больше не хранит изменения для Databasus: резерв, который Databasus создал на ней, пропал.',
+            whatToDo:
+              'Databasus восстановит резерв, когда стриминг перезапустится, но изменения за это время потеряны. Запустите полный бекап на вкладке «Бекапы» и проверьте, что резерв на базе никто не удаляет.',
+            whatToDoPending:
+              'Databasus восстановит резерв, когда стриминг перезапустится, а новый полный бекап уже в работе. Проверьте, что резерв на базе никто не удаляет.',
+          },
+          slotLost: {
+            title: 'База удалила несохраненные изменения',
+            whatHappened: 'База удалила изменения, которые Databasus еще не получил.',
+            whatToDo:
+              'Databasus сам начнет заново с нового полного бекапа. Чтобы это не повторилось, ускорьте сохранение или разрешите базе хранить больше изменений.',
+          },
+          archiveNotAdvancing: {
+            title: 'Изменения не доходят до хранилища',
+            whatHappened:
+              'Новые изменения не попадают в хранилище уже {{duration}}, хотя база продолжает писать.',
+            whatToDo: 'Проверьте, что хранилище доступно и на нем есть свободное место.',
+          },
+          archiveSlowerThanSource: {
+            title: 'Сохранение слишком медленное',
+            whatHappened:
+              'База пишет быстрее, чем Databasus сохраняет: за 10 минут несохраненный объем вырос на {{amount}}.',
+            whatToDo:
+              'Проверьте скорость сети до хранилища или перенесите хранилище ближе к Databasus.',
+          },
+          slotKeepsExtraWal: {
+            title: 'База хранит лишние изменения',
+            whatHappened:
+              'Уже {{duration}} база держит для Databasus больше журнала изменений, чем обычно, и объем продолжает расти.',
+            whatToDo: 'Убедитесь, что на сервере базы есть свободное место на диске.',
+          },
+          slotLimitApproaching: {
+            title: 'Скоро база удалит несохраненные изменения',
+            whatHappened:
+              'Если так пойдет дальше, примерно через {{duration}} база удалит изменения, которые Databasus еще не получил.',
+            whatToDo:
+              'Ускорьте сохранение или увеличьте <code>max_slot_wal_keep_size</code> на базе.',
+          },
+          nearSlotRebuild: {
+            title: 'Скоро придется начать заново',
+            whatHappened:
+              'Изменений, еще не полученных Databasus, накопилось {{amount}} из {{limit}}. При этом объеме Databasus начинает заново с полного бекапа.',
+            whatToDo: 'Ускорьте сохранение или поднимите порог в настройках бекапов.',
+          },
+          localQueueFilling: {
+            title: 'Буфер Databasus заполняется',
+            whatHappened: 'В буфере Databasus {{amount}} из {{limit}}.',
+            whatToDo:
+              'Когда буфер заполнится, Databasus сам приостановит прием. Проверьте скорость хранилища.',
+          },
+          frequentRestarts: {
+            title: 'Прием часто перезапускается',
+            whatHappened: 'Перезапусков приема за последний час: {{count}}.',
+            whatToDo: 'Причину ищите в логах Databasus.',
+          },
+          forcedRotationRefused: {
+            title: 'Изменения из тихих периодов приходят с опозданием',
+            whatHappened:
+              'База отказывается вовремя закрывать файл изменений, поэтому в тихие периоды изменения попадают в хранилище позже.',
+            whatToDo: 'Дайте пользователю бекапов право запускать <code>pg_switch_wal()</code>.',
+          },
+        },
+        notices: {
+          noSlotWalLimit: {
+            title: 'Нет предела для хранимых изменений',
+            whatHappened: 'База хранит изменения для Databasus без ограничения.',
+            whatToDo:
+              'Предел защищает диск сервера базы, если Databasus надолго остановится. Цена — новый полный бекап, когда предел будет достигнут. Задается параметром <code>max_slot_wal_keep_size</code>.',
+          },
+          slotKeepsExtraWalSteadily: {
+            title: 'База хранит лишние изменения',
+            whatHappened: 'База держит для Databasus больше журнала изменений, чем обычно.',
+            whatToDo:
+              'При высокой нагрузке это нормально. Пока объем не растет, делать ничего не нужно.',
+          },
+          noFullBackupYet: {
+            title: 'Полного бекапа еще нет',
+            whatHappened:
+              'Первый полный бекап еще не завершился, поэтому сохраненные изменения пока нельзя восстановить.',
+            whatToDo: 'Дождитесь его или запустите на вкладке «Бекапы».',
+          },
+        },
+        figures: {
+          lastSaved: 'Последнее изменение сохранено',
+          waitingToBeSaved: 'Ждет сохранения',
+          notMeasured: 'Еще не измерено',
+          averageHint: 'в среднем за 10 мин',
+        },
+        restoreTimeline: {
+          title: 'Что можно восстановить',
+          restorable: 'Можно восстановить',
+          lost: 'Нельзя восстановить',
+          notSavedYet: 'Ещё не сохранено в хранилище',
+          lostSentence:
+            'Базу нельзя восстановить на моменты между {{from}} и {{to}}: эти изменения не дошли до хранилища.',
+          moreLost: 'Других промежутков, на которые нельзя восстановить: {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Технические подробности',
+        },
+        path: {
+          database: 'База',
+          databasus: 'Databasus',
+          storage: 'Хранилище',
+          notReceivedYet: 'Еще не получено Databasus',
+          rebuildLimit: 'При {{amount}} Databasus начнет новую цепочку с полного бекапа',
+          allowanceLeft: 'Запас, пока база не начнет удалять изменения: {{amount}}',
+          nothingWaiting: 'Ничего не ждёт',
+          ratesCaption:
+            'Скорости — средние за последние 10 минут, объёмы — на текущий момент. Если база пишет пачками, скорость есть, а ждать нечему.',
+          waitingInBuffer: 'Ждет в буфере',
+          pauseLimit: 'Прием приостанавливается при {{amount}}',
+          receivingPaused: 'Прием приостановлен',
+          nothingSavedYet: 'Пока ничего не сохранено',
+          overLimit: 'Сверх предела',
+          ofLimit: '{{amount}} из {{limit}}',
+          notSavedYetAmount: 'Ещё не сохранено в хранилище: {{amount}}',
+          unknownAmount: 'Неизвестно',
+        },
+        tooltips: {
+          notSavedYet:
+            'Изменения, которые база уже записала, но которых ещё нет в хранилище: то, что Databasus ещё не получил, и то, что ждёт в его буфере. Технически это неархивированный WAL.',
+          notReceivedYet:
+            'Изменения, которые база держит для Databasus, потому что Databasus их еще не получил. Технически это отставание слота репликации.',
+          rebuildLimit:
+            'Когда объем превысит этот порог, Databasus удалит слот репликации и начнет новую цепочку бекапов, чтобы не переполнить диск сервера базы. Технически это порог WAL lag.',
+          allowanceLeft:
+            'Сколько база еще может записать, прежде чем удалит изменения, которые Databasus не получил. Технически это safe_wal_size, его ограничивает max_slot_wal_keep_size.',
+          waitingInBuffer:
+            'Изменения, которые Databasus получил, но еще не сохранил в хранилище. Технически это локальная очередь WAL.',
+          pauseLimit:
+            'Когда буфер дорастает до этого размера, Databasus приостанавливает прием, пока буфер не освободится. Технически это верхняя граница back pressure.',
+          lastSaved:
+            'Когда в хранилище попал самый свежий файл изменений. Технически это последний заархивированный сегмент WAL.',
+          writeRate:
+            'С какой скоростью база пишет изменения, в среднем за последние 10 минут. Технически это скорость записи WAL.',
+          saveRate:
+            'С какой скоростью Databasus сохраняет изменения в хранилище, в среднем за последние 10 минут. Технически это скорость архивации WAL.',
+        },
+        charts: {
+          keepingUpTitle: 'Успевает ли Databasus?',
+          unsavedTitle: 'Сколько еще не сохранено?',
+          unsavedSubtitle: 'Сюда входит и то, что Databasus еще не получил',
+          bufferTitle: 'Буфер Databasus',
+          databaseWrites: 'Запись в базе',
+          savedToStorage: 'Сохранено в хранилище',
+          notSavedYet: 'Еще не в хранилище',
+          notReceivedYet: 'Еще не получено Databasus',
+          waitingInBuffer: 'Ждет в буфере',
+          pauseLimit: 'Здесь прием приостанавливается',
+          restarts: 'Перезапуски',
+          pauses: 'Паузы',
+          notEnoughData:
+            'Для этого периода данных пока мало. Для периода покороче график, возможно, уже есть.',
+          dataSince: 'Данные с {{time}}',
+          noMeasurements: 'Нет измерений с {{from}} до {{to}}.',
+          perSecond: '{{amount}}/с',
+        },
+        details: {
+          slotStatus: 'Статус слота (wal_status)',
+          allowance: 'Оставшийся запас (safe_wal_size)',
+          noLimit: 'Без предела',
+          averageSegmentWrite: 'Средняя запись сегмента',
+          longestSegmentWrite: 'Самая долгая запись сегмента',
+          uploadConcurrency: 'Загрузок одновременно',
+          walToStoredRatio: 'Отношение WAL к сохраненному объему',
+          walSegmentSize: 'Размер сегмента WAL',
+          sessionStart: 'Начало сессии стриминга',
+          streamerState: 'Состояние стримера',
+          sourceState: 'Состояние источника',
+          restartsLastHour: 'Перезапуски за последний час',
+          milliseconds: '{{value}} мс',
+          notAvailable: 'Нет данных',
+          streamerStates: {
+            running: 'Работает',
+            notRunning: 'Не работает',
+            notStarted: 'Еще не запускался',
+          },
+          sourceStates: {
+            reachable: 'Доступен',
+            unreachable: 'Недоступен',
+            slotMissing: 'Доступен, но слота репликации нет',
+          },
+        },
+        durations: {
+          seconds: '{{seconds}} с',
+          minutes: '{{minutes}} мин',
+          hoursMinutes: '{{hours}} ч {{minutes}} мин',
+          daysHours: '{{days}} дн. {{hours}} ч',
         },
       },
     },

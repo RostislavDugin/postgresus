@@ -17,6 +17,7 @@ import (
 	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/operations"
 
+	storage_connections "databasus-backend/internal/features/storages/connections"
 	"databasus-backend/internal/util/encryption"
 	io_utils "databasus-backend/internal/util/io"
 )
@@ -53,11 +54,12 @@ func (r *RcloneStorage) SaveFile(
 
 	logger.InfoContext(ctx, "starting to save file to rclone storage", "file_name", fileName)
 
-	remoteFs, err := r.getFs(ctx, encryptor)
+	remoteFs, releaseRemote, err := r.acquireFs(ctx, encryptor)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create rclone filesystem", "file_name", fileName, "error", err)
 		return fmt.Errorf("failed to create rclone filesystem: %w", err)
 	}
+	defer releaseRemote()
 
 	filePath := r.getFilePath(fileName)
 	logger.DebugContext(ctx, "uploading file via rclone", "file_name", fileName, "file_path", filePath)
@@ -98,7 +100,7 @@ func (r *RcloneStorage) GetFile(
 	logger *slog.Logger,
 	fileName string,
 ) (io.ReadCloser, error) {
-	remoteFs, err := r.getFs(ctx, encryptor)
+	remoteFs, releaseRemote, err := r.acquireFs(ctx, encryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rclone filesystem: %w", err)
 	}
@@ -107,10 +109,11 @@ func (r *RcloneStorage) GetFile(
 
 	obj, err := remoteFs.NewObject(ctx, filePath)
 	if err != nil {
+		releaseRemote()
 		return nil, fmt.Errorf("failed to get object from rclone: %w", err)
 	}
 
-	return io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
+	fileReader := io_utils.NewResumingReader(io_utils.ResumingReaderSpec{
 		StreamCtx:  ctx,
 		Logger:     logger,
 		FileName:   fileName,
@@ -123,7 +126,22 @@ func (r *RcloneStorage) GetFile(
 			return obj.Open(attemptCtx, &fs.RangeOption{Start: offsetBytes, End: -1})
 		},
 		IsRetryableError: isRetryableRcloneError,
-	}), nil
+	})
+
+	return &remoteHoldingReader{ReadCloser: fileReader, releaseRemote: releaseRemote}, nil
+}
+
+// The stream keeps reading through the remote after GetFile returns, so the remote stays in use
+// until the caller closes the stream.
+type remoteHoldingReader struct {
+	io.ReadCloser
+	releaseRemote func()
+}
+
+func (r *remoteHoldingReader) Close() error {
+	defer r.releaseRemote()
+
+	return r.ReadCloser.Close()
 }
 
 func isRetryableRcloneError(err error) bool {
@@ -144,10 +162,11 @@ func (r *RcloneStorage) DeleteFile(
 	deleteCtx, cancel := context.WithTimeout(context.Background(), rcloneDeleteTimeout)
 	defer cancel()
 
-	remoteFs, err := r.getFs(deleteCtx, encryptor)
+	remoteFs, releaseRemote, err := r.acquireFs(deleteCtx, encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to create rclone filesystem: %w", err)
 	}
+	defer releaseRemote()
 
 	filePath := r.getFilePath(fileName)
 
@@ -201,10 +220,13 @@ func (r *RcloneStorage) TestConnection(encryptor encryption.FieldEncryptor) erro
 	ctx, cancel := context.WithTimeout(context.Background(), rcloneOperationTimeout)
 	defer cancel()
 
-	remoteFs, err := r.getFs(ctx, encryptor)
+	// A connection test often runs for settings that are not saved yet, so it builds its own remote
+	// instead of placing one in the cache under a storage ID it may not have.
+	remoteFs, err := r.buildFs(ctx, encryptor)
 	if err != nil {
 		return fmt.Errorf("failed to create rclone filesystem: %w", err)
 	}
+	defer shutdownRemote(remoteFs)
 
 	testFileID := uuid.New().String() + "-test"
 	testFilePath := r.getFilePath(testFileID)
@@ -259,7 +281,18 @@ func (r *RcloneStorage) Update(incoming *RcloneStorage) {
 	}
 }
 
-func (r *RcloneStorage) getFs(
+func (r *RcloneStorage) acquireFs(
+	ctx context.Context,
+	encryptor encryption.FieldEncryptor,
+) (fs.Fs, func(), error) {
+	fingerprint := storage_connections.Fingerprint(r.ConfigContent, r.RemotePath)
+
+	return remotes.acquire(ctx, r.StorageID, fingerprint, func(ctx context.Context) (fs.Fs, error) {
+		return r.buildFs(ctx, encryptor)
+	})
+}
+
+func (r *RcloneStorage) buildFs(
 	ctx context.Context,
 	encryptor encryption.FieldEncryptor,
 ) (fs.Fs, error) {

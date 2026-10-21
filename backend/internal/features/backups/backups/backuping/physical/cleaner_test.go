@@ -13,6 +13,7 @@ import (
 	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
 	physical_repositories "databasus-backend/internal/features/backups/backups/core/physical/repositories"
 	physical_testing "databasus-backend/internal/features/backups/backups/core/physical/testing"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/intervals"
@@ -465,4 +466,41 @@ func Test_CleanByChains_WhenInProgressFullExists_NeverDeletesIt(t *testing.T) {
 	assert.True(t, fullExists(t, active.ID))
 	assert.True(t, fullExists(t, keptByCount.ID))
 	assert.False(t, fullExists(t, evicted.ID), "completed chains beyond the keep-count are still evicted")
+}
+
+func Test_DeleteExpiredWalStreamSamples_WhenSamplesOlderThanRetention_DeletesOnlyThose(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	now := time.Now().UTC()
+
+	expiredSample := physical_testing.CreateTestWalStreamSample(t,
+		physical_testing.NewTestWalStreamSample(prereqs.DB.ID, now.Add(-wal_health.SampleRetention-time.Hour)))
+	recentSample := physical_testing.CreateTestWalStreamSample(t,
+		physical_testing.NewTestWalStreamSample(prereqs.DB.ID, now.Add(-24*time.Hour)))
+
+	CreateTestPhysicalCleaner().deleteExpiredWalStreamSamples(t.Context(), logger.GetLogger(), now)
+
+	remainingSamples, err := physical_repositories.GetWalStreamSampleRepository().
+		FindSinceByDatabase(prereqs.DB.ID, time.Time{})
+	require.NoError(t, err)
+	require.Len(t, remainingSamples, 1)
+	require.Equal(t, recentSample.ID, remainingSamples[0].ID)
+	require.NotEqual(t, expiredSample.ID, remainingSamples[0].ID)
+}
+
+func Test_DeleteExpiredWalStreamSamples_WhenDatabaseStoppedStreamingEightDaysAgo_DeletesAllItsSamples(t *testing.T) {
+	prereqs := seedBackupPrereqs(t)
+	now := time.Now().UTC()
+	stoppedStreamingAt := now.Add(-8 * 24 * time.Hour)
+
+	for sampleIndex := range 3 {
+		physical_testing.CreateTestWalStreamSample(t, physical_testing.NewTestWalStreamSample(
+			prereqs.DB.ID, stoppedStreamingAt.Add(-time.Duration(sampleIndex)*wal_health.SampleInterval)))
+	}
+
+	CreateTestPhysicalCleaner().deleteExpiredWalStreamSamples(t.Context(), logger.GetLogger(), now)
+
+	remainingSamples, err := physical_repositories.GetWalStreamSampleRepository().
+		FindSinceByDatabase(prereqs.DB.ID, time.Time{})
+	require.NoError(t, err)
+	require.Empty(t, remainingSamples, "samples expire whether or not the database still streams")
 }

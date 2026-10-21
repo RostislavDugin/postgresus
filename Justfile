@@ -16,6 +16,9 @@ lint:
     pnpm --dir frontend lint
     pnpm --dir frontend typecheck
 
+doctor:
+    .agent-hooks/run.sh doctor
+
 format:
     just --justfile backend/Justfile format
     just --justfile agent/verification/Justfile format

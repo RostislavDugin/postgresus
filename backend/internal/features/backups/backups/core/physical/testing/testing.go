@@ -226,3 +226,65 @@ func DeleteAllPhysicalCatalogForDatabase(t *testing.T, databaseID uuid.UUID) {
 		t.Fatalf("cleanup full backups: %v", err)
 	}
 }
+
+// NewTestWalStreamSample builds a healthy reachable sample of a streaming
+// database; tests change the fields their scenario is about.
+func NewTestWalStreamSample(databaseID uuid.UUID, sampledAt time.Time) *physical_models.PhysicalWalStreamSample {
+	const segmentSizeBytes = 16 * 1024 * 1024
+
+	return &physical_models.PhysicalWalStreamSample{
+		DatabaseID:               databaseID,
+		SampledAt:                sampledAt,
+		SessionStartedAt:         sampledAt.Add(-time.Hour),
+		SourceState:              physical_enums.PhysicalWalStreamSourceStateReachable,
+		SourceCurrentLSN:         new(walmath.LSN(0x50000000)),
+		ArchiveProgressLSN:       new(walmath.LSN(0x4F000000)),
+		SourceWrittenBytes:       new(int64(segmentSizeBytes)),
+		ArchivedSegments:         1,
+		ArchivedWalBytes:         segmentSizeBytes,
+		ArchivedStoredBytes:      4 * 1024 * 1024,
+		WalSegmentSizeBytes:      segmentSizeBytes,
+		HighestConcurrentUploads: 1,
+		SegmentWriteAvgMillis:    new(int64(100)),
+		SegmentWriteMaxMillis:    new(int64(150)),
+		SlotWalStatus:            new("reserved"),
+		SlotLagBytes:             new(int64(1024 * 1024)),
+		SlotSafeWalSizeBytes:     new(int64(10 * 1024 * 1024 * 1024)),
+		UnarchivedWalBytes:       new(int64(segmentSizeBytes)),
+		LocalQueueBytes:          segmentSizeBytes,
+		LocalQueuePauseBytes:     512 * 1024 * 1024,
+		IsReceiverRunning:        true,
+	}
+}
+
+func CreateTestWalStreamSample(
+	t *testing.T,
+	sample *physical_models.PhysicalWalStreamSample,
+) *physical_models.PhysicalWalStreamSample {
+	t.Helper()
+
+	if err := physical_repositories.GetWalStreamSampleRepository().Insert(sample); err != nil {
+		t.Fatalf("save test wal stream sample: %v", err)
+	}
+
+	return sample
+}
+
+// CreateTestWalStreamer writes a streamer row with the exact times a scenario
+// needs, which Claim cannot do because it stamps every time with NOW().
+func CreateTestWalStreamer(
+	t *testing.T,
+	walStreamer *physical_models.PhysicalWalStreamer,
+) *physical_models.PhysicalWalStreamer {
+	t.Helper()
+
+	if err := storage.GetDb().Create(walStreamer).Error; err != nil {
+		t.Fatalf("save test wal streamer: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(walStreamer.DatabaseID)
+	})
+
+	return walStreamer
+}

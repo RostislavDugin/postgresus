@@ -3,7 +3,9 @@ package rclone_storage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -123,7 +125,7 @@ func Test_ParseConfigContent_WhitespaceAroundKeysAndValues_Trimmed(t *testing.T)
 	assert.Equal(t, "us-west-2", sections["myremote"]["region"])
 }
 
-// getFs strips a leading slash from RemotePath, so an absolute root would become
+// buildFs strips a leading slash from RemotePath, so an absolute root would become
 // relative to the working directory. The test moves there instead and leaves the
 // remote path empty, which puts the rclone root on the temporary directory.
 func newLocalRcloneStorage(t *testing.T) (*RcloneStorage, string) {
@@ -179,4 +181,81 @@ func Test_DeleteFile_WhenCalledTwice_Succeeds(t *testing.T) {
 	assert.NoError(t, storage.DeleteFile(
 		t.Context(), encryption.GetFieldEncryptor(), logger.GetLogger(), "backup-1",
 	))
+}
+
+func Test_SaveFile_WhenConfigurationIsUnchanged_BuildsRemoteOnce(t *testing.T) {
+	storage, _ := newLocalRcloneStorage(t)
+
+	saveTestFile(t, storage, "first")
+	firstRemote := getCurrentCachedRemote(t, storage)
+
+	saveTestFile(t, storage, "second")
+
+	assert.Same(t, firstRemote, getCurrentCachedRemote(t, storage))
+}
+
+func Test_SaveFile_WhenConfigurationChanges_BuildsNewRemoteAndRetiresOld(t *testing.T) {
+	storage, _ := newLocalRcloneStorage(t)
+
+	saveTestFile(t, storage, "before-change")
+	oldRemote := getCurrentCachedRemote(t, storage)
+
+	changedConfig, err := encryption.GetFieldEncryptor().Encrypt("[testlocal]\ntype = local\nlinks = true\n")
+	require.NoError(t, err)
+	storage.ConfigContent = changedConfig
+
+	saveTestFile(t, storage, "after-change")
+	newRemote := getCurrentCachedRemote(t, storage)
+
+	assert.NotSame(t, oldRemote, newRemote)
+	assert.True(t, isRemoteRetired(oldRemote), "the remote built from the old configuration must be retired")
+	assert.False(t, isRemoteRetired(newRemote))
+}
+
+func Test_SaveFile_WhenRemoteStaysUnusedPastIdleTimeout_DropsRemote(t *testing.T) {
+	previousRemotes := remotes
+	remotes = newRemoteCache(50 * time.Millisecond)
+	t.Cleanup(func() { remotes = previousRemotes })
+
+	storage, _ := newLocalRcloneStorage(t)
+
+	saveTestFile(t, storage, "only-write")
+	idleRemote := getCurrentCachedRemote(t, storage)
+
+	require.Eventually(t, func() bool {
+		remotes.mutex.Lock()
+		defer remotes.mutex.Unlock()
+
+		return remotes.remotes[storage.StorageID] == nil
+	}, 5*time.Second, 10*time.Millisecond, "an idle remote must be dropped after the idle timeout")
+
+	assert.True(t, isRemoteRetired(idleRemote))
+}
+
+func saveTestFile(t *testing.T, storage *RcloneStorage, fileName string) {
+	t.Helper()
+
+	err := storage.SaveFile(
+		t.Context(), encryption.GetFieldEncryptor(), logger.GetLogger(), fileName, strings.NewReader("payload"),
+	)
+	require.NoError(t, err)
+}
+
+func getCurrentCachedRemote(t *testing.T, storage *RcloneStorage) *cachedRemote {
+	t.Helper()
+
+	remotes.mutex.Lock()
+	defer remotes.mutex.Unlock()
+
+	cached := remotes.remotes[storage.StorageID]
+	require.NotNil(t, cached, "no remote is cached for the storage")
+
+	return cached
+}
+
+func isRemoteRetired(cached *cachedRemote) bool {
+	remotes.mutex.Lock()
+	defer remotes.mutex.Unlock()
+
+	return cached.isRetired
 }

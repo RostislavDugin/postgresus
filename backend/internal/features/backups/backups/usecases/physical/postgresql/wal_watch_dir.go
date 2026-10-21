@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"databasus-backend/internal/util/walmath"
 )
 
 // Segments rotate at the source write rate; a tight loop keeps local dwell time
@@ -31,50 +29,58 @@ func (s *WalStreamSupervisor) runUploaderLoop(ctx context.Context, logger *slog.
 	ticker := time.NewTicker(uploaderPollInterval)
 	defer ticker.Stop()
 
+	dispatcher := newSegmentUploadDispatcher(s.uploader.ProcessSegment, s.uploader.RecordConcurrentUploads)
+	defer dispatcher.waitForUploads()
+
 	for {
+		s.archiveTimelineHistoryFiles(ctx, logger)
+		dispatcher.startUploads(ctx, logger, s.listAndRecordQueuedSegments())
+
 		select {
 		case <-ctx.Done():
 			return
 
 		case <-ticker.C:
-			s.scanAndUpload(ctx, logger)
+
+		case finishedFilename := <-dispatcher.finishedUploads:
+			dispatcher.markFinished(finishedFilename)
 		}
 	}
 }
 
-// Uses the uploader's takeover path so a segment whose pre-crash claim row is
-// still file_name NULL gets finished rather than left for the cleaner.
+// Uses the uploader's takeover path so a segment whose pre-crash claim row is still file_name NULL
+// gets finished rather than left for the cleaner. It is one pass over the files found at startup and
+// returns once their uploads have finished, whatever the outcome: a failed segment waits for the live
+// loop, so a storage outage at startup never keeps the receiver from spawning.
 func (s *WalStreamSupervisor) recoverLocalSegmentsOnStartup(ctx context.Context, logger *slog.Logger) {
-	entries, err := os.ReadDir(s.watchDir)
-	if err != nil {
-		return
-	}
+	s.archiveTimelineHistoryFiles(ctx, logger)
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	dispatcher := newSegmentUploadDispatcher(s.uploader.RecoverSegment, s.uploader.RecordConcurrentUploads)
+	defer dispatcher.waitForUploads()
+
+	notStartedSegments := s.listAndRecordQueuedSegments()
+
+	for ctx.Err() == nil {
+		notStartedSegments = dispatcher.startUploads(ctx, logger, notStartedSegments)
+
+		if dispatcher.getInFlightCount() == 0 {
+			return
 		}
 
-		name := entry.Name()
-
-		switch {
-		case walmath.IsWalFilename(name):
-			if err := s.uploader.RecoverSegment(ctx, filepath.Join(s.watchDir, name), name); err != nil {
-				logger.WarnContext(ctx, "startup wal recovery failed; live loop will retry",
-					"wal_filename", name,
-					"error", err,
-				)
-			}
-
-		case strings.HasSuffix(name, ".history"):
-			s.archiveTimelineHistoryFile(ctx, logger, name)
-		}
+		dispatcher.markFinished(<-dispatcher.finishedUploads)
 	}
-
-	s.sweepPendingUploads(ctx, logger, s.uploader.RecoverSegment)
 }
 
-func (s *WalStreamSupervisor) scanAndUpload(ctx context.Context, logger *slog.Logger) {
+func (s *WalStreamSupervisor) listAndRecordQueuedSegments() []queuedWalSegment {
+	queuedSegments := listQueuedWalSegments(s.watchDir, walSegmentSizeBytes(s.spec.SourceDB))
+	sortQueuedWalSegments(queuedSegments)
+	s.setLowestQueuedSegment(queuedSegments)
+
+	return queuedSegments
+}
+
+// History files are rare and need a source connection, so they stay on the dispatching goroutine.
+func (s *WalStreamSupervisor) archiveTimelineHistoryFiles(ctx context.Context, logger *slog.Logger) {
 	entries, err := os.ReadDir(s.watchDir)
 	if err != nil {
 		logger.ErrorContext(ctx, "read wal watch dir", "error", err)
@@ -83,51 +89,8 @@ func (s *WalStreamSupervisor) scanAndUpload(ctx context.Context, logger *slog.Lo
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-
-		switch {
-		case walmath.IsWalFilename(name):
-			if err := s.uploader.ProcessSegment(ctx, filepath.Join(s.watchDir, name), name); err != nil {
-				logger.WarnContext(ctx, "wal segment upload failed; will retry next tick",
-					"wal_filename", name,
-					"error", err,
-				)
-			}
-
-		case strings.HasSuffix(name, ".history"):
-			s.archiveTimelineHistoryFile(ctx, logger, name)
-		}
-	}
-
-	s.sweepPendingUploads(ctx, logger, s.uploader.ProcessSegment)
-}
-
-// Segments moved out of pg_receivewal's resume path (wal_resume.go) are valid
-// WAL of the older chain, so they keep flowing to storage from here.
-func (s *WalStreamSupervisor) sweepPendingUploads(
-	ctx context.Context,
-	logger *slog.Logger,
-	upload func(ctx context.Context, localPath, walFilename string) error,
-) {
-	pendingUploadDir := filepath.Join(s.watchDir, pendingUploadDirName)
-
-	entries, err := os.ReadDir(pendingUploadDir)
-	if err != nil {
-		return
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() || !walmath.IsWalFilename(entry.Name()) {
-			continue
-		}
-
-		if err := upload(ctx, filepath.Join(pendingUploadDir, entry.Name()), entry.Name()); err != nil {
-			logger.WarnContext(ctx, "pending wal segment upload failed; will retry next tick",
-				"wal_filename", entry.Name(), "error", err)
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".history") {
+			s.archiveTimelineHistoryFile(ctx, logger, entry.Name())
 		}
 	}
 }

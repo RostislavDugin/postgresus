@@ -21,6 +21,12 @@ const sambaPort = "445/tcp"
 func StartSamba(t *testing.T) Endpoint {
 	t.Helper()
 
+	return StartSambaContainer(t).Endpoint
+}
+
+func StartSambaContainer(t *testing.T) ContainerHandle {
+	t.Helper()
+
 	req := testcontainers.ContainerRequest{
 		Image:        "dperson/samba:latest",
 		ExposedPorts: []string{sambaPort},
@@ -33,5 +39,5 @@ func StartSamba(t *testing.T) Endpoint {
 		WaitingFor: wait.ForListeningPort(sambaPort).WithStartupTimeout(120 * time.Second),
 	}
 
-	return start(t, req, sambaPort)
+	return startContainer(t, req, sambaPort)
 }

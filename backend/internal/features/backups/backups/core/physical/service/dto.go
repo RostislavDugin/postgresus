@@ -7,6 +7,9 @@ import (
 	"github.com/google/uuid"
 
 	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
+	physical_dto "databasus-backend/internal/features/backups/backups/core/physical/dto"
+	physical_models "databasus-backend/internal/features/backups/backups/core/physical/models"
+	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 )
 
 type DeleteOrphanWalSegmentsSpec struct {
@@ -113,4 +116,35 @@ type DependentsSummary struct {
 	Incrementals     int
 	HistoryFiles     int
 	TotalSizeMB      float64
+}
+
+type WalStreamStatisticsQuery struct {
+	DatabaseID     uuid.UUID
+	Period         time.Duration
+	BucketDuration time.Duration
+
+	SlotRebuildLagBytes    int64
+	IsStreamingExpected    bool
+	HasCompletedFullBackup bool
+	RestoreBlockingGaps    []chain_view.LSNRange
+
+	Now time.Time
+}
+
+// Everything the WAL stream statistics need from the catalog, decided at one
+// moment. NewestSample, Streamer and LastArchivedWalAt are nil when they do not
+// exist yet.
+type WalStreamStatistics struct {
+	Verdict          wal_health.Verdict
+	KeepingUp        wal_health.KeepingUp
+	StreamerState    wal_health.StreamerState
+	RestartsLastHour int
+
+	Streamer          *physical_models.PhysicalWalStreamer
+	NewestSample      *physical_models.PhysicalWalStreamSample
+	LastArchivedWalAt *time.Time
+
+	SeriesFrom   time.Time
+	SeriesTo     time.Time
+	SeriesPoints []*physical_dto.PhysicalWalStreamSeriesPoint
 }

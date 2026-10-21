@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/google/uuid"
 
@@ -74,11 +75,6 @@ func (t *TelegramNotifier) Send(
 		return fmt.Errorf("failed to decrypt bot token: %w", err)
 	}
 
-	fullMessage := notification.Heading
-	if notification.Message != "" {
-		fullMessage = fmt.Sprintf("%s\n\n%s", notification.Heading, notification.Message)
-	}
-
 	sendMessageURL, err := t.getSendMessageURL(botToken)
 	if err != nil {
 		return err
@@ -86,8 +82,7 @@ func (t *TelegramNotifier) Send(
 
 	data := url.Values{}
 	data.Set("chat_id", t.TargetChatID)
-	data.Set("text", fullMessage)
-	data.Set("parse_mode", "HTML")
+	data.Set("text", buildAndTruncateText(notification))
 
 	if t.ThreadID != nil && *t.ThreadID != 0 {
 		data.Set("message_thread_id", strconv.FormatInt(*t.ThreadID, 10))
@@ -128,6 +123,25 @@ func (t *TelegramNotifier) Send(
 	}
 
 	return nil
+}
+
+func buildAndTruncateText(notification notifier_models.Notification) string {
+	text := notification.Heading
+	if notification.Message != "" {
+		text = fmt.Sprintf("%s\n\n%s", notification.Heading, notification.Message)
+	}
+
+	// Telegram measures the text limit in UTF-16 code units, so a character outside the
+	// Basic Multilingual Plane, such as most emoji, takes two of them.
+	textUTF16Units := 0
+	for byteOffset, textRune := range text {
+		textUTF16Units += utf16.RuneLen(textRune)
+		if textUTF16Units > maxTextUTF16Units {
+			return text[:byteOffset]
+		}
+	}
+
+	return text
 }
 
 func (t *TelegramNotifier) HideSensitiveData() {

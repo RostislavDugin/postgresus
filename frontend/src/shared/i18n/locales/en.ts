@@ -309,6 +309,7 @@ export const en = {
       config: 'Config',
       backups: 'Backups',
       verifications: 'Verifications',
+      monitoring: 'Monitoring',
     },
     create: {
       title: 'Add database for backup',
@@ -1660,6 +1661,288 @@ export const en = {
           },
           missingConfigFiles:
             'A base backup copies only the data directory. If your source PostgreSQL keeps its configuration outside it - the Debian/Ubuntu layout, <configDir/> - then <code>postgresql.conf</code>, <code>pg_hba.conf</code> and <code>pg_ident.conf</code> are not in the backup and the server will not start. Ask the source for their real paths with <code>psql -Atc "SHOW config_file"</code>, copy all three in, then comment out <code>data_directory</code>, <code>hba_file</code>, <code>ident_file</code>, <code>external_pid_file</code> and the <code>ssl</code> / <code>ssl_*</code> lines, create <code>conf.d</code>, and set <code>listen_addresses = \'*\'</code> for a container. If those files are present and you still get the same error, it is the mounted directory that is wrong, not the configuration.',
+        },
+      },
+      monitoring: {
+        periods: {
+          hour: 'Last hour',
+          day: 'Last day',
+          week: 'Last week',
+        },
+        levels: {
+          notStreaming: 'Continuous saving of changes is off',
+          collectingData: 'Collecting data',
+          broken: 'Something is broken',
+          needsAttention: 'Something needs attention',
+          healthy: 'Everything is in order',
+        },
+        reasonLevels: {
+          broken: 'Broken',
+          needsAttention: 'Needs attention',
+          info: 'For your information',
+        },
+        keepingUpStates: {
+          unknown: 'Unknown',
+          fallingBehind: 'Falling behind',
+          catchingUp: 'Catching up',
+          idle: 'Quiet',
+          keepingUp: 'Keeping up',
+        },
+        banner: {
+          collectingDataDescription: 'Streaming started; the first numbers appear within a minute.',
+          notStreamingDescription:
+            'Backups are disabled or no storage is selected. <configLink>Open the configuration</configLink> to turn it on.',
+          cannotConfirm: 'Cannot confirm the current state',
+          cannotConfirmDescription: 'Last known state: {{level}}, {{duration}} ago.',
+          measuredAgo: 'Measured {{duration}} ago',
+          healthyHeadline: 'All changes are being saved',
+          restoreUpTo: 'You can restore the database to any moment up to {{moment}} ({{age}} ago).',
+          restoreOnlyUpTo:
+            'Until a new full backup finishes, you can restore the database only up to {{moment}} ({{age}} ago).',
+          restoreFromUpTo:
+            'You can restore the database to any moment from {{from}} up to {{moment}} ({{age}} ago).',
+          restoreFromUpToWithoutAge:
+            'You can restore the database to any moment from {{from}} up to {{moment}}.',
+          restoreUpToWithoutAge: 'You can restore the database to any moment up to {{moment}}.',
+          restoreOnlyUpToWithoutAge:
+            'Until a new full backup finishes, you can restore the database only up to {{moment}}.',
+          restoreNothingPending:
+            'Nothing can be restored until the first full backup finishes. It is on its way.',
+          restoreNothing: 'Nothing can be restored yet, because no full backup has finished.',
+          startFullBackup: 'Start full backup',
+          fullBackupRequested: 'Full backup requested.',
+          notMeasuredYet: 'Not measured yet',
+          refreshFailed:
+            'Could not refresh the data. The last received numbers stay on screen, and the next attempt runs in 30 seconds.',
+        },
+        keepingUp: {
+          keepingUp:
+            'Databasus saves changes as fast as the database writes them: {{writeRate}} written, {{archiveRate}} saved.',
+          fallingBehind:
+            'The database writes changes faster than Databasus saves them, by about {{differenceRate}}: {{writeRate}} against {{archiveRate}}.',
+          fallingBehindBacklog:
+            '{{unsavedAmount}} is not saved yet, and that grows by about {{growthPerHour}} an hour.',
+          catchingUp:
+            'Databasus is saving a backlog: {{unsavedAmount}} is left, about {{duration}} to go.',
+          catchingUpWithoutEstimate: 'Databasus is saving a backlog: {{unsavedAmount}} is left.',
+          idle: 'The database writes almost nothing; new changes reach storage within minutes.',
+          rebuildConsequence:
+            'At this pace Databasus will start a new backup chain from a full backup in about {{duration}}.',
+          limitConsequence:
+            'At this pace the database will drop changes Databasus has not received yet in about {{duration}}.',
+        },
+        reasons: {
+          streamingStopped: {
+            title: 'Saving has stopped',
+            whatHappened: 'Databasus stopped receiving changes {{duration}} ago.',
+            whatToDo: 'Databasus retries by itself. If this lasts, check the Databasus logs.',
+          },
+          sourceUnreachable: {
+            title: 'The database is unreachable',
+            whatHappened: 'Databasus has not been able to reach the database for {{duration}}.',
+            whatToDo: 'Check that the database server is running and reachable from Databasus.',
+          },
+          walChainBroken: {
+            title: 'Changes were lost between backups',
+            whatHappened:
+              'Part of the change history never reached storage, so the changes made after it cannot be restored.',
+            whatToDo: 'Start a full backup on the Backups tab.',
+            whatToDoPending:
+              'A new full backup is on its way. You can watch it on the Backups tab.',
+          },
+          slotMissing: {
+            title: 'The database stopped keeping changes',
+            whatHappened:
+              'The database no longer keeps changes for Databasus: the reservation Databasus made on it is gone.',
+            whatToDo:
+              'Databasus restores the reservation when streaming restarts, but the changes made in between are lost. Start a full backup on the Backups tab, and check that nobody removes the reservation on the database.',
+            whatToDoPending:
+              'Databasus restores the reservation when streaming restarts, and a new full backup is on its way. Check that nobody removes the reservation on the database.',
+          },
+          slotLost: {
+            title: 'The database deleted unsaved changes',
+            whatHappened: 'The database deleted changes Databasus had not received yet.',
+            whatToDo:
+              'Databasus starts over with a new full backup by itself. To avoid this next time, make saving faster or let the database keep more changes.',
+          },
+          archiveNotAdvancing: {
+            title: 'Changes do not reach storage',
+            whatHappened:
+              'No new changes have reached storage for {{duration}} while the database keeps writing.',
+            whatToDo: 'Check that the storage is reachable and has free space.',
+          },
+          archiveSlowerThanSource: {
+            title: 'Saving is too slow',
+            whatHappened:
+              'The database writes faster than Databasus saves; the backlog grew by {{amount}} in 10 minutes.',
+            whatToDo:
+              'Check the network speed to the storage, or move the storage closer to Databasus.',
+          },
+          slotKeepsExtraWal: {
+            title: 'The database keeps extra changes',
+            whatHappened:
+              'For {{duration}} the database has kept more of its change log than usual for Databasus, and the amount keeps growing.',
+            whatToDo: 'Make sure the database server has free disk space.',
+          },
+          slotLimitApproaching: {
+            title: 'Unsaved changes will soon be deleted',
+            whatHappened:
+              'At this pace the database will delete changes Databasus has not received yet in about {{duration}}.',
+            whatToDo:
+              'Make saving faster, or raise <code>max_slot_wal_keep_size</code> on the database.',
+          },
+          nearSlotRebuild: {
+            title: 'Close to starting over',
+            whatHappened:
+              'Changes not received by Databasus yet reached {{amount}} of the {{limit}} at which Databasus starts over from a full backup.',
+            whatToDo: 'Make saving faster, or raise the limit in the backup settings.',
+          },
+          localQueueFilling: {
+            title: 'The Databasus buffer is filling up',
+            whatHappened: 'The Databasus buffer holds {{amount}} of {{limit}}.',
+            whatToDo:
+              'Databasus pauses receiving by itself when the buffer is full. Check the speed of the storage.',
+          },
+          frequentRestarts: {
+            title: 'Receiving restarts often',
+            whatHappened: 'Restarts of receiving in the last hour: {{count}}.',
+            whatToDo: 'Check the Databasus logs for the cause.',
+          },
+          forcedRotationRefused: {
+            title: 'Quiet periods reach storage late',
+            whatHappened:
+              'The database refuses to close its change file on time, so changes from quiet periods reach storage later.',
+            whatToDo: 'Grant the backup user permission to run <code>pg_switch_wal()</code>.',
+          },
+        },
+        notices: {
+          noSlotWalLimit: {
+            title: 'No limit on kept changes',
+            whatHappened: 'The database keeps changes for Databasus without a limit.',
+            whatToDo:
+              "A limit protects the database server's disk if Databasus stays down for long. The cost is a new full backup when the limit is hit. Set it with <code>max_slot_wal_keep_size</code>.",
+          },
+          slotKeepsExtraWalSteadily: {
+            title: 'The database keeps extra changes',
+            whatHappened: 'The database keeps more of its change log than usual for Databasus.',
+            whatToDo:
+              'This is normal under heavy load. Nothing to do while the amount does not grow.',
+          },
+          noFullBackupYet: {
+            title: 'No full backup yet',
+            whatHappened:
+              'The first full backup has not finished, so saved changes cannot be restored yet.',
+            whatToDo: 'Wait for it, or start it on the Backups tab.',
+          },
+        },
+        figures: {
+          lastSaved: 'Last change saved',
+          waitingToBeSaved: 'Waiting to be saved',
+          notMeasured: 'Not measured yet',
+          averageHint: 'avg. 10 min',
+        },
+        restoreTimeline: {
+          title: 'What you can restore',
+          restorable: 'Can be restored',
+          lost: 'Cannot be restored',
+          notSavedYet: 'Not saved to storage yet',
+          lostSentence:
+            'You cannot restore the database to moments between {{from}} and {{to}}: these changes never reached storage.',
+          moreLost: 'More stretches that cannot be restored: {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Technical details',
+        },
+        path: {
+          database: 'Database',
+          databasus: 'Databasus',
+          storage: 'Storage',
+          notReceivedYet: 'Not received by Databasus yet',
+          rebuildLimit: 'At {{amount}} Databasus starts a new chain from a full backup',
+          allowanceLeft: 'Room before the database drops changes: {{amount}}',
+          nothingWaiting: 'Nothing waiting',
+          ratesCaption:
+            'Speeds are averages over the last 10 minutes; amounts are right now. A database that writes in bursts shows a speed while nothing waits.',
+          waitingInBuffer: 'Waiting in the buffer',
+          pauseLimit: 'Receiving pauses at {{amount}}',
+          receivingPaused: 'Receiving paused',
+          nothingSavedYet: 'Nothing saved yet',
+          overLimit: 'Over the limit',
+          ofLimit: '{{amount}} of {{limit}}',
+          notSavedYetAmount: 'Not saved to storage yet: {{amount}}',
+          unknownAmount: 'Unknown',
+        },
+        tooltips: {
+          notSavedYet:
+            'Changes the database has written that are not in storage yet: those Databasus has not received plus those waiting in its buffer. Technical name: unarchived WAL.',
+          notReceivedYet:
+            'Changes the database keeps for Databasus because Databasus has not received them yet. Technical name: replication slot lag.',
+          rebuildLimit:
+            "Past this amount Databasus drops the replication slot and starts a new backup chain, so the database server's disk does not fill up. Technical name: WAL lag threshold.",
+          allowanceLeft:
+            'How much more the database can write before it deletes changes Databasus has not received. Technical name: safe_wal_size, limited by max_slot_wal_keep_size.',
+          waitingInBuffer:
+            'Changes Databasus has received but not saved to storage yet. Technical name: local WAL queue.',
+          pauseLimit:
+            'When the buffer reaches this size, Databasus pauses receiving until it drains. Technical name: back pressure high watermark.',
+          lastSaved:
+            'When the newest change file reached storage. Technical name: newest archived WAL segment.',
+          writeRate:
+            'How fast the database writes changes, over the last 10 minutes. Technical name: WAL write rate.',
+          saveRate:
+            'How fast Databasus saves changes to storage, over the last 10 minutes. Technical name: WAL archive rate.',
+        },
+        charts: {
+          keepingUpTitle: 'Is Databasus keeping up?',
+          unsavedTitle: 'How much is not saved yet?',
+          unsavedSubtitle: 'Not received by Databasus yet is part of it',
+          bufferTitle: 'Databasus buffer',
+          databaseWrites: 'Database writes',
+          savedToStorage: 'Saved to storage',
+          notSavedYet: 'Not saved to storage yet',
+          notReceivedYet: 'Not received by Databasus yet',
+          waitingInBuffer: 'Waiting in the buffer',
+          pauseLimit: 'Receiving pauses here',
+          restarts: 'Restarts',
+          pauses: 'Pauses',
+          notEnoughData:
+            'Not enough data for this period yet. A shorter period may already have a chart.',
+          dataSince: 'Data since {{time}}',
+          noMeasurements: 'No measurements from {{from}} to {{to}}.',
+          perSecond: '{{amount}}/s',
+        },
+        details: {
+          slotStatus: 'Slot status (wal_status)',
+          allowance: 'Remaining allowance (safe_wal_size)',
+          noLimit: 'No limit',
+          averageSegmentWrite: 'Average segment write',
+          longestSegmentWrite: 'Longest segment write',
+          uploadConcurrency: 'Uploads at once',
+          walToStoredRatio: 'WAL to stored size ratio',
+          walSegmentSize: 'WAL segment size',
+          sessionStart: 'Streaming session start',
+          streamerState: 'Streamer state',
+          sourceState: 'Source state',
+          restartsLastHour: 'Restarts in the last hour',
+          milliseconds: '{{value}} ms',
+          notAvailable: 'Not available',
+          streamerStates: {
+            running: 'Running',
+            notRunning: 'Not running',
+            notStarted: 'Not started yet',
+          },
+          sourceStates: {
+            reachable: 'Reachable',
+            unreachable: 'Unreachable',
+            slotMissing: 'Reachable, replication slot missing',
+          },
+        },
+        durations: {
+          seconds: '{{seconds}} s',
+          minutes: '{{minutes}} min',
+          hoursMinutes: '{{hours}} h {{minutes}} min',
+          daysHours: '{{days}} d {{hours}} h',
         },
       },
     },

@@ -20,6 +20,13 @@ interface Props {
 // eslint-disable-next-line i18next/no-literal-string -- localStorage key
 const SELECTED_DATABASE_STORAGE_KEY = 'selectedDatabaseId';
 
+// A healthcheck can change a database's availability every minute, so the cards refresh twice as
+// often to show the change within a minute.
+const DATABASES_REFRESH_INTERVAL_MS = 30_000;
+
+// eslint-disable-next-line i18next/no-literal-string -- DOM event name
+const VISIBILITY_CHANGE_EVENT = 'visibilitychange';
+
 export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }: Props) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -64,18 +71,31 @@ export const DatabasesComponent = ({ contentHeight, workspace, isCanManageDBs }:
           updateSelectedDatabaseId(databaseToSelect);
         }
       })
-      .catch((e) => alert(translateApiError(e, t)))
+      .catch((e) => {
+        // A background refresh retries on its own; an alert every 30 seconds would only get in the way.
+        if (!isSilent) {
+          alert(translateApiError(e, t));
+        }
+      })
       .finally(() => setIsLoading(false));
   };
 
   useEffect(() => {
     loadDatabases();
 
-    const interval = setInterval(() => {
-      loadDatabases(true);
-    }, 5 * 60_000);
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'hidden') {
+        loadDatabases(true);
+      }
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(refreshIfVisible, DATABASES_REFRESH_INTERVAL_MS);
+    document.addEventListener(VISIBILITY_CHANGE_EVENT, refreshIfVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener(VISIBILITY_CHANGE_EVENT, refreshIfVisible);
+    };
   }, []);
 
   if (isLoading) {

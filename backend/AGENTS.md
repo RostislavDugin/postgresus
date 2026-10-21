@@ -301,9 +301,7 @@ Generate the migration stub with the goose create command from the [command tabl
 
 ## Testing
 
-**Always run tests after writing them and verify they pass.**
-
-Run the packages you touched and the ones that test the same feature (`just test-package ./internal/features/<feature>/...`). Never run `just test` — see [Several agents, one set of containers](../AGENTS.md#several-agents-one-set-of-containers).
+The [testing skill](../.agents/skills/testing/SKILL.md) holds the rules every module shares; this section adds the backend's own.
 
 ### Naming
 

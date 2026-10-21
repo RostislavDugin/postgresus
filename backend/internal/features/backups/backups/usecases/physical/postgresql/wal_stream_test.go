@@ -937,3 +937,137 @@ func Test_WalStream_WhenUploadsKeepFailing_AlertsArchiveStaleOnce(t *testing.T) 
 
 	require.Len(t, chainRisks.getReasons(), 1)
 }
+
+func Test_WalStream_WhenQueueFillsAndReceiverExitsOnItsOwn_CountsOnePauseAndOneRestart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	adminConn := OpenAdminConn(t, fixture)
+	segmentSizeBytes := walSegmentSizeBytes(fixture.DB.PostgresqlPhysical)
+
+	store := newMockWalStorage()
+	store.startFailingSaves()
+
+	// Three segments keep the shared source's background WAL from pausing the
+	// receiver a second time once uploads succeed again.
+	streamer := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:              fixture,
+		FileStore:            newMockWalStoreFor(store),
+		WatchDirRoot:         t.TempDir(),
+		LocalQueuePauseBytes: 3 * segmentSizeBytes,
+	})
+	t.Cleanup(streamer.Stop)
+
+	supervisor := streamer.Supervisor
+
+	require.Eventually(t, supervisor.isReceiverRunning, 60*time.Second, 200*time.Millisecond)
+
+	// Written once: WAL written during the pause would refill the queue as soon
+	// as the receiver resumes and pause it a second time.
+	ForceReplicationLag(t, adminConn, 4*segmentSizeBytes)
+
+	require.Eventually(t, func() bool {
+		return !supervisor.isReceiverRunning() && supervisor.backlogBytes() >= supervisor.highWatermarkBytes.Load()
+	}, 90*time.Second, 200*time.Millisecond, "a full local queue must pause the receiver")
+
+	store.stopFailingSaves()
+
+	require.Eventually(t, supervisor.isReceiverRunning, 90*time.Second, 200*time.Millisecond,
+		"the receiver resumes once the queue drains")
+
+	var restarts, pauses int
+
+	takeCounts := func() {
+		takenRestarts, takenPauses := supervisor.receiverRespawns.takeCounts()
+		restarts += takenRestarts
+		pauses += takenPauses
+	}
+
+	require.Eventually(t, func() bool {
+		takeCounts()
+
+		return pauses == 1
+	}, 10*time.Second, 200*time.Millisecond)
+
+	require.Zero(t, restarts, "the respawn after back pressure is a pause, not a restart")
+
+	// Other tests write WAL to the same source, and a burst of it would fill a
+	// three-segment queue again; from here on the production pause size applies,
+	// so the only respawn left to count is the one this test causes.
+	supervisor.setLocalQueuePauseBytes(getDefaultLocalQueuePauseBytes(fixture.DB.PostgresqlPhysical))
+
+	terminateWalReceiverBackend(t, adminConn, fixture.DB.PostgresqlPhysical.ReplicationSlotName)
+
+	require.Eventually(t, func() bool {
+		takeCounts()
+
+		return restarts == 1
+	}, 60*time.Second, 200*time.Millisecond, "a receiver that exits on its own is respawned as a restart")
+
+	require.Equal(t, 1, pauses, "back pressure is a pause, not a restart")
+
+	nextRestarts, nextPauses := supervisor.receiverRespawns.takeCounts()
+	require.Zero(t, nextRestarts)
+	require.Zero(t, nextPauses)
+}
+
+func terminateWalReceiverBackend(t *testing.T, adminConn *pgx.Conn, slotName string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		var terminatedCount int
+
+		err := adminConn.QueryRow(t.Context(), `
+			SELECT COUNT(pg_terminate_backend(active_pid))
+			FROM pg_replication_slots
+			WHERE slot_name = $1 AND active_pid IS NOT NULL
+		`, slotName).Scan(&terminatedCount)
+
+		return err == nil && terminatedCount == 1
+	}, 30*time.Second, 200*time.Millisecond, "the receiver must be attached to the slot before it can be cut off")
+}
+
+func Test_WalStream_WhileReceiverRunsAndAfterItExits_SlotBreakSampleCarriesItsRunStartTime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streamer integration test runs pg_receivewal; skipped in -short")
+	}
+
+	fixture := SetupPhysicalDBForBackup(t)
+	t.Cleanup(func() {
+		_ = physical_repositories.GetWalStreamerRepository().DeleteByDatabaseID(fixture.DB.ID)
+	})
+
+	streamerStartedAt := time.Now().UTC()
+
+	streamer := StartWalStreamerForTest(t, WalStreamerTestSpec{
+		Fixture:      fixture,
+		Storage:      newMockWalStorage(),
+		WatchDirRoot: t.TempDir(),
+	})
+	t.Cleanup(streamer.Stop)
+
+	supervisor := streamer.Supervisor
+
+	var runningSample slotBreakSample
+
+	require.Eventually(t, func() bool {
+		runningSample = supervisor.buildSlotBreakSample(&SlotState{}, time.Now().UTC())
+
+		return !runningSample.ReceiverRunStartedAt.IsZero()
+	}, 60*time.Second, 200*time.Millisecond, "a running receiver gives the sample its start time")
+
+	assert.False(t, runningSample.ReceiverRunStartedAt.Before(streamerStartedAt))
+	assert.False(t, runningSample.ReceiverRunStartedAt.After(runningSample.ObservedAt))
+
+	streamer.Stop()
+
+	require.Eventually(t, func() bool {
+		return supervisor.buildSlotBreakSample(&SlotState{}, time.Now().UTC()).ReceiverRunStartedAt.IsZero()
+	}, 30*time.Second, 200*time.Millisecond, "an exited receiver leaves the sample without a start time")
+}

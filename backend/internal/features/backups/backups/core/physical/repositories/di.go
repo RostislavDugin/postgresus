@@ -7,6 +7,7 @@ var (
 	walSegmentRepository        = &PhysicalWalSegmentRepository{}
 	walHistoryRepository        = &PhysicalWalHistoryRepository{}
 	walStreamerRepository       = &PhysicalWalStreamerRepository{}
+	walStreamSampleRepository   = &PhysicalWalStreamSampleRepository{}
 )
 
 func GetFullBackupRepository() *PhysicalFullBackupRepository {
@@ -31,4 +32,8 @@ func GetWalHistoryRepository() *PhysicalWalHistoryRepository {
 
 func GetWalStreamerRepository() *PhysicalWalStreamerRepository {
 	return walStreamerRepository
+}
+
+func GetWalStreamSampleRepository() *PhysicalWalStreamSampleRepository {
+	return walStreamSampleRepository
 }

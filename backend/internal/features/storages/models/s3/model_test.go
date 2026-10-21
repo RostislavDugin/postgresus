@@ -615,8 +615,8 @@ func buildTestS3Transport(t *testing.T, isSkipTLSVerify bool) *http.Transport {
 		SkipTLSVerify: isSkipTLSVerify,
 	}
 
-	_, _, _, _, _, transport, err := storage.getClientParams(encryptor)
+	params, err := storage.getClientParams(encryptor)
 	require.NoError(t, err)
 
-	return transport
+	return params.transport
 }

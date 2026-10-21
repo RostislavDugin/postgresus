@@ -118,6 +118,16 @@ func (b *PhysicalBackupConfig) Validate() error {
 	}
 }
 
+// The WAL stream supervisor runs a streamer exactly for these configs, and the
+// WAL stream statistics call everything else "not streaming".
+func (b *PhysicalBackupConfig) IsWalStreamingExpected() bool {
+	if !b.IsBackupsEnabled || b.StorageID == nil {
+		return false
+	}
+
+	return b.PostgresqlPhysical != nil && b.PostgresqlPhysical.BackupType.IsWalStreaming()
+}
+
 func (b *PhysicalBackupConfig) Copy(newDatabaseID uuid.UUID) *PhysicalBackupConfig {
 	return &PhysicalBackupConfig{
 		DatabaseID:                newDatabaseID,

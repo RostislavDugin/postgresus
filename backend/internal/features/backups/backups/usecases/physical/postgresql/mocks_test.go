@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -44,6 +45,97 @@ type mockWalStorage struct {
 	blockOnce sync.Once
 	started   chan struct{}
 	release   chan struct{}
+
+	// Holds every segment artifact write, sidecars aside, until the test lets it through.
+	artifactGate *artifactWriteGate
+}
+
+// Records which segment artifacts started writing, in order, and how many wrote at once.
+type artifactWriteGate struct {
+	mutex                   sync.Mutex
+	startedObjectNames      []string
+	activeWriteCount        int
+	highestActiveWriteCount int
+
+	releases         chan struct{}
+	releaseAllOnce   sync.Once
+	openAtWriteCount int
+}
+
+func newArtifactWriteGate() *artifactWriteGate {
+	return &artifactWriteGate{releases: make(chan struct{})}
+}
+
+// The gate stays closed until this many artifacts write at once, then lets every write through, so a
+// test can prove writes overlapped without releasing them one by one.
+func newArtifactWriteGateOpeningAt(activeWriteCount int) *artifactWriteGate {
+	gate := newArtifactWriteGate()
+	gate.openAtWriteCount = activeWriteCount
+
+	return gate
+}
+
+func (g *artifactWriteGate) passThrough(objectName string) {
+	g.mutex.Lock()
+	g.startedObjectNames = append(g.startedObjectNames, objectName)
+	g.activeWriteCount++
+	g.highestActiveWriteCount = max(g.highestActiveWriteCount, g.activeWriteCount)
+	isOpeningCountReached := g.openAtWriteCount > 0 && g.activeWriteCount >= g.openAtWriteCount
+	g.mutex.Unlock()
+
+	if isOpeningCountReached {
+		g.releaseAll()
+	}
+
+	<-g.releases
+
+	g.mutex.Lock()
+	g.activeWriteCount--
+	g.mutex.Unlock()
+}
+
+func (g *artifactWriteGate) releaseOne() {
+	g.releases <- struct{}{}
+}
+
+func (g *artifactWriteGate) releaseAll() {
+	g.releaseAllOnce.Do(func() { close(g.releases) })
+}
+
+func (g *artifactWriteGate) getActiveWriteCount() int {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	return g.activeWriteCount
+}
+
+func (g *artifactWriteGate) getHighestActiveWriteCount() int {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	return g.highestActiveWriteCount
+}
+
+func (g *artifactWriteGate) getStartedObjectNames() []string {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	return slices.Clone(g.startedObjectNames)
+}
+
+func (g *artifactWriteGate) countStartedWritesFor(walFilename string) int {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	count := 0
+
+	for _, objectName := range g.startedObjectNames {
+		if strings.Contains(objectName, walFilename) {
+			count++
+		}
+	}
+
+	return count
 }
 
 // hasObjectFor reports whether any stored object belongs to the given segment.
@@ -118,6 +210,10 @@ func (m *mockWalStorage) SaveFile(
 	m.saveCount.Add(1)
 
 	body, _ := io.ReadAll(file)
+
+	if m.artifactGate != nil && !strings.HasSuffix(fileName, metadataSuffix) {
+		m.artifactGate.passThrough(fileName)
+	}
 
 	// The sidecar shares the artifact's name, so the block is scoped to the
 	// artifact and fires once.

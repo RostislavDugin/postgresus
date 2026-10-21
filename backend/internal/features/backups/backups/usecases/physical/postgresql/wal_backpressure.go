@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
 	"databasus-backend/internal/util/walmath"
 )
 
@@ -31,16 +32,29 @@ func (s *WalStreamSupervisor) runBackpressureMonitor(ctx context.Context, _ *slo
 			return
 
 		case <-ticker.C:
-			if s.backlogBytes() >= s.highWatermarkBytes {
+			if s.backlogBytes() >= s.highWatermarkBytes.Load() {
+				s.isBackpressureStopPending.Store(true)
 				s.signalRestart()
 			}
 		}
 	}
 }
 
-func (s *WalStreamSupervisor) waitForBacklogBelowLow(ctx context.Context, logger *slog.Logger) bool {
-	if s.backlogBytes() < s.highWatermarkBytes {
-		return true
+func getDefaultLocalQueuePauseBytes(sourceDB *postgresql_physical.PostgresqlPhysicalDatabase) int64 {
+	return max(walLocalMinHighWatermarkBytes, 8*walSegmentSizeBytes(sourceDB))
+}
+
+func (s *WalStreamSupervisor) setLocalQueuePauseBytes(pauseBytes int64) {
+	s.highWatermarkBytes.Store(pauseBytes)
+	s.lowWatermarkBytes.Store(pauseBytes / 5)
+}
+
+func (s *WalStreamSupervisor) waitForBacklogBelowLow(
+	ctx context.Context,
+	logger *slog.Logger,
+) (hasWaited, isRunning bool) {
+	if s.backlogBytes() < s.highWatermarkBytes.Load() {
+		return false, true
 	}
 
 	logger.WarnContext(ctx, "wal backlog over high watermark; pausing pg_receivewal until it drains")
@@ -51,13 +65,13 @@ func (s *WalStreamSupervisor) waitForBacklogBelowLow(ctx context.Context, logger
 	for {
 		select {
 		case <-ctx.Done():
-			return false
+			return true, false
 
 		case <-ticker.C:
-			if s.backlogBytes() < s.lowWatermarkBytes {
+			if s.backlogBytes() < s.lowWatermarkBytes.Load() {
 				logger.InfoContext(ctx, "wal backlog drained below low watermark; resuming pg_receivewal")
 
-				return true
+				return true, true
 			}
 		}
 	}

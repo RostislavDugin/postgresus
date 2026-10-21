@@ -138,7 +138,7 @@ func (h *Heartbeater) Run(ctx context.Context) {
 
 ## Testing
 
-**Always run tests after writing them and verify they pass.**
+The [testing skill](../../.agents/skills/testing/SKILL.md) holds the rules every module shares; this section adds the verification agent's own.
 
 ### Naming
 

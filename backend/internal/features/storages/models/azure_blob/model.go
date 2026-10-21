@@ -31,6 +31,10 @@ const (
 	azureTLSHandshakeTimeout = 30 * time.Second
 	azureDeleteTimeout       = 30 * time.Second
 
+	// Go keeps two idle connections per host by default, which drops connections as soon as more
+	// than two writes to one account run at once.
+	azureMaxIdleConnsPerHost = 16
+
 	// Chunk size for block blob uploads - 16MB provides good balance between
 	// memory usage and upload efficiency. This creates backpressure to pg_dump
 	// by only reading one chunk at a time and waiting for Azure to confirm receipt.
@@ -500,20 +504,24 @@ func (s *AzureBlobStorage) getClient(encryptor encryption.FieldEncryptor) (*azbl
 	return client, nil
 }
 
-func (s *AzureBlobStorage) buildClientOptions() *azblob.ClientOptions {
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout: azureConnectTimeout,
-		}).DialContext,
-		TLSHandshakeTimeout:   azureTLSHandshakeTimeout,
-		ResponseHeaderTimeout: azureResponseTimeout,
-		IdleConnTimeout:       azureIdleConnTimeout,
-	}
+// Clients are still built per call from freshly decrypted credentials. Only the connections are
+// shared: every request is signed or carries its SAS token, so a changed credential takes effect on
+// the next request even over a connection opened before the change.
+var sharedHTTPClient = &http.Client{Transport: &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: (&net.Dialer{
+		Timeout: azureConnectTimeout,
+	}).DialContext,
+	TLSHandshakeTimeout:   azureTLSHandshakeTimeout,
+	ResponseHeaderTimeout: azureResponseTimeout,
+	IdleConnTimeout:       azureIdleConnTimeout,
+	MaxIdleConnsPerHost:   azureMaxIdleConnsPerHost,
+}}
 
+func (s *AzureBlobStorage) buildClientOptions() *azblob.ClientOptions {
 	return &azblob.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
-			Transport: &http.Client{Transport: transport},
+			Transport: sharedHTTPClient,
 			Retry: policy.RetryOptions{
 				MaxRetries: 0,
 			},

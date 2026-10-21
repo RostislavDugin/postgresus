@@ -29,6 +29,12 @@ const MinioImage = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
 func StartMinio(t *testing.T) Endpoint {
 	t.Helper()
 
+	return StartMinioContainer(t).Endpoint
+}
+
+func StartMinioContainer(t *testing.T) ContainerHandle {
+	t.Helper()
+
 	req := testcontainers.ContainerRequest{
 		Image:        MinioImage,
 		ExposedPorts: []string{minioPort},
@@ -40,5 +46,5 @@ func StartMinio(t *testing.T) Endpoint {
 		WaitingFor: wait.ForHTTP("/minio/health/live").WithPort(minioPort).WithStartupTimeout(120 * time.Second),
 	}
 
-	return start(t, req, minioPort)
+	return startContainer(t, req, minioPort)
 }
