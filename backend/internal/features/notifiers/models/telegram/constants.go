@@ -1,3 +1,3 @@
 package telegram_notifier
 
-const maxTextRunes = 4096
+const maxTextUTF16Units = 4096

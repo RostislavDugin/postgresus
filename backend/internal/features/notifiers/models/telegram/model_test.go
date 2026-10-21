@@ -106,7 +106,56 @@ func Test_GetSendMessageURL_WithoutBotAPIURL_UsesOfficialTelegramAPI(t *testing.
 	assert.Equal(t, "https://api.telegram.org/bot123456:AAH-TOKEN/sendMessage", sendMessageURL)
 }
 
-func Test_Send_WhenTextExceedsTelegramLimit_TruncatesTextByRunes(t *testing.T) {
+func Test_Send_WhenTextExceedsTelegramLimit_TruncatesTextByCharacters(t *testing.T) {
+	heading := "Backup failed"
+
+	sentForm := sendNotificationAndCaptureForm(t, notifier_models.Notification{
+		Type:    notifier_models.NotificationTypeBackupFailed,
+		Heading: heading,
+		Message: strings.Repeat("界", maxTextUTF16Units),
+	})
+
+	messagePrefixLength := maxTextUTF16Units - len(heading) - len("\n\n")
+	assert.Equal(
+		t,
+		heading+"\n\n"+strings.Repeat("界", messagePrefixLength),
+		sentForm.Get("text"),
+	)
+}
+
+func Test_Send_WhenTextWithEmojiExceedsTelegramLimit_CountsEmojiAsTwoUnits(t *testing.T) {
+	heading := "Backup failed"
+
+	sentForm := sendNotificationAndCaptureForm(t, notifier_models.Notification{
+		Type:    notifier_models.NotificationTypeBackupFailed,
+		Heading: heading,
+		Message: strings.Repeat("🔥", maxTextUTF16Units),
+	})
+
+	emojiThatFit := (maxTextUTF16Units - len(heading) - len("\n\n")) / 2
+	assert.Equal(
+		t,
+		heading+"\n\n"+strings.Repeat("🔥", emojiThatFit),
+		sentForm.Get("text"),
+	)
+}
+
+func Test_Send_WhenMessageContainsHTMLSpecialCharacters_SendsPlainTextWithoutParseMode(t *testing.T) {
+	message := "mysqldump: Got error: 1146: Table 'db.<orders>' doesn't exist & aborted"
+
+	sentForm := sendNotificationAndCaptureForm(t, notifier_models.Notification{
+		Type:    notifier_models.NotificationTypeBackupFailed,
+		Heading: "Backup failed",
+		Message: message,
+	})
+
+	assert.Equal(t, "Backup failed\n\n"+message, sentForm.Get("text"))
+	assert.False(t, sentForm.Has("parse_mode"))
+}
+
+func sendNotificationAndCaptureForm(t *testing.T, notification notifier_models.Notification) url.Values {
+	t.Helper()
+
 	botAPIURL, recorder := notifier_models.StartRecordingServer(
 		t,
 		notifier_models.StubResponse{StatusCode: http.StatusOK, Body: `{"ok":true}`},
@@ -116,26 +165,16 @@ func Test_Send_WhenTextExceedsTelegramLimit_TruncatesTextByRunes(t *testing.T) {
 		TargetChatID: "123456",
 		BotAPIURL:    botAPIURL,
 	}
-	heading := "Backup failed"
 
 	require.NoError(t, notifier.Send(
 		notifier_models.PassthroughEncryptor{},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		notifier_models.Notification{
-			Type:    notifier_models.NotificationTypeBackupFailed,
-			Heading: heading,
-			Message: strings.Repeat("界", maxTextRunes),
-		},
+		notification,
 	))
-
 	require.Equal(t, 1, recorder.GetRequestCount())
+
 	sentForm, err := url.ParseQuery(recorder.GetLastRequest().Body)
 	require.NoError(t, err)
 
-	messagePrefixLength := maxTextRunes - len([]rune(heading)) - len([]rune("\n\n"))
-	assert.Equal(
-		t,
-		heading+"\n\n"+strings.Repeat("界", messagePrefixLength),
-		sentForm.Get("text"),
-	)
+	return sentForm
 }
