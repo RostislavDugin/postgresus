@@ -1,0 +1,22 @@
+# `just run` runs the backend under air: a saved Go file rebuilds it and replaces the running one.
+# A build that fails leaves the previous backend serving, and the compile error shows in its output.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/databasus ./cmd"
+  entrypoint = ["./tmp/databasus"]
+  include_ext = ["go"]
+  # Tests and the dev-only commands are not part of the server binary, and the rest are generated
+  # files or data the backend writes itself.
+  exclude_dir = ["tmp", "swagger", "ui", "migrations", "cmd/seed_dev", "cmd/cleanup_test_db", "pgdata_test", "pgdata-for-restore", "temp"]
+  exclude_regex = ["_test\\.go$"]
+  # One rebuild for an editor that saves several files at once.
+  delay = 1000
+  stop_on_error = false
+  # The backend shuts down on an interrupt the same way it does on Ctrl+C.
+  send_interrupt = true
+  kill_delay = "5s"
+
+[misc]
+  clean_on_exit = true

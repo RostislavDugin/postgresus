@@ -32,7 +32,7 @@ Work happens on a Fedora host; any other host distro is on its own. Tool version
 
 | Command | Purpose |
 |---|---|
-| `just run` | Start the app locally: dev database, test fixtures, WAL backup source with its load generator, backend and frontend |
+| `just run` | Start the app locally: dev database, test fixtures, WAL backup source with its load generator, backend and frontend; seeds a dev account with databases and restarts the backend when its code changes |
 | `just test` | Run the full backend suite |
 | `just test-package <packages>`, run in `backend/` | Run the given backend test packages |
 | `just test-filesystem` | Run the Docker filesystem suite, mostly left to CI |
@@ -62,6 +62,12 @@ When a failure makes no sense — a container that vanished, a database that emp
 ## Tests
 
 When you write, change, run or review tests, load the [testing skill](.agents/skills/testing/SKILL.md) first. It holds the rules every module shares; the module docs add the rules of their stack.
+
+---
+
+## Checking the app in a browser
+
+When you start the app or look at its pages, load the [run-app skill](.agents/skills/run-app/SKILL.md) first. It says when to reuse, start and stop the app and how to sign in.
 
 ---
 

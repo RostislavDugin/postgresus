@@ -14,9 +14,22 @@ stop_services() {
     docker compose -f "$root/docker-compose.yml" stop "${own_services[@]}"
 }
 
+# air keeps watching after the backend it started dies, so a watcher left by a killed run of this
+# worktree would rebuild a backend next to the new run and fight it for the port. Watchers of other
+# worktrees work in their own backend/ and are left alone.
+stop_stale_backend_watchers() {
+    local air_pid
+    for air_pid in $(pgrep -x air); do
+        [[ "$(readlink "/proc/$air_pid/cwd" 2>/dev/null)" == "$root/backend" ]] || continue
+        echo "stopping stale backend watcher pid $air_pid"
+        kill "$air_pid" 2>/dev/null || true
+        timeout 10 tail --pid="$air_pid" -f /dev/null || kill -9 "$air_pid" 2>/dev/null || true
+    done
+}
+
 # A stale backend keeps holding the port and answers with the previously built code; a new one that
-# fails to bind only logs the error, so requests silently hit the old binary. Killing the listener
-# also makes its parent `go run` exit.
+# fails to bind only logs the error, so requests silently hit the old binary. Its watcher is stopped
+# first by stop_stale_backend_watchers, because air would otherwise start the backend again.
 free_backend_port() {
     local port_hex inode pid
     port_hex=$(printf ':%04X' "$backend_port")
@@ -43,6 +56,7 @@ timeout 60 bash -c 'until docker exec backend-db pg_isready -U postgres >/dev/nu
 
 (cd "$root/backend" && swag init -d . -g cmd/main.go -o swagger --quiet)
 pnpm --dir "$root/frontend" install --frozen-lockfile
+stop_stale_backend_watchers
 free_backend_port
 
 cd "$root"
