@@ -44,29 +44,6 @@ func (s *ChainViewService) FindLastExtendableChainByDatabase(databaseID uuid.UUI
 	return newestView, nil
 }
 
-// GetNewestCompletedFullWithGaps returns the newest completed full backup,
-// whether or not its chain is still extendable, with the WAL gaps of its chain;
-// nil when no full backup has completed. A chain broken by an incremental still
-// has a full backup and can still have a gap, which FindLastExtendableChainByDatabase
-// would hide.
-func (s *ChainViewService) GetNewestCompletedFullWithGaps(databaseID uuid.UUID) (*FullBackupWithGaps, error) {
-	fulls, err := s.fullBackupRepository.FindCompletedNewestFirstByDatabase(databaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(fulls) == 0 {
-		return nil, nil
-	}
-
-	walGaps, err := s.FindWalGapsInChain(fulls[0].ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &FullBackupWithGaps{FullBackup: fulls[0], WalGaps: walGaps}, nil
-}
-
 func (s *ChainViewService) FindNonExtendableChainsByDatabase(databaseID uuid.UUID) ([]*ChainView, error) {
 	fulls, err := s.fullBackupRepository.FindCompletedNewestFirstByDatabase(databaseID)
 	if err != nil {
@@ -124,8 +101,14 @@ func (s *ChainViewService) FindWalGapsInChain(rootFullBackupID uuid.UUID) ([]LSN
 		return nil, err
 	}
 
+	return findGapsBetweenSegments(segments), nil
+}
+
+// findGapsBetweenSegments lists the holes between consecutive segments ordered
+// by start_lsn; nil for fewer than two segments.
+func findGapsBetweenSegments(segments []*physical_models.PhysicalWalSegment) []LSNRange {
 	if len(segments) < 2 {
-		return nil, nil
+		return nil
 	}
 
 	gaps := make([]LSNRange, 0)
@@ -142,7 +125,7 @@ func (s *ChainViewService) FindWalGapsInChain(rootFullBackupID uuid.UUID) ([]LSN
 		}
 	}
 
-	return gaps, nil
+	return gaps
 }
 
 func (s *ChainViewService) CheckHistoryFilePresence(

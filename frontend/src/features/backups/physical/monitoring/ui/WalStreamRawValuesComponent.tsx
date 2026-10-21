@@ -1,4 +1,3 @@
-import { Collapse } from 'antd';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 
@@ -16,10 +15,7 @@ interface Props {
   statistics: WalStreamStatistics;
 }
 
-// eslint-disable-next-line i18next/no-literal-string -- Collapse item key
-const DETAILS_PANEL_KEY = 'details';
-
-export const WalStreamDetailsComponent = ({ statistics }: Props) => {
+export const WalStreamRawValuesComponent = ({ statistics }: Props) => {
   const { t } = useTranslation();
   const { formatNumber } = useLocale();
 
@@ -97,25 +93,13 @@ export const WalStreamDetailsComponent = ({ statistics }: Props) => {
   ];
 
   return (
-    <Collapse
-      className="mt-6"
-      size="small"
-      items={[
-        {
-          key: DETAILS_PANEL_KEY,
-          label: t('backups.physical.monitoring.details.title'),
-          children: (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">
-              {rows.map((row) => (
-                <div key={row.labelKey} className="flex justify-between gap-4">
-                  <dt className="text-gray-600 dark:text-gray-400">{t(row.labelKey)}</dt>
-                  <dd className="text-right font-medium">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ),
-        },
-      ]}
-    />
+    <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+      {rows.map((row) => (
+        <div key={row.labelKey} className="flex justify-between gap-4">
+          <dt className="text-gray-600 dark:text-gray-400">{t(row.labelKey)}</dt>
+          <dd className="text-right font-medium">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 };

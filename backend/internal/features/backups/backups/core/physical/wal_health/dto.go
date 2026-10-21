@@ -25,8 +25,9 @@ type VerdictInput struct {
 	IsStreamingExpected    bool
 	HasCompletedFullBackup bool
 
-	// The WAL gaps of the newest completed full backup's chain.
-	NewestChainGaps []chain_view.LSNRange
+	// The WAL gaps of the newest chain that the latest restore cannot cross.
+	// A gap a completed incremental bridged is already left out.
+	RestoreBlockingGaps []chain_view.LSNRange
 
 	Now time.Time
 }

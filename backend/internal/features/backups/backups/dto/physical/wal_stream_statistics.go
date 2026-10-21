@@ -40,11 +40,26 @@ type GetWalStreamStatisticsRequest struct {
 // its name, every time is UTC, and the verdict, states, reasons and notices are
 // codes, never display text.
 type GetWalStreamStatisticsResponse struct {
-	Health    WalStreamHealth      `json:"health"`
+	Health WalStreamHealth `json:"health"`
+
+	// The moment a restore to the latest available point reaches; null while no
+	// full backup has completed.
+	LatestRestorableAt *time.Time `json:"latestRestorableAt"`
+
+	// The stretches of time the newest chain can restore to, oldest first; the
+	// last one ends at latestRestorableAt. Empty while no full backup has
+	// completed.
+	RestorableRanges []WalStreamTimeRange `json:"restorableRanges"`
+
 	Streamer  WalStreamStreamer    `json:"streamer"`
 	Current   *WalStreamCurrent    `json:"current"`
 	KeepingUp wal_health.KeepingUp `json:"keepingUp"`
 	Series    WalStreamSeries      `json:"series"`
+}
+
+type WalStreamTimeRange struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 type WalStreamHealth struct {

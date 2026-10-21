@@ -1,9 +1,12 @@
+import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
 
 import { type LocaleContextValue, translateLocalizedText } from '../../../../../shared/i18n';
 import { formatBytes } from '../../../../../shared/lib';
+import { getUserTimeFormat } from '../../../../../shared/time';
 import type { MonitoringText } from '../model/MonitoringText';
 import type { MonitoringTextParam } from '../model/MonitoringTextParam';
+import { getClockFormat } from './clockFormat';
 
 // Runs while a component renders, with that render's language, and turns the numbers and nested
 // keys of a sentence into the values its translation interpolates.
@@ -44,5 +47,10 @@ const formatMonitoringTextParam = (
       return formatNumber(param.count);
     case 'text':
       return translateLocalizedText(param.text, t);
+    case 'moment':
+      return formatMoment(param);
   }
 };
+
+export const formatMoment = ({ at, isToday }: { at: string; isToday: boolean }): string =>
+  dayjs(at).format(isToday ? getClockFormat() : getUserTimeFormat().format);

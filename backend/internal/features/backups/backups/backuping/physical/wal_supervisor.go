@@ -70,6 +70,29 @@ type runningStreamer struct {
 	done                 chan struct{}
 	watchDir             string
 	shouldRemoveWatchDir atomic.Bool
+
+	// Read by GetLiveState; the HTTP handlers and the streamers share one
+	// process, so the running streamer's memory is the live source.
+	walStreamSupervisor *postgresql_executor.WalStreamSupervisor
+}
+
+// GetLiveState returns the current values of the database's running WAL
+// stream, or false while no streamer runs for it in this process.
+func (s *PhysicalWalStreamSupervisor) GetLiveState(
+	databaseID uuid.UUID,
+	now time.Time,
+) (*postgresql_executor.WalStreamLiveState, bool) {
+	s.mu.Lock()
+	streamer, isRunning := s.running[databaseID]
+	s.mu.Unlock()
+
+	if !isRunning || streamer.walStreamSupervisor == nil {
+		return nil, false
+	}
+
+	liveState := streamer.walStreamSupervisor.GetLiveState(now)
+
+	return &liveState, true
 }
 
 func (s *PhysicalWalStreamSupervisor) IsRunning() bool {
@@ -286,6 +309,8 @@ func (s *PhysicalWalStreamSupervisor) startStreamer(
 		OnChainAtRisk:             s.chainRiskNotifier(ctx, db, backupConfig),
 		Logger:                    s.logger,
 	})
+
+	streamer.walStreamSupervisor = supervisor
 
 	s.mu.Lock()
 	s.running[db.ID] = streamer

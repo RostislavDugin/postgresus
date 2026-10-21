@@ -225,7 +225,7 @@ func getWalChainBrokenReason(input VerdictInput, samples verdictSamples) *Reason
 		return nil
 	}
 
-	for _, gap := range input.NewestChainGaps {
+	for _, gap := range input.RestoreBlockingGaps {
 		if gap.End <= *newest.ArchiveProgressLSN {
 			return &Reason{Code: ReasonCodeWalChainBroken, Level: ReasonLevelBroken}
 		}

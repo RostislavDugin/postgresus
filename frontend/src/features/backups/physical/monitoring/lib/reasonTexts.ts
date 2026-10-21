@@ -10,25 +10,8 @@ import {
 import type { TranslationKey } from '../../../../../shared/i18n';
 import type { MonitoringText } from '../model/MonitoringText';
 import type { MonitoringTextParam } from '../model/MonitoringTextParam';
-import { PathStage } from '../model/PathStage';
 import type { ReasonTexts } from '../model/ReasonTexts';
 import { getRoundedDuration, getSecondsBetween } from './roundedDuration';
-
-export const REASON_STAGES: Record<WalStreamReasonCode, PathStage> = {
-  [WalStreamReasonCode.STREAMING_STOPPED]: PathStage.DATABASUS,
-  [WalStreamReasonCode.SOURCE_UNREACHABLE]: PathStage.SOURCE,
-  [WalStreamReasonCode.WAL_CHAIN_BROKEN]: PathStage.STORAGE,
-  [WalStreamReasonCode.SLOT_MISSING]: PathStage.SOURCE,
-  [WalStreamReasonCode.SLOT_LOST]: PathStage.SOURCE,
-  [WalStreamReasonCode.ARCHIVE_NOT_ADVANCING]: PathStage.STORAGE,
-  [WalStreamReasonCode.ARCHIVE_SLOWER_THAN_SOURCE]: PathStage.STORAGE,
-  [WalStreamReasonCode.SLOT_KEEPS_EXTRA_WAL]: PathStage.SOURCE,
-  [WalStreamReasonCode.SLOT_LIMIT_APPROACHING]: PathStage.SOURCE,
-  [WalStreamReasonCode.NEAR_SLOT_REBUILD]: PathStage.SOURCE,
-  [WalStreamReasonCode.LOCAL_QUEUE_FILLING]: PathStage.DATABASUS,
-  [WalStreamReasonCode.FREQUENT_RESTARTS]: PathStage.DATABASUS,
-  [WalStreamReasonCode.FORCED_ROTATION_REFUSED]: PathStage.SOURCE,
-};
 
 interface ReasonSentenceKeys {
   whatHappened: TranslationKey;
@@ -111,12 +94,6 @@ const NOTICE_SENTENCE_KEYS: Record<WalStreamNoticeCode, ReasonSentenceKeys> = {
   },
 };
 
-const NOTICE_STAGES: Record<WalStreamNoticeCode, PathStage> = {
-  [WalStreamNoticeCode.NO_SLOT_WAL_LIMIT]: PathStage.SOURCE,
-  [WalStreamNoticeCode.SLOT_KEEPS_EXTRA_WAL_STEADILY]: PathStage.SOURCE,
-  [WalStreamNoticeCode.NO_FULL_BACKUP_YET]: PathStage.STORAGE,
-};
-
 const REASON_LEVEL_ORDER: Record<WalStreamReasonLevel, number> = {
   [WalStreamReasonLevel.BROKEN]: 0,
   [WalStreamReasonLevel.NEEDS_ATTENTION]: 1,
@@ -142,7 +119,6 @@ export const getReasonTexts = (
 
   return {
     level: reason.level,
-    stage: REASON_STAGES[reason.code],
     titleKey: WAL_STREAM_REASON_CODE_LABEL_KEYS[reason.code],
     whatHappened: { key: sentenceKeys.whatHappened, params: getReasonParams(reason, now) },
     whatToDo: { key: whatToDoKey },
@@ -154,12 +130,18 @@ export const getNoticeTexts = (notice: WalStreamNotice): ReasonTexts => {
 
   return {
     level: notice.level,
-    stage: NOTICE_STAGES[notice.code],
     titleKey: WAL_STREAM_NOTICE_CODE_LABEL_KEYS[notice.code],
     whatHappened: { key: sentenceKeys.whatHappened },
     whatToDo: { key: sentenceKeys.whatToDo },
   };
 };
+
+// The banner's restore sentence already says that no full backup has finished, so that notice is no
+// tip.
+export const getTipTexts = (notices: WalStreamNotice[]): ReasonTexts[] =>
+  notices
+    .filter((notice) => notice.code !== WalStreamNoticeCode.NO_FULL_BACKUP_YET)
+    .map(getNoticeTexts);
 
 const getReasonParams = (reason: WalStreamReason, now: Date): MonitoringText['params'] => {
   const params: Record<string, MonitoringTextParam> = {};
@@ -167,7 +149,7 @@ const getReasonParams = (reason: WalStreamReason, now: Date): MonitoringText['pa
   if (reason.since !== undefined) {
     params.duration = {
       kind: 'text',
-      text: getRoundedDuration(getSecondsBetween(reason.since, now)),
+      text: getRoundedDuration(getSecondsBetween(reason.since, now) ?? 0),
     };
   }
 

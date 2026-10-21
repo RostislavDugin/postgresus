@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getMeasurementAge, getRoundedDuration } from './roundedDuration';
+import { getMeasurementAge, getRoundedDuration, getSecondsBetween } from './roundedDuration';
 
 describe('getRoundedDuration', () => {
   it.each([
@@ -25,6 +25,29 @@ describe('getRoundedDuration', () => {
     ],
   ])('rounds %d seconds for reading', (seconds, expectedKey, expectedParams) => {
     expect(getRoundedDuration(seconds)).toEqual({ key: expectedKey, params: expectedParams });
+  });
+});
+
+describe('getSecondsBetween', () => {
+  const now = new Date('2026-10-18T12:00:00Z');
+
+  it('counts the seconds from an earlier time', () => {
+    expect(getSecondsBetween('2026-10-18T11:59:20Z', now)).toBe(40);
+  });
+
+  it('never goes below zero for a time slightly in the future', () => {
+    expect(getSecondsBetween('2026-10-18T12:00:05Z', now)).toBe(0);
+  });
+
+  it.each([['not a time'], [''], [undefined as unknown as string]])(
+    'is null for a time it cannot read (%j), so no "NaN" reaches the screen',
+    (earlier) => {
+      expect(getSecondsBetween(earlier, now)).toBeNull();
+    },
+  );
+
+  it('is null when now itself is invalid', () => {
+    expect(getSecondsBetween('2026-10-18T11:59:20Z', new Date(Number.NaN))).toBeNull();
   });
 });
 

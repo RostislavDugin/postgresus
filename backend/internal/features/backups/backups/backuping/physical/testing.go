@@ -228,3 +228,30 @@ func RunOrphanWalCleanupForTest(t *testing.T, databaseID uuid.UUID) {
 
 	CreateTestPhysicalCleaner().cleanOrphanWalForDatabase(t.Context(), logger.GetLogger(), databaseID)
 }
+
+// RegisterTestRunningStreamer makes GetLiveState answer for the database with a
+// streamer supervisor that never runs, so a test reads its current values
+// without streaming WAL. The registration is removed when the test ends.
+func RegisterTestRunningStreamer(
+	t *testing.T,
+	databaseID uuid.UUID,
+	streamer *postgresql_executor.WalStreamSupervisor,
+) {
+	t.Helper()
+
+	supervisor := GetPhysicalWalStreamSupervisor()
+
+	supervisor.mu.Lock()
+	supervisor.running[databaseID] = &runningStreamer{
+		cancel:              func() {},
+		done:                make(chan struct{}),
+		walStreamSupervisor: streamer,
+	}
+	supervisor.mu.Unlock()
+
+	t.Cleanup(func() {
+		supervisor.mu.Lock()
+		delete(supervisor.running, databaseID)
+		supervisor.mu.Unlock()
+	})
+}

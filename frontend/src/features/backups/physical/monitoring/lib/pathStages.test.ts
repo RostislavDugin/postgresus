@@ -25,8 +25,18 @@ describe('getStageTones', () => {
     ]);
 
     expect(stageTones[PathStage.DATABASUS]).toBe(MonitoringTone.WARNING);
-    expect(stageTones[PathStage.SOURCE]).toBe(MonitoringTone.SUCCESS);
-    expect(stageTones[PathStage.STORAGE]).toBe(MonitoringTone.SUCCESS);
+    expect(stageTones[PathStage.SOURCE]).toBe(MonitoringTone.NEUTRAL);
+    expect(stageTones[PathStage.STORAGE]).toBe(MonitoringTone.NEUTRAL);
+  });
+
+  it('leaves every stage neutral when the only reason is a broken chain', () => {
+    const stageTones = getStageTones(WalStreamHealthLevel.BROKEN, [
+      { code: WalStreamReasonCode.WAL_CHAIN_BROKEN, level: WalStreamReasonLevel.BROKEN },
+    ]);
+
+    expect(stageTones[PathStage.SOURCE]).toBe(MonitoringTone.NEUTRAL);
+    expect(stageTones[PathStage.DATABASUS]).toBe(MonitoringTone.NEUTRAL);
+    expect(stageTones[PathStage.STORAGE]).toBe(MonitoringTone.NEUTRAL);
   });
 
   it('takes the most severe reason of a stage', () => {
@@ -36,6 +46,16 @@ describe('getStageTones', () => {
     ]);
 
     expect(stageTones[PathStage.SOURCE]).toBe(MonitoringTone.ERROR);
+  });
+
+  it('leaves every stage neutral without a reason, so a healthy path draws no colored border', () => {
+    const stageTones = getStageTones(WalStreamHealthLevel.HEALTHY, []);
+
+    expect(Object.values(stageTones)).toEqual([
+      MonitoringTone.NEUTRAL,
+      MonitoringTone.NEUTRAL,
+      MonitoringTone.NEUTRAL,
+    ]);
   });
 
   it('leaves every stage neutral while streaming is off', () => {

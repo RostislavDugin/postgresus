@@ -7,7 +7,7 @@ import {
   WalStreamReasonLevel,
 } from '../../../../../entity/backups/physical';
 import { DICTIONARIES } from '../../../../../shared/i18n';
-import { getNoticeTexts, getReasonTexts, sortReasonsBrokenFirst } from './reasonTexts';
+import { getNoticeTexts, getReasonTexts, getTipTexts, sortReasonsBrokenFirst } from './reasonTexts';
 
 // The entity's public API imports its API client, and the client's config module reads window at
 // import time. The tests run in node, so they supply window.
@@ -142,6 +142,19 @@ describe('sortReasonsBrokenFirst', () => {
     expect(sortedReasons.map((reason) => reason.code)).toEqual([
       WalStreamReasonCode.SLOT_MISSING,
       WalStreamReasonCode.LOCAL_QUEUE_FILLING,
+    ]);
+  });
+});
+
+describe('getTipTexts', () => {
+  it('turns notices into tips, leaving the missing first full backup to the restore sentence', () => {
+    const tips = getTipTexts([
+      { code: WalStreamNoticeCode.NO_SLOT_WAL_LIMIT, level: WalStreamReasonLevel.INFO },
+      { code: WalStreamNoticeCode.NO_FULL_BACKUP_YET, level: WalStreamReasonLevel.INFO },
+    ]);
+
+    expect(tips.map((tip) => tip.titleKey)).toEqual([
+      'backups.physical.monitoring.notices.noSlotWalLimit.title',
     ]);
   });
 });

@@ -1738,6 +1738,25 @@ export const fr: typeof en = {
           cannotConfirm: "Impossible de confirmer l'état actuel",
           cannotConfirmDescription: 'Dernier état connu : {{level}}, il y a {{duration}}.',
           measuredAgo: 'Mesuré il y a {{duration}}',
+          healthyHeadline: 'Toutes les modifications sont enregistrées',
+          restoreUpTo:
+            "Vous pouvez restaurer la base à n'importe quel moment jusqu'à {{moment}} (il y a {{age}}).",
+          restoreOnlyUpTo:
+            "Tant qu'une nouvelle sauvegarde complète n'est pas terminée, vous ne pouvez restaurer la base que jusqu'à {{moment}} (il y a {{age}}).",
+          restoreFromUpTo:
+            "Vous pouvez restaurer la base à n'importe quel moment entre {{from}} et {{moment}} (il y a {{age}}).",
+          restoreFromUpToWithoutAge:
+            "Vous pouvez restaurer la base à n'importe quel moment entre {{from}} et {{moment}}.",
+          restoreUpToWithoutAge:
+            "Vous pouvez restaurer la base à n'importe quel moment jusqu'à {{moment}}.",
+          restoreOnlyUpToWithoutAge:
+            "Tant qu'une nouvelle sauvegarde complète n'est pas terminée, vous ne pouvez restaurer la base que jusqu'à {{moment}}.",
+          restoreNothingPending:
+            "Rien ne peut être restauré tant que la première sauvegarde complète n'est pas terminée. Elle est déjà en route.",
+          restoreNothing:
+            "Rien ne peut encore être restauré, car aucune sauvegarde complète n'est terminée.",
+          startFullBackup: 'Lancer une sauvegarde complète',
+          fullBackupRequested: 'Sauvegarde complète demandée.',
           notMeasuredYet: 'Pas encore de mesure',
           refreshFailed:
             "Impossible d'actualiser les données. Les derniers chiffres reçus restent affichés, et la prochaine tentative a lieu dans 30 secondes.",
@@ -1754,7 +1773,6 @@ export const fr: typeof en = {
           catchingUpWithoutEstimate:
             'Databasus enregistre le retard accumulé : il reste {{unsavedAmount}}.',
           idle: "La base de données n'écrit presque rien ; les nouvelles modifications arrivent dans le stockage en quelques minutes.",
-          unknown: "Aucun chiffre actuel n'est disponible.",
           rebuildConsequence:
             "À ce rythme, Databasus commencera une nouvelle chaîne de sauvegardes à partir d'une sauvegarde complète dans environ {{duration}}.",
           limitConsequence:
@@ -1777,7 +1795,7 @@ export const fr: typeof en = {
           walChainBroken: {
             title: 'Des modifications ont été perdues entre les sauvegardes',
             whatHappened:
-              'Des modifications ont été perdues entre les sauvegardes, les modifications récentes ne peuvent donc pas encore être restaurées.',
+              "Une partie de l'historique des modifications n'a jamais atteint le stockage, les modifications suivantes ne peuvent donc pas être restaurées.",
             whatToDo: "Lancez une sauvegarde complète dans l'onglet Sauvegardes.",
             whatToDoPending:
               "Une nouvelle sauvegarde complète est en cours. Vous pouvez la suivre dans l'onglet Sauvegardes.",
@@ -1874,6 +1892,25 @@ export const fr: typeof en = {
             whatToDo: "Attendez-la, ou lancez-la dans l'onglet Sauvegardes.",
           },
         },
+        figures: {
+          lastSaved: 'Dernière modification enregistrée',
+          waitingToBeSaved: "En attente d'enregistrement",
+          notMeasured: 'Pas encore mesuré',
+          averageHint: 'moy. 10 min',
+        },
+        restoreTimeline: {
+          title: 'Ce que vous pouvez restaurer',
+          restorable: 'Restaurable',
+          lost: 'Non restaurable',
+          notSavedYet: 'Pas encore enregistré dans le stockage',
+          lostSentence:
+            "Vous ne pouvez pas restaurer la base à un moment entre {{from}} et {{to}} : ces modifications n'ont jamais atteint le stockage.",
+          moreLost: 'Autres périodes non restaurables : {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Détails techniques',
+        },
         path: {
           database: 'Base de données',
           databasus: 'Databasus',
@@ -1883,18 +1920,21 @@ export const fr: typeof en = {
             "À {{amount}}, Databasus commence une nouvelle chaîne à partir d'une sauvegarde complète",
           allowanceLeft:
             'Marge avant que la base de données ne supprime des modifications : {{amount}}',
-          noAllowanceLimit: 'Aucune limite sur les modifications conservées',
+          nothingWaiting: 'Rien en attente',
+          ratesCaption:
+            "Les débits sont des moyennes sur les 10 dernières minutes ; les volumes sont ceux de cet instant. Une base qui écrit par à-coups affiche un débit alors que rien n'attend.",
           waitingInBuffer: 'En attente dans le tampon',
           pauseLimit: 'La réception est suspendue à {{amount}}',
           receivingPaused: 'Réception suspendue',
-          lastSaved: 'Dernière modification enregistrée {{relativeTime}}',
           nothingSavedYet: "Rien n'est encore enregistré",
           overLimit: 'Au-delà de la limite',
-          writeRate: 'Écrit {{rate}}',
-          saveRate: 'Enregistre {{rate}}',
+          ofLimit: '{{amount}} sur {{limit}}',
+          notSavedYetAmount: 'Pas encore enregistré dans le stockage : {{amount}}',
           unknownAmount: 'Inconnu',
         },
         tooltips: {
+          notSavedYet:
+            "Modifications écrites par la base qui ne sont pas encore dans le stockage : celles que Databasus n'a pas reçues et celles qui attendent dans sa mémoire tampon. Nom technique : WAL non archivé.",
           notReceivedYet:
             'Modifications que la base de données conserve pour Databasus parce que Databasus ne les a pas encore reçues. Nom technique : retard du slot de réplication.',
           rebuildLimit:
@@ -1925,12 +1965,13 @@ export const fr: typeof en = {
           pauseLimit: 'La réception est suspendue ici',
           restarts: 'Redémarrages',
           pauses: 'Pauses',
-          noHistory: 'Les graphiques apparaissent après quelques minutes de streaming.',
+          notEnoughData:
+            'Pas encore assez de données pour cette période. Une période plus courte a peut-être déjà un graphique.',
           dataSince: 'Données depuis {{time}}',
+          noMeasurements: 'Aucune mesure de {{from}} à {{to}}.',
           perSecond: '{{amount}}/s',
         },
         details: {
-          title: 'Détails',
           slotStatus: 'Statut du slot (wal_status)',
           allowance: 'Marge restante (safe_wal_size)',
           noLimit: 'Aucune limite',

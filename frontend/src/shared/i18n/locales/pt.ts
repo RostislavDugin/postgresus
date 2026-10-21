@@ -1721,6 +1721,25 @@ export const pt: typeof en = {
           cannotConfirm: 'Não é possível confirmar o estado atual',
           cannotConfirmDescription: 'Último estado conhecido: {{level}}, há {{duration}}.',
           measuredAgo: 'Medido há {{duration}}',
+          healthyHeadline: 'Todas as alterações estão sendo salvas',
+          restoreUpTo:
+            'Você pode restaurar o banco de dados para qualquer momento até {{moment}} (há {{age}}).',
+          restoreOnlyUpTo:
+            'Até que um novo backup completo termine, você só pode restaurar o banco de dados até {{moment}} (há {{age}}).',
+          restoreFromUpTo:
+            'Você pode restaurar o banco de dados para qualquer momento de {{from}} até {{moment}} (há {{age}}).',
+          restoreFromUpToWithoutAge:
+            'Você pode restaurar o banco de dados para qualquer momento de {{from}} até {{moment}}.',
+          restoreUpToWithoutAge:
+            'Você pode restaurar o banco de dados para qualquer momento até {{moment}}.',
+          restoreOnlyUpToWithoutAge:
+            'Até que um novo backup completo termine, você só pode restaurar o banco de dados até {{moment}}.',
+          restoreNothingPending:
+            'Nada pode ser restaurado até que o primeiro backup completo termine. Ele já está a caminho.',
+          restoreNothing:
+            'Ainda não há nada para restaurar, porque nenhum backup completo terminou.',
+          startFullBackup: 'Iniciar backup completo',
+          fullBackupRequested: 'Backup completo solicitado.',
           notMeasuredYet: 'Ainda sem medições',
           refreshFailed:
             'Não foi possível atualizar os dados. Os últimos números recebidos continuam na tela, e a próxima tentativa acontece em 30 segundos.',
@@ -1737,7 +1756,6 @@ export const pt: typeof en = {
           catchingUpWithoutEstimate:
             'O Databasus está salvando as alterações acumuladas: faltam {{unsavedAmount}}.',
           idle: 'O banco de dados quase não grava nada; as novas alterações chegam ao armazenamento em poucos minutos.',
-          unknown: 'Não há números atuais disponíveis.',
           rebuildConsequence:
             'Nesse ritmo, o Databasus vai começar uma nova cadeia de backups a partir de um backup completo em cerca de {{duration}}.',
           limitConsequence:
@@ -1759,7 +1777,7 @@ export const pt: typeof en = {
           walChainBroken: {
             title: 'Alterações se perderam entre os backups',
             whatHappened:
-              'Algumas alterações se perderam entre os backups, por isso as alterações recentes ainda não podem ser restauradas.',
+              'Parte do histórico de alterações nunca chegou ao armazenamento, por isso as alterações posteriores não podem ser restauradas.',
             whatToDo: 'Inicie um backup completo na aba Backups.',
             whatToDoPending:
               'Um novo backup completo já está a caminho. Você pode acompanhá-lo na aba Backups.',
@@ -1852,6 +1870,25 @@ export const pt: typeof en = {
             whatToDo: 'Aguarde ou inicie-o na aba Backups.',
           },
         },
+        figures: {
+          lastSaved: 'Última alteração salva',
+          waitingToBeSaved: 'Aguardando para ser salvo',
+          notMeasured: 'Ainda não medido',
+          averageHint: 'méd. 10 min',
+        },
+        restoreTimeline: {
+          title: 'O que você pode restaurar',
+          restorable: 'Pode ser restaurado',
+          lost: 'Não pode ser restaurado',
+          notSavedYet: 'Ainda não salvo no armazenamento',
+          lostSentence:
+            'Você não pode restaurar o banco de dados para momentos entre {{from}} e {{to}}: essas alterações nunca chegaram ao armazenamento.',
+          moreLost: 'Outros períodos que não podem ser restaurados: {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Detalhes técnicos',
+        },
         path: {
           database: 'Banco de dados',
           databasus: 'Databasus',
@@ -1860,18 +1897,21 @@ export const pt: typeof en = {
           rebuildLimit:
             'Com {{amount}}, o Databasus começa uma nova cadeia a partir de um backup completo',
           allowanceLeft: 'Margem até o banco de dados apagar alterações: {{amount}}',
-          noAllowanceLimit: 'Sem limite para alterações guardadas',
+          nothingWaiting: 'Nada aguardando',
+          ratesCaption:
+            'As velocidades são médias dos últimos 10 minutos; as quantidades são as deste momento. Um banco de dados que grava em rajadas mostra uma velocidade mesmo sem nada aguardando.',
           waitingInBuffer: 'Aguardando no buffer',
           pauseLimit: 'O recebimento pausa com {{amount}}',
           receivingPaused: 'Recebimento pausado',
-          lastSaved: 'Última alteração salva {{relativeTime}}',
           nothingSavedYet: 'Nada salvo ainda',
           overLimit: 'Acima do limite',
-          writeRate: 'Grava {{rate}}',
-          saveRate: 'Salva {{rate}}',
+          ofLimit: '{{amount}} de {{limit}}',
+          notSavedYetAmount: 'Ainda não salvo no armazenamento: {{amount}}',
           unknownAmount: 'Desconhecido',
         },
         tooltips: {
+          notSavedYet:
+            'Alterações que o banco de dados gravou e que ainda não estão no armazenamento: as que o Databasus não recebeu mais as que aguardam no buffer dele. Nome técnico: WAL não arquivado.',
           notReceivedYet:
             'Alterações que o banco de dados guarda para o Databasus porque o Databasus ainda não as recebeu. Nome técnico: atraso do slot de replicação.',
           rebuildLimit:
@@ -1902,12 +1942,13 @@ export const pt: typeof en = {
           pauseLimit: 'Aqui o recebimento pausa',
           restarts: 'Reinícios',
           pauses: 'Pausas',
-          noHistory: 'Os gráficos aparecem após alguns minutos de streaming.',
+          notEnoughData:
+            'Ainda não há dados suficientes para este período. Um período mais curto talvez já tenha um gráfico.',
           dataSince: 'Dados desde {{time}}',
+          noMeasurements: 'Sem medições de {{from}} até {{to}}.',
           perSecond: '{{amount}}/s',
         },
         details: {
-          title: 'Detalhes',
           slotStatus: 'Status do slot (wal_status)',
           allowance: 'Margem restante (safe_wal_size)',
           noLimit: 'Sem limite',

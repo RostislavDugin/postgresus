@@ -126,7 +126,7 @@ type WalStreamStatisticsQuery struct {
 	SlotRebuildLagBytes    int64
 	IsStreamingExpected    bool
 	HasCompletedFullBackup bool
-	NewestChainGaps        []chain_view.LSNRange
+	RestoreBlockingGaps    []chain_view.LSNRange
 
 	Now time.Time
 }

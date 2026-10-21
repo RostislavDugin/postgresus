@@ -28,6 +28,7 @@ type PhysicalBackupController struct {
 func (c *PhysicalBackupController) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/backups/physical/database/:id/backups", c.GetBackups)
 	router.GET("/backups/physical/database/:id/wal-stream/statistics", c.GetWalStreamStatistics)
+	router.GET("/backups/physical/database/:id/wal-stream/live", c.GetWalStreamLive)
 	router.POST("/backups/physical/database/:id/trigger", c.TriggerBackup)
 	router.POST("/backups/physical/database/:id/restore-token", c.GenerateRestoreToken)
 
@@ -98,9 +99,42 @@ func (c *PhysicalBackupController) GetBackups(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
+// GetWalStreamLive
+// @Summary Get the current WAL stream values of a database
+// @Description Returns the current values of a physical PostgreSQL database's running WAL stream, read from the running streamer at the time of the request and never stored, for a screen that refreshes every second: the local queue and its pause size, whether receiving runs, the archive progress point, the time the newest WAL segment was archived and how much is not saved to storage yet. The source-side values (current position, slot status, slot lag, remaining allowance) come from the streamer's newest probe of the source, made at least every 10 seconds, with the time of that probe; the request opens no connection to the source. While no streamer runs for the database, isStreamerRunning is false and current is null. Amounts carry their unit in their name and times are UTC. Any other database type or a database the user cannot view returns 400.
+// @Tags backups-physical
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Database ID"
+// @Success 200 {object} backups_dto_physical.GetWalStreamLiveResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /backups/physical/database/{id}/wal-stream/live [get]
+func (c *PhysicalBackupController) GetWalStreamLive(ctx *gin.Context) {
+	user, ok := users_middleware.GetUserFromContext(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	databaseID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid database ID"})
+		return
+	}
+
+	response, err := c.physicalBackupService.GetWalStreamLive(ctx.Request.Context(), user, databaseID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
 // GetWalStreamStatistics
 // @Summary Get WAL stream statistics for a database
-// @Description Returns how healthy WAL archiving of a physical PostgreSQL database is: one verdict with its reasons and notices, the streamer's state, the values of the newest sample, a keeping-up summary of the last 10 minutes and a chart series for the requested period. Amounts carry their unit in their name, times are UTC, and the verdict, states, reasons and notices are codes from the documented enums, never display text. Samples are taken every 30 seconds and kept for 7 days. A physical database outside WAL streaming mode gets the NOT_STREAMING verdict with the samples it still has; any other database type, an unknown period or a database the user cannot view returns 400.
+// @Description Returns how healthy WAL archiving of a physical PostgreSQL database is: one verdict with its reasons and notices, the latest moment a restore to the latest available point reaches (null before the first completed full backup), the stretches of time the newest chain can restore to (empty before the first completed full backup), the streamer's state, the values of the newest sample, a keeping-up summary of the last 10 minutes and a chart series for the requested period. Amounts carry their unit in their name, times are UTC, and the verdict, states, reasons and notices are codes from the documented enums, never display text. Samples are taken every 30 seconds and kept for 7 days. A physical database outside WAL streaming mode gets the NOT_STREAMING verdict with the samples it still has; any other database type, an unknown period or a database the user cannot view returns 400.
 // @Tags backups-physical
 // @Produce json
 // @Security BearerAuth

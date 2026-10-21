@@ -1701,6 +1701,22 @@ export const ru: typeof en = {
           cannotConfirm: 'Не удается подтвердить текущее состояние',
           cannotConfirmDescription: 'Последнее известное состояние: {{level}}, {{duration}} назад.',
           measuredAgo: 'Замер {{duration}} назад',
+          healthyHeadline: 'Все изменения сохраняются',
+          restoreUpTo: 'Базу можно восстановить на любой момент до {{moment}} ({{age}} назад).',
+          restoreOnlyUpTo:
+            'Пока не завершится новый полный бекап, базу можно восстановить только до {{moment}} ({{age}} назад).',
+          restoreFromUpTo:
+            'Базу можно восстановить на любой момент с {{from}} до {{moment}} ({{age}} назад).',
+          restoreFromUpToWithoutAge:
+            'Базу можно восстановить на любой момент с {{from}} до {{moment}}.',
+          restoreUpToWithoutAge: 'Базу можно восстановить на любой момент до {{moment}}.',
+          restoreOnlyUpToWithoutAge:
+            'Пока не завершится новый полный бекап, базу можно восстановить только до {{moment}}.',
+          restoreNothingPending:
+            'Восстановить ничего не получится, пока не завершится первый полный бекап. Он уже запрошен.',
+          restoreNothing: 'Восстанавливать пока нечего: ни один полный бекап еще не завершился.',
+          startFullBackup: 'Запустить полный бекап',
+          fullBackupRequested: 'Полный бекап запрошен.',
           notMeasuredYet: 'Замеров еще нет',
           refreshFailed:
             'Не удалось обновить данные. На экране остаются последние полученные цифры, следующая попытка через 30 секунд.',
@@ -1717,7 +1733,6 @@ export const ru: typeof en = {
           catchingUpWithoutEstimate:
             'Databasus сохраняет накопившиеся изменения: осталось {{unsavedAmount}}.',
           idle: 'База почти ничего не пишет, новые изменения попадают в хранилище в течение нескольких минут.',
-          unknown: 'Текущих цифр пока нет.',
           rebuildConsequence:
             'Если так пойдет дальше, примерно через {{duration}} Databasus начнет новую цепочку бекапов с полного бекапа.',
           limitConsequence:
@@ -1738,7 +1753,7 @@ export const ru: typeof en = {
           walChainBroken: {
             title: 'Между бекапами потерялись изменения',
             whatHappened:
-              'Часть изменений между бекапами потерялась, поэтому последние изменения пока нельзя восстановить.',
+              'Часть истории изменений не дошла до хранилища, поэтому изменения после неё восстановить нельзя.',
             whatToDo: 'Запустите полный бекап на вкладке «Бекапы».',
             whatToDoPending:
               'Новый полный бекап уже в работе, за ним можно следить на вкладке «Бекапы».',
@@ -1828,6 +1843,25 @@ export const ru: typeof en = {
             whatToDo: 'Дождитесь его или запустите на вкладке «Бекапы».',
           },
         },
+        figures: {
+          lastSaved: 'Последнее изменение сохранено',
+          waitingToBeSaved: 'Ждет сохранения',
+          notMeasured: 'Еще не измерено',
+          averageHint: 'в среднем за 10 мин',
+        },
+        restoreTimeline: {
+          title: 'Что можно восстановить',
+          restorable: 'Можно восстановить',
+          lost: 'Нельзя восстановить',
+          notSavedYet: 'Ещё не сохранено в хранилище',
+          lostSentence:
+            'Базу нельзя восстановить на моменты между {{from}} и {{to}}: эти изменения не дошли до хранилища.',
+          moreLost: 'Других промежутков, на которые нельзя восстановить: {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Технические подробности',
+        },
         path: {
           database: 'База',
           databasus: 'Databasus',
@@ -1835,18 +1869,21 @@ export const ru: typeof en = {
           notReceivedYet: 'Еще не получено Databasus',
           rebuildLimit: 'При {{amount}} Databasus начнет новую цепочку с полного бекапа',
           allowanceLeft: 'Запас, пока база не начнет удалять изменения: {{amount}}',
-          noAllowanceLimit: 'Предела для хранимых изменений нет',
+          nothingWaiting: 'Ничего не ждёт',
+          ratesCaption:
+            'Скорости — средние за последние 10 минут, объёмы — на текущий момент. Если база пишет пачками, скорость есть, а ждать нечему.',
           waitingInBuffer: 'Ждет в буфере',
           pauseLimit: 'Прием приостанавливается при {{amount}}',
           receivingPaused: 'Прием приостановлен',
-          lastSaved: 'Последнее изменение сохранено {{relativeTime}}',
           nothingSavedYet: 'Пока ничего не сохранено',
           overLimit: 'Сверх предела',
-          writeRate: 'Запись {{rate}}',
-          saveRate: 'Сохранение {{rate}}',
+          ofLimit: '{{amount}} из {{limit}}',
+          notSavedYetAmount: 'Ещё не сохранено в хранилище: {{amount}}',
           unknownAmount: 'Неизвестно',
         },
         tooltips: {
+          notSavedYet:
+            'Изменения, которые база уже записала, но которых ещё нет в хранилище: то, что Databasus ещё не получил, и то, что ждёт в его буфере. Технически это неархивированный WAL.',
           notReceivedYet:
             'Изменения, которые база держит для Databasus, потому что Databasus их еще не получил. Технически это отставание слота репликации.',
           rebuildLimit:
@@ -1877,12 +1914,13 @@ export const ru: typeof en = {
           pauseLimit: 'Здесь прием приостанавливается',
           restarts: 'Перезапуски',
           pauses: 'Паузы',
-          noHistory: 'Графики появятся через несколько минут стриминга.',
+          notEnoughData:
+            'Для этого периода данных пока мало. Для периода покороче график, возможно, уже есть.',
           dataSince: 'Данные с {{time}}',
+          noMeasurements: 'Нет измерений с {{from}} до {{to}}.',
           perSecond: '{{amount}}/с',
         },
         details: {
-          title: 'Подробности',
           slotStatus: 'Статус слота (wal_status)',
           allowance: 'Оставшийся запас (safe_wal_size)',
           noLimit: 'Без предела',

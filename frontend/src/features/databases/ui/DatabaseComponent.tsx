@@ -143,6 +143,7 @@ export const DatabaseComponent = ({
       {currentTab === 'monitoring' && isMonitoringShown && (
         <WalStreamMonitoringComponent
           database={database}
+          isCanManageDBs={isCanManageDBs}
           isDirectlyUnderTab={true}
           onOpenConfig={() => setCurrentTab('config')}
         />

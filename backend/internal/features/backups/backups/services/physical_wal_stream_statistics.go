@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"databasus-backend/internal/features/backups/backups/core/physical/chain_view"
 	physical_dto "databasus-backend/internal/features/backups/backups/core/physical/dto"
 	physical_enums "databasus-backend/internal/features/backups/backups/core/physical/enums"
 	physical_core_service "databasus-backend/internal/features/backups/backups/core/physical/service"
@@ -52,7 +53,7 @@ func (s *PhysicalBackupService) GetWalStreamStatistics(
 		return nil, err
 	}
 
-	newestFull, err := s.chainViewService.GetNewestCompletedFullWithGaps(databaseID)
+	restoreCoverage, err := s.chainViewService.GetRestoreCoverage(databaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +72,9 @@ func (s *PhysicalBackupService) GetWalStreamStatistics(
 		Now:                 time.Now().UTC(),
 	}
 
-	if newestFull != nil {
+	if restoreCoverage.LatestRestorableAt != nil {
 		query.HasCompletedFullBackup = true
-		query.NewestChainGaps = newestFull.WalGaps
+		query.RestoreBlockingGaps = restoreCoverage.BlockingGaps
 	}
 
 	statistics, err := s.physicalCoreService.GetWalStreamStatistics(query)
@@ -81,7 +82,11 @@ func (s *PhysicalBackupService) GetWalStreamStatistics(
 		return nil, err
 	}
 
-	return toWalStreamStatisticsResponse(request.Period, bucketDuration, isFullBackupPending, statistics), nil
+	response := toWalStreamStatisticsResponse(request.Period, bucketDuration, isFullBackupPending, statistics)
+	response.LatestRestorableAt = getTimeInUTC(restoreCoverage.LatestRestorableAt)
+	response.RestorableRanges = toWalStreamTimeRanges(restoreCoverage.RestorableRanges)
+
+	return response, nil
 }
 
 // Databasus requests a full backup by itself only after a slot rebuild, so the
@@ -215,4 +220,17 @@ func getSeriesPointsInUTC(
 	}
 
 	return points
+}
+
+func toWalStreamTimeRanges(timeRanges []chain_view.TimeRange) []backups_dto_physical.WalStreamTimeRange {
+	responseRanges := make([]backups_dto_physical.WalStreamTimeRange, 0, len(timeRanges))
+
+	for _, timeRange := range timeRanges {
+		responseRanges = append(responseRanges, backups_dto_physical.WalStreamTimeRange{
+			From: timeRange.From.UTC(),
+			To:   timeRange.To.UTC(),
+		})
+	}
+
+	return responseRanges
 }

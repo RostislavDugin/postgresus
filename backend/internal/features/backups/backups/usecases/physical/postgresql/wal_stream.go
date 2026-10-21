@@ -243,6 +243,9 @@ type WalStreamSupervisor struct {
 	// Written by the uploader dispatcher, read by the lag monitor (wal_staleness.go).
 	lowestQueuedSegmentMutex sync.Mutex
 	lowestQueuedSegment      *walPosition
+
+	// The newest slot probe of any caller, read by GetLiveState.
+	latestProbe atomic.Pointer[timedSlotProbe]
 }
 
 func NewWalStreamSupervisor(spec WalStreamSpec) *WalStreamSupervisor {

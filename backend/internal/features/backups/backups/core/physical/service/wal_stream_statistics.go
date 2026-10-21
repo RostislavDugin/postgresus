@@ -62,7 +62,7 @@ func (s *PhysicalBackupService) GetWalStreamStatistics(query WalStreamStatistics
 			SlotRebuildLagBytes:    query.SlotRebuildLagBytes,
 			IsStreamingExpected:    query.IsStreamingExpected,
 			HasCompletedFullBackup: query.HasCompletedFullBackup,
-			NewestChainGaps:        query.NewestChainGaps,
+			RestoreBlockingGaps:    query.RestoreBlockingGaps,
 			Now:                    query.Now,
 		}),
 		KeepingUp:        wal_health.GetKeepingUp(recentSamples, query.SlotRebuildLagBytes, query.Now),

@@ -1695,6 +1695,22 @@ export const en = {
           cannotConfirm: 'Cannot confirm the current state',
           cannotConfirmDescription: 'Last known state: {{level}}, {{duration}} ago.',
           measuredAgo: 'Measured {{duration}} ago',
+          healthyHeadline: 'All changes are being saved',
+          restoreUpTo: 'You can restore the database to any moment up to {{moment}} ({{age}} ago).',
+          restoreOnlyUpTo:
+            'Until a new full backup finishes, you can restore the database only up to {{moment}} ({{age}} ago).',
+          restoreFromUpTo:
+            'You can restore the database to any moment from {{from}} up to {{moment}} ({{age}} ago).',
+          restoreFromUpToWithoutAge:
+            'You can restore the database to any moment from {{from}} up to {{moment}}.',
+          restoreUpToWithoutAge: 'You can restore the database to any moment up to {{moment}}.',
+          restoreOnlyUpToWithoutAge:
+            'Until a new full backup finishes, you can restore the database only up to {{moment}}.',
+          restoreNothingPending:
+            'Nothing can be restored until the first full backup finishes. It is on its way.',
+          restoreNothing: 'Nothing can be restored yet, because no full backup has finished.',
+          startFullBackup: 'Start full backup',
+          fullBackupRequested: 'Full backup requested.',
           notMeasuredYet: 'Not measured yet',
           refreshFailed:
             'Could not refresh the data. The last received numbers stay on screen, and the next attempt runs in 30 seconds.',
@@ -1710,7 +1726,6 @@ export const en = {
             'Databasus is saving a backlog: {{unsavedAmount}} is left, about {{duration}} to go.',
           catchingUpWithoutEstimate: 'Databasus is saving a backlog: {{unsavedAmount}} is left.',
           idle: 'The database writes almost nothing; new changes reach storage within minutes.',
-          unknown: 'No current numbers are available.',
           rebuildConsequence:
             'At this pace Databasus will start a new backup chain from a full backup in about {{duration}}.',
           limitConsequence:
@@ -1730,7 +1745,7 @@ export const en = {
           walChainBroken: {
             title: 'Changes were lost between backups',
             whatHappened:
-              'Some changes were lost between backups, so recent changes cannot be restored yet.',
+              'Part of the change history never reached storage, so the changes made after it cannot be restored.',
             whatToDo: 'Start a full backup on the Backups tab.',
             whatToDoPending:
               'A new full backup is on its way. You can watch it on the Backups tab.',
@@ -1820,6 +1835,25 @@ export const en = {
             whatToDo: 'Wait for it, or start it on the Backups tab.',
           },
         },
+        figures: {
+          lastSaved: 'Last change saved',
+          waitingToBeSaved: 'Waiting to be saved',
+          notMeasured: 'Not measured yet',
+          averageHint: 'avg. 10 min',
+        },
+        restoreTimeline: {
+          title: 'What you can restore',
+          restorable: 'Can be restored',
+          lost: 'Cannot be restored',
+          notSavedYet: 'Not saved to storage yet',
+          lostSentence:
+            'You cannot restore the database to moments between {{from}} and {{to}}: these changes never reached storage.',
+          moreLost: 'More stretches that cannot be restored: {{count}}.',
+          range: '{{from}} – {{to}}',
+        },
+        technicalDetails: {
+          title: 'Technical details',
+        },
         path: {
           database: 'Database',
           databasus: 'Databasus',
@@ -1827,18 +1861,21 @@ export const en = {
           notReceivedYet: 'Not received by Databasus yet',
           rebuildLimit: 'At {{amount}} Databasus starts a new chain from a full backup',
           allowanceLeft: 'Room before the database drops changes: {{amount}}',
-          noAllowanceLimit: 'No limit on kept changes',
+          nothingWaiting: 'Nothing waiting',
+          ratesCaption:
+            'Speeds are averages over the last 10 minutes; amounts are right now. A database that writes in bursts shows a speed while nothing waits.',
           waitingInBuffer: 'Waiting in the buffer',
           pauseLimit: 'Receiving pauses at {{amount}}',
           receivingPaused: 'Receiving paused',
-          lastSaved: 'Last change saved {{relativeTime}}',
           nothingSavedYet: 'Nothing saved yet',
           overLimit: 'Over the limit',
-          writeRate: 'Writes {{rate}}',
-          saveRate: 'Saves {{rate}}',
+          ofLimit: '{{amount}} of {{limit}}',
+          notSavedYetAmount: 'Not saved to storage yet: {{amount}}',
           unknownAmount: 'Unknown',
         },
         tooltips: {
+          notSavedYet:
+            'Changes the database has written that are not in storage yet: those Databasus has not received plus those waiting in its buffer. Technical name: unarchived WAL.',
           notReceivedYet:
             'Changes the database keeps for Databasus because Databasus has not received them yet. Technical name: replication slot lag.',
           rebuildLimit:
@@ -1869,12 +1906,13 @@ export const en = {
           pauseLimit: 'Receiving pauses here',
           restarts: 'Restarts',
           pauses: 'Pauses',
-          noHistory: 'Charts appear after a few minutes of streaming.',
+          notEnoughData:
+            'Not enough data for this period yet. A shorter period may already have a chart.',
           dataSince: 'Data since {{time}}',
+          noMeasurements: 'No measurements from {{from}} to {{to}}.',
           perSecond: '{{amount}}/s',
         },
         details: {
-          title: 'Details',
           slotStatus: 'Slot status (wal_status)',
           allowance: 'Remaining allowance (safe_wal_size)',
           noLimit: 'No limit',

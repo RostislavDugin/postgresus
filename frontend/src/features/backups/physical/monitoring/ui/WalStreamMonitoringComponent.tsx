@@ -1,34 +1,41 @@
-import { Alert, Button, Skeleton } from 'antd';
+import { Alert, App, Button, Skeleton } from 'antd';
 import { type ReactNode, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
-  WalStreamHealthLevel,
+  type WalStreamLive,
   WalStreamStatisticsPeriod,
+  physicalBackupsApi,
   physicalWalStreamStatisticsApi,
 } from '../../../../../entity/backups/physical';
 import type { Database } from '../../../../../entity/databases';
 import { translateApiError } from '../../../../../shared/i18n';
+import { getFullBackupAction } from '../lib/fullBackupAction';
+import { FullBackupRequestController } from '../lib/fullBackupRequestController';
 import { getKeepingUpSentences } from '../lib/keepingUpSentences';
+import { applyLiveValues } from '../lib/liveOverlay';
+import { getMonitoringFigures } from '../lib/monitoringFigures';
 import { getStageTones } from '../lib/pathStages';
-import { getNoticeTexts, getReasonTexts, sortReasonsBrokenFirst } from '../lib/reasonTexts';
+import { getTipTexts } from '../lib/reasonTexts';
 import { getVerdictBanner } from '../lib/verdictBanner';
+import { WalStreamLiveController } from '../lib/walStreamLiveController';
 import {
   type PageVisibility,
   type RefreshTimer,
   WalStreamRefreshController,
 } from '../lib/walStreamRefreshController';
 import type { WalStreamRefreshState } from '../model/WalStreamRefreshState';
-import { ChangesPathComponent } from './ChangesPathComponent';
-import { MonitoringReasonsComponent } from './MonitoringReasonsComponent';
+import { MonitoringFiguresComponent } from './MonitoringFiguresComponent';
+import { RestoreTimelineComponent } from './RestoreTimelineComponent';
+import { TechnicalDetailsComponent } from './TechnicalDetailsComponent';
 import { useCurrentTime } from './useCurrentTime';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
 import { VerdictBannerComponent } from './VerdictBannerComponent';
-import { WalStreamChartsComponent } from './WalStreamChartsComponent';
-import { WalStreamDetailsComponent } from './WalStreamDetailsComponent';
+import { WalStreamKeepingUpChartComponent } from './WalStreamChartsComponent';
 
 interface Props {
   database: Database;
+  isCanManageDBs: boolean;
   isDirectlyUnderTab: boolean;
   onOpenConfig: () => void;
 }
@@ -55,7 +62,7 @@ const browserRefreshTimer: RefreshTimer = {
 const CHART_ENTRY_ANIMATION_MS = 1500;
 
 // The charts re-render only when a refresh brings a new series, not on every tick of the clock.
-const MemoizedWalStreamChartsComponent = memo(WalStreamChartsComponent);
+const MemoizedWalStreamKeepingUpChartComponent = memo(WalStreamKeepingUpChartComponent);
 
 const MonitoringContainerComponent = ({
   isDirectlyUnderTab,
@@ -64,8 +71,10 @@ const MonitoringContainerComponent = ({
   isDirectlyUnderTab: boolean;
   children: ReactNode;
 }) => (
+  // The width stops where a line of text and a chart still read at a glance; past it the tab only
+  // grows empty space.
   <div
-    className={`w-full bg-white p-3 shadow md:p-5 dark:bg-gray-800 ${isDirectlyUnderTab ? 'rounded-tr-md rounded-br-md rounded-bl-md' : 'rounded-md'}`}
+    className={`w-full max-w-6xl bg-white p-3 shadow md:p-5 dark:bg-gray-800 ${isDirectlyUnderTab ? 'rounded-tr-md rounded-br-md rounded-bl-md' : 'rounded-md'}`}
   >
     {children}
   </div>
@@ -87,21 +96,30 @@ const MonitoringSkeletonComponent = () => (
 
 export const WalStreamMonitoringComponent = ({
   database,
+  isCanManageDBs,
   isDirectlyUnderTab,
   onOpenConfig,
 }: Props) => {
   const { t } = useTranslation();
+  const { message } = App.useApp();
 
   const [period, setPeriod] = useState(WalStreamStatisticsPeriod.HOUR);
   const [refreshState, setRefreshState] = useState<WalStreamRefreshState | null>(null);
   const [lastAnimatedPeriod, setLastAnimatedPeriod] = useState<WalStreamStatisticsPeriod | null>(
     null,
   );
+  const [isRequestingFullBackup, setIsRequestingFullBackup] = useState(false);
+  const [live, setLive] = useState<WalStreamLive | null>(null);
 
   const controllerRef = useRef<WalStreamRefreshController | null>(null);
+  const fullBackupRequestControllerRef = useRef<FullBackupRequestController | null>(null);
 
   const retryFirstLoad = () => {
     controllerRef.current?.retry();
+  };
+
+  const startFullBackup = () => {
+    void fullBackupRequestControllerRef.current?.requestFullBackup();
   };
 
   const now = useCurrentTime();
@@ -131,6 +149,40 @@ export const WalStreamMonitoringComponent = ({
     return () => controller.stop();
   }, [database.id]);
 
+  useEffect(() => {
+    setLive(null);
+
+    const liveController = new WalStreamLiveController(
+      {
+        fetchLive: () => physicalWalStreamStatisticsApi.getWalStreamLive(database.id),
+        timer: browserRefreshTimer,
+        pageVisibility: browserPageVisibility,
+      },
+      setLive,
+    );
+
+    liveController.start();
+
+    return () => liveController.stop();
+  }, [database.id]);
+
+  useEffect(() => {
+    fullBackupRequestControllerRef.current = new FullBackupRequestController(
+      {
+        requestFullBackup: () => physicalBackupsApi.triggerPhysicalBackup(database.id, 'full'),
+        refreshNow: () => controllerRef.current?.retry(),
+        reportRequested: () =>
+          message.success(t('backups.physical.monitoring.banner.fullBackupRequested')),
+        reportError: (e) => message.error(translateApiError(e, t)),
+      },
+      setIsRequestingFullBackup,
+    );
+  }, [database.id, message, t]);
+
+  useEffect(() => {
+    fullBackupRequestControllerRef.current?.handleRefreshLanded();
+  }, [refreshState]);
+
   const shownSeriesPeriod = refreshState?.statistics?.series.period ?? null;
 
   useEffect(() => {
@@ -146,7 +198,9 @@ export const WalStreamMonitoringComponent = ({
     return () => clearTimeout(timeout);
   }, [shownSeriesPeriod, lastAnimatedPeriod]);
 
-  const statistics = refreshState?.statistics ?? null;
+  const statistics = refreshState?.statistics
+    ? applyLiveValues(refreshState.statistics, live)
+    : null;
 
   if (!statistics || !refreshState?.lastSuccessfulRefreshAt) {
     return (
@@ -169,32 +223,32 @@ export const WalStreamMonitoringComponent = ({
     );
   }
 
-  const { health } = statistics;
-  const banner = getVerdictBanner(health.level, refreshState.lastSuccessfulRefreshAt, now);
-  const isVerdictAboutStreaming =
-    health.level !== WalStreamHealthLevel.NOT_STREAMING &&
-    health.level !== WalStreamHealthLevel.COLLECTING_DATA;
-
-  const reasons = sortReasonsBrokenFirst(health.reasons).map((reason) =>
-    getReasonTexts(reason, health.isFullBackupPending, now),
-  );
-  const notices = health.notices.map((notice) => ({
-    code: notice.code,
-    texts: getNoticeTexts(notice),
-  }));
+  const banner = getVerdictBanner({
+    statistics,
+    lastSuccessfulRefreshAt: refreshState.lastSuccessfulRefreshAt,
+    now,
+  });
+  const figures = getMonitoringFigures(statistics);
+  const isChartAnimationActive =
+    !isReducedMotion && statistics.series.period !== lastAnimatedPeriod;
 
   return (
     <MonitoringContainerComponent isDirectlyUnderTab={isDirectlyUnderTab}>
       <VerdictBannerComponent
         banner={banner}
-        keepingUpSentences={
-          banner.isStateConfirmed && isVerdictAboutStreaming
-            ? getKeepingUpSentences(statistics.keepingUp)
-            : []
-        }
+        fullBackupAction={getFullBackupAction({
+          level: statistics.health.level,
+          isStateConfirmed: banner.isStateConfirmed,
+          reasons: statistics.health.reasons,
+          latestRestorableAt: statistics.latestRestorableAt,
+          isFullBackupPending: statistics.health.isFullBackupPending,
+          isCanManageDBs,
+          isRequestingFullBackup,
+        })}
         sampledAt={statistics.current?.sampledAt ?? null}
         now={now}
         isReducedMotion={isReducedMotion}
+        onStartFullBackup={startFullBackup}
         onOpenConfig={onOpenConfig}
       />
 
@@ -207,22 +261,30 @@ export const WalStreamMonitoringComponent = ({
         />
       )}
 
-      <MonitoringReasonsComponent reasons={reasons} notices={notices} />
+      {figures && (
+        <MonitoringFiguresComponent
+          figures={figures}
+          keepingUpSentences={getKeepingUpSentences(statistics.keepingUp)}
+          isReducedMotion={isReducedMotion}
+        />
+      )}
 
-      <ChangesPathComponent
-        statistics={statistics}
-        stageTones={getStageTones(health.level, health.reasons)}
-        isReducedMotion={isReducedMotion}
-      />
+      <RestoreTimelineComponent ranges={statistics.restorableRanges} now={now} />
 
-      <MemoizedWalStreamChartsComponent
+      <MemoizedWalStreamKeepingUpChartComponent
         series={statistics.series}
         period={period}
         onPeriodChange={changePeriod}
-        isAnimationActive={!isReducedMotion && statistics.series.period !== lastAnimatedPeriod}
+        isAnimationActive={isChartAnimationActive}
       />
 
-      <WalStreamDetailsComponent statistics={statistics} />
+      <TechnicalDetailsComponent
+        statistics={statistics}
+        stageTones={getStageTones(statistics.health.level, statistics.health.reasons)}
+        tips={getTipTexts(statistics.health.notices)}
+        isReducedMotion={isReducedMotion}
+        isChartAnimationActive={isChartAnimationActive}
+      />
     </MonitoringContainerComponent>
   );
 };

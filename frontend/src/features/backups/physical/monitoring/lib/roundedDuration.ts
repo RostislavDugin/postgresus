@@ -49,5 +49,15 @@ export const getMeasurementAge = (seconds: number): LocalizedText => {
   return getRoundedDuration(seconds);
 };
 
-export const getSecondsBetween = (earlier: string | Date, later: Date): number =>
-  Math.max(0, (later.getTime() - new Date(earlier).getTime()) / 1000);
+// Null when either time cannot be read, so a caller leaves the duration out instead of showing
+// "NaN d NaN h".
+export const getSecondsBetween = (earlier: string | Date, later: Date): number | null => {
+  const earlierMs = new Date(earlier).getTime();
+  const laterMs = later.getTime();
+
+  if (!Number.isFinite(earlierMs) || !Number.isFinite(laterMs)) {
+    return null;
+  }
+
+  return Math.max(0, (laterMs - earlierMs) / 1000);
+};

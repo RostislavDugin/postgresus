@@ -85,11 +85,16 @@ describe('getKeepingUpSentences', () => {
   it.each([
     [WalStreamKeepingUpState.KEEPING_UP, 'backups.physical.monitoring.keepingUp.keepingUp'],
     [WalStreamKeepingUpState.IDLE, 'backups.physical.monitoring.keepingUp.idle'],
-    [WalStreamKeepingUpState.UNKNOWN, 'backups.physical.monitoring.keepingUp.unknown'],
   ])('describes %s in one sentence', (state, expectedKey) => {
     expect(
       getKeepingUpSentences(buildKeepingUp({ state })).map((sentence) => sentence.key),
     ).toEqual([expectedKey]);
+  });
+
+  it('adds no sentence while the state is unknown', () => {
+    expect(
+      getKeepingUpSentences(buildKeepingUp({ state: WalStreamKeepingUpState.UNKNOWN })),
+    ).toEqual([]);
   });
 
   it('says how much backlog is left and how long it takes while catching up', () => {

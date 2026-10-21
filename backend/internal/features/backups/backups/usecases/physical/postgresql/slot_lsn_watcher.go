@@ -94,9 +94,18 @@ func (p slotProbe) IsReachableWithSlot() bool {
 	return p.Outcome == slotProbeOutcomeReachable
 }
 
+// Every probe is remembered with its time, so the live state can show the
+// source as of the newest probe without connecting to it again.
+func (s *WalStreamSupervisor) probeSlot(ctx context.Context, logger *slog.Logger) slotProbe {
+	probe := s.inspectSourceSlot(ctx, logger)
+	s.latestProbe.Store(&timedSlotProbe{probe: probe, probedAt: time.Now().UTC()})
+
+	return probe
+}
+
 // A source that accepts connections but never answers would otherwise hold
 // every caller's tick for as long as the TCP connection lives.
-func (s *WalStreamSupervisor) probeSlot(ctx context.Context, logger *slog.Logger) slotProbe {
+func (s *WalStreamSupervisor) inspectSourceSlot(ctx context.Context, logger *slog.Logger) slotProbe {
 	probeCtx, cancel := context.WithTimeout(ctx, slotProbeTimeout)
 	defer cancel()
 

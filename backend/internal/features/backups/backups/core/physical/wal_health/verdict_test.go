@@ -518,7 +518,7 @@ func Test_GetVerdict_WhenChainHasGap_ListsWalChainBrokenOnlyForGapBelowProgressP
 			name: "Slot rebuilt",
 			buildInput: func() VerdictInput {
 				input := newTestVerdictInput(buildTestSamples(0, nil))
-				input.NewestChainGaps = []chain_view.LSNRange{gapBelowProgressPoint}
+				input.RestoreBlockingGaps = []chain_view.LSNRange{gapBelowProgressPoint}
 
 				return input
 			},
@@ -536,7 +536,7 @@ func Test_GetVerdict_WhenChainHasGap_ListsWalChainBrokenOnlyForGapBelowProgressP
 			name: "gap above the archive progress point",
 			buildInput: func() VerdictInput {
 				input := newTestVerdictInput(buildTestSamples(0, nil))
-				input.NewestChainGaps = []chain_view.LSNRange{gapAboveProgressPoint}
+				input.RestoreBlockingGaps = []chain_view.LSNRange{gapAboveProgressPoint}
 
 				return input
 			},

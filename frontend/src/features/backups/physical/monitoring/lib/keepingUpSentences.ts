@@ -42,8 +42,9 @@ const getStateSentences = (keepingUp: WalStreamKeepingUp): MonitoringText[] => {
     case WalStreamKeepingUpState.IDLE:
       return [{ key: 'backups.physical.monitoring.keepingUp.idle' }];
 
+    // The figures above already say "not measured", so an unknown state adds no sentence.
     default:
-      return [{ key: 'backups.physical.monitoring.keepingUp.unknown' }];
+      return [];
   }
 };
 

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -31,6 +33,7 @@ import (
 	"databasus-backend/internal/features/backups/backups/core/physical/wal_health"
 	backups_download "databasus-backend/internal/features/backups/backups/download"
 	backups_dto_physical "databasus-backend/internal/features/backups/backups/dto/physical"
+	postgresql_executor "databasus-backend/internal/features/backups/backups/usecases/physical/postgresql"
 	backups_config_physical "databasus-backend/internal/features/backups/config/physical"
 	"databasus-backend/internal/features/databases"
 	postgresql_physical "databasus-backend/internal/features/databases/databases/postgresql/physical"
@@ -1802,6 +1805,134 @@ func Test_GetWalStreamStatistics_WhenRequestNotAllowed_RefusesWithoutStatistics(
 	}
 }
 
+func Test_GetWalStreamLive_WhenStreamerRuns_ReturnsValuesReadAtRequestTime(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	newestSegment := seedTestWalSegmentReceivedAt(t, prereqs, 0x10, time.Now().UTC().Add(-time.Minute))
+
+	watchDir := registerTestRunningWalStreamer(t, prereqs)
+	require.NoError(t, os.MkdirAll(watchDir, 0o700))
+	writeTestWalFile(t, watchDir, walmath.WalSegmentNo(0x11).GetFilename(1), 3*1024*1024)
+
+	firstReading := getWalStreamLive(t, prereqs)
+
+	require.True(t, firstReading.IsStreamerRunning)
+	require.NotNil(t, firstReading.Current)
+	assert.WithinDuration(t, time.Now().UTC(), firstReading.Current.MeasuredAt, 5*time.Second)
+	assert.Equal(t, int64(3*1024*1024), firstReading.Current.LocalQueueBytes)
+	require.NotNil(t, firstReading.Current.LastArchivedWalAt)
+	assert.WithinDuration(t, newestSegment.ReceivedAt, *firstReading.Current.LastArchivedWalAt, time.Millisecond)
+	assert.Nil(t, firstReading.Current.SourceProbedAt, "no probe of the source has run yet")
+	assert.Nil(t, firstReading.Current.SlotLagBytes)
+
+	require.NoError(t, os.Remove(filepath.Join(watchDir, walmath.WalSegmentNo(0x11).GetFilename(1))))
+
+	secondReading := getWalStreamLive(t, prereqs)
+
+	assert.Equal(t, int64(0), secondReading.Current.LocalQueueBytes,
+		"the next reading sees the drained buffer without waiting for a sample")
+}
+
+func Test_GetWalStreamLive_WhenNoStreamerRuns_SaysSoWithoutValues(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+
+	response := test_utils.MakeGetRequest(t, prereqs.router, getWalStreamLiveURL(prereqs.database.ID),
+		"Bearer "+prereqs.user.Token, http.StatusOK)
+
+	assert.JSONEq(t, `{"isStreamerRunning":false,"current":null}`, string(response.Body))
+}
+
+func Test_GetWalStreamLive_WhenRequestNotAllowed_RefusesWithoutValues(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	registerTestRunningWalStreamer(t, prereqs)
+
+	outsider := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+
+	logicalDatabase := databases.CreateTestDatabase(prereqs.workspace.ID, prereqs.storage, prereqs.notifier)
+	t.Cleanup(func() { databases.RemoveTestDatabase(context.Background(), logicalDatabase) })
+
+	testCases := []struct {
+		name           string
+		url            string
+		authToken      string
+		expectedStatus int
+	}{
+		{
+			name:           "User from another workspace",
+			url:            getWalStreamLiveURL(prereqs.database.ID),
+			authToken:      "Bearer " + outsider.Token,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Unauthenticated request",
+			url:            getWalStreamLiveURL(prereqs.database.ID),
+			authToken:      "",
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "Logical database",
+			url:            getWalStreamLiveURL(logicalDatabase.ID),
+			authToken:      "Bearer " + prereqs.user.Token,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			response := test_utils.MakeGetRequest(t, prereqs.router, testCase.url, testCase.authToken,
+				testCase.expectedStatus)
+
+			assert.NotContains(t, string(response.Body), `"localQueueBytes"`)
+		})
+	}
+}
+
+// The streamer is built but never run: its current values come from the watch
+// directory and the catalog, which the test controls. Returns the watch
+// directory.
+func registerTestRunningWalStreamer(t *testing.T, prereqs *physicalControllerPrereqs) string {
+	t.Helper()
+
+	watchDirRoot := t.TempDir()
+
+	streamer := postgresql_executor.NewWalStreamSupervisor(postgresql_executor.WalStreamSpec{
+		DatabaseID:     prereqs.database.ID,
+		SourceDB:       prereqs.database.PostgresqlPhysical,
+		WalSegmentRepo: physical_repositories.GetWalSegmentRepository(),
+		WatchDirRoot:   watchDirRoot,
+		Logger:         logger.GetLogger(),
+	})
+	backuping_physical.RegisterTestRunningStreamer(t, prereqs.database.ID, streamer)
+
+	return filepath.Join(watchDirRoot, "wal-queue", prereqs.database.ID.String())
+}
+
+func writeTestWalFile(t *testing.T, dir, name string, sizeBytes int64) {
+	t.Helper()
+
+	file, err := os.Create(filepath.Join(dir, name))
+	require.NoError(t, err)
+	require.NoError(t, file.Truncate(sizeBytes))
+	require.NoError(t, file.Close())
+}
+
+func getWalStreamLive(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+) *backups_dto_physical.GetWalStreamLiveResponse {
+	t.Helper()
+
+	var response backups_dto_physical.GetWalStreamLiveResponse
+
+	test_utils.MakeGetRequestAndUnmarshal(t, prereqs.router, getWalStreamLiveURL(prereqs.database.ID),
+		"Bearer "+prereqs.user.Token, http.StatusOK, &response)
+
+	return &response
+}
+
+func getWalStreamLiveURL(databaseID uuid.UUID) string {
+	return "/api/v1/backups/physical/database/" + databaseID.String() + "/wal-stream/live"
+}
+
 func Test_GetWalStreamStatistics_ForWeek_ReturnsAtMost360PointsWithArchiveRatePerCoveredSecond(t *testing.T) {
 	prereqs := createWalStreamingControllerPrereqs(t)
 	createHealthyTestWalStreamer(t, prereqs.database.ID)
@@ -1944,6 +2075,8 @@ func Test_GetWalStreamStatistics_WhenNeedsAttention_ReturnsOnlyDocumentedCodes(t
 			sample.LocalQueueBytes = sample.LocalQueuePauseBytes
 			sample.SlotSafeWalSizeBytes = nil
 		})
+	seedTestCompletedFullAtSegment(t, prereqs, 0x10, time.Now().UTC().Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, time.Now().UTC().Add(-30*time.Minute))
 
 	response := test_utils.MakeGetRequest(t, prereqs.router, getWalStreamStatisticsURL(prereqs.database.ID, "DAY"),
 		"Bearer "+prereqs.user.Token, http.StatusOK)
@@ -1955,6 +2088,7 @@ func Test_GetWalStreamStatistics_WhenNeedsAttention_ReturnsOnlyDocumentedCodes(t
 	assert.Equal(t, []wal_health.ReasonCode{wal_health.ReasonCodeLocalQueueFilling},
 		getReasonCodes(statistics.Health.Reasons))
 	assert.Contains(t, getNoticeCodes(statistics.Health.Notices), wal_health.NoticeCodeNoSlotWalLimit)
+	require.NotEmpty(t, statistics.RestorableRanges, "the format check also covers the restorable ranges")
 
 	var body any
 	require.NoError(t, json.Unmarshal(response.Body, &body))
@@ -2114,6 +2248,213 @@ func Test_GetWalStreamStatistics_WhenIncrementalBrokeChainWithGap_StillReportsWa
 	assert.Contains(t, getReasonCodes(response.Health.Reasons), wal_health.ReasonCodeWalChainBroken)
 	assert.NotContains(t, getNoticeCodes(response.Health.Notices), wal_health.NoticeCodeNoFullBackupYet,
 		"a chain broken by an incremental still has a completed full backup")
+}
+
+func Test_GetWalStreamStatistics_WhenWalFollowsFullWithoutGap_ReportsNewestSegmentAsLatestRestorable(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	now := time.Now().UTC()
+
+	seedTestCompletedFullAtSegment(t, prereqs, 0x10, now.Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, now.Add(-30*time.Minute))
+	newestSegment := seedTestWalSegmentReceivedAt(t, prereqs, 0x11, now.Add(-time.Minute))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, newestSegment.ReceivedAt, *response.LatestRestorableAt, time.Millisecond)
+	assert.Equal(t, time.UTC, response.LatestRestorableAt.Location())
+}
+
+func Test_GetWalStreamStatistics_WhenNewestChainHasGap_ReportsSegmentBeforeGapAsLatestRestorable(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	now := time.Now().UTC()
+
+	seedTestCompletedFullAtSegment(t, prereqs, 0x10, now.Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, now.Add(-30*time.Minute))
+	segmentBeforeGap := seedTestWalSegmentReceivedAt(t, prereqs, 0x11, now.Add(-20*time.Minute))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x13, now.Add(-10*time.Minute))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x14, now.Add(-time.Minute))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, segmentBeforeGap.ReceivedAt, *response.LatestRestorableAt, time.Millisecond)
+}
+
+func Test_GetWalStreamStatistics_WhenIncrementalCompletedAfterGap_ReportsNewestSegmentAsLatestRestorable(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	now := time.Now().UTC()
+
+	full := seedTestCompletedFullAtSegment(t, prereqs, 0x10, now.Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, now.Add(-50*time.Minute))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x11, now.Add(-40*time.Minute))
+
+	incrementalStartLSN := walmath.LSN(0x13*segmentBytes + physical_testing.FirstRecordOffset)
+	incrementalAfterGap := physical_testing.NewTestCompletedIncrementalBackup(prereqs.database.ID, prereqs.storage.ID,
+		full.ID, nil, 1, incrementalStartLSN, incrementalStartLSN+physical_testing.FullLSNSpan)
+	incrementalAfterGap.CompletedAt = new(now.Add(-20 * time.Minute))
+	physical_testing.CreateTestIncrementalBackup(t, incrementalAfterGap)
+
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x13, now.Add(-15*time.Minute))
+	newestSegment := seedTestWalSegmentReceivedAt(t, prereqs, 0x14, now.Add(-time.Minute))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, newestSegment.ReceivedAt, *response.LatestRestorableAt, time.Millisecond,
+		"a gap below the newest completed backup does not limit the latest restore")
+}
+
+func Test_GetWalStreamStatistics_WhenIncrementalBridgesGap_ReportsHealthyWithTwoRestorableRanges(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	createHealthyTestWalStreamer(t, prereqs.database.ID)
+	now := time.Now().UTC()
+	seedTestWalStreamSamples(t, prereqs.database.ID, 4, now, nil)
+
+	full := seedTestCompletedFullAtSegment(t, prereqs, 0x10, now.Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, now.Add(-50*time.Minute))
+	segmentBeforeGap := seedTestWalSegmentReceivedAt(t, prereqs, 0x11, now.Add(-40*time.Minute))
+	incrementalAfterGap := seedTestCompletedIncrementalAtSegment(t, prereqs, full, 0x13, now.Add(-20*time.Minute))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x13, now.Add(-15*time.Minute))
+	newestSegment := seedTestWalSegmentReceivedAt(t, prereqs, 0x14, now.Add(-time.Minute))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	assert.Equal(t, wal_health.HealthLevelHealthy, response.Health.Level)
+	assert.NotContains(t, getReasonCodes(response.Health.Reasons), wal_health.ReasonCodeWalChainBroken,
+		"a gap the latest restore crosses through a completed incremental does not break the chain")
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, newestSegment.ReceivedAt, *response.LatestRestorableAt, time.Millisecond)
+
+	require.Len(t, response.RestorableRanges, 2, "the moments inside the gap cannot be restored")
+	assert.WithinDuration(t, *full.CompletedAt, response.RestorableRanges[0].From, time.Millisecond)
+	assert.WithinDuration(t, segmentBeforeGap.ReceivedAt, response.RestorableRanges[0].To, time.Millisecond)
+	assert.WithinDuration(t, *incrementalAfterGap.CompletedAt, response.RestorableRanges[1].From, time.Millisecond)
+	assert.WithinDuration(t, newestSegment.ReceivedAt, response.RestorableRanges[1].To, time.Millisecond)
+	assert.Equal(t, time.UTC, response.RestorableRanges[0].From.Location())
+}
+
+func Test_GetWalStreamStatistics_WhenGapFollowsNewestIncremental_ReportsWalChainBroken(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	createHealthyTestWalStreamer(t, prereqs.database.ID)
+	now := time.Now().UTC()
+	seedTestWalStreamSamples(t, prereqs.database.ID, 4, now, nil)
+
+	full := seedTestCompletedFullAtSegment(t, prereqs, 0x10, now.Add(-time.Hour))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, now.Add(-50*time.Minute))
+	seedTestCompletedIncrementalAtSegment(t, prereqs, full, 0x11, now.Add(-45*time.Minute))
+	segmentBeforeGap := seedTestWalSegmentReceivedAt(t, prereqs, 0x11, now.Add(-40*time.Minute))
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x13, now.Add(-time.Minute))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	assert.Equal(t, wal_health.HealthLevelBroken, response.Health.Level)
+	assert.Equal(t, []wal_health.ReasonCode{wal_health.ReasonCodeWalChainBroken},
+		getReasonCodes(response.Health.Reasons))
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, segmentBeforeGap.ReceivedAt, *response.LatestRestorableAt, time.Millisecond)
+	require.Len(t, response.RestorableRanges, 1)
+	assert.WithinDuration(t, segmentBeforeGap.ReceivedAt, response.RestorableRanges[0].To, time.Millisecond)
+}
+
+func Test_GetWalStreamStatistics_WhenIncrementalAfterGapFailed_ReportsWalChainBroken(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	createHealthyTestWalStreamer(t, prereqs.database.ID)
+	now := time.Now().UTC()
+	seedTestWalStreamSamples(t, prereqs.database.ID, 4, now, nil)
+
+	full := seedCompletedFullWithWalGap(t, prereqs)
+
+	incrementalStartLSN := walmath.LSN(0x13*segmentBytes + physical_testing.FirstRecordOffset)
+	failedIncremental := physical_testing.NewTestCompletedIncrementalBackup(prereqs.database.ID, prereqs.storage.ID,
+		full.ID, nil, 1, incrementalStartLSN, incrementalStartLSN+physical_testing.FullLSNSpan)
+	failedIncremental.Status = physical_enums.PhysicalBackupStatusError
+	physical_testing.CreateTestIncrementalBackup(t, failedIncremental)
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	assert.Equal(t, wal_health.HealthLevelBroken, response.Health.Level)
+	assert.Contains(t, getReasonCodes(response.Health.Reasons), wal_health.ReasonCodeWalChainBroken,
+		"a failed incremental does not bridge the gap")
+	assert.Len(t, response.RestorableRanges, 1)
+}
+
+func Test_GetWalStreamStatistics_WhenFullHasNoWalAfterIt_ReportsFullCompletionAsLatestRestorable(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+
+	full := seedTestCompletedFullAtSegment(t, prereqs, 0x10, time.Now().UTC().Add(-time.Hour))
+
+	response := getWalStreamStatistics(t, prereqs, "HOUR")
+
+	require.NotNil(t, response.LatestRestorableAt)
+	assert.WithinDuration(t, *full.CompletedAt, *response.LatestRestorableAt, time.Millisecond)
+}
+
+func Test_GetWalStreamStatistics_WhenNoFullBackupCompleted_ReportsNoLatestRestorable(t *testing.T) {
+	prereqs := createWalStreamingControllerPrereqs(t)
+	seedTestWalSegmentReceivedAt(t, prereqs, 0x10, time.Now().UTC())
+
+	response := test_utils.MakeGetRequest(t, prereqs.router, getWalStreamStatisticsURL(prereqs.database.ID, "HOUR"),
+		"Bearer "+prereqs.user.Token, http.StatusOK)
+
+	var statistics backups_dto_physical.GetWalStreamStatisticsResponse
+	require.NoError(t, json.Unmarshal(response.Body, &statistics))
+
+	assert.Nil(t, statistics.LatestRestorableAt)
+	assert.Contains(t, string(response.Body), `"restorableRanges":[]`, "the list is empty, not null")
+}
+
+func seedTestCompletedFullAtSegment(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+	segmentNo uint64,
+	completedAt time.Time,
+) *physical_models.PhysicalFullBackup {
+	t.Helper()
+
+	startLSN := walmath.LSN(segmentNo*segmentBytes + physical_testing.FirstRecordOffset)
+	full := physical_testing.NewTestCompletedFullBackup(prereqs.database.ID, prereqs.storage.ID, 1,
+		startLSN, startLSN+physical_testing.FullLSNSpan)
+	full.CompletedAt = &completedAt
+
+	return physical_testing.CreateTestFullBackup(t, full)
+}
+
+// The incremental starts and stops inside segmentNo, so the WAL from that
+// segment on continues it.
+func seedTestCompletedIncrementalAtSegment(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+	full *physical_models.PhysicalFullBackup,
+	segmentNo uint64,
+	completedAt time.Time,
+) *physical_models.PhysicalIncrementalBackup {
+	t.Helper()
+
+	startLSN := walmath.LSN(segmentNo*segmentBytes + physical_testing.FirstRecordOffset)
+	incremental := physical_testing.NewTestCompletedIncrementalBackup(prereqs.database.ID, prereqs.storage.ID,
+		full.ID, nil, 1, startLSN, startLSN+physical_testing.FullLSNSpan)
+	incremental.CompletedAt = &completedAt
+
+	return physical_testing.CreateTestIncrementalBackup(t, incremental)
+}
+
+func seedTestWalSegmentReceivedAt(
+	t *testing.T,
+	prereqs *physicalControllerPrereqs,
+	segmentNo uint64,
+	receivedAt time.Time,
+) *physical_models.PhysicalWalSegment {
+	t.Helper()
+
+	segment := physical_testing.NewTestWalSegment(prereqs.database.ID, prereqs.storage.ID, 1,
+		walmath.WalSegmentNo(segmentNo).GetFilename(1),
+		walmath.LSN(segmentNo*segmentBytes), walmath.LSN((segmentNo+1)*segmentBytes))
+	segment.ReceivedAt = receivedAt
+
+	return physical_testing.CreateTestWalSegment(t, segment)
 }
 
 func Test_GetWalStreamStatistics_ForFullBackupRequestOrRun_ReportsFullBackupPending(t *testing.T) {
