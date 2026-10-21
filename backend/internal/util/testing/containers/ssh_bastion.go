@@ -207,6 +207,9 @@ func sshBastionRequest(t *testing.T) testcontainers.ContainerRequest {
 			KeepImage:  true,
 		},
 		ExposedPorts: []string{sshBastionPort},
-		WaitingFor:   wait.ForListeningPort(sshBastionPort).WithStartupTimeout(120 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort(sshBastionPort).WithStartupTimeout(120*time.Second),
+			forGreeting(sshBastionPort, 120*time.Second, "SSH-2.0-"),
+		),
 	}
 }

@@ -683,7 +683,7 @@ supervise_application() {
         exit 1
     fi
 
-    echo "Databasus application exited with status ${exit_status}"
+    echo "Databasus application exited with status ${exit_status}" >&2
     stop_postgresql_server
     exit "${exit_status}"
 }

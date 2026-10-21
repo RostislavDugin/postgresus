@@ -1,6 +1,7 @@
 package usecases_mongodb
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -210,23 +211,15 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "LC_ALL=C.UTF-8", "LANG=C.UTF-8")
 
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = restores_core.ToolOutputWaitDelay
 
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		output, _ := io.ReadAll(stderrPipe)
-		stderrCh <- output
-	}()
-
-	if err = cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start mongorestore: %w", err)
 	}
 
 	waitErr := cmd.Wait()
-	stderrOutput := <-stderrCh
 
 	// Check for cancellation
 	select {
@@ -249,7 +242,7 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 	}
 
 	if waitErr != nil {
-		return uc.handleMongoRestoreError(waitErr, stderrOutput, mongorestoreBin)
+		return uc.handleMongoRestoreError(waitErr, stderrOutput.Bytes(), mongorestoreBin)
 	}
 
 	return nil

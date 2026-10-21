@@ -20,9 +20,10 @@ concurrency:
   group: ci-release-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
+# A pull request from develop runs no checks: the push to main after its merge runs them.
 jobs:
   lint-backend:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -65,7 +66,7 @@ jobs:
           git diff --exit-code go.mod go.sum || (echo "go mod tidy made changes, please run 'go mod tidy' and commit the changes" && exit 1)
 
   lint-frontend:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -98,7 +99,7 @@ jobs:
           pnpm build
 
   dockerfile-scan:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -122,7 +123,7 @@ jobs:
           trivy config --severity HIGH,CRITICAL --exit-code 1 agent/verification/images/postgres/Dockerfile
 
   test-frontend:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [lint-frontend]
@@ -153,7 +154,7 @@ jobs:
           pnpm test
 
   lint-verification-agent:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -188,7 +189,7 @@ jobs:
           git diff --exit-code go.mod go.sum || (echo "go mod tidy made changes, please run 'go mod tidy' and commit the changes" && exit 1)
 
   test-verification-agent:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [lint-verification-agent]
@@ -213,7 +214,7 @@ jobs:
           go test -race -count=1 -failfast ./internal/...
 
   e2e-verification-agent:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-verification-agent]
@@ -239,13 +240,16 @@ jobs:
           rm -rf artifacts || true
 
   test-backend:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     # 22.04 runs Linux 6.8. ubuntu-24.04 moved to Linux 7.0, where mongod 9.0 exits at startup:
     # its kernel check reads Ubuntu's 7.0.0 release string as an rseq-incompatible kernel
     # (SERVER-121912, SERVER-136848).
     runs-on: ubuntu-22.04
     timeout-minutes: 90
-    needs: [lint-backend]
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [physical, logical, other]
     steps:
       - name: Free disk space for database images
         run: |
@@ -345,13 +349,18 @@ jobs:
           # Each package runs in its own metadata DB, so packages run in parallel.
           # -p must equal the provisioned worker count.
           TEST_PARALLEL_WORKERS: "8"
+          TEST_GROUP: ${{ matrix.group }}
         run: |
           cd backend
-          # 8 workers oversubscribe the runner's 4 vCPU, so the suite needs more wall-clock than
-          # the 15m scripts/test.sh allows on a developer machine.
-          go test -p=8 -count=1 -failfast -timeout 40m ./internal/...
+          # A separate assignment lets a failing recipe stop the step instead of running no packages.
+          packages=$(just test-group-packages "$TEST_GROUP")
+          # Each leg runs one group on its own runner. 8 workers oversubscribe its 4 vCPU, so a
+          # group needs more wall-clock than the 15m scripts/test.sh allows on a developer machine.
+          # shellcheck disable=SC2086 # one import path per word
+          go test -p=8 -count=1 -failfast -timeout 40m $packages
 
   test-filesystems:
+    if: github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -614,7 +623,7 @@ jobs:
             "${platform_image_refs[@]}"
 
   build-image:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-backend, lint-frontend, lint-verification-agent, dockerfile-scan]
@@ -748,7 +757,7 @@ jobs:
           rm -rf /tmp/databasus-smoke-data || true
 
   build-verification-image:
-    if: github.ref != 'refs/heads/develop'
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: [lint-verification-agent, dockerfile-scan]
@@ -777,7 +786,7 @@ jobs:
   determine-version:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [test-backend, test-frontend, test-verification-agent, e2e-verification-agent, test-filesystems]
+    needs: [lint-backend, test-backend, test-frontend, test-verification-agent, e2e-verification-agent, test-filesystems]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
       should_release: ${{ steps.version_bump.outputs.should_release }}

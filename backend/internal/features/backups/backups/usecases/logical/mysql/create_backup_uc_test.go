@@ -173,3 +173,20 @@ func Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue81
 		return err
 	})
 }
+
+func Test_Execute_WhenMysqldumpFailsBeforeProducingData_ReportsMysqldumpError(t *testing.T) {
+	backups_core_logical.AssertDumpToolErrorReported(t, func(
+		ctx context.Context,
+		backup *backups_core_logical.LogicalBackup,
+		backupConfig *backups_config_logical.LogicalBackupConfig,
+		fileStore backups_core_logical.BackupFileStore,
+		dumpToolBin string,
+	) error {
+		_, err := GetCreateMysqlBackupUsecase().streamToStorage(
+			ctx, backup, backupConfig, dumpToolBin, nil, "", fileStore, func(float64) {},
+			&mysqltypes.MysqlDatabase{Version: tools.MysqlVersion80, Database: new("orders_db")},
+		)
+
+		return err
+	})
+}

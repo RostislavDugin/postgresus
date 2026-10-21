@@ -182,22 +182,13 @@ func Test_Run_WhenCalledTwice_Panics(t *testing.T) {
 	sender := &sequenceSender{}
 	bg := newBackgroundServiceUnderTest(t, sender)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// A cancelled context makes the first Run return at once, after it has marked itself as run.
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	finished := make(chan struct{})
-	go func() {
-		bg.Run(ctx)
-		close(finished)
-	}()
-
-	// Wait long enough to be sure the first Run has flipped hasRun to true.
-	time.Sleep(10 * time.Millisecond)
+	bg.Run(cancelledCtx)
 
 	require.Panics(t, func() {
-		bg.Run(ctx)
+		bg.Run(cancelledCtx)
 	})
-
-	cancel()
-	<-finished
 }

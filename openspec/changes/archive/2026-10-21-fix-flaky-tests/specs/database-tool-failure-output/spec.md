@@ -1,0 +1,43 @@
+## Purpose
+
+Defines what a restore and the WAL receiver of a physical backup do with the error output of the database tool they run, so a failure tells the user what the tool reported and the WAL receiver stops retrying a failure that a retry cannot fix.
+
+## ADDED Requirements
+
+### Requirement: A failed restore reports the restore tool's error output
+
+When the database tool that loads a backup into a PostgreSQL, MySQL, MariaDB or MongoDB database exits with an error, the restore SHALL be recorded as failed, and its failure message SHALL contain the error output the tool wrote before it exited. This SHALL hold however quickly the tool exits after writing that output, and whether or not the tool read the whole backup before it exited. One exception applies: a PostgreSQL restore whose only error is that the `public` schema already exists SHALL count as successful. When the backup stream from storage failed first, the failure message SHALL report that stream failure instead of the tool's output, because the tool's error is then only a consequence of the incomplete input.
+
+#### Scenario: Tool rejects the backup and exits immediately
+
+- **WHEN** a restore runs, the restore tool reads the whole backup, writes `ERROR 1064 (42000) at line 1: You have an error in your SQL syntax` to its error output and exits with a non-zero status at once
+- **THEN** the restore is recorded as failed, and its failure message contains `You have an error in your SQL syntax`
+
+#### Scenario: Tool exits before reading the whole backup
+
+- **WHEN** a restore runs, and the restore tool writes an error and exits with a non-zero status before it has read the whole backup
+- **THEN** the restore is recorded as failed, and its failure message contains the error the tool wrote, not only a failure to pass the backup data to the tool
+
+#### Scenario: Every engine keeps the tool's output
+
+- **WHEN** the restore tool of a PostgreSQL, a MySQL, a MariaDB or a MongoDB restore writes an error and exits at once
+- **THEN** each restore's failure message contains the error that tool wrote
+
+#### Scenario: Only the existing public schema fails
+
+- **WHEN** a PostgreSQL restore tool exits with an error whose only complaint is that the `public` schema already exists
+- **THEN** the restore is recorded as successful
+
+#### Scenario: Backup stream fails before the tool does
+
+- **WHEN** the backup stream from storage ends early, and the restore tool then fails on the incomplete input
+- **THEN** the failure message reports that the backup stream from storage failed mid-restore, and does not contain the tool's complaint about the incomplete input
+
+### Requirement: The WAL receiver recognizes a failure that a retry cannot fix
+
+When the process that receives WAL for a physical backup exits because the local disk is full or not writable, because the source rejected its credentials, or because another consumer holds its replication slot, and the source's network path is reachable, Databasus SHALL stop restarting it and SHALL mark the WAL stream as failed with an error that contains the receiver's error output. This SHALL hold however quickly the receiver exits after writing that output.
+
+#### Scenario: Credentials rejected
+
+- **WHEN** the source's network path is reachable, the WAL receiver connects, the source answers that password authentication failed, and the receiver exits at once
+- **THEN** the WAL stream is marked as failed with an error that contains `authentication failed`, and the receiver is not restarted on its retry schedule

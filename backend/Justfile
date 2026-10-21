@@ -17,6 +17,18 @@ test-package +packages:
     apply_libedit_shim
     go test -count=1 {{ packages }}
 
+# CI runs one group per runner, so the three groups must cover every package exactly once. The
+# other group drops only the physical and logical subtrees, so a new package lands in it.
+test-group-packages group:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ group }}" in
+        physical) go list ./internal/features/tests/physical/... ;;
+        logical) go list ./internal/features/tests/logical/... ;;
+        other) go list ./internal/... | grep -Ev '/internal/features/tests/(physical|logical)(/|$)' ;;
+        *) echo "unknown test group: {{ group }} (expected physical, logical or other)" >&2; exit 1 ;;
+    esac
+
 clean-testcontainers:
     #!/usr/bin/env bash
     set -euo pipefail

@@ -173,3 +173,20 @@ func Test_Execute_WhenStorageTimesOut_ReportsStorageFailure_RegressionForIssue81
 		return err
 	})
 }
+
+func Test_Execute_WhenMariadbDumpFailsBeforeProducingData_ReportsMariadbDumpError(t *testing.T) {
+	backups_core_logical.AssertDumpToolErrorReported(t, func(
+		ctx context.Context,
+		backup *backups_core_logical.LogicalBackup,
+		backupConfig *backups_config_logical.LogicalBackupConfig,
+		fileStore backups_core_logical.BackupFileStore,
+		dumpToolBin string,
+	) error {
+		_, err := GetCreateMariadbBackupUsecase().streamToStorage(
+			ctx, backup, backupConfig, dumpToolBin, nil, "", fileStore, func(float64) {},
+			&mariadbtypes.MariadbDatabase{Version: tools.MariadbVersion1011, Database: new("orders_db")},
+		)
+
+		return err
+	})
+}

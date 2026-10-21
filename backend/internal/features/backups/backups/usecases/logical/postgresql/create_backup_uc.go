@@ -1,6 +1,7 @@
 package usecases_logical_postgresql
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -162,17 +163,9 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
-	pgStderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	// Capture stderr in a separate goroutine to ensure we don't miss any error output
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		stderrOutput, _ := io.ReadAll(pgStderr)
-		stderrCh <- stderrOutput
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = backups_core_logical.DumpToolOutputWaitDelay
 
 	storageReader, storageWriter := io.Pipe()
 
@@ -185,6 +178,12 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		return nil, err
 	}
 
+	// The dump tool starts before the storage write, so a storage that fails at once cannot
+	// cancel the context the tool is started with and hide its own error.
+	if err = cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
+	}
+
 	fileWrite := storage_files.StartBackgroundWrite(
 		ctx,
 		fileStore,
@@ -192,12 +191,6 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		storageReader,
 		cancel,
 	)
-
-	if err = cmd.Start(); err != nil {
-		uc.cleanupOnCancellation(encryptionWriter, storageWriter, fileWrite.Errors)
-
-		return nil, fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
-	}
 
 	copyResultCh := make(chan error, 1)
 	bytesWrittenCh := make(chan int64, 1)
@@ -239,7 +232,6 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 	}
 
 	saveErr := <-fileWrite.Errors
-	stderrOutput := <-stderrCh
 
 	// Send final sizing after backup is completed
 	if waitErr == nil && copyErr == nil && saveErr == nil && backupProgressListener != nil {
@@ -252,7 +244,7 @@ func (uc *CreatePostgresqlBackupUsecase) streamToStorage(
 		if ctx.Err() != nil {
 			return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)
 		}
-		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput, pgBin, args, password)
+		return nil, uc.buildPgDumpErrorMessage(waitErr, stderrOutput.Bytes(), pgBin, args, password)
 	case copyErr != nil:
 		if ctx.Err() != nil {
 			return nil, backups_core_logical.DescribeBackupInterruption(parentCtx, ctx)

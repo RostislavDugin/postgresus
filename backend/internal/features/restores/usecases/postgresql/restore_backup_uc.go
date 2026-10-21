@@ -1,6 +1,7 @@
 package usecases_postgresql
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -272,11 +273,30 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		logger.InfoContext(parentCtx, "using decryption for encrypted backup")
 	}
 
-	cmd := exec.CommandContext(ctx, pgBin, args...)
-	logger.InfoContext(parentCtx, "executing PostgreSQL restore command via stdin", "command", cmd.String())
+	return uc.executePgRestoreViaStdin(ctx, pgRestoreCommand{
+		database:    originalDB,
+		pgBin:       pgBin,
+		args:        args,
+		credentials: credentials,
+		pgConfig:    pg,
+		logger:      logger,
+	}, backupReader, storageReadFailureTracker)
+}
+
+// executePgRestoreViaStdin pumps the decoded backup into pg_restore's standard input.
+func (uc *RestorePostgresqlBackupUsecase) executePgRestoreViaStdin(
+	ctx context.Context,
+	command pgRestoreCommand,
+	backupReader io.Reader,
+	storageReadFailureTracker *io_utils.FailureTrackingReader,
+) error {
+	pgBin := command.pgBin
+
+	cmd := exec.CommandContext(ctx, pgBin, command.args...)
+	command.logger.InfoContext(ctx, "executing PostgreSQL restore command via stdin", "command", cmd.String())
 
 	// Setup environment variables
-	uc.setupPgRestoreEnvironment(cmd, credentials, pg)
+	uc.setupPgRestoreEnvironment(cmd, command.credentials, command.pgConfig)
 
 	// Verify executable exists and is accessible
 	if _, err := exec.LookPath(pgBin); err != nil {
@@ -293,18 +313,9 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return fmt.Errorf("stdin pipe: %w", err)
 	}
 
-	// Get stderr to capture any error output
-	pgStderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	// Capture stderr in a separate goroutine
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		stderrOutput, _ := io.ReadAll(pgStderr)
-		stderrCh <- stderrOutput
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = restores_core.ToolOutputWaitDelay
 
 	// Start pg_restore
 	if err = cmd.Start(); err != nil {
@@ -330,7 +341,6 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 
 	// Wait for the restore to finish
 	waitErr := cmd.Wait()
-	stderrOutput := <-stderrCh
 	copyErr := <-copyErrCh
 
 	// Check for cancellation
@@ -354,11 +364,6 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		return streamErr
 	}
 
-	// Check for copy errors first - these indicate issues with decryption or data reading
-	if copyErr != nil {
-		return fmt.Errorf("failed to stream backup data to pg_restore: %w", copyErr)
-	}
-
 	if waitErr != nil {
 		// Check for cancellation again
 		select {
@@ -374,14 +379,20 @@ func (uc *RestorePostgresqlBackupUsecase) restoreViaStdin(
 		}
 
 		return uc.resolvePgRestoreOutcome(pgRestoreFailure{
-			database:     originalDB,
+			database:     command.database,
 			waitErr:      waitErr,
-			stderrOutput: stderrOutput,
-			pgBin:        pgBin,
-			args:         args,
-			pgConfig:     pg,
-			logger:       logger,
+			stderrOutput: stderrOutput.Bytes(),
+			pgBin:        command.pgBin,
+			args:         command.args,
+			pgConfig:     command.pgConfig,
+			logger:       command.logger,
 		})
+	}
+
+	// pg_restore exiting early breaks the pipe, so its own exit error is the cause and the copy
+	// error counts only when pg_restore succeeded.
+	if copyErr != nil {
+		return fmt.Errorf("failed to stream backup data to pg_restore: %w", copyErr)
 	}
 
 	return nil
@@ -689,27 +700,17 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 		)
 	}
 
-	// Get stderr to capture any error output
-	pgStderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	// Capture stderr in a separate goroutine
-	stderrCh := make(chan []byte, 1)
-	go func() {
-		stderrOutput, _ := io.ReadAll(pgStderr)
-		stderrCh <- stderrOutput
-	}()
+	var stderrOutput bytes.Buffer
+	cmd.Stderr = &stderrOutput
+	cmd.WaitDelay = restores_core.ToolOutputWaitDelay
 
 	// Start pg_restore
-	if err = cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", filepath.Base(pgBin), err)
 	}
 
 	// Wait for the restore to finish
 	waitErr := cmd.Wait()
-	stderrOutput := <-stderrCh
 
 	// Check for cancellation
 	select {
@@ -742,7 +743,7 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 		return uc.resolvePgRestoreOutcome(pgRestoreFailure{
 			database:     command.database,
 			waitErr:      waitErr,
-			stderrOutput: stderrOutput,
+			stderrOutput: stderrOutput.Bytes(),
 			pgBin:        command.pgBin,
 			args:         command.args,
 			pgConfig:     command.pgConfig,
