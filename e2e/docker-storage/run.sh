@@ -107,12 +107,11 @@ wait_for_log() {
     return 1
 }
 
-wait_for_exit() {
+wait_for_stop() {
     local container_name="$1"
 
     for ((exit_attempt = 1; exit_attempt <= 100; exit_attempt++)); do
         if [[ "$(docker inspect --format '{{.State.Running}}' "${container_name}")" != "true" ]]; then
-            [[ "$(docker inspect --format '{{.State.ExitCode}}' "${container_name}")" != "0" ]]
             return
         fi
         sleep 0.1
@@ -120,6 +119,19 @@ wait_for_exit() {
 
     echo "container did not stop" >&2
     return 1
+}
+
+get_exit_code() {
+    local container_name="$1"
+
+    docker inspect --format '{{.State.ExitCode}}' "${container_name}"
+}
+
+wait_for_exit() {
+    local container_name="$1"
+
+    wait_for_stop "${container_name}"
+    [[ "$(get_exit_code "${container_name}")" != "0" ]]
 }
 
 start_databasus() {
@@ -668,7 +680,10 @@ get_application_database_dsn() {
     local container_name="$1"
 
     docker exec --user databasus "${container_name}" /bin/sh -eu -c '
-        database_dsn="$(tr "\0" "\n" < /proc/1/environ | sed -n "s/^DATABASE_DSN=//p")"
+        database_dsn="$(cat /dev/shm/databasus-database-dsn 2>/dev/null || true)"
+        if [ -z "${database_dsn}" ]; then
+            database_dsn="$(tr "\0" "\n" < /proc/1/environ | sed -n "s/^DATABASE_DSN=//p")"
+        fi
         if [ -z "${database_dsn}" ]; then
             set -a
             . /.env
@@ -940,6 +955,284 @@ run_postgresql_recovery() {
     fi
 }
 
+get_cluster_state() {
+    local volume_name="$1"
+
+    docker run --rm --label "${harness_label}" \
+        --entrypoint /usr/lib/postgresql/17/bin/pg_controldata \
+        --volume "${volume_name}:/databasus-data" "${databasus_image}" \
+        /databasus-data/pgdata | sed -n 's/^Database cluster state: *//p'
+}
+
+assert_cluster_shut_down() {
+    local volume_name="$1"
+    local cluster_state
+
+    cluster_state="$(get_cluster_state "${volume_name}")"
+    if [[ "${cluster_state}" != "shut down" ]]; then
+        echo "The stopped cluster reports the state '${cluster_state}', not 'shut down'" >&2
+        return 1
+    fi
+}
+
+assert_exit_code() {
+    local container_name="$1"
+    local required_exit_code="$2"
+    local exit_code
+
+    exit_code="$(get_exit_code "${container_name}")"
+    if [[ "${exit_code}" != "${required_exit_code}" ]]; then
+        docker logs "${container_name}" >&2
+        echo "The container exited with status ${exit_code}, not ${required_exit_code}" >&2
+        return 1
+    fi
+}
+
+start_databasus_on_new_volume() {
+    local container_name="$1"
+
+    docker volume create --label "${harness_label}" "${container_name}" >/dev/null
+    start_databasus "${container_name}" --volume "${container_name}:/databasus-data"
+}
+
+check_docker_stop_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-stop-${run_id}"
+    local stop_started_at_ms
+    local stop_duration_ms
+
+    start_databasus_on_new_volume "${container_name}"
+    stop_started_at_ms="$(date +%s%3N)"
+    docker stop "${container_name}" >/dev/null
+    stop_duration_ms="$(($(date +%s%3N) - stop_started_at_ms))"
+
+    if ((stop_duration_ms >= 10000)); then
+        echo "docker stop took ${stop_duration_ms} ms, so the stop timeout ended the container" >&2
+        return 1
+    fi
+    assert_exit_code "${container_name}" 0
+    assert_cluster_shut_down "${container_name}"
+    assert_application_exit_precedes_postgresql_shutdown "${container_name}"
+}
+
+get_first_log_line_number() {
+    local container_name="$1"
+    local searched_log_line="$2"
+
+    docker logs "${container_name}" 2>&1 | grep -nF "${searched_log_line}" | head -1 | cut -d: -f1
+}
+
+assert_application_exit_precedes_postgresql_shutdown() {
+    local container_name="$1"
+    local application_exit_line_number
+    local postgresql_shutdown_line_number
+
+    application_exit_line_number="$(get_first_log_line_number "${container_name}" \
+        "Databasus application exited with status 0")"
+    postgresql_shutdown_line_number="$(get_first_log_line_number "${container_name}" \
+        "received fast shutdown request")"
+    if [[ -z "${application_exit_line_number}" || -z "${postgresql_shutdown_line_number}" ]] ||
+       ((application_exit_line_number > postgresql_shutdown_line_number)); then
+        docker logs "${container_name}" >&2
+        echo "The application exit is not logged before the PostgreSQL shutdown request" >&2
+        return 1
+    fi
+}
+
+check_interrupt_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-interrupt-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    docker kill --signal INT "${container_name}" >/dev/null
+    wait_for_stop "${container_name}"
+    assert_cluster_shut_down "${container_name}"
+}
+
+check_application_exit_shuts_down_cleanly() {
+    local container_name="databasus-storage-clean-application-exit-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    send_signal_in_container "${container_name}" TERM "$(docker exec "${container_name}" pidof main)"
+    wait_for_stop "${container_name}"
+    assert_exit_code "${container_name}" 0
+    assert_cluster_shut_down "${container_name}"
+}
+
+check_postgresql_exit_stops_container() {
+    local container_name="databasus-storage-clean-postgresql-exit-${run_id}"
+
+    start_databasus_on_new_volume "${container_name}"
+    send_signal_in_container "${container_name}" KILL \
+        "$(docker exec "${container_name}" head -1 /databasus-data/pgdata/postmaster.pid)"
+    wait_for_exit "${container_name}"
+    assert_log_contains "${container_name}" "ERROR: PostgreSQL exited with status"
+    assert_log_lacks "${container_name}" "Databasus application exited with status"
+}
+
+run_clean_shutdown() {
+    check_docker_stop_shuts_down_cleanly
+    check_interrupt_shuts_down_cleanly
+    check_application_exit_shuts_down_cleanly
+    check_postgresql_exit_stops_container
+}
+
+# The loop polls without a delay, because the open step of a clean cluster lasts about 0.1 seconds.
+# A single-user step started by initdb works on template1, so matching the final postgres argument
+# skips it.
+readonly postgresql_freeze_script='
+    target_kind="$1"
+    while :; do
+        for process_directory in /proc/[0-9]*; do
+            mapfile -d "" -t process_arguments < "${process_directory}/cmdline" 2>/dev/null || continue
+            [[ "${process_arguments[0]:-}" == /usr/lib/postgresql/17/bin/postgres ]] || continue
+            process_id="${process_directory#/proc/}"
+            case "${target_kind}" in
+                single-user)
+                    [[ "${process_arguments[1]:-}" == --single &&
+                       "${process_arguments[-1]}" == postgres ]] || continue
+                    ;;
+                regular-server)
+                    [[ "${process_arguments[1]:-}" != --single ]] || continue
+                    IFS= read -r postmaster_pid < /databasus-data/pgdata/postmaster.pid 2>/dev/null || continue
+                    [[ "${postmaster_pid}" == "${process_id}" ]] || continue
+                    ;;
+            esac
+            kill -STOP "${process_id}"
+            printf "%s" "${process_id}" > /tmp/frozen-postgresql-pid
+            exit 0
+        done
+    done
+'
+
+start_databasus_with_frozen_postgresql() {
+    local container_name="$1"
+    local target_kind="$2"
+    local frozen_pid
+
+    docker volume create --label "${harness_label}" "${container_name}" >/dev/null
+    docker run --detach \
+        --name "${container_name}" \
+        --label "${harness_label}" \
+        --volume "${container_name}:/databasus-data" \
+        "${databasus_image}" >/dev/null
+    docker exec --detach "${container_name}" \
+        /bin/bash -c "${postgresql_freeze_script}" freeze-postgresql "${target_kind}"
+
+    for ((freeze_attempt = 1; freeze_attempt <= 300; freeze_attempt++)); do
+        if frozen_pid="$(docker exec "${container_name}" cat /tmp/frozen-postgresql-pid 2>/dev/null)"; then
+            echo "${frozen_pid}"
+            return
+        fi
+        sleep 0.1
+    done
+
+    docker logs "${container_name}" >&2
+    echo "No ${target_kind} PostgreSQL process appeared to freeze" >&2
+    return 1
+}
+
+send_signal_in_container() {
+    local container_name="$1"
+    local signal_name="$2"
+    local process_id="$3"
+
+    docker exec "${container_name}" /bin/bash -c 'kill -"$1" "$2"' send-signal "${signal_name}" "${process_id}"
+}
+
+is_process_stopped() {
+    local container_name="$1"
+    local process_id="$2"
+
+    [[ "$(docker exec "${container_name}" awk '/^State:/ { print $2 }' "/proc/${process_id}/status")" == "T" ]]
+}
+
+wait_for_log_within_two_seconds() {
+    local container_name="$1"
+    local required_log_line="$2"
+
+    for ((log_attempt = 1; log_attempt <= 20; log_attempt++)); do
+        if docker logs "${container_name}" 2>&1 | grep -F "${required_log_line}" >/dev/null; then
+            return
+        fi
+        sleep 0.1
+    done
+
+    docker logs "${container_name}" >&2
+    echo "The container did not log within two seconds: ${required_log_line}" >&2
+    return 1
+}
+
+wait_for_kill_event() {
+    local container_name="$1"
+    local container_created_at
+
+    container_created_at="$(docker inspect --format '{{.Created}}' "${container_name}")"
+    for ((event_attempt = 1; event_attempt <= 50; event_attempt++)); do
+        if docker events \
+            --since "${container_created_at}" \
+            --until "$(date +%s.%N)" \
+            --filter "container=${container_name}" \
+            --filter event=kill \
+            --format '{{.Action}}' | grep -q .; then
+            return
+        fi
+        sleep 0.1
+    done
+
+    echo "Docker did not report sending the stop signal" >&2
+    return 1
+}
+
+# Status 143 comes from the startup stop handler, while a kill by the stop timeout gives 137.
+assert_startup_ended_without_application() {
+    local container_name="$1"
+
+    assert_exit_code "${container_name}" 143
+    assert_log_lacks "${container_name}" "Starting Databasus application..."
+}
+
+check_stop_during_single_user_step() {
+    local container_name="databasus-storage-startup-stop-single-user-${run_id}"
+    local frozen_pid
+    local stop_pid
+
+    frozen_pid="$(start_databasus_with_frozen_postgresql "${container_name}" single-user)"
+    docker stop "${container_name}" >/dev/null &
+    stop_pid=$!
+
+    wait_for_log_within_two_seconds "${container_name}" "Stop requested during startup"
+    if ! is_process_stopped "${container_name}" "${frozen_pid}"; then
+        echo "The single-user step ended before the container reported the stop" >&2
+        return 1
+    fi
+
+    send_signal_in_container "${container_name}" CONT "${frozen_pid}"
+    wait "${stop_pid}"
+    assert_startup_ended_without_application "${container_name}"
+}
+
+# The script may be waiting in pg_isready or psql on the frozen server, and Bash runs a trap only
+# after that call returns, so this part cannot see the stop before the server resumes.
+check_stop_while_regular_server_starts() {
+    local container_name="databasus-storage-startup-stop-regular-server-${run_id}"
+    local frozen_pid
+    local stop_pid
+
+    frozen_pid="$(start_databasus_with_frozen_postgresql "${container_name}" regular-server)"
+    docker stop "${container_name}" >/dev/null &
+    stop_pid=$!
+
+    wait_for_kill_event "${container_name}"
+    send_signal_in_container "${container_name}" CONT "${frozen_pid}"
+    wait "${stop_pid}"
+    assert_startup_ended_without_application "${container_name}"
+    assert_cluster_shut_down "${container_name}"
+}
+
+run_startup_stop() {
+    check_stop_during_single_user_step
+    check_stop_while_regular_server_starts
+}
+
 run_legacy_directory_guard() {
     local container_name="databasus-storage-legacy-directory-${run_id}"
     local volume_name="databasus-storage-legacy-directory-${run_id}"
@@ -978,6 +1271,8 @@ run_case() {
         nfs-root-squash) run_nfs_root_squash ;;
         upgrades) run_upgrades ;;
         postgresql-recovery) run_postgresql_recovery ;;
+        clean-shutdown) run_clean_shutdown ;;
+        startup-stop) run_startup_stop ;;
         legacy-directory-guard) run_legacy_directory_guard ;;
         *)
             echo "unknown Docker filesystem case: ${case_name}" >&2
@@ -991,7 +1286,7 @@ if [[ "${selected_case}" == all ]]; then
         build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids invalid-ids \
         bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only wrong-owner \
         unwritable-data-root \
-        cifs nfs-root-squash upgrades postgresql-recovery legacy-directory-guard; do
+        cifs nfs-root-squash upgrades postgresql-recovery clean-shutdown startup-stop legacy-directory-guard; do
         run_case "${case_name}"
         cleanup
         case_root="$(mktemp -d /tmp/databasus-storage-test.XXXXXXXX)"

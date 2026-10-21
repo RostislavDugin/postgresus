@@ -3,7 +3,8 @@ misconfigurations:
     paths:
       - Dockerfile
     statement: >-
-      The final image creates postgres and databasus users, then start.sh drops
-      the application process to databasus with gosu. The entrypoint must start
-      as root to remap PUID and PGID values, prepare the mounted data directory,
-      and initialize PostgreSQL. A Dockerfile USER directive would break startup.
+      The final image runs every service as the databasus user. start.sh starts
+      as root only to remap PUID and PGID values and prepare the mounted data
+      directory, then re-executes itself as databasus with gosu, and that
+      non-root process initializes PostgreSQL and runs the application. A
+      Dockerfile USER directive would break startup.
