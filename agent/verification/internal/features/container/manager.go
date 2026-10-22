@@ -191,11 +191,6 @@ func (m *Manager) Spawn(jobCtx context.Context, req SpawnRequest) (*PostgresCont
 		return nil, fmt.Errorf("container never became ready: %w", err)
 	}
 
-	if err := m.assertSecurity(jobCtx, containerID); err != nil {
-		_ = c.Terminate(jobCtx)
-		return nil, err
-	}
-
 	return c, nil
 }
 
@@ -232,24 +227,6 @@ func (m *Manager) getNanoCPUs(cpuPerJob int) int64 {
 	}
 
 	return int64(cpuPerJob) * 1_000_000_000
-}
-
-func (m *Manager) assertSecurity(ctx context.Context, containerID string) error {
-	state, err := m.engine.InspectSecurity(ctx, containerID)
-	if err != nil {
-		return fmt.Errorf("inspect security state: %w", err)
-	}
-
-	switch {
-	case !state.NoNewPrivileges:
-		return fmt.Errorf("hardening regression: no-new-privileges not applied")
-	case !state.CapDropAll:
-		return fmt.Errorf("hardening regression: CapDrop ALL not applied")
-	case state.HasHostBinds:
-		return fmt.Errorf("hardening regression: container has host bind mounts")
-	}
-
-	return nil
 }
 
 func waitForReady(ctx context.Context, conn dbconn.Conn) error {

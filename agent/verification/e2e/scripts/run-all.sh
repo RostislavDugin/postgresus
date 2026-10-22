@@ -7,6 +7,7 @@ TESTS=(
   "test-heartbeat-and-upgrade.sh"
   "test-start-stop-status.sh"
   "test-startup-purge.sh"
+  "test-container-privileges.sh"
   "test-restore-broken.sh"
   "test-restore-disk-budget.sh"
   "test-restore-timescale.sh"

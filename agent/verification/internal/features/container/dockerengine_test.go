@@ -1,10 +1,16 @@
 package container
 
 import (
+	"net/netip"
 	"testing"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/api/types/system"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"databasus-verification-agent/internal/testutil"
 )
 
 func Test_ToHostCapabilities_ReadsCpuLimitSupportFromBothCfsFlags(t *testing.T) {
@@ -60,6 +66,47 @@ func Test_ToHostCapabilities_ReadsUserNSRemapFromSecurityOptions(t *testing.T) {
 			capabilities := toHostCapabilities(system.Info{SecurityOptions: testCase.securityOptions})
 
 			assert.Equal(t, testCase.isUserNSRemapEnabledOnHost, capabilities.IsUserNSRemapEnabled)
+		})
+	}
+}
+
+func Test_ToContainerConfigs_CarriesHardeningAndLimitsOfSpec(t *testing.T) {
+	testCases := []struct {
+		name                string
+		isCpuLimitSupported bool
+		expectedNanoCPUs    int64
+	}{
+		{name: "cpu limit supported", isCpuLimitSupported: true, expectedNanoCPUs: 2_000_000_000},
+		{name: "cpu limit unsupported", isCpuLimitSupported: false, expectedNanoCPUs: 0},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			containerManager := NewManager(nil, "agent-1", "databasus/verification-postgres", testutil.DiscardLogger())
+			containerManager.isCpuLimitSupported = testCase.isCpuLimitSupported
+			spec := containerManager.buildSpec(newTestSpawnPlan())
+
+			config, hostConfig := toContainerConfigs(spec)
+
+			assert.Equal(t, []string{"ALL"}, hostConfig.CapDrop)
+			assert.Equal(t, minimalCaps, hostConfig.CapAdd)
+			assert.Contains(t, hostConfig.SecurityOpt, "no-new-privileges")
+			assert.Empty(t, hostConfig.Binds)
+			assert.Empty(t, hostConfig.Mounts)
+			assert.Equal(t, int64(1024)*1024*1024, hostConfig.Memory)
+			require.NotNil(t, hostConfig.PidsLimit)
+			assert.EqualValues(t, containerPidsLimit, *hostConfig.PidsLimit)
+			assert.Equal(t, testCase.expectedNanoCPUs, hostConfig.NanoCPUs)
+			assert.Equal(t, container.NetworkMode("net-id"), hostConfig.NetworkMode)
+
+			assert.Equal(t, network.PortMap{
+				pgPublishedPort: []network.PortBinding{
+					{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: "0"},
+				},
+			}, hostConfig.PortBindings)
+			assert.Equal(t, network.PortSet{pgPublishedPort: struct{}{}}, config.ExposedPorts)
+			assert.Equal(t, spec.Image, config.Image)
+			assert.Equal(t, spec.Labels, config.Labels)
 		})
 	}
 }

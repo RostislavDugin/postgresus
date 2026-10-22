@@ -134,6 +134,23 @@ func (e *dockerEngine) RemoveNetwork(ctx context.Context, networkID string) erro
 }
 
 func (e *dockerEngine) CreateContainer(ctx context.Context, spec SpawnSpec) (string, error) {
+	config, hostConfig := toContainerConfigs(spec)
+
+	resp, err := e.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:     config,
+		HostConfig: hostConfig,
+		Name:       spec.Name,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return resp.ID, nil
+}
+
+// toContainerConfigs is the 1:1 translation of a SpawnSpec into the engine's
+// create request; a unit test pins the hardening it carries.
+func toContainerConfigs(spec SpawnSpec) (*container.Config, *container.HostConfig) {
 	securityOpt := []string{}
 	if spec.NoNewPrivileges {
 		securityOpt = append(securityOpt, "no-new-privileges")
@@ -168,22 +185,15 @@ func (e *dockerEngine) CreateContainer(ctx context.Context, spec SpawnSpec) (str
 		},
 	}
 
-	resp, err := e.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
-		Config: &container.Config{
-			Image:        spec.Image,
-			Cmd:          spec.Cmd,
-			Env:          spec.Env,
-			Labels:       spec.Labels,
-			ExposedPorts: network.PortSet{pgPublishedPort: struct{}{}},
-		},
-		HostConfig: hostConfig,
-		Name:       spec.Name,
-	})
-	if err != nil {
-		return "", err
+	config := &container.Config{
+		Image:        spec.Image,
+		Cmd:          spec.Cmd,
+		Env:          spec.Env,
+		Labels:       spec.Labels,
+		ExposedPorts: network.PortSet{pgPublishedPort: struct{}{}},
 	}
 
-	return resp.ID, nil
+	return config, hostConfig
 }
 
 func (e *dockerEngine) StartContainer(ctx context.Context, containerID string) error {
@@ -210,38 +220,6 @@ func (e *dockerEngine) HostPort(
 	}
 
 	return strconv.Atoi(bindings[0].HostPort)
-}
-
-func (e *dockerEngine) InspectSecurity(
-	ctx context.Context, containerID string,
-) (SecurityState, error) {
-	insp, err := e.cli.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
-	if err != nil {
-		return SecurityState{}, err
-	}
-
-	state := SecurityState{
-		ReadonlyRootfs: insp.Container.HostConfig.ReadonlyRootfs,
-		// Only flag mounts the AGENT requested. insp.Mounts (runtime) includes
-		// image-declared anonymous volumes (postgres:16 declares VOLUME
-		// /var/lib/postgresql/data for PGDATA) that we explicitly want; only
-		// host bind mounts from our spec are a hardening regression.
-		HasHostBinds: len(insp.Container.HostConfig.Binds) > 0 || len(insp.Container.HostConfig.Mounts) > 0,
-	}
-
-	for _, opt := range insp.Container.HostConfig.SecurityOpt {
-		if strings.Contains(opt, "no-new-privileges") {
-			state.NoNewPrivileges = true
-		}
-	}
-
-	for _, cap := range insp.Container.HostConfig.CapDrop {
-		if cap == "ALL" {
-			state.CapDropAll = true
-		}
-	}
-
-	return state, nil
 }
 
 func (e *dockerEngine) Exec(

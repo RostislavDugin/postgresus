@@ -28,6 +28,7 @@ type server struct {
 	streamFailRemain  int
 	tearStreamOnce    bool
 	reportGone        bool
+	streamDelay       time.Duration
 }
 
 func main() {
@@ -49,6 +50,7 @@ func main() {
 	mux.HandleFunc("POST /mock/set-backup-fixture", s.handleSetBackupFixture)
 	mux.HandleFunc("POST /mock/set-abort", s.handleSetAbort)
 	mux.HandleFunc("POST /mock/set-stream-fail", s.handleSetStreamFail)
+	mux.HandleFunc("POST /mock/set-stream-delay", s.handleSetStreamDelay)
 	mux.HandleFunc("POST /mock/set-report-gone", s.handleSetReportGone)
 	mux.HandleFunc("GET /mock/reports", s.handleGetReports)
 	mux.HandleFunc("POST /mock/reset", s.handleReset)
@@ -130,7 +132,20 @@ func (s *server) handleBackupStream(w http.ResponseWriter, r *http.Request) {
 	tear := s.tearStreamOnce
 	s.tearStreamOnce = false
 	fixture := s.backupFixturePath
+	delay := s.streamDelay
 	s.mu.Unlock()
+
+	// The delay holds the response headers back, so the agent's restore
+	// container stays up waiting for its backup while a test inspects it.
+	if delay > 0 {
+		log.Printf("GET backup-stream -> delaying %s", delay)
+
+		select {
+		case <-time.After(delay):
+		case <-r.Context().Done():
+			return
+		}
+	}
 
 	if failRemain > 0 {
 		log.Printf("GET backup-stream -> injected 503 (remaining=%d)", failRemain-1)
@@ -301,6 +316,24 @@ func (s *server) handleSetStreamFail(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (s *server) handleSetStreamDelay(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Seconds int `json:"seconds"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	s.mu.Lock()
+	s.streamDelay = time.Duration(body.Seconds) * time.Second
+	s.mu.Unlock()
+
+	log.Printf("POST /mock/set-stream-delay -> %ds", body.Seconds)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *server) handleSetReportGone(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Gone bool `json:"gone"`
@@ -342,7 +375,7 @@ func (s *server) handleHeartbeatStatus(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleReset wipes per-test state (reports, claim, abort/stream/report-gone
-// flags, fixture path). Version + binary path are left alone — pin them via
+// flags, stream delay, fixture path). Version + binary path are left alone — pin them via
 // /mock/set-version + /mock/set-binary-path. Each restore-style e2e test
 // should call this at the top to avoid seeing prior-test artifacts.
 func (s *server) handleReset(w http.ResponseWriter, _ *http.Request) {
@@ -354,6 +387,7 @@ func (s *server) handleReset(w http.ResponseWriter, _ *http.Request) {
 	s.streamFailRemain = 0
 	s.tearStreamOnce = false
 	s.reportGone = false
+	s.streamDelay = 0
 	s.heartbeats = 0
 	s.lastBody = nil
 	s.mu.Unlock()
