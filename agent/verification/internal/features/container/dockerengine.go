@@ -116,7 +116,8 @@ func (e *dockerEngine) CreateNetwork(
 	// only reach the restored DB via the published host port (verifier package
 	// doc). Outbound from PG to the host network is therefore not blocked at
 	// the docker layer; rely on the host firewall + the other hardening
-	// controls (cap-drop, no-new-privs, pids/memory, ephemeral, userns).
+	// controls (unprivileged user, no capabilities, pids/memory, ephemeral,
+	// userns).
 	resp, err := e.cli.NetworkCreate(ctx, name, client.NetworkCreateOptions{
 		Driver: "bridge",
 		Labels: labels,
@@ -151,11 +152,6 @@ func (e *dockerEngine) CreateContainer(ctx context.Context, spec SpawnSpec) (str
 // toContainerConfigs is the 1:1 translation of a SpawnSpec into the engine's
 // create request; a unit test pins the hardening it carries.
 func toContainerConfigs(spec SpawnSpec) (*container.Config, *container.HostConfig) {
-	securityOpt := []string{}
-	if spec.NoNewPrivileges {
-		securityOpt = append(securityOpt, "no-new-privileges")
-	}
-
 	capDrop := []string{}
 	if spec.CapDropAll {
 		capDrop = append(capDrop, "ALL")
@@ -168,9 +164,7 @@ func toContainerConfigs(spec SpawnSpec) (*container.Config, *container.HostConfi
 	}
 
 	hostConfig := &container.HostConfig{
-		SecurityOpt:    securityOpt,
 		CapDrop:        capDrop,
-		CapAdd:         spec.CapAdd,
 		ReadonlyRootfs: spec.ReadonlyRootfs,
 		NetworkMode:    container.NetworkMode(spec.NetworkID),
 		PortBindings: network.PortMap{
@@ -187,6 +181,7 @@ func toContainerConfigs(spec SpawnSpec) (*container.Config, *container.HostConfi
 
 	config := &container.Config{
 		Image:        spec.Image,
+		User:         spec.User,
 		Cmd:          spec.Cmd,
 		Env:          spec.Env,
 		Labels:       spec.Labels,
@@ -229,13 +224,7 @@ func (e *dockerEngine) Exec(
 	stdin io.Reader,
 	env []string,
 ) (restore.ExecResult, error) {
-	created, err := e.cli.ExecCreate(ctx, containerID, client.ExecCreateOptions{
-		Cmd:          cmd,
-		Env:          env,
-		AttachStdin:  stdin != nil,
-		AttachStdout: true,
-		AttachStderr: true,
-	})
+	created, err := e.cli.ExecCreate(ctx, containerID, toExecOptions(cmd, env, stdin != nil))
 	if err != nil {
 		return restore.ExecResult{}, fmt.Errorf("exec create: %w", err)
 	}
@@ -282,6 +271,19 @@ func (e *dockerEngine) Exec(
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 	}, nil
+}
+
+// toExecOptions builds the engine's exec request. It names no user, so the
+// command runs as the container's user, the same unprivileged user the
+// container starts as; a unit test pins that.
+func toExecOptions(cmd, env []string, isStdinAttached bool) client.ExecCreateOptions {
+	return client.ExecCreateOptions{
+		Cmd:          cmd,
+		Env:          env,
+		AttachStdin:  isStdinAttached,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
 }
 
 func (e *dockerEngine) RemoveContainer(ctx context.Context, containerID string) error {

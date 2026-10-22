@@ -15,9 +15,8 @@ func Test_BuildSpec_AppliesHardeningControls(t *testing.T) {
 
 	spec := containerManager.buildSpec(newTestSpawnPlan())
 
-	assert.True(t, spec.NoNewPrivileges)
 	assert.True(t, spec.CapDropAll)
-	assert.Equal(t, minimalCaps, spec.CapAdd)
+	assert.Equal(t, "postgres", spec.User, "the container starts unprivileged, so the entrypoint never switches users")
 	assert.EqualValues(t, containerPidsLimit, spec.PidsLimit)
 	assert.Equal(t, "net-id", spec.NetworkID)
 	assert.Equal(t, int64(2)*1_000_000_000, spec.NanoCPUs)
@@ -34,9 +33,8 @@ func Test_BuildSpec_WhenCpuLimitUnsupported_OmitsCpuLimitAndKeepsOtherControls(t
 	assert.Zero(t, spec.NanoCPUs, "Docker treats 0 as no CPU limit")
 	assert.Equal(t, int64(1024)*1024*1024, spec.MemoryBytes)
 	assert.EqualValues(t, containerPidsLimit, spec.PidsLimit)
-	assert.True(t, spec.NoNewPrivileges)
 	assert.True(t, spec.CapDropAll)
-	assert.Equal(t, minimalCaps, spec.CapAdd)
+	assert.Equal(t, "postgres", spec.User)
 }
 
 func Test_BuildSpec_SetsRestoreTunedPostgresCmd(t *testing.T) {

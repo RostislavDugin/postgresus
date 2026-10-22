@@ -62,8 +62,8 @@ postgresql-pltcl-${PG_MAJOR}"
 # pass -c shared_preload_libraries, so this value stands at runtime.
 ARG PRELOAD_LIBRARIES="pg_stat_statements,pg_cron,pg_stat_kcache,pg_qualstats,pg_wait_sampling,pgaudit,set_user"
 
-# Root is the base image's user; the official entrypoint still gosu-drops to the
-# postgres user before exec, so the agent's hardened runtime is unchanged.
+# The build installs packages as root, the base image's user. At runtime the agent
+# starts the container as the postgres user, so nothing in it runs as root.
 RUN set -eux; \
     version_specific_extension_packages=""; \
     version_specific_preload_libraries=""; \

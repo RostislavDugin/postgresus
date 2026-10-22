@@ -29,10 +29,16 @@ const (
 	timescaleImageRepo = "timescale/timescaledb"
 )
 
-// minimalCaps are the only capabilities added back after CapDrop ALL — exactly
-// what the official entrypoint needs for initdb + the gosu privilege drop, not
-// a blanket keep.
-var minimalCaps = []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"}
+// containerUser is the unprivileged user every Postgres image the agent runs
+// ships. Starting as this user makes the official entrypoint skip its switch
+// from root, so no step in the container needs a capability and all of them
+// are dropped. It replaces the kernel's no_new_privs flag: on rootful Podman
+// with crun and AppArmor that flag stacks the container's AppArmor profile on
+// crun's, which denies every signal between the container's processes and
+// hangs Postgres.
+// With an empty bounding set, a setuid binary still yields no capability.
+// The agent's execs (dd, pg_restore, du) run as this user too.
+const containerUser = "postgres"
 
 // restoreTunedPostgresCmd runs the restore container's Postgres with crash
 // safety traded for a smaller on-disk footprint. The container is destroyed
@@ -206,13 +212,12 @@ func (m *Manager) buildSpec(plan spawnPlan) SpawnSpec {
 		PidsLimit:   containerPidsLimit,
 		NetworkID:   plan.networkID,
 
-		NoNewPrivileges: true,
-		CapDropAll:      true,
-		CapAdd:          minimalCaps,
+		CapDropAll: true,
+		User:       containerUser,
 		// rootfs is writable because the official image needs a writable PGDATA;
 		// the per-job disk budget is enforced by the agent's disk watcher, not a
-		// Docker cap. The dominant controls (cap-drop, no-new-privs, pids,
-		// memory, userns, ephemeral lifecycle) remain in force. The job network
+		// Docker cap. The dominant controls (unprivileged user, no capabilities,
+		// pids, memory, userns, ephemeral lifecycle) remain in force. The job network
 		// is a per-job user-defined bridge (job isolation) but NOT --internal:
 		// see CreateNetwork in dockerengine.go for why.
 		ReadonlyRootfs: false,

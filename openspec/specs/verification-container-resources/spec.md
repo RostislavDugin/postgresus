@@ -48,22 +48,27 @@ A restore runs code taken from the backup with database superuser rights, so a r
 #### Scenario: Other limits remain applied
 
 - **WHEN** the agent creates a restore container without a CPU limit
-- **THEN** the container still has the per-job memory limit, the process count limit, all capabilities dropped except the minimal set, and privilege escalation disabled
+- **THEN** the container still has the per-job memory limit, the process count limit, no capabilities, and runs as the image's unprivileged database user
 
 ### Requirement: Restore containers run with reduced privileges
 
-A restore runs code taken from the backup with database superuser rights. The verification agent SHALL create every restore container with all Linux capabilities dropped except `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID` and `SETUID`, with privilege escalation disabled, and with no directory of the host mounted into it. The agent SHALL request these settings from the container engine when it creates the container. It SHALL NOT fail a job because the engine describes the applied settings in a different form than the agent requested them.
+A restore runs code taken from the backup with database superuser rights. The verification agent SHALL start every restore container as the image's unprivileged database user, SHALL run its own commands inside the container as that user, SHALL leave the container's capability bounding set empty, so that even a process that reaches user ID 0 inside the container holds no capabilities, and SHALL mount no directory of the host into it. The agent SHALL request these settings from the container engine when it creates the container. It SHALL NOT fail a job because the engine describes the applied settings in a different form than the agent requested them.
 
 #### Scenario: Container is created with reduced privileges
 
 - **WHEN** the agent creates a restore container for a verification job
-- **THEN** the container engine receives a request that drops all capabilities, adds back only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID` and `SETUID`, disables privilege escalation and mounts no host directory
+- **THEN** the container engine receives a request that starts the container as the image's unprivileged database user, drops all capabilities, adds none back and mounts no host directory
 
-#### Scenario: Processes in the container hold only the minimal capabilities
+#### Scenario: Agent's commands run as the unprivileged user
+
+- **WHEN** the agent runs a command inside a restore container, such as writing the backup into it, restoring it or measuring its disk usage
+- **THEN** the agent's request names no user, so the command runs as the container's unprivileged database user
+
+#### Scenario: Processes in the container hold no privileges
 
 - **WHEN** a restore container created by the agent is running
-- **THEN** the capability bounding set of its processes contains only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID` and `SETUID`
-- **AND** its processes cannot gain privileges through setuid binaries
+- **THEN** its first process runs as a non-root user
+- **AND** the capability bounding set of its processes is empty, so a process that gains user ID 0 inside the container still holds no capabilities
 
 #### Scenario: Engine reports dropped capabilities as an explicit list
 
@@ -72,7 +77,7 @@ A restore runs code taken from the backup with database superuser rights. The ve
 
 ### Requirement: Verification runs on Podman
 
-The verification agent SHALL verify backups when its Docker endpoint is a rootful Podman engine reached through Podman's Docker-compatible API. A restore of a valid backup SHALL complete, a restore of a broken backup SHALL fail with the restore error, and in both cases the agent SHALL remove the containers and networks it created for the job.
+The verification agent SHALL verify backups when its Docker endpoint is a rootful Podman engine reached through Podman's Docker-compatible API, including on a host that confines containers with AppArmor. A restore of a valid backup SHALL complete, a restore of a broken backup SHALL fail with the restore error, and in both cases the agent SHALL remove the containers and networks it created for the job.
 
 #### Scenario: Valid backup on Podman
 
@@ -87,6 +92,13 @@ The verification agent SHALL verify backups when its Docker endpoint is a rootfu
 - **AND** the agent claims a verification job for a backup that cannot be restored
 - **THEN** the agent reports the verification as failed with the restore error
 - **AND** no container or network created for the job remains on the engine
+
+#### Scenario: Podman on a host with AppArmor
+
+- **WHEN** the agent's Docker endpoint is a rootful Podman engine on a host where AppArmor confines containers and the container runtime has its own AppArmor profile
+- **AND** the agent claims a verification job for a valid PostgreSQL backup
+- **THEN** the database in the restore container starts and accepts the agent's connection
+- **AND** the agent reports the verification as completed
 
 ### Requirement: An unreachable restore container is reported with its cause
 
