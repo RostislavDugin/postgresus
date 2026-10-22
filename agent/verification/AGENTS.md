@@ -150,7 +150,7 @@ Examples: `Test_DeriveCapacity_WhenConcurrentJobsExceedCPU_ReturnsError`, `Test_
 ### Where tests live
 
 - **Unit / package tests**: alongside the code, named `*_test.go` (e.g. `internal/features/heartbeat/heartbeat_test.go`).
-- **End-to-end tests**: under `agent/verification/e2e/`. Run via `just e2e` / `just e2e-clean`.
+- **End-to-end tests**: under `agent/verification/e2e/`. Run via `just e2e` / `just e2e-clean`. `just e2e-podman` runs the e2e subset on Podman.
 
 The agent has no HTTP API of its own, so there are no controller tests — test exported functions of the packages, the CLI commands, and the HTTP-client/IO logic directly.
 

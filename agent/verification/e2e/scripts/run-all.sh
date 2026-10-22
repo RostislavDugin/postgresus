@@ -7,10 +7,12 @@ TESTS=(
   "test-heartbeat-and-upgrade.sh"
   "test-start-stop-status.sh"
   "test-startup-purge.sh"
+  "test-container-privileges.sh"
   "test-restore-broken.sh"
   "test-restore-disk-budget.sh"
   "test-restore-timescale.sh"
   "test-restore-include-public-schema.sh"
+  "test-restore-retry-leftover.sh"
 )
 
 PG_VERSIONS=(12 13 14 15 16 17 18)

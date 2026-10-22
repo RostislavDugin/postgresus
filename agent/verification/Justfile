@@ -39,6 +39,20 @@ e2e:
     cd e2e && docker compose run --rm e2e-agent-runner
     cd e2e && docker compose down -v
 
+# Runs the Podman subset with restore containers on Podman. Defaults to the
+# rootful socket; override for rootless, e.g.
+# E2E_ENGINE_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock just e2e-podman
+e2e-podman:
+    -cd e2e && docker compose down -v --remove-orphans 2>/dev/null
+    rm -rf e2e/artifacts
+    cd e2e && docker compose build --no-cache e2e-mock-server
+    cd e2e && docker compose build
+    cd e2e && docker compose run --rm e2e-agent-builder
+    cd e2e && docker compose run --rm e2e-fixture-gen
+    cd e2e && docker compose up -d e2e-mock-server
+    cd e2e && E2E_ENGINE_SOCKET="${E2E_ENGINE_SOCKET:-/run/podman/podman.sock}" docker compose run --rm e2e-agent-runner bash /opt/agent/scripts/run-podman.sh
+    cd e2e && docker compose down -v
+
 e2e-clean:
     -cd e2e && docker compose down -v --rmi local 2>/dev/null
     rm -rf e2e/artifacts

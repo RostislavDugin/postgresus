@@ -239,6 +239,40 @@ jobs:
           docker compose down -v --rmi local || true
           rm -rf artifacts || true
 
+  e2e-verification-agent-podman:
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: [lint-verification-agent]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install tools from mise.toml
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: "just"
+
+      - name: Start rootful Podman socket
+        run: |
+          sudo systemctl start podman.socket
+          sudo podman version
+          sudo podman info --format '{{.Host.OCIRuntime.Name}}'
+
+      - name: Run e2e tests on Podman
+        run: |
+          cd agent/verification
+          just e2e-podman
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd agent/verification/e2e
+          docker compose down -v --rmi local || true
+          rm -rf artifacts || true
+          sudo podman ps -aq --filter label=databasus.verification.agent_id | xargs -r sudo podman rm -f || true
+          sudo podman network ls -q --filter label=databasus.verification.agent_id | xargs -r sudo podman network rm || true
+
   test-backend:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     # 22.04 runs Linux 6.8. ubuntu-24.04 moved to Linux 7.0, where mongod 9.0 exits at startup:
@@ -786,7 +820,7 @@ jobs:
   determine-version:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [lint-backend, test-backend, test-frontend, test-verification-agent, e2e-verification-agent, test-filesystems]
+    needs: [lint-backend, test-backend, test-frontend, test-verification-agent, e2e-verification-agent, e2e-verification-agent-podman, test-filesystems]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
     outputs:
       should_release: ${{ steps.version_bump.outputs.should_release }}

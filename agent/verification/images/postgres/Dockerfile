@@ -20,10 +20,11 @@ ARG PG_MAJOR
 # Tier-2 monitoring extensions that additionally need shared_preload_libraries
 # (set below). The official image already configures the apt.postgresql.org repo
 # these packages come from. Every entry must be installable from PGDG apt for all
-# majors 12-18. DocumentDB is installed separately because PGDG only packages it
-# for majors 15-18. A missing package fails the build because the agent tolerates
-# missing extensions at restore time and could otherwise verify an incomplete
-# restore.
+# majors 12-18. pg_uuidv7 and DocumentDB are installed separately because PGDG
+# only packages them for majors 13-18 and 15-18 respectively, so a PG 12 dump
+# that uses pg_uuidv7 still fails to restore. A missing package fails the build
+# because the agent tolerates missing extensions at restore time and could
+# otherwise verify an incomplete restore.
 #
 # Intentionally NOT bundled: topn (Citus), pg_hashids, anonymizer
 # (postgresql_anonymizer) and pg_stat_monitor (Percona). PGDG apt does not
@@ -67,8 +68,13 @@ RUN set -eux; \
     version_specific_extension_packages=""; \
     version_specific_preload_libraries=""; \
     case "${PG_MAJOR}" in \
+        13|14|15|16|17|18) \
+            version_specific_extension_packages="postgresql-${PG_MAJOR}-pg-uuidv7" \
+            ;; \
+    esac; \
+    case "${PG_MAJOR}" in \
         15|16|17|18) \
-            version_specific_extension_packages="postgresql-${PG_MAJOR}-documentdb"; \
+            version_specific_extension_packages="${version_specific_extension_packages} postgresql-${PG_MAJOR}-documentdb"; \
             version_specific_preload_libraries=",pg_documentdb_core,pg_documentdb" \
             ;; \
     esac; \
