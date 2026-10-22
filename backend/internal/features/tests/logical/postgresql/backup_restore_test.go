@@ -171,6 +171,34 @@ func Test_PostgresqlBackupRestore_AcrossSupportedVersions(t *testing.T) {
 				},
 			)
 
+			t.Run(
+				"Test_BackupAndRestorePostgresql_WithExcludeTableData_TableRestoredEmptyWithIndexes",
+				func(t *testing.T) {
+					testBackupRestoreWithExcludeTableDataForVersion(t, endpoint, dbVersion.tag)
+				},
+			)
+
+			t.Run(
+				"Test_BackupAndRestorePostgresql_WithExclusionPatterns_MatchLikePgDump",
+				func(t *testing.T) {
+					testBackupRestoreWithExclusionPatternsForVersion(t, endpoint, dbVersion.tag)
+				},
+			)
+
+			t.Run(
+				"Test_BackupAndRestorePostgresql_WithExcludeTableDataOnPartitions_OnlyMatchedPartitionsEmptied",
+				func(t *testing.T) {
+					testBackupRestoreWithExcludeTableDataOnPartitionsForVersion(t, endpoint, dbVersion.tag)
+				},
+			)
+
+			t.Run(
+				"Test_BackupAndRestorePostgresql_WithSchemasAndExcludeTableData_DataExcludedOnlyInIncludedSchemas",
+				func(t *testing.T) {
+					testBackupRestoreWithSchemasAndExcludeTableDataForVersion(t, endpoint, dbVersion.tag)
+				},
+			)
+
 			t.Run("Test_BackupAndRestorePostgresql_WithReadOnlyUser_RestoreIsSuccessful", func(t *testing.T) {
 				testBackupRestoreWithReadOnlyUserForVersion(t, endpoint, dbVersion.tag)
 			})

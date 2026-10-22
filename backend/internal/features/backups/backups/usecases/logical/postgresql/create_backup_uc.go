@@ -359,6 +359,10 @@ func (uc *CreatePostgresqlBackupUsecase) buildPgDumpArgs(pg *pgtypes.PostgresqlL
 		args = append(args, "--exclude-table="+excludedTable)
 	}
 
+	for _, dataExcludedTable := range namelist.NormalizeUniqueNames(pg.ExcludeTableData) {
+		args = append(args, "--exclude-table-data="+dataExcludedTable)
+	}
+
 	compressionArgs := uc.getCompressionArgs(pg.Version)
 	return append(args, compressionArgs...)
 }

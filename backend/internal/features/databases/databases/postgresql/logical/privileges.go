@@ -17,6 +17,7 @@ import (
 const unreadableRelationsQuery = `
 	SELECT n.nspname,
 	       c.relname,
+	       pg_catalog.pg_table_is_visible(c.oid),
 	       NOT COALESCE(has_schema_privilege(current_user, n.oid, 'USAGE'), false)
 ` + dumpedRelationScope + `
 	  AND c.relkind IN ('r', 'p', 'S')
@@ -80,7 +81,7 @@ func getUnreadableDumpedRelations(
 	conn *pgx.Conn,
 	filter DumpFilter,
 ) ([]unreadableRelation, error) {
-	rows, err := conn.Query(ctx, unreadableRelationsQuery, filter.getIncludedSchemaNames())
+	rows, err := queryDumpedRelations(ctx, conn, unreadableRelationsQuery, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check dump read privileges: %w", err)
 	}
@@ -97,6 +98,7 @@ func getUnreadableDumpedRelations(
 		if err := rows.Scan(
 			&relation.SchemaName,
 			&relation.TableName,
+			&relation.IsVisibleOnSearchPath,
 			&relation.IsSchemaUsageMissing,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan unreadable relation: %w", err)
@@ -151,8 +153,9 @@ func newInsufficientDumpPrivilegesError(
 
 	messageParts = append(messageParts, fmt.Sprintf(
 		"Grant USAGE ON SCHEMA, SELECT ON ALL TABLES IN SCHEMA and SELECT ON ALL SEQUENCES IN SCHEMA "+
-			"to %q for every schema listed above, or narrow the backup with include schemas and exclude tables. "+
-			"Note that excluding a table does not exclude the sequences it owns.",
+			"to %q for every schema listed above, or narrow the backup with include schemas and whole-table exclusion. "+
+			"Note that excluding a table does not exclude the sequences it owns, and excluding only "+
+			"a table's data still requires SELECT on that table.",
 		roleName,
 	))
 

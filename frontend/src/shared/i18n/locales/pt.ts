@@ -383,6 +383,8 @@ export const pt: typeof en = {
       serverCaCertificate: 'Certificado CA do servidor',
       includeSchemas: 'Incluir schemas',
       excludeTables: 'Ignorar tabelas',
+      excludeWholeTables: 'Ignorar tabelas inteiras',
+      excludeTableData: 'Ignorar dados de tabelas',
       skipUserMappings: 'Pular mapeamentos de usuário',
       excludeExtensions: 'Ignorar extensões',
       restoreOwnership: 'Restaurar proprietários',
@@ -431,7 +433,10 @@ export const pt: typeof en = {
           '<docsLink>Leia este guia</docsLink> para saber como fazer backup de um banco de dados Supabase',
         includeSchemasPlaceholder: 'Todos os schemas (padrão)',
         excludeTablesTooltip:
-          "Tabelas que ficam fora do backup. Use 'tablename' ou 'schema.tablename'. Padrões glob são aceitos (por exemplo, 'logs_*'). Você pode colar uma lista separada por vírgulas ou quebras de linha.",
+          "Tabelas que ficam totalmente fora do backup: depois da restauração, elas não vão existir. Use 'tablename' ou 'schema.tablename'. Um nome sem schema só encontra tabelas do search_path padrão, normalmente 'public'; use '*.tablename' para buscar em todos os schemas. Padrões glob são aceitos (por exemplo, 'logs_*'). Você pode colar uma lista separada por vírgulas ou quebras de linha.",
+        excludeTableDataTooltip:
+          "Tabelas que entram no backup sem as linhas: depois da restauração, elas existem com estrutura, índices e restrições, mas vazias. Use 'tablename' ou 'schema.tablename'. Um nome sem schema só encontra tabelas do search_path padrão, normalmente 'public'; use '*.tablename' para buscar em todos os schemas. Padrões glob são aceitos (por exemplo, 'logs_*'). Uma tabela informada nos dois campos fica totalmente fora do backup. As partições de uma tabela particionada precisam do próprio nome ou de um padrão como 'events_*'. Se outra tabela do backup tiver uma chave estrangeira para linhas de uma tabela esvaziada, a restauração não vai conseguir recriar essa chave estrangeira. Você pode colar uma lista separada por vírgulas ou quebras de linha.",
+        excludeTableDataPlaceholder: 'Nenhum dado de tabela ignorado',
         skipUserMappingsTooltip:
           'Não restaura os mapeamentos de usuário (user mappings, instruções CREATE USER MAPPING). Ative se o papel usado no backup não consegue ler as credenciais dos mapeamentos: sem isso, eles vão para o dump sem opções e quebram a restauração de FDWs como o oracle_fdw.',
         excludeExtensionsTooltip:

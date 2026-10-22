@@ -1367,6 +1367,7 @@ func Test_UpdateDatabase_WhenExcludeTablesArePastedMultiline_StoresTrimmedUnique
 
 	database.PostgresqlLogical.ExcludeTables = []string{"orders", "\npersonnel_real_time", " ", "orders"}
 	database.PostgresqlLogical.IncludeSchemas = []string{"public", "\treporting"}
+	database.PostgresqlLogical.ExcludeTableData = []string{"logs, history_*", "\nlogs", " "}
 
 	var updatedDatabase Database
 	test_utils.MakePostRequestAndUnmarshal(
@@ -1399,6 +1400,74 @@ func Test_UpdateDatabase_WhenExcludeTablesArePastedMultiline_StoresTrimmedUnique
 		[]string{"public", "reporting"},
 		reloadedDatabase.PostgresqlLogical.IncludeSchemas,
 	)
+	assert.Equal(
+		t,
+		[]string{"logs", "history_*"},
+		reloadedDatabase.PostgresqlLogical.ExcludeTableData,
+	)
+}
+
+func Test_ExcludeTableData_WhenDatabaseIsCreatedCopiedAndUpdatedWithoutIt_ListIsKeptCopiedAndCleared(
+	t *testing.T,
+) {
+	router := createTestRouter()
+	owner := users_testing.CreateTestUser(t.Context(), users_enums.UserRoleMember)
+	workspace := workspaces_testing.CreateTestWorkspace(t.Context(), "Test Workspace", owner, router)
+	defer workspaces_testing.RemoveTestWorkspace(t.Context(), workspace, router)
+
+	createRequest := newTestPostgresqlLogicalDatabaseRequest("Data-excluded Database", workspace.ID)
+	createRequest.PostgresqlLogical.ExcludeTables = []string{"audit_tmp"}
+	createRequest.PostgresqlLogical.ExcludeTableData = []string{"logs", "history_*"}
+
+	var createdDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/databases/create", "Bearer "+owner.Token,
+		createRequest, http.StatusCreated, &createdDatabase,
+	)
+	defer RemoveTestDatabase(t.Context(), &createdDatabase)
+
+	var readDatabase Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t, router, "/api/v1/databases/"+createdDatabase.ID.String(),
+		"Bearer "+owner.Token, http.StatusOK, &readDatabase,
+	)
+	require.NotNil(t, readDatabase.PostgresqlLogical)
+	assert.Equal(t, []string{"audit_tmp"}, readDatabase.PostgresqlLogical.ExcludeTables)
+	assert.Equal(t, []string{"logs", "history_*"}, readDatabase.PostgresqlLogical.ExcludeTableData)
+
+	var copiedDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/databases/"+createdDatabase.ID.String()+"/copy",
+		"Bearer "+owner.Token, nil, http.StatusCreated, &copiedDatabase,
+	)
+	defer RemoveTestDatabase(t.Context(), &copiedDatabase)
+
+	var readCopiedDatabase Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t, router, "/api/v1/databases/"+copiedDatabase.ID.String(),
+		"Bearer "+owner.Token, http.StatusOK, &readCopiedDatabase,
+	)
+	require.NotNil(t, readCopiedDatabase.PostgresqlLogical)
+	assert.Equal(
+		t, []string{"logs", "history_*"}, readCopiedDatabase.PostgresqlLogical.ExcludeTableData,
+	)
+
+	readDatabase.PostgresqlLogical.ExcludeTableData = nil
+
+	var updatedDatabase Database
+	test_utils.MakePostRequestAndUnmarshal(
+		t, router, "/api/v1/databases/update", "Bearer "+owner.Token,
+		readDatabase, http.StatusOK, &updatedDatabase,
+	)
+
+	var reloadedDatabase Database
+	test_utils.MakeGetRequestAndUnmarshal(
+		t, router, "/api/v1/databases/"+createdDatabase.ID.String(),
+		"Bearer "+owner.Token, http.StatusOK, &reloadedDatabase,
+	)
+	require.NotNil(t, reloadedDatabase.PostgresqlLogical)
+	assert.Empty(t, reloadedDatabase.PostgresqlLogical.ExcludeTableData)
+	assert.Equal(t, []string{"audit_tmp"}, reloadedDatabase.PostgresqlLogical.ExcludeTables)
 }
 
 func createTestDatabaseViaAPI(
@@ -1407,27 +1476,7 @@ func createTestDatabaseViaAPI(
 	token string,
 	router *gin.Engine,
 ) *Database {
-	env := config.GetEnv()
-	port, err := strconv.Atoi(env.TestLogicalPostgres16Port)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to parse TEST_LOGICAL_POSTGRES_16_PORT: %v", err))
-	}
-
-	testDbName := "testdb"
-	request := Database{
-		Name:        name,
-		WorkspaceID: &workspaceID,
-		Type:        DatabaseTypePostgresLogical,
-		PostgresqlLogical: &postgresql_logical.PostgresqlLogicalDatabase{
-			Version:  tools.PostgresqlVersion16,
-			Host:     config.GetEnv().TestLocalhost,
-			Port:     port,
-			Username: "testuser",
-			Password: "testpassword",
-			Database: &testDbName,
-			CpuCount: 1,
-		},
-	}
+	request := newTestPostgresqlLogicalDatabaseRequest(name, workspaceID)
 
 	w := workspaces_testing.MakeAPIRequest(
 		router,
@@ -1449,6 +1498,15 @@ func createTestDatabaseViaAPI(
 	}
 
 	return &database
+}
+
+func newTestPostgresqlLogicalDatabaseRequest(name string, workspaceID uuid.UUID) Database {
+	return Database{
+		Name:              name,
+		WorkspaceID:       &workspaceID,
+		Type:              DatabaseTypePostgresLogical,
+		PostgresqlLogical: getTestPostgresConfig(),
+	}
 }
 
 func createTestRouter() *gin.Engine {

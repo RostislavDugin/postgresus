@@ -365,6 +365,8 @@ export const zh: typeof en = {
       serverCaCertificate: '服务器 CA 证书',
       includeSchemas: '包含的模式',
       excludeTables: '排除的表',
+      excludeWholeTables: '整表排除',
+      excludeTableData: '排除表数据',
       skipUserMappings: '跳过用户映射',
       excludeExtensions: '排除扩展',
       restoreOwnership: '恢复所有者',
@@ -408,7 +410,10 @@ export const zh: typeof en = {
         supabaseHint: '请<docsLink>阅读这篇文档</docsLink>，了解如何备份 Supabase 数据库',
         includeSchemasPlaceholder: '所有模式（默认）',
         excludeTablesTooltip:
-          "不纳入备份的表。格式为 'tablename' 或 'schema.tablename'，支持 glob 模式（例如 'logs_*'）。可以粘贴以逗号或换行分隔的列表。",
+          "完全不纳入备份的表：恢复后这些表将不存在。格式为 'tablename' 或 'schema.tablename'。不带模式名的名称只匹配默认 search_path 中的表（通常是 'public'），用 '*.tablename' 可以匹配所有模式。支持 glob 模式（例如 'logs_*'）。可以粘贴以逗号或换行分隔的列表。",
+        excludeTableDataTooltip:
+          "备份时不含数据行的表：恢复后表仍然存在，保留结构、索引和约束，但没有数据。格式为 'tablename' 或 'schema.tablename'。不带模式名的名称只匹配默认 search_path 中的表（通常是 'public'），用 '*.tablename' 可以匹配所有模式。支持 glob 模式（例如 'logs_*'）。同时填写在两个字段中的表会被整表排除。分区表的各个分区需要单独列出，或用 'events_*' 这样的模式匹配。如果备份中的其他表通过外键引用了被清空表中的行，恢复时将无法重建这个外键。可以粘贴以逗号或换行分隔的列表。",
+        excludeTableDataPlaceholder: '未排除任何表数据',
         skipUserMappingsTooltip:
           '恢复时跳过用户映射（CREATE USER MAPPING 语句）。如果备份所用的角色无法读取映射中的凭据，请开启此项：否则转储出的映射会丢失选项（OPTIONS），导致 oracle_fdw 等 FDW 恢复失败。',
         excludeExtensionsTooltip:

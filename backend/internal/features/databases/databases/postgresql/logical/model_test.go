@@ -226,6 +226,24 @@ func Test_PostgresqlModel_AcrossSupportedVersions(t *testing.T) {
 				},
 			)
 
+			t.Run(
+				"Test_TestConnection_WhenUnreadableTableDataIsExcluded_ReturnsErrorNamingTable",
+				func(t *testing.T) {
+					testConnectionUnreadableTableDataExcluded(t, endpoint, dbVersion.tag)
+				},
+			)
+
+			t.Run(
+				"Test_TestConnection_WhenUnqualifiedExclusionNamesTableOffSearchPath_ReturnsErrorNamingIt",
+				func(t *testing.T) {
+					testConnectionUnqualifiedExclusionDoesNotReachTableOffSearchPath(
+						t,
+						endpoint,
+						dbVersion.tag,
+					)
+				},
+			)
+
 			t.Run("Test_TestConnection_WhenUnreadableTableIsOutsideIncludedSchemas_Success", func(t *testing.T) {
 				testConnectionUnreadableTableOutsideIncludedSchemas(t, endpoint, dbVersion.tag)
 			})
@@ -1720,12 +1738,49 @@ func Test_GetRawDbSizeMb_WhenExcludeTablesSet_SkipsExcludedTableSize(t *testing.
 
 	assert.InDelta(
 		t,
-		measureRelationsSizeMb(t, container, relationName{seededSchema.SchemaName, seededSchema.LightTableName}),
+		measureRelationsSizeMb(
+			t,
+			container,
+			relationName{SchemaName: seededSchema.SchemaName, TableName: seededSchema.LightTableName},
+		),
 		sizeWithoutHeavyTableMb,
 		0.5,
 		"excluded table size must not be counted",
 	)
 	assert.Greater(t, sizeWithHeavyTableMb-sizeWithoutHeavyTableMb, heavyTableMinSizeMb)
+}
+
+func Test_GetRawDbSizeMb_WhenExcludeTableDataSet_SkipsTableSize(t *testing.T) {
+	container := connectToPostgresContainer(t, "postgres:16")
+	defer container.DB.Close()
+
+	seededSchema := seedSizeTestSchema(t, container)
+
+	_, err := container.DB.Exec(fmt.Sprintf(
+		`CREATE INDEX ON %s.%s (payload)`,
+		seededSchema.SchemaName, seededSchema.HeavyTableName,
+	))
+	assert.NoError(t, err)
+
+	pgModel := createPostgresModel(container)
+	pgModel.IncludeSchemas = []string{seededSchema.SchemaName}
+
+	sizeWithHeavyTableDataMb := measureRawDbSizeMb(t, pgModel)
+
+	pgModel.ExcludeTableData = []string{seededSchema.SchemaName + "." + seededSchema.HeavyTableName}
+	sizeWithoutHeavyTableDataMb := measureRawDbSizeMb(t, pgModel)
+
+	heavyTableTotalSizeMb := measureRelationsSizeMb(
+		t, container,
+		relationName{SchemaName: seededSchema.SchemaName, TableName: seededSchema.HeavyTableName},
+	)
+
+	assert.GreaterOrEqual(
+		t,
+		sizeWithHeavyTableDataMb-sizeWithoutHeavyTableDataMb,
+		heavyTableTotalSizeMb-0.01,
+		"the data-excluded table must leave the estimate together with its indexes",
+	)
 }
 
 func Test_GetRawDbSizeMb_WhenExcludeTablesUsesGlobPattern_SkipsMatchingTables(t *testing.T) {
@@ -1736,14 +1791,67 @@ func Test_GetRawDbSizeMb_WhenExcludeTablesUsesGlobPattern_SkipsMatchingTables(t 
 
 	pgModel := createPostgresModel(container)
 	pgModel.IncludeSchemas = []string{seededSchema.SchemaName}
-	pgModel.ExcludeTables = []string{"heavy_*"}
+	pgModel.ExcludeTables = []string{seededSchema.SchemaName + ".heavy_*"}
 
 	assert.InDelta(
 		t,
-		measureRelationsSizeMb(t, container, relationName{seededSchema.SchemaName, seededSchema.LightTableName}),
+		measureRelationsSizeMb(
+			t,
+			container,
+			relationName{SchemaName: seededSchema.SchemaName, TableName: seededSchema.LightTableName},
+		),
 		measureRawDbSizeMb(t, pgModel),
 		0.5,
 		"glob-matched table size must not be counted",
+	)
+}
+
+func Test_GetRawDbSizeMb_WhenUnqualifiedTableIsExcludedByEitherList_CountsSameNamedTableInAnotherSchema(t *testing.T) {
+	container := connectToPostgresContainer(t, "postgres:16")
+	defer container.DB.Close()
+
+	otherSchema := seedSizeTestSchema(t, container)
+	sameNamedTableName := otherSchema.HeavyTableName
+
+	_, err := container.DB.Exec(fmt.Sprintf(`
+		CREATE TABLE public.%s (id SERIAL PRIMARY KEY, payload TEXT NOT NULL);
+		INSERT INTO public.%s (payload) SELECT repeat('x', 1024) FROM generate_series(1, 20000);
+	`, sameNamedTableName, sameNamedTableName))
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, _ = container.DB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS public.%s", sameNamedTableName))
+	})
+
+	publicTableSizeMb := measureRelationsSizeMb(
+		t, container, relationName{SchemaName: "public", TableName: sameNamedTableName},
+	)
+
+	pgModel := createPostgresModel(container)
+	pgModel.IncludeSchemas = []string{"public", otherSchema.SchemaName}
+
+	sizeWithoutExclusionMb := measureRawDbSizeMb(t, pgModel)
+
+	pgModel.ExcludeTables = []string{sameNamedTableName}
+	sizeWithWholeTableExclusionMb := measureRawDbSizeMb(t, pgModel)
+
+	pgModel.ExcludeTables = nil
+	pgModel.ExcludeTableData = []string{sameNamedTableName}
+	sizeWithDataExclusionMb := measureRawDbSizeMb(t, pgModel)
+
+	assert.InDelta(
+		t,
+		publicTableSizeMb,
+		sizeWithoutExclusionMb-sizeWithWholeTableExclusionMb,
+		0.5,
+		"a whole-table exclusion must leave out only the table visible on the default search path",
+	)
+	assert.InDelta(
+		t,
+		publicTableSizeMb,
+		sizeWithoutExclusionMb-sizeWithDataExclusionMb,
+		0.5,
+		"a data exclusion must leave out only the table visible on the default search path",
 	)
 }
 
@@ -1766,8 +1874,8 @@ func Test_GetRawDbSizeMb_WhenIncludeSchemasSet_CountsOnlyIncludedSchema(t *testi
 		t,
 		measureRelationsSizeMb(
 			t, container,
-			relationName{includedSchema.SchemaName, includedSchema.HeavyTableName},
-			relationName{includedSchema.SchemaName, includedSchema.LightTableName},
+			relationName{SchemaName: includedSchema.SchemaName, TableName: includedSchema.HeavyTableName},
+			relationName{SchemaName: includedSchema.SchemaName, TableName: includedSchema.LightTableName},
 		),
 		sizeOfIncludedSchemaMb,
 		0.5,
@@ -1794,7 +1902,7 @@ func Test_GetRawDbSizeMb_WhenIncludeSchemasAndExcludeTablesSet_AppliesBothFilter
 		t,
 		measureRelationsSizeMb(
 			t, container,
-			relationName{includedSchema.SchemaName, includedSchema.LightTableName},
+			relationName{SchemaName: includedSchema.SchemaName, TableName: includedSchema.LightTableName},
 		),
 		measureRawDbSizeMb(t, pgModel),
 		0.5,
@@ -1818,8 +1926,8 @@ func Test_GetRawDbSizeMb_WhenNoFiltersSet_CountsEveryUserTable(t *testing.T) {
 
 	seededSchemasSizeMb := sizeOfFirstSchemaMb + measureRelationsSizeMb(
 		t, container,
-		relationName{secondSchema.SchemaName, secondSchema.HeavyTableName},
-		relationName{secondSchema.SchemaName, secondSchema.LightTableName},
+		relationName{SchemaName: secondSchema.SchemaName, TableName: secondSchema.HeavyTableName},
+		relationName{SchemaName: secondSchema.SchemaName, TableName: secondSchema.LightTableName},
 	)
 
 	assert.GreaterOrEqual(t, sizeOfWholeDatabaseMb, seededSchemasSizeMb-0.5)
@@ -1853,8 +1961,8 @@ func Test_GetRawDbSizeMb_WhenTableIsPartitioned_CountsEveryPartitionOnce(t *test
 		t,
 		measureRelationsSizeMb(
 			t, container,
-			relationName{schemaName, "events_first"},
-			relationName{schemaName, "events_second"},
+			relationName{SchemaName: schemaName, TableName: "events_first"},
+			relationName{SchemaName: schemaName, TableName: "events_second"},
 		),
 		measureRawDbSizeMb(t, pgModel),
 		0.5,

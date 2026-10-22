@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -181,6 +182,61 @@ func testConnectionUnreadableTableExcluded(
 	fixture.Model.ExcludeTables = []string{fixture.SchemaName + ".skipped_audit"}
 
 	assert.NoError(t, fixture.testConnection())
+}
+
+// pg_dump still locks a table whose data it skips, so excluding the data must not lift the check.
+func testConnectionUnreadableTableDataExcluded(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version string,
+) {
+	fixture := createBackupPrivilegeFixture(t, endpoint, version, "perm_data_excl")
+
+	fixture.executeStatements(t,
+		fmt.Sprintf(`CREATE TABLE %s.kept (id INT)`, fixture.SchemaName),
+		fmt.Sprintf(`CREATE TABLE %s.logs (id INT)`, fixture.SchemaName),
+		fmt.Sprintf(`GRANT USAGE ON SCHEMA %s TO "%s"`, fixture.SchemaName, fixture.RoleName),
+		fmt.Sprintf(`GRANT SELECT ON %s.kept TO "%s"`, fixture.SchemaName, fixture.RoleName),
+	)
+
+	fixture.Model.ExcludeTableData = []string{fixture.SchemaName + ".logs"}
+
+	err := fixture.testConnection()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fixture.SchemaName+".logs")
+	assert.Contains(t, err.Error(), "excluding only a table's data still requires SELECT")
+}
+
+// pg_dump matches an unqualified pattern only against tables visible on the default search path,
+// so it skips public's table but still dumps and locks a same-named table in a schema off that path.
+// The fixture schema sorts before public, so its table stays among the names the error lists.
+func testConnectionUnqualifiedExclusionDoesNotReachTableOffSearchPath(
+	t *testing.T,
+	endpoint containers.Endpoint,
+	version string,
+) {
+	fixture := createBackupPrivilegeFixture(t, endpoint, version, "perm_unqualified")
+	sameNamedTableName := "logs_" + strings.TrimPrefix(fixture.SchemaName, "perm_unqualified_")
+
+	fixture.executeStatements(t,
+		fmt.Sprintf(`CREATE TABLE public.%s (id INT)`, sameNamedTableName),
+		fmt.Sprintf(`CREATE TABLE %s.%s (id INT)`, fixture.SchemaName, sameNamedTableName),
+		fmt.Sprintf(`GRANT USAGE ON SCHEMA %s TO "%s"`, fixture.SchemaName, fixture.RoleName),
+	)
+
+	t.Cleanup(func() {
+		_, _ = fixture.Container.DB.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS public.%s`, sameNamedTableName))
+	})
+
+	fixture.Model.IncludeSchemas = []string{fixture.SchemaName, "public"}
+	fixture.Model.ExcludeTables = []string{sameNamedTableName}
+
+	err := fixture.testConnection()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fixture.SchemaName+"."+sameNamedTableName)
+	assert.NotContains(t, err.Error(), "public."+sameNamedTableName)
 }
 
 // pg_dump receives the exclude list normalized, so an entry pasted with a leading newline still

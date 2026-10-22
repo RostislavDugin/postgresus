@@ -377,6 +377,8 @@ export const en = {
       serverCaCertificate: 'Server CA certificate',
       includeSchemas: 'Include schemas',
       excludeTables: 'Exclude tables',
+      excludeWholeTables: 'Exclude whole tables',
+      excludeTableData: 'Exclude table data',
       skipUserMappings: 'Skip user mappings',
       excludeExtensions: 'Exclude extensions',
       restoreOwnership: 'Restore ownership',
@@ -424,7 +426,10 @@ export const en = {
           'Please <docsLink>read this document</docsLink> to study how to backup Supabase database',
         includeSchemasPlaceholder: 'All schemas (default)',
         excludeTablesTooltip:
-          "Tables to exclude from the backup. Use 'tablename' or 'schema.tablename'. Glob patterns are supported (e.g. 'logs_*'). You can paste a list separated by commas or new lines.",
+          "Tables left out of the backup completely: after a restore they will be missing. Use 'tablename' or 'schema.tablename'. A name without a schema matches only tables on the default search path, usually 'public'; use '*.tablename' to match it in every schema. Glob patterns are supported (e.g. 'logs_*'). You can paste a list separated by commas or new lines.",
+        excludeTableDataTooltip:
+          "Tables backed up without their rows: after a restore they exist with their structure, indexes and constraints, but empty. Use 'tablename' or 'schema.tablename'. A name without a schema matches only tables on the default search path, usually 'public'; use '*.tablename' to match it in every schema. Glob patterns are supported (e.g. 'logs_*'). A table listed in both fields is excluded entirely. Partitions of a partitioned table need their own names or a pattern such as 'events_*'. If another backed-up table has a foreign key to rows of an emptied table, the restore fails to recreate that foreign key. You can paste a list separated by commas or new lines.",
+        excludeTableDataPlaceholder: 'No table data excluded',
         skipUserMappingsTooltip:
           'Skip restoring user mappings (CREATE USER MAPPING statements). Enable this when the backup role cannot read the mapping credentials - otherwise they are dumped without options and break restore for FDWs like oracle_fdw.',
         excludeExtensionsTooltip:

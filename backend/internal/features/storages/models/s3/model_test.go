@@ -3,6 +3,7 @@ package s3_storage
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,13 +306,13 @@ func Test_GetFile_CorruptedManifest_ReturnsError(t *testing.T) {
 }
 
 func Test_TestConnection_WhenDeleteIsDenied_Succeeds(t *testing.T) {
-	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{deleteErrorCode: s3ErrCodeAccessDenied})
+	storage, encryptor := newStubStorage(t, startS3ProbeServer(t, s3ProbeStub{deleteErrorCode: s3ErrCodeAccessDenied}))
 
 	assert.NoError(t, storage.TestConnection(encryptor))
 }
 
 func Test_TestConnection_WhenBucketIsMissing_ReturnsBucketDoesNotExist(t *testing.T) {
-	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{putErrorCode: s3ErrCodeNoSuchBucket})
+	storage, encryptor := newStubStorage(t, startS3ProbeServer(t, s3ProbeStub{putErrorCode: s3ErrCodeNoSuchBucket}))
 
 	err := storage.TestConnection(encryptor)
 
@@ -319,7 +321,7 @@ func Test_TestConnection_WhenBucketIsMissing_ReturnsBucketDoesNotExist(t *testin
 }
 
 func Test_TestConnection_WhenWriteIsDenied_ReturnsWriteAccessError(t *testing.T) {
-	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{putErrorCode: s3ErrCodeAccessDenied})
+	storage, encryptor := newStubStorage(t, startS3ProbeServer(t, s3ProbeStub{putErrorCode: s3ErrCodeAccessDenied}))
 
 	err := storage.TestConnection(encryptor)
 
@@ -328,7 +330,7 @@ func Test_TestConnection_WhenWriteIsDenied_ReturnsWriteAccessError(t *testing.T)
 }
 
 func Test_TestConnection_WhenReadIsDenied_ReturnsReadAccessError(t *testing.T) {
-	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{getErrorCode: s3ErrCodeAccessDenied})
+	storage, encryptor := newStubStorage(t, startS3ProbeServer(t, s3ProbeStub{getErrorCode: s3ErrCodeAccessDenied}))
 
 	err := storage.TestConnection(encryptor)
 
@@ -337,12 +339,30 @@ func Test_TestConnection_WhenReadIsDenied_ReturnsReadAccessError(t *testing.T) {
 }
 
 func Test_TestConnection_WhenReadReturnsDifferentContent_ReturnsMismatchError(t *testing.T) {
-	storage, encryptor := setupProbeStubStorage(t, s3ProbeStub{servedContent: "corrupted"})
+	storage, encryptor := newStubStorage(t, startS3ProbeServer(t, s3ProbeStub{servedContent: "corrupted"}))
 
 	err := storage.TestConnection(encryptor)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "different content")
+}
+
+// Issue #827: Garage before v2.4.0 answers a batch delete of an absent key with NoSuchKey, which
+// kept every deletion pending forever.
+func Test_DeleteFile_WhenServerReportsKeysAsMissing_Succeeds(t *testing.T) {
+	storage, encryptor := newStubStorage(t, startS3BatchDeleteServer(t, s3ErrCodeNoSuchKey))
+
+	assert.NoError(t, storage.DeleteFile(t.Context(), encryptor, discardLogger(), "backup"))
+}
+
+func Test_DeleteFile_WhenServerDeniesKeyDeletion_ReturnsErrorNamingKey(t *testing.T) {
+	storage, encryptor := newStubStorage(t, startS3BatchDeleteServer(t, s3ErrCodeAccessDenied))
+
+	err := storage.DeleteFile(t.Context(), encryptor, discardLogger(), "backup")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "object backup")
+	assert.Contains(t, err.Error(), s3ErrCodeAccessDenied)
 }
 
 func setupChunkedStorage(t *testing.T) (*minio.Client, *S3Storage, encryption.FieldEncryptor) {
@@ -385,13 +405,8 @@ func setupChunkedStorage(t *testing.T) (*minio.Client, *S3Storage, encryption.Fi
 	return rawClient, storage, encryptor
 }
 
-func setupProbeStubStorage(
-	t *testing.T,
-	stub s3ProbeStub,
-) (*S3Storage, encryption.FieldEncryptor) {
+func newStubStorage(t *testing.T, server *httptest.Server) (*S3Storage, encryption.FieldEncryptor) {
 	t.Helper()
-
-	server := startS3ProbeServer(t, stub)
 
 	encryptor := encryption.GetFieldEncryptor()
 
@@ -461,6 +476,62 @@ func startS3ProbeServer(t *testing.T, stub s3ProbeStub) *httptest.Server {
 	return server
 }
 
+// Serves an empty bucket whose batch delete fails every requested key with objectErrorCode, which
+// MinIO cannot reproduce: it reports a missing key as deleted.
+func startS3BatchDeleteServer(t *testing.T, objectErrorCode string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+
+		switch {
+		case r.Method == http.MethodHead:
+			w.WriteHeader(http.StatusNotFound)
+		case r.Method == http.MethodGet && query.Has("uploads"):
+			writeXMLResponse(
+				w,
+				http.StatusOK,
+				`<ListMultipartUploadsResult><IsTruncated>false</IsTruncated></ListMultipartUploadsResult>`,
+			)
+		case r.Method == http.MethodGet:
+			writeXMLResponse(w, http.StatusOK, `<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>`)
+		case r.Method == http.MethodPost && query.Has("delete"):
+			var request struct {
+				Objects []struct {
+					Key string `xml:"Key"`
+				} `xml:"Object"`
+			}
+
+			if err := xml.NewDecoder(r.Body).Decode(&request); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			var result strings.Builder
+			result.WriteString("<DeleteResult>")
+
+			for _, object := range request.Objects {
+				fmt.Fprintf(&result, "<Error><Key>%s</Key><Code>%s</Code><Message>%s</Message></Error>",
+					object.Key, objectErrorCode, objectErrorCode)
+			}
+
+			result.WriteString("</DeleteResult>")
+			writeXMLResponse(w, http.StatusOK, result.String())
+		default:
+			w.WriteHeader(http.StatusNotImplemented)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func writeXMLResponse(w http.ResponseWriter, status int, body string) {
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>` + body))
+}
+
 func writeS3ErrorResponse(w http.ResponseWriter, code string) {
 	statusByCode := map[string]int{
 		s3ErrCodeNoSuchBucket: http.StatusNotFound,
@@ -472,14 +543,7 @@ func writeS3ErrorResponse(w http.ResponseWriter, code string) {
 		status = http.StatusForbidden
 	}
 
-	w.Header().Set("Content-Type", "application/xml")
-	w.WriteHeader(status)
-	_, _ = fmt.Fprintf(
-		w,
-		`<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`,
-		code,
-		code,
-	)
+	writeXMLResponse(w, status, fmt.Sprintf("<Error><Code>%s</Code><Message>%s</Message></Error>", code, code))
 }
 
 func putRawObject(t *testing.T, client *minio.Client, bucket, key string, data []byte) {
