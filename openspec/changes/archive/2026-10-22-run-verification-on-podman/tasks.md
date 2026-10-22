@@ -21,6 +21,15 @@
 - [x] 5.1 Run `just lint` in `agent/verification` and fix every finding until it passes.
 - [x] 5.2 Search the repository for mentions of the deleted read-back and of the e2e entry points (`run-all.sh`, `just e2e`, `docker.sock` in the agent's e2e) and bring every affected comment and document in line with the change. Verify that `grep -rn "hardening regression" .` outside `openspec/` finds nothing.
 
+## 6. Make the restore container reachable on rootful Podman in CI
+
+The first run of `e2e-verification-agent-podman` failed all three tests: the restore container started, but the agent could not reach Postgres through its published port for 60 seconds. The tasks below diagnose it; the fix and the green CI run belong to `start-restore-containers-unprivileged`.
+
+- [x] 6.1 In `agent/verification/internal/features/container/manager.go`, make `waitForReady` return the readiness deadline together with the error of the last ping that finished before the deadline, so a refused port, an unanswered connection and a rejected login read differently in the verification report. Add `Test_WaitForReady_WhenPortRefusesConnections_ReturnsDeadlineWithLastPingError` to `manager_test.go`. Verify with `just test` in `agent/verification`.
+- [x] 6.2 Temporary: add `agent/verification/e2e/diagnose-podman-ports.sh` and the step `Diagnose Podman port publishing` with `continue-on-error: true` before `just e2e-podman` in `e2e-verification-agent-podman`. The script repeats the agent's connection path with plain Postgres containers and varies the bind address and the target address. It then creates containers through the Docker-compatible API with the agent's own request, turning off one of the image, the capability drop and no-new-privileges per variant, and prints each container's processes, capabilities and log. When the agent's path fails for plain containers, it repeats the checks with Docker's firewall rules removed. Verify with `bash -n agent/verification/e2e/diagnose-podman-ports.sh` and `actionlint .github/workflows/ci-release.yml`, which must report no new findings.
+
+The cause turned out to be AppArmor denying signals between the container's processes under no-new-privileges, not port publishing. The change `start-restore-containers-unprivileged` fixes it and removes the temporary diagnostics, replacing the former tasks 6.3 and 6.4.
+
 ## Change verification
 
 ```sh

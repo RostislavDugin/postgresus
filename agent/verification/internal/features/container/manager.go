@@ -236,30 +236,42 @@ func waitForReady(ctx context.Context, conn dbconn.Conn) error {
 	ticker := time.NewTicker(readyPollInterval)
 	defer ticker.Stop()
 
+	// The deadline alone hides why Postgres stayed unreachable: a refused port,
+	// a connection nobody answers and a rejected login need different fixes,
+	// and only the last ping error tells them apart.
+	var lastPingErr error
+
 	for {
-		if pingOnce(readyCtx, conn) {
+		err := pingOnce(readyCtx, conn)
+		if err == nil {
 			return nil
+		}
+
+		// A ping the overall deadline cut short says nothing about Postgres, so
+		// it never replaces the error of a ping that finished on its own.
+		if readyCtx.Err() == nil || lastPingErr == nil {
+			lastPingErr = err
 		}
 
 		select {
 		case <-readyCtx.Done():
-			return readyCtx.Err()
+			return fmt.Errorf("%w; last ping error: %w", readyCtx.Err(), lastPingErr)
 		case <-ticker.C:
 		}
 	}
 }
 
-func pingOnce(ctx context.Context, conn dbconn.Conn) bool {
+func pingOnce(ctx context.Context, conn dbconn.Conn) error {
 	pingCtx, cancel := context.WithTimeout(ctx, readyPollInterval)
 	defer cancel()
 
 	pgConn, err := pgx.Connect(pingCtx, conn.DSN())
 	if err != nil {
-		return false
+		return err
 	}
 	defer func() { _ = pgConn.Close(pingCtx) }()
 
-	return pgConn.Ping(pingCtx) == nil
+	return pgConn.Ping(pingCtx)
 }
 
 func imageForJob(req SpawnRequest, engineImageRepo string) string {

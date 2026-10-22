@@ -59,17 +59,29 @@ The compose file takes the engine socket for `e2e-agent-runner` from `E2E_ENGINE
 
 A new CI job, `e2e-verification-agent-podman`, runs on `ubuntu-24.04`, starts the rootful Podman socket with `sudo systemctl start podman.socket`, prints `podman version` and the OCI runtime for the log, and calls `just e2e-podman`. `determine-version` waits for it as it waits for the Docker job. The existing Docker job also runs `test-container-privileges.sh` through `run-all.sh`.
 
+Until the cause of the first failed run is fixed, the job also runs a temporary step, `Diagnose Podman port publishing`, before `just e2e-podman`. It runs `e2e/diagnose-podman-ports.sh` as root with `continue-on-error`, so it never fails the job. The script starts plain Postgres containers on a user-defined Podman network, one published on `127.0.0.1` as the agent publishes it and one on all interfaces. It checks them with `pg_isready` from the host network namespace through the loopback port, the host IP and the container IP. The first diagnostic run showed every one of these paths working while the agent got `connection refused`, so the script also creates containers through the Docker-compatible API with the agent's own request: the verification image, the tuned command, the hardening, the limits and `HostPort "0"`. Each further variant turns off one of the image, the capability drop and no-new-privileges, and the script prints each container's processes, capabilities and log. When the agent's path fails for plain containers, it prints the firewall rules, stops Docker, removes Docker's rules and repeats the checks. The diagnosis traced the hang to AppArmor denying signals between the container's processes under no-new-privileges. The change `start-restore-containers-unprivileged` fixes that and removes the step and the script.
+
 Rejected alternatives:
 
 - **The full suite on Podman.** The upgrade, start-stop and purge tests do not depend on the engine's reporting, and seven PostgreSQL majors would double the job time without exercising a different engine path. Major 18 matches the issue.
 - **A matrix over the existing job.** The Podman run needs a different socket, a setup step and a different script list, so a matrix would need conditionals in every step.
 - **Running the whole compose stack on Podman.** It tests `podman compose`, which the product does not use, and only the agent's engine calls matter here.
 
+### Report why a restore container never became ready
+
+On the first CI run on rootful Podman 4.9.3 (`ubuntu-24.04`), every restore container started but stayed unreachable through its published port, and the verification report said only `container never became ready: context deadline exceeded`. `waitForReady` polled once a second and returned only the deadline (`manager.go:232-249`), dropping every ping error. It now returns the deadline together with the error of the last ping that finished before the deadline. A ping the deadline itself cut short does not replace it, because its error only repeats the deadline. The report then tells a refused port from an unanswered connection and from a rejected login, on a user's host as well as in CI. pgx connection errors carry the user, database, host and port, not the password.
+
+Rejected alternatives:
+
+- **Log every failed ping.** Sixty lines per failed job, and the report the user sees would still say only "deadline exceeded".
+- **Keep the error of the very last ping.** The unit test showed that the last ping usually starts just before the deadline and fails with a dial timeout caused by the deadline, which hides the real cause.
+
 ## Risks / Trade-offs
 
 - [The `docker` CLI in the runner may read Podman's compat API slightly differently, for example in `network ls` label filters] → The leak check fails loudly rather than passing silently. If a filter is unsupported, the script switches to an output the CLI and Podman agree on, still from the runner.
 - [Podman may resolve the agent's short image name `databasus/verification-postgres:18` differently from Docker] → Podman's compat API resolves short names to Docker Hub. If the CI run shows otherwise, that is a real user-facing bug and is fixed in the agent, not worked around in the test.
-- [The `gosu` hang the reporter saw with `crun` may reproduce in CI] → The job prints the runtime, so the failure is attributable. It is then a separate issue, and this change does not merge with a red Podman job.
+- [The `gosu` hang the reporter saw with `crun` may reproduce in CI] → It did: under no-new-privileges, AppArmor on `ubuntu-24.04` denies signals between the container's processes. `start-restore-containers-unprivileged` fixes it, and this change does not merge with a red Podman job.
+- [The job does not run on `develop`, so its first run came after the merge to `main`, and it failed: Postgres in the restore containers never answered, because under no-new-privileges AppArmor denied signals between the container's processes] → `start-restore-containers-unprivileged` fixes the cause and tracks the green run on rootful Podman 4.9.3 in its tasks 3.1 and 4.2. That is the version `ubuntu-24.04` ships, which users on that LTS release also run. The runner is not switched to a newer Podman to make the job green, because that would hide a failure those users hit.
 - [The 30-second delay lengthens each end-to-end run by about 30 seconds per engine] → Accepted; it buys a deterministic window instead of a race.
 - [Without the read-back, an engine that silently ignores the requested hardening goes unnoticed at runtime] → No engine the agent supports does that, and the end-to-end test proves the applied state on both supported engines in CI.
 
