@@ -37,8 +37,7 @@ type SpawnSpec struct {
 
 	// The hardening invariants, explicit so a unit test asserts them and the
 	// engine translation cannot silently drop one.
-	NoNewPrivileges bool
-	CapDropAll      bool
-	CapAdd          []string
-	ReadonlyRootfs  bool
+	CapDropAll     bool
+	ReadonlyRootfs bool
+	User           string
 }

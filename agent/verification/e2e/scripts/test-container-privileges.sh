@@ -2,10 +2,10 @@
 # Privileges e2e: checks what the kernel applied to the restore container, not
 # what the engine reports back. The mock holds the backup stream for 30s, so
 # the job's container is up and waiting for its backup while this script reads
-# /proc/1/status through `docker exec`. The capability bounding set must hold
-# exactly CHOWN, DAC_OVERRIDE, FOWNER, SETGID and SETUID (0xcb), and
-# no-new-privileges must be set. CapEff is not checked: PID 1 is the Postgres
-# server running as a non-root user, so it is zero under any configuration.
+# /proc/1/status through `docker exec`. PID 1 must run as a non-root user, and
+# the capability bounding set must be empty, so even a process that reaches
+# user ID 0 inside the container holds no capabilities. CapEff is not checked:
+# for a non-root process it is zero under any configuration.
 # The job must then finish COMPLETED and leave nothing behind.
 set -euo pipefail
 
@@ -16,7 +16,7 @@ AGENT_ID="77777777-7777-7777-7777-777777777777"
 VERIFICATION_ID="77777777-aaaa-aaaa-aaaa-777777777777"
 BACKUP_ID="77777777-bbbb-bbbb-bbbb-777777777777"
 
-EXPECTED_CAP_BND="00000000000000cb"
+EXPECTED_CAP_BND="0000000000000000"
 STREAM_DELAY_SECONDS=30
 
 rm -rf "$WORK"
@@ -61,18 +61,23 @@ if [ -z "$CONTAINER_ID" ]; then
   exit 1
 fi
 
-PROC_STATUS="$(docker exec "$CONTAINER_ID" cat /proc/1/status)"
+if ! PROC_STATUS="$(docker exec "$CONTAINER_ID" cat /proc/1/status)"; then
+  echo "FAIL: could not read /proc/1/status of restore container ${CONTAINER_ID}"
+  dump_diagnostics
+  stop_agent
+  exit 1
+fi
 CAP_BND="$(echo "$PROC_STATUS" | awk '/^CapBnd:/ {print $2}')"
-NO_NEW_PRIVS="$(echo "$PROC_STATUS" | awk '/^NoNewPrivs:/ {print $2}')"
+UID_REAL="$(echo "$PROC_STATUS" | awk '/^Uid:/ {print $2}')"
 
-if [ "$CAP_BND" != "$EXPECTED_CAP_BND" ] || [ "$NO_NEW_PRIVS" != "1" ]; then
-  echo "FAIL: restore container privileges: CapBnd=${CAP_BND} (want ${EXPECTED_CAP_BND}), NoNewPrivs=${NO_NEW_PRIVS} (want 1)"
+if [ -z "$UID_REAL" ] || [ "$UID_REAL" = "0" ] || [ "$CAP_BND" != "$EXPECTED_CAP_BND" ]; then
+  echo "FAIL: restore container privileges: Uid=${UID_REAL} (want non-zero), CapBnd=${CAP_BND} (want ${EXPECTED_CAP_BND})"
   echo "$PROC_STATUS"
   stop_agent
   exit 1
 fi
 
-echo "Restore container privileges OK: CapBnd=${CAP_BND} NoNewPrivs=${NO_NEW_PRIVS}"
+echo "Restore container privileges OK: Uid=${UID_REAL} CapBnd=${CAP_BND}"
 
 wait_for_report '"status":"COMPLETED"' 240 '"status":"FAILED"'
 

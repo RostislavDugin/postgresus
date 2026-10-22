@@ -89,8 +89,8 @@ func Test_ToContainerConfigs_CarriesHardeningAndLimitsOfSpec(t *testing.T) {
 			config, hostConfig := toContainerConfigs(spec)
 
 			assert.Equal(t, []string{"ALL"}, hostConfig.CapDrop)
-			assert.Equal(t, minimalCaps, hostConfig.CapAdd)
-			assert.Contains(t, hostConfig.SecurityOpt, "no-new-privileges")
+			assert.Empty(t, hostConfig.CapAdd)
+			assert.Empty(t, hostConfig.SecurityOpt)
 			assert.Empty(t, hostConfig.Binds)
 			assert.Empty(t, hostConfig.Mounts)
 			assert.Equal(t, int64(1024)*1024*1024, hostConfig.Memory)
@@ -107,6 +107,33 @@ func Test_ToContainerConfigs_CarriesHardeningAndLimitsOfSpec(t *testing.T) {
 			assert.Equal(t, network.PortSet{pgPublishedPort: struct{}{}}, config.ExposedPorts)
 			assert.Equal(t, spec.Image, config.Image)
 			assert.Equal(t, spec.Labels, config.Labels)
+			assert.Equal(t, "postgres", config.User)
+		})
+	}
+}
+
+func Test_ToExecOptions_CarriesCommandAndNamesNoUser(t *testing.T) {
+	testCases := []struct {
+		name            string
+		isStdinAttached bool
+	}{
+		{name: "with stdin", isStdinAttached: true},
+		{name: "without stdin", isStdinAttached: false},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cmd := []string{"pg_restore", "--dbname", "restore"}
+			env := []string{"PGPASSWORD=pw"}
+
+			options := toExecOptions(cmd, env, testCase.isStdinAttached)
+
+			assert.Equal(t, cmd, options.Cmd)
+			assert.Equal(t, env, options.Env)
+			assert.Equal(t, testCase.isStdinAttached, options.AttachStdin)
+			assert.True(t, options.AttachStdout)
+			assert.True(t, options.AttachStderr)
+			assert.Empty(t, options.User, "the command runs as the container's unprivileged user")
 		})
 	}
 }

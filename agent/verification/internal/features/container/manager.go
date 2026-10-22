@@ -29,10 +29,16 @@ const (
 	timescaleImageRepo = "timescale/timescaledb"
 )
 
-// minimalCaps are the only capabilities added back after CapDrop ALL — exactly
-// what the official entrypoint needs for initdb + the gosu privilege drop, not
-// a blanket keep.
-var minimalCaps = []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"}
+// containerUser is the unprivileged user every Postgres image the agent runs
+// ships. Starting as this user makes the official entrypoint skip its switch
+// from root, so no step in the container needs a capability and all of them
+// are dropped. It replaces the kernel's no_new_privs flag: on rootful Podman
+// with crun and AppArmor that flag stacks the container's AppArmor profile on
+// crun's, which denies every signal between the container's processes and
+// hangs Postgres.
+// With an empty bounding set, a setuid binary still yields no capability.
+// The agent's execs (dd, pg_restore, du) run as this user too.
+const containerUser = "postgres"
 
 // restoreTunedPostgresCmd runs the restore container's Postgres with crash
 // safety traded for a smaller on-disk footprint. The container is destroyed
@@ -206,13 +212,12 @@ func (m *Manager) buildSpec(plan spawnPlan) SpawnSpec {
 		PidsLimit:   containerPidsLimit,
 		NetworkID:   plan.networkID,
 
-		NoNewPrivileges: true,
-		CapDropAll:      true,
-		CapAdd:          minimalCaps,
+		CapDropAll: true,
+		User:       containerUser,
 		// rootfs is writable because the official image needs a writable PGDATA;
 		// the per-job disk budget is enforced by the agent's disk watcher, not a
-		// Docker cap. The dominant controls (cap-drop, no-new-privs, pids,
-		// memory, userns, ephemeral lifecycle) remain in force. The job network
+		// Docker cap. The dominant controls (unprivileged user, no capabilities,
+		// pids, memory, userns, ephemeral lifecycle) remain in force. The job network
 		// is a per-job user-defined bridge (job isolation) but NOT --internal:
 		// see CreateNetwork in dockerengine.go for why.
 		ReadonlyRootfs: false,
@@ -236,30 +241,42 @@ func waitForReady(ctx context.Context, conn dbconn.Conn) error {
 	ticker := time.NewTicker(readyPollInterval)
 	defer ticker.Stop()
 
+	// The deadline alone hides why Postgres stayed unreachable: a refused port,
+	// a connection nobody answers and a rejected login need different fixes,
+	// and only the last ping error tells them apart.
+	var lastPingErr error
+
 	for {
-		if pingOnce(readyCtx, conn) {
+		err := pingOnce(readyCtx, conn)
+		if err == nil {
 			return nil
+		}
+
+		// A ping the overall deadline cut short says nothing about Postgres, so
+		// it never replaces the error of a ping that finished on its own.
+		if readyCtx.Err() == nil || lastPingErr == nil {
+			lastPingErr = err
 		}
 
 		select {
 		case <-readyCtx.Done():
-			return readyCtx.Err()
+			return fmt.Errorf("%w; last ping error: %w", readyCtx.Err(), lastPingErr)
 		case <-ticker.C:
 		}
 	}
 }
 
-func pingOnce(ctx context.Context, conn dbconn.Conn) bool {
+func pingOnce(ctx context.Context, conn dbconn.Conn) error {
 	pingCtx, cancel := context.WithTimeout(ctx, readyPollInterval)
 	defer cancel()
 
 	pgConn, err := pgx.Connect(pingCtx, conn.DSN())
 	if err != nil {
-		return false
+		return err
 	}
 	defer func() { _ = pgConn.Close(pingCtx) }()
 
-	return pgConn.Ping(pingCtx) == nil
+	return pgConn.Ping(pingCtx)
 }
 
 func imageForJob(req SpawnRequest, engineImageRepo string) string {

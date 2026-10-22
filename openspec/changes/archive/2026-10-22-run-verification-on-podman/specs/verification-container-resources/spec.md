@@ -37,3 +37,13 @@ The verification agent SHALL verify backups when its Docker endpoint is a rootfu
 - **AND** the agent claims a verification job for a backup that cannot be restored
 - **THEN** the agent reports the verification as failed with the restore error
 - **AND** no container or network created for the job remains on the engine
+
+### Requirement: An unreachable restore container is reported with its cause
+
+When the agent cannot connect to the database in a restore container before the readiness timeout, the verification SHALL fail, and its failure message SHALL include the error of the agent's last connection attempt that ended before the timeout, such as a refused connection, a connection that got no answer or a rejected login. The failure message SHALL NOT contain the database password.
+
+#### Scenario: Published port refuses connections
+
+- **WHEN** the database in a restore container stays unreachable because its published port refuses every connection
+- **THEN** the agent reports the verification as failed
+- **AND** the failure message says that the readiness timeout passed and that the last connection attempt was refused
