@@ -24,7 +24,8 @@ import (
 
 const (
 	// LabelVerificationID / LabelAgentID tag every container and network so the
-	// startup purge can find and remove this agent's leftovers by agent ID
+	// startup purge can remove this agent's leftovers by agent ID, and a retried
+	// attempt can remove those of its verification by both labels
 	LabelVerificationID = "databasus.verification.verification_id"
 	LabelAgentID        = "databasus.verification.agent_id"
 
@@ -313,36 +314,48 @@ func (e *dockerEngine) RemoveContainer(ctx context.Context, containerID string) 
 	return err
 }
 
-func (e *dockerEngine) ListManaged(
-	ctx context.Context, agentID string,
-) ([]ManagedContainer, error) {
+func (e *dockerEngine) ListManagedContainers(
+	ctx context.Context, labels map[string]string,
+) ([]ManagedResource, error) {
 	listed, err := e.cli.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
-		Filters: make(client.Filters).Add("label", LabelAgentID+"="+agentID),
+		Filters: labelFilters(labels),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	managed := make([]ManagedContainer, 0, len(listed.Items))
+	managed := make([]ManagedResource, 0, len(listed.Items))
 	for _, s := range listed.Items {
-		mc := ManagedContainer{
-			ID:             s.ID,
-			VerificationID: s.Labels[LabelVerificationID],
-			CreatedUnix:    s.Created,
-		}
-
-		if s.NetworkSettings != nil {
-			for _, endpoint := range s.NetworkSettings.Networks {
-				if endpoint.NetworkID != "" {
-					mc.NetworkID = endpoint.NetworkID
-					break
-				}
-			}
-		}
-
-		managed = append(managed, mc)
+		managed = append(managed, ManagedResource{ID: s.ID, VerificationID: s.Labels[LabelVerificationID]})
 	}
 
 	return managed, nil
+}
+
+func (e *dockerEngine) ListManagedNetworks(
+	ctx context.Context, labels map[string]string,
+) ([]ManagedResource, error) {
+	listed, err := e.cli.NetworkList(ctx, client.NetworkListOptions{Filters: labelFilters(labels)})
+	if err != nil {
+		return nil, err
+	}
+
+	managed := make([]ManagedResource, 0, len(listed.Items))
+	for _, n := range listed.Items {
+		managed = append(managed, ManagedResource{ID: n.ID, VerificationID: n.Labels[LabelVerificationID]})
+	}
+
+	return managed, nil
+}
+
+// labelFilters passes every label as its own value of the label filter, which
+// Docker combines with AND; one value holding several labels would match none.
+func labelFilters(labels map[string]string) client.Filters {
+	filters := make(client.Filters)
+	for key, value := range labels {
+		filters.Add("label", key+"="+value)
+	}
+
+	return filters
 }

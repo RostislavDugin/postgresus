@@ -143,18 +143,16 @@ func (m *Manager) Spawn(jobCtx context.Context, req SpawnRequest) (*PostgresCont
 		return nil, fmt.Errorf("generate password: %w", err)
 	}
 
-	// LabelAgentID is load-bearing for the startup purge: ListManaged filters
-	// solely on it, so a container spawned without this label can never be
-	// purged and leaks until the host is cleaned by hand.
-	labels := map[string]string{
-		LabelAgentID:        m.agentID,
-		LabelVerificationID: req.VerificationID.String(),
-	}
+	// Both labels are load-bearing for leftover removal: the startup purge
+	// filters on LabelAgentID, and the next attempt of this verification on
+	// both. A resource created without them leaks until the host is cleaned by
+	// hand, and a leftover network blocks every retry by its name.
+	labels := attemptLabels(m.agentID, req.VerificationID.String())
 
-	networkID, err := m.engine.CreateNetwork(
-		jobCtx, "databasus-verif-"+req.VerificationID.String(), labels)
+	networkID, err := prepareAttemptNetwork(
+		jobCtx, m.engine, "databasus-verif-"+req.VerificationID.String(), labels)
 	if err != nil {
-		return nil, fmt.Errorf("create isolated network: %w", err)
+		return nil, err
 	}
 
 	spec := m.buildSpec(spawnPlan{

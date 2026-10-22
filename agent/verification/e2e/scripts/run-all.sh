@@ -11,6 +11,7 @@ TESTS=(
   "test-restore-disk-budget.sh"
   "test-restore-timescale.sh"
   "test-restore-include-public-schema.sh"
+  "test-restore-retry-leftover.sh"
 )
 
 PG_VERSIONS=(12 13 14 15 16 17 18)
