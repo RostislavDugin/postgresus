@@ -999,13 +999,15 @@ start_databasus_on_new_volume() {
 
 check_docker_stop_shuts_down_cleanly() {
     local container_name="databasus-storage-clean-stop-${run_id}"
-    local stop_started_at_ms
+    local stop_started_at_us
     local stop_duration_ms
 
     start_databasus_on_new_volume "${container_name}"
-    stop_started_at_ms="$(date +%s%3N)"
+    # The uutils date on the Namespace runners printed nanoseconds for %3N, so the clock comes
+    # from bash instead.
+    stop_started_at_us="${EPOCHREALTIME/./}"
     docker stop "${container_name}" >/dev/null
-    stop_duration_ms="$(($(date +%s%3N) - stop_started_at_ms))"
+    stop_duration_ms="$(((${EPOCHREALTIME/./} - stop_started_at_us) / 1000))"
 
     if ((stop_duration_ms >= 10000)); then
         echo "docker stop took ${stop_duration_ms} ms, so the stop timeout ended the container" >&2
