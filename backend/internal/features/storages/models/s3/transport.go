@@ -35,6 +35,7 @@ func newSharedTransport(isSkipTLSVerify bool) *http.Transport {
 		IdleConnTimeout:       s3IdleConnTimeout,
 		MaxIdleConnsPerHost:   s3MaxIdleConnsPerHost,
 		TLSClientConfig: &tls.Config{
+			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: isSkipTLSVerify,
 		},
 	}

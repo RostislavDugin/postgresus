@@ -175,6 +175,7 @@ func deliver(client *smtp.Client, envelopeSender, envelopeRecipient string, cont
 
 func buildTLSConfig(connection Connection) *tls.Config {
 	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
 		ServerName:         connection.Host,
 		InsecureSkipVerify: connection.IsInsecureSkipVerify,
 	}

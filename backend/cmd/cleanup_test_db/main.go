@@ -82,10 +82,13 @@ func resetMetadataDb(log *slog.Logger, env *config.EnvVariables) error {
 		slotDbName := fmt.Sprintf("%s_w%d", baseDbName, slot)
 		quoted := quoteIdentifier(slotDbName)
 
+		// Identifiers and literals are quoted with quoteIdentifier and quoteLiteral; this tool only resets test databases.
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		if err := db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", quoted)).Error; err != nil {
 			return fmt.Errorf("drop database %s: %w", slotDbName, err)
 		}
 
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		if err := db.Exec(fmt.Sprintf("CREATE DATABASE %s", quoted)).Error; err != nil {
 			return fmt.Errorf("create database %s: %w", slotDbName, err)
 		}
@@ -147,6 +150,8 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 	}
 
 	for _, name := range userDbs {
+		// Identifiers and literals are quoted with quoteIdentifier and quoteLiteral; this tool only resets test databases.
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		if _, err := db.ExecContext(ctx, fmt.Sprintf(
 			"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()",
 			quoteLiteral(name),
@@ -156,6 +161,8 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 
 		// No WITH (FORCE) - that's PG 13+ only and we support PG 12.
 		// pg_terminate_backend above already kicked off other sessions.
+		// Identifiers and literals are quoted with quoteIdentifier and quoteLiteral; this tool only resets test databases.
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		if _, err := db.ExecContext(
 			ctx,
 			fmt.Sprintf("DROP DATABASE IF EXISTS %s", quoteIdentifier(name)),
@@ -164,6 +171,7 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 		}
 	}
 
+	// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 	if _, err := db.ExecContext(
 		ctx,
 		fmt.Sprintf("CREATE DATABASE %s", quoteIdentifier(testPgContainerDb)),
@@ -182,9 +190,13 @@ func resetOnePostgresContainer(ctx context.Context, log *slog.Logger, host, labe
 		// REASSIGN/DROP OWNED release any objects still pinned to the role so
 		// DROP ROLE can succeed. Failures here are best-effort - the role may
 		// own nothing, in which case these are no-ops.
+		// Identifiers and literals are quoted with quoteIdentifier and quoteLiteral; this tool only resets test databases.
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		_, _ = db.ExecContext(ctx, fmt.Sprintf("REASSIGN OWNED BY %s TO %s", quotedRole, owner))
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		_, _ = db.ExecContext(ctx, fmt.Sprintf("DROP OWNED BY %s", quotedRole))
 
+		// nosemgrep: go.lang.security.audit.database.string-formatted-query.string-formatted-query
 		if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP ROLE IF EXISTS %s", quotedRole)); err != nil {
 			log.WarnContext(ctx, "could not drop role", "role", role, "error", err)
 		}

@@ -502,7 +502,10 @@ func (m *MariadbDatabase) buildDSN(password, database string) string {
 	tlsConfig := "false"
 
 	if m.IsHttps {
+		// The HTTPS option encrypts the connection without verifying the server certificate.
+		// nosemgrep: problem-based-packs.insecure-transport.go-stdlib.bypass-tls-verification.bypass-tls-verification
 		err := mysql.RegisterTLSConfig("mariadb-skip-verify", &tls.Config{
+			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: true,
 		})
 		if err != nil {

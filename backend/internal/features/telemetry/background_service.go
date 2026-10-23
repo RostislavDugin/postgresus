@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	// math/rand only adds schedule jitter here, not anything secret.
+	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"math/rand/v2"
 	"sync/atomic"
 	"time"

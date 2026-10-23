@@ -438,6 +438,8 @@ func GenerateWalActivity(
 ) (int64, error) {
 	tableName := "wal_activity_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
 
+	// Test helper: the table name is generated from a UUID and the setting values come from the server itself.
+	// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 	if _, err := conn.Exec(
 		ctx,
 		fmt.Sprintf(`CREATE TABLE %s (id BIGSERIAL PRIMARY KEY, payload TEXT)`, tableName),
@@ -446,6 +448,7 @@ func GenerateWalActivity(
 	}
 
 	defer func() {
+		// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 		_, _ = conn.Exec(context.Background(), fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tableName))
 	}()
 
@@ -459,6 +462,8 @@ func GenerateWalActivity(
 	const payloadSize = 1024
 
 	for {
+		// Test helper: the table name is generated from a UUID and the setting values come from the server itself.
+		// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 		_, err := conn.Exec(
 			ctx,
 			fmt.Sprintf(
@@ -635,6 +640,8 @@ func SetSummarizerEnabled(t *testing.T, conn *pgx.Conn, enabled bool) {
 		return
 	}
 
+	// Test helper: the table name is generated from a UUID and the setting values come from the server itself.
+	// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 	if _, err := conn.Exec(
 		ctx,
 		fmt.Sprintf("ALTER SYSTEM SET summarize_wal = '%s'", desired),
@@ -650,6 +657,8 @@ func SetSummarizerEnabled(t *testing.T, conn *pgx.Conn, enabled bool) {
 		restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer restoreCancel()
 
+		// Test helper: the table name is generated from a UUID and the setting values come from the server itself.
+		// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 		if _, err := conn.Exec(restoreCtx,
 			fmt.Sprintf("ALTER SYSTEM SET summarize_wal = '%s'", previous),
 		); err != nil {
@@ -694,6 +703,8 @@ func ExpireWalSummaries(t *testing.T, conn *pgx.Conn) {
 		restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer restoreCancel()
 
+		// Test helper: the table name is generated from a UUID and the setting values come from the server itself.
+		// nosemgrep: go.lang.security.audit.sqli.pgx-sqli.pgx-sqli
 		if _, err := conn.Exec(restoreCtx,
 			fmt.Sprintf("ALTER SYSTEM SET wal_summary_keep_time = '%s'", previous),
 		); err != nil {

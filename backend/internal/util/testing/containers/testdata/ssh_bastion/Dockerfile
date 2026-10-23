@@ -14,4 +14,5 @@ RUN chown -R testuser:testuser /home/testuser/.ssh \
 
 EXPOSE 22
 
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["/usr/sbin/sshd", "-D", "-e"]

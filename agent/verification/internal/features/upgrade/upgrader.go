@@ -98,6 +98,8 @@ func verifyBinary(binaryPath, expectedVersion string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), verifyBinaryTimeout)
 	defer cancel()
 
+	// Runs the downloaded agent binary to check it before it replaces the current one.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, binaryPath, "version")
 
 	output, err := cmd.Output()

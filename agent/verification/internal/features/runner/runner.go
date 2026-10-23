@@ -296,6 +296,8 @@ func (r *Runner) executeJob(ctx context.Context, job *api.JobAssignment) {
 		}
 	}
 
+	// RunPgRestore returns Result by value and fills it when it fails with ErrRestoreFailed.
+	// nosemgrep: trailofbits.go.invalid-usage-of-modified-variable.invalid-usage-of-modified-variable
 	restoreResult, err := r.restorer.RunPgRestore(jobCtx, jobContainer, restore.PgRestoreSpec{
 		ArchivePath:   archivePath,
 		Conn:          jobContainer.GetInContainerConn(),

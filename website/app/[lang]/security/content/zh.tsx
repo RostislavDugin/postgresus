@@ -286,9 +286,9 @@ export default function SecurityPage() {
 
               <p>
                 静态分析分几个独立环节运行。CodeQL 扫描整个代码库的安全
-                问题。CodeRabbit 审查每个 PR，并内联运行{" "}
-                <strong>gitleaks</strong> 扫描机密、运行{" "}
-                <strong>semgrep</strong> 检查安全规则。Dockerfile 和 CI
+                问题。每个 PR 都会运行{" "}
+                <strong>gitleaks</strong> 扫描泄露的机密，并用{" "}
+                <strong>semgrep</strong> 按安全规则检查代码。Dockerfile 和 CI
                 工作流还有额外的专属规则（固定 action 引用、最小权限、
                 可疑基础镜像），不安全的写法在合并之前就会被标记出来。
               </p>

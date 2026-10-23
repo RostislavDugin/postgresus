@@ -269,6 +269,7 @@ func (n *NASStorage) createConnectionWithContext(ctx context.Context) (net.Conn,
 
 	if n.UseSSL {
 		tlsConfig := &tls.Config{
+			MinVersion:         tls.VersionTLS12,
 			ServerName:         n.Host,
 			InsecureSkipVerify: false,
 		}

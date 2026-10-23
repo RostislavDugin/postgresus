@@ -1,0 +1,27 @@
+# Findings gitleaks reports in the git history that are not secrets.
+# Each line is a finding fingerprint: <commit>:<file>:<rule>:<line>.
+
+# Throwaway TLS and SSH keys generated for tests, never used outside them.
+294224d9fd54a2b29277d8087c192d68406d93d2:backend/internal/features/tests/testdata/mtls/ca.key:private-key:1
+294224d9fd54a2b29277d8087c192d68406d93d2:backend/internal/features/tests/testdata/mtls/client.key:private-key:1
+294224d9fd54a2b29277d8087c192d68406d93d2:backend/internal/features/tests/testdata/mtls/server.key:private-key:1
+422d7bd1a8c25f8406b9a950964bfcd26a4103fd:backend/internal/features/tests/physical/testdata/mtls/client.key:private-key:1
+422d7bd1a8c25f8406b9a950964bfcd26a4103fd:backend/internal/features/tests/physical/testdata/mtls/server.key:private-key:1
+885af37d7ea3cbbb99217db88d382c205b5a891e:backend/internal/features/tests/testdata/ssl/server.key:private-key:1
+885af37d7ea3cbbb99217db88d382c205b5a891e:backend/internal/features/tests/testdata/ssl/server.pem:private-key:20
+10e04b18826d094edf195d37cb0328d239bedcea:backend/internal/util/testing/containers/testdata/ssh_bastion/test_key:private-key:1
+10e04b18826d094edf195d37cb0328d239bedcea:backend/internal/util/testing/containers/testdata/ssh_bastion/test_key_passphrase:private-key:1
+
+# The well-known Azurite emulator account key, published in Microsoft's documentation.
+422d7bd1a8c25f8406b9a950964bfcd26a4103fd:backend/internal/util/testing/containers/azurite.go:generic-api-key:15
+da0fec662457f257cc66114a6fc1e2d9228525a6:backend/internal/features/storages/model_test.go:generic-api-key:273
+
+# Paddle client-side token: Paddle.js runs in the browser, so this token is public by design.
+ef33df9f4a03e825d2872d7323cc683888502f8a:app/sponsorship/tiers.ts:generic-api-key:12
+36055180ce922b4ecc31e5fb71a356ef575aca1a:website/app/sponsorship/tiers.ts:generic-api-key:12
+
+# Test passwords and tokens, and a field assignment the rule mistakes for a literal.
+105777ab6fe2385949397d79a3d712508ba4aae9:backend/internal/features/users/controllers/password_reset_test.go:generic-api-key:432
+69e56917a1ad395448cd5c2545f1a1c28eb7f0f1:backend/internal/util/logger/redaction_test.go:generic-api-key:136
+cb37d67af34ae7682f18b65978d42aab82855e9d:backend/internal/features/notifiers/controller_test.go:generic-api-key:1850
+a809dc8a9c1dc99f1adb42c37d3cb68dd96a5627:backend/internal/features/storages/models/s3/model.go:generic-api-key:198

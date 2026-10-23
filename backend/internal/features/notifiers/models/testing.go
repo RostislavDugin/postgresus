@@ -71,6 +71,8 @@ func StartRecordingServer(t *testing.T, response StubResponse) (string, *Request
 		w.WriteHeader(response.StatusCode)
 
 		if response.Body != "" {
+			// Test server that replays a canned response body.
+			// nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter
 			_, _ = w.Write([]byte(response.Body))
 		}
 	}))

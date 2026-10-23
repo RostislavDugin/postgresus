@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
     timeout-minutes: 15
     defaults:
       run:
@@ -31,8 +31,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
+
+      - name: Set up npm cache
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
+        with:
           cache: npm
-          cache-dependency-path: website/package-lock.json
 
       - name: Set up Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
@@ -68,7 +71,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
     timeout-minutes: 15
     needs: build
     steps:

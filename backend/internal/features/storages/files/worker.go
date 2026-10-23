@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	// math/rand only adds retry jitter here, not anything secret.
+	// nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"math/rand/v2"
 	"sync/atomic"
 	"time"

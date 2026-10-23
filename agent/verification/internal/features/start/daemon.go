@@ -92,6 +92,8 @@ func spawnDaemon(log *slog.Logger) (int, error) {
 		return 0, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
+	// Starts this agent's own executable in the background, not a user-supplied command.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(context.Background(), execPath, args...)
 	cmd.Dir = cwd
 	cmd.Stderr = logFile

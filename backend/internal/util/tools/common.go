@@ -115,6 +115,8 @@ func runClients(
 		cmdPath := filepath.Join(binDir, cmd)
 
 		ctx, cancel := context.WithTimeout(context.Background(), clientVersionTimeout)
+		// The binary is a database client from the bundled tools directory, run with a fixed --version argument.
+		// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 		output, err := exec.CommandContext(ctx, cmdPath, "--version").CombinedOutput()
 		cancel()
 

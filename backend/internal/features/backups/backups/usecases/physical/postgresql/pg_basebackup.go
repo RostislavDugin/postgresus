@@ -88,6 +88,8 @@ func newPgBasebackupCommand(
 		"-U", sourceDB.Username,
 	)
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, pgBin, args...)
 
 	// -h above stays the real host so the certificate and .pgpass still match; PGHOSTADDR is what

@@ -343,9 +343,9 @@ export default function SecurityPage() {
 
               <p>
                 Static analysis runs in several independent passes. CodeQL
-                scans the full codebase for security issues. CodeRabbit reviews
-                every PR and runs <strong>gitleaks</strong> for secret scanning
-                and <strong>semgrep</strong> for security rules inline.
+                scans the full codebase for security issues. On every PR,{" "}
+                <strong>gitleaks</strong> scans for leaked secrets and{" "}
+                <strong>semgrep</strong> checks the code against security rules.
                 Dockerfiles and CI workflows get extra rules of their own
                 (pinned action references, least-privilege permissions,
                 suspicious base images), so insecure patterns are flagged

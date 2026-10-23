@@ -172,6 +172,8 @@ func (uc *RestoreMysqlBackupUsecase) executeMysqlRestore(
 ) error {
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, args...)
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, mysqlBin, fullArgs...)
 	uc.logger.InfoContext(ctx, "executing MySQL restore command", "command", cmd.String())
 

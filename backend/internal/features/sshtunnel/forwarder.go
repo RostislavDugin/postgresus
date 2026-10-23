@@ -107,6 +107,7 @@ func Open(ctx context.Context, spec OpenSpec) (*Forwarder, error) {
 			// Accepted risk: the bastion's host key is not pinned, so the credentials are
 			// presented to whatever answers its address. Config carries no fingerprint to
 			// verify against; this matches the existing SFTP storage backend.
+			// nosemgrep: go.lang.security.audit.crypto.insecure_ssh.avoid-ssh-insecure-ignore-host-key
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		},
 		bastionAddress:   bastionAddress,

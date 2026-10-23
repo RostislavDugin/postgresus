@@ -292,6 +292,8 @@ func (p *PostgresqlPhysicalDatabase) SystemIdentifierUint64() uint64 {
 		return value
 	}
 
+	// pg_control_system() returns system_identifier as a signed bigint; the cast restores its unsigned value bit for bit.
+	// nosemgrep: trailofbits.go.string-to-int-signedness-cast.string-to-int-signedness-cast
 	if value, err := strconv.ParseInt(*p.SystemIdentifier, 10, 64); err == nil {
 		return uint64(value)
 	}

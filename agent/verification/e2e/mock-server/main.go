@@ -59,6 +59,8 @@ func main() {
 	addr := ":4050"
 	log.Printf("mock server starting on %s", addr)
 
+	// The mock server only serves the e2e tests over the local Docker network.
+	// nosemgrep: go.lang.security.audit.net.use-tls.use-tls
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}

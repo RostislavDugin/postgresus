@@ -15,6 +15,8 @@ func reexecAfterUpgrade(log *slog.Logger) {
 
 	log.Info("Re-executing after upgrade...")
 
+	// Replaces the process with the agent's own upgraded executable.
+	// nosemgrep: go.lang.security.audit.dangerous-syscall-exec.dangerous-syscall-exec
 	if err := syscall.Exec(selfPath, os.Args, os.Environ()); err != nil {
 		log.Error("Failed to re-exec after upgrade", "error", err)
 		os.Exit(1)
