@@ -246,7 +246,13 @@ func waitForReady(ctx context.Context, conn dbconn.Conn) error {
 	// and only the last ping error tells them apart.
 	var lastPingErr error
 
+	readyDeadline, _ := readyCtx.Deadline()
+
 	for {
+		// A ping that starts with less than its full interval left ends at the overall
+		// deadline, and its timer can fire a moment before the deadline's own does.
+		pingHasFullInterval := time.Until(readyDeadline) >= readyPollInterval
+
 		err := pingOnce(readyCtx, conn)
 		if err == nil {
 			return nil
@@ -254,7 +260,7 @@ func waitForReady(ctx context.Context, conn dbconn.Conn) error {
 
 		// A ping the overall deadline cut short says nothing about Postgres, so
 		// it never replaces the error of a ping that finished on its own.
-		if readyCtx.Err() == nil || lastPingErr == nil {
+		if (pingHasFullInterval && readyCtx.Err() == nil) || lastPingErr == nil {
 			lastPingErr = err
 		}
 
