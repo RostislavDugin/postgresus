@@ -242,6 +242,103 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">
+                OpenID Connect (Keycloak, Authentik, Entra)
+              </h3>
+
+              <p>
+                Tout fournisseur qui publie un document de découverte OpenID
+                Connect convient : Keycloak, Authentik, Zitadel, Microsoft Entra
+                ID et les autres. Créez un client confidentiel avec le flux
+                authorization code et réglez son redirect URI sur{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>. Le
+                fournisseur doit transmettre le claim <code>email</code> et
+                marquer l&apos;adresse comme vérifiée ; Databasus refuse une
+                connexion dont l&apos;adresse ne peut pas être tenue pour sûre.
+              </p>
+
+              <p>
+                Databasus retrouve le compte par le subject du fournisseur
+                d&apos;abord, puis par l&apos;adresse e-mail, si bien
+                qu&apos;un compte à mot de passe existant garde ses espaces de
+                travail quand son propriétaire se connecte pour la première fois
+                via le fournisseur. Une personne que l&apos;instance ne connaît
+                pas n&apos;obtient un compte que si{" "}
+                <strong>
+                  Settings → Security → Allow external registrations
+                </strong>{" "}
+                est activé.
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Description">
+                      URL de l&apos;issuer de votre fournisseur, par exemple{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      . Databasus lit{" "}
+                      <code>/.well-known/openid-configuration</code> sous cette
+                      URL et refuse un document qui annonce un autre issuer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Description">
+                      Client ID du client que vous avez créé pour Databasus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Description">
+                      Client secret de ce client. Les trois variables doivent
+                      être définies pour que le bouton d&apos;authentification
+                      unique apparaisse.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Description">
+                      Libellé facultatif du bouton, par exemple{" "}
+                      <code>Acme SSO</code>. Sans lui, le bouton affiche
+                      &quot;Single sign-on&quot;.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Description">
+                      Liste facultative des groupes autorisés à se connecter,
+                      séparés par des virgules, par exemple{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>.
+                      Quiconque n&apos;appartient à aucun d&apos;eux est refusé,
+                      même si le fournisseur l&apos;a authentifié. Laissée vide,
+                      tout compte authentifié par le fournisseur peut se
+                      connecter. Nécessite un mappeur de groupes qui place la
+                      revendication <code>groups</code> dans le jeton
+                      d&apos;identité.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">E-mail (SMTP)</h2>
 
               <p>

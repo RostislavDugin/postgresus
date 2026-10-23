@@ -237,6 +237,100 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">
+                OpenID Connect (Keycloak, Authentik, Entra)
+              </h3>
+
+              <p>
+                Serve qualquer provedor que publique um documento de descoberta
+                do OpenID Connect: Keycloak, Authentik, Zitadel, Microsoft Entra
+                ID e os demais. Crie um cliente confidencial com o fluxo
+                authorization code e defina o redirect URI dele como{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>. O
+                provedor precisa entregar a claim <code>email</code> e marcar o
+                endereço como verificado; o Databasus recusa um login cujo
+                endereço não pode considerar confiável.
+              </p>
+
+              <p>
+                O Databasus procura a conta primeiro pelo subject do provedor e
+                depois pelo endereço de email, de modo que uma conta com senha
+                já existente mantém seus espaços de trabalho quando seu dono
+                entra pela primeira vez através do provedor. Alguém que a
+                instância não conhece só recebe uma conta se{" "}
+                <strong>
+                  Settings → Security → Allow external registrations
+                </strong>{" "}
+                estiver ligado.
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variável</th>
+                    <th>Descrição</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Descrição">
+                      URL do issuer do seu provedor, por exemplo{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      . O Databasus lê{" "}
+                      <code>/.well-known/openid-configuration</code> sob essa
+                      URL e recusa um documento que declare outro issuer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Descrição">
+                      Client ID do cliente que você criou para o Databasus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Descrição">
+                      Client secret desse cliente. As três variáveis precisam
+                      estar definidas para o botão de login único aparecer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Descrição">
+                      Rótulo opcional do botão, por exemplo{" "}
+                      <code>Acme SSO</code>. Sem ele o botão mostra
+                      &quot;Single sign-on&quot;.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Descrição">
+                      Lista opcional de grupos com permissão para entrar,
+                      separados por vírgulas, por exemplo{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>. Quem
+                      não pertence a nenhum deles é recusado, mesmo que o
+                      provedor o tenha autenticado. Deixada vazia, qualquer
+                      conta que o provedor autentica pode entrar. Precisa de um
+                      mapeador de grupos que coloca a claim <code>groups</code>{" "}
+                      no token de identidade.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">Email (SMTP)</h2>
 
               <p>

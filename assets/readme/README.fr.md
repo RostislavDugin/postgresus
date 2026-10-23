@@ -95,6 +95,7 @@ Databasus effectue une vraie restauration pour confirmer que les sauvegardes son
 - **Chiffrement des secrets** : toute donnée sensible est chiffrée et n'est jamais exposée, pas même dans les logs ou les messages d'erreur
 - **Utilisateur en lecture seule** : par défaut, Databasus sauvegarde via un utilisateur en lecture seule et ne conserve rien qui permette de modifier vos données
 - **Authentification à deux facteurs** : la connexion par mot de passe peut exiger un code à six chiffres envoyé à l'adresse du compte. Se connecter par Google ou GitHub continue de s'appuyer sur les vérifications de ces fournisseurs
+- **Authentification unique** : n'importe quel fournisseur OpenID Connect — Keycloak, Authentik, Zitadel, Microsoft Entra ID — peut connecter vos utilisateurs, l'instance vérifiant l'issuer, l'audience et la signature de chaque jeton qu'elle accepte
 
 ### 👥 **Adapté aux équipes** <a href="https://databasus.com/fr/access-management/">(docs)</a>
 

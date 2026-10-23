@@ -241,6 +241,101 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">
+                OpenID Connect (Keycloak, Authentik, Entra)
+              </h3>
+
+              <p>
+                Sirve cualquier proveedor que publique un documento de
+                descubrimiento de OpenID Connect: Keycloak, Authentik, Zitadel,
+                Microsoft Entra ID y los demás. Cree un cliente confidencial con
+                el flujo de authorization code y establezca su redirect URI en{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>. El
+                proveedor debe entregar el claim <code>email</code> y marcar la
+                dirección como verificada; Databasus rechaza un inicio de sesión
+                cuya dirección no puede dar por buena.
+              </p>
+
+              <p>
+                Databasus busca la cuenta primero por el subject del proveedor y
+                después por la dirección de correo, de modo que una cuenta con
+                contraseña ya existente conserva sus espacios de trabajo cuando
+                su dueño entra por primera vez a través del proveedor. Alguien a
+                quien la instancia no conoce recibe una cuenta solo si{" "}
+                <strong>
+                  Settings → Security → Allow external registrations
+                </strong>{" "}
+                está activado.
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Descripción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Description">
+                      URL del issuer de su proveedor, por ejemplo{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      . Databasus lee{" "}
+                      <code>/.well-known/openid-configuration</code> bajo esa
+                      URL y rechaza un documento que declare otro issuer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Description">
+                      Client ID del cliente que creó para Databasus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Description">
+                      Client secret de ese cliente. Las tres variables deben
+                      estar definidas para que aparezca el botón de inicio de
+                      sesión único.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Description">
+                      Etiqueta opcional del botón, por ejemplo{" "}
+                      <code>Acme SSO</code>. Sin ella el botón dice
+                      &quot;Single sign-on&quot;.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Description">
+                      Lista opcional de grupos con permiso para iniciar sesión,
+                      separados por comas, por ejemplo{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>. Quien
+                      no pertenezca a ninguno de ellos queda rechazado, aunque
+                      el proveedor lo haya autenticado. Si se deja vacía, entra
+                      cualquier cuenta que el proveedor autentique. Necesita un
+                      mapeador de grupos que incluya el reclamo{" "}
+                      <code>groups</code> en el token de identidad.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">Correo electrónico (SMTP)</h2>
 
               <p>

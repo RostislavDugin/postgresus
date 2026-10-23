@@ -231,6 +231,83 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">
+                OpenID Connect (Keycloak、Authentik、Entra)
+              </h3>
+
+              <p>
+                任何发布 OpenID Connect 发现文档的提供方都可以使用：Keycloak、Authentik、Zitadel、Microsoft
+                Entra ID 等。创建一个使用 authorization code 流程的机密客户端，并把它的 redirect URI 设为{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>。提供方必须返回{" "}
+                <code>email</code> claim 并把该地址标记为已验证；地址无法确认时，Databasus 会拒绝这次登录。
+              </p>
+
+              <p>
+                Databasus 先按提供方的 subject 匹配账号，再按邮箱地址匹配，因此已有的密码账号在其所有者第一次通过提供方登录时会保留自己的工作区。实例从未见过的人只有在{" "}
+                <strong>Settings → Security → Allow external registrations</strong>{" "}
+                打开时才会获得账号。
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>变量</th>
+                    <th>说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Description">
+                      提供方的 issuer URL，例如{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      。Databasus 会读取该地址下的{" "}
+                      <code>/.well-known/openid-configuration</code>，并拒绝声明了其他 issuer 的文档。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Description">
+                      你为 Databasus 创建的客户端的 client ID。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Description">
+                      该客户端的 client secret。三个变量都设置后，单点登录按钮才会出现。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Description">
+                      按钮的可选标签，例如 <code>Acme SSO</code>。不设置时按钮显示
+                      &quot;Single sign-on&quot;。
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Description">
+                      允许登录的组列表，可选，用逗号分隔，例如{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>
+                      。不属于其中任何一个组的人会被拒绝，即使身份提供方已经验证了他的身份。留空时，身份提供方验证过的任何账号都可以登录。需要一个把{" "}
+                      <code>groups</code> 声明放进 ID 令牌的组映射器。
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">邮件 (SMTP)</h2>
 
               <p>

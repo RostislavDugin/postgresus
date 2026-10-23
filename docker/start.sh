@@ -147,9 +147,14 @@ configure_runtime_identity() {
 
 generate_frontend_runtime_configuration() {
     local is_email_configured=false
+    local is_oidc_configured=false
 
     if [ -n "${SMTP_HOST:-}" ]; then
         is_email_configured=true
+    fi
+
+    if [ -n "${OIDC_ISSUER_URL:-}" ] && [ -n "${OIDC_CLIENT_ID:-}" ] && [ -n "${OIDC_CLIENT_SECRET:-}" ]; then
+        is_oidc_configured=true
     fi
 
     echo "Generating runtime configuration..."
@@ -159,6 +164,8 @@ generate_frontend_runtime_configuration() {
 window.__RUNTIME_CONFIG__ = {
   GITHUB_CLIENT_ID: '${GITHUB_CLIENT_ID:-}',
   GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID:-}',
+  IS_OIDC_CONFIGURED: '${is_oidc_configured}',
+  OIDC_DISPLAY_NAME: '${OIDC_DISPLAY_NAME:-}',
   IS_EMAIL_CONFIGURED: '${is_email_configured}',
   CLOUDFLARE_TURNSTILE_SITE_KEY: '${CLOUDFLARE_TURNSTILE_SITE_KEY:-}',
   CONTAINER_ARCH: '${CONTAINER_ARCH:-unknown}'

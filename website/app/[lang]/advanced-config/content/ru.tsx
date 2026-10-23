@@ -236,6 +236,101 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">
+                OpenID Connect (Keycloak, Authentik, Entra)
+              </h3>
+
+              <p>
+                Подойдёт любой провайдер, который публикует документ обнаружения
+                OpenID Connect: Keycloak, Authentik, Zitadel, Microsoft Entra ID
+                и остальные. Создайте конфиденциального клиента с потоком
+                authorization code и укажите в его redirect URI{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>.
+                Провайдер должен отдавать claim <code>email</code> и помечать
+                адрес как подтверждённый: вход с адресом, которому нельзя
+                доверять, Databasus отклоняет.
+              </p>
+
+              <p>
+                Databasus ищет учётную запись сначала по subject провайдера,
+                затем по адресу почты, поэтому существующая запись с паролем
+                сохраняет свои рабочие пространства, когда её владелец впервые
+                входит через провайдера. Человек, которого инстанс ещё не знает,
+                получит учётную запись только при включённой настройке{" "}
+                <strong>
+                  Settings → Security → Allow external registrations
+                </strong>
+                .
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Переменная</th>
+                    <th>Описание</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Описание">
+                      URL issuer вашего провайдера, например{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      . Databasus читает{" "}
+                      <code>/.well-known/openid-configuration</code> по этому
+                      адресу и отклоняет документ, который объявляет другой
+                      issuer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Описание">
+                      Client ID клиента, созданного вами для Databasus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Описание">
+                      Client secret этого клиента. Кнопка единого входа
+                      появляется только когда заданы все три переменные.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Описание">
+                      Необязательная подпись кнопки, например{" "}
+                      <code>Acme SSO</code>. Без неё кнопка показывает
+                      &quot;Single sign-on&quot;.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Описание">
+                      Необязательный список групп, которым разрешен вход, через
+                      запятую, например{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>. Тот,
+                      кто не состоит ни в одной из них, получает отказ, даже
+                      если провайдер его аутентифицировал. Если оставить пустым,
+                      войдет любая учетная запись, которую аутентифицирует
+                      провайдер. Нужен маппер групп, который кладет клейм{" "}
+                      <code>groups</code> в токен идентификации.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">Почта (SMTP)</h2>
 
               <p>

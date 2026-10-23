@@ -95,6 +95,7 @@ Databasus 会真正执行一次恢复，确认备份可用，而不只是检查�
 - **密钥与凭据加密**：任何敏感数据都会加密，绝不外泄，日志和错误信息里也看不到
 - **只读用户**：Databasus 默认使用只读用户来备份，不会保存任何能修改你数据的东西
 - **双因素验证**：密码登录可以额外要求发送到账号邮箱的六位验证码。通过 Google 或 GitHub 登录仍然依赖这些服务商自己的验证
+- **单点登录**：任何 OpenID Connect 服务商都可以用来登录 —— Keycloak、Authentik、Zitadel、Microsoft Entra ID 等，实例会校验它接受的每个令牌的 issuer、受众和签名
 
 ### 👥 **适合团队** <a href="https://databasus.com/zh/access-management/">(文档)</a>
 

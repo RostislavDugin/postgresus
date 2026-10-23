@@ -95,6 +95,7 @@ Databasus ejecuta una restauración real para confirmar que las copias sirven, e
 - **Cifrado de los secretos**: todo dato sensible se cifra y nunca se expone, ni siquiera en los registros o en los mensajes de error
 - **Usuario de solo lectura**: Databasus usa por defecto un usuario de solo lectura para los respaldos y nunca guarda nada que pueda modificar sus datos
 - **Autenticación de dos factores**: el inicio de sesión con contraseña puede exigir un código de seis dígitos enviado al correo de la cuenta. Entrar con Google o GitHub sigue apoyándose en las comprobaciones de esos proveedores
+- **Inicio de sesión único**: cualquier proveedor de OpenID Connect — Keycloak, Authentik, Zitadel, Microsoft Entra ID — puede autenticar a su gente, y la instancia comprueba el issuer, la audiencia y la firma de cada token que acepta
 
 ### 👥 **Adecuado para equipos** <a href="https://databasus.com/es/access-management/">(documentación)</a>
 

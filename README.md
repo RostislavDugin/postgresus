@@ -95,6 +95,7 @@ Databasus performs a real restore to confirm backups are usable, not just intact
 - **Encryption for secrets**: Any sensitive data is encrypted and never exposed, even in logs or error messages
 - **Read-only user**: Databasus uses a read-only user by default for backups and never stores anything that can modify your data
 - **Two-factor authentication**: Password sign-in can require a six-digit code emailed to the account. Sign-in through Google or GitHub keeps relying on the provider's own checks
+- **Single sign-on**: Any OpenID Connect provider — Keycloak, Authentik, Zitadel, Microsoft Entra ID — can sign people in, with the instance checking the issuer, the audience and the signature of every token it accepts
 
 ### 👥 **Suitable for teams** <a href="https://databasus.com/access-management">(docs)</a>
 

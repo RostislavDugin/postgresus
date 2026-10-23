@@ -234,6 +234,98 @@ export default function AdvancedConfigPage() {
                 </tbody>
               </table>
 
+              <h3 id="oauth-oidc">OpenID Connect (Keycloak, Authentik, Entra)</h3>
+
+              <p>
+                Any provider that publishes an OpenID Connect discovery document
+                works here — Keycloak, Authentik, Zitadel, Microsoft Entra ID and
+                the rest. Create a confidential client with the authorization
+                code flow, and set its redirect URI to{" "}
+                <code>https://&lt;your-domain&gt;/auth/callback</code>. The
+                provider must release the <code>email</code> claim and mark the
+                address as verified; Databasus refuses a sign-in whose address it
+                cannot trust.
+              </p>
+
+              <p>
+                Databasus matches the account by the provider&apos;s subject
+                first, then by the email address, so an existing password account
+                keeps its workspaces when its owner signs in through the
+                provider for the first time. A person the instance has never seen
+                gets an account only when{" "}
+                <strong>
+                  Settings → Security → Allow external registrations
+                </strong>{" "}
+                is on.
+              </p>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>OIDC_ISSUER_URL</code>
+                    </td>
+                    <td data-label="Description">
+                      Issuer URL of your provider, for example{" "}
+                      <code>
+                        https://keycloak.example.com/realms/&lt;your-realm&gt;
+                      </code>
+                      . Databasus reads{" "}
+                      <code>/.well-known/openid-configuration</code> underneath
+                      it and refuses a document that claims another issuer.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_ID</code>
+                    </td>
+                    <td data-label="Description">
+                      Client ID of the client you created for Databasus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_CLIENT_SECRET</code>
+                    </td>
+                    <td data-label="Description">
+                      Client secret of that client. All three variables must be
+                      set before the single sign-on button appears.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_DISPLAY_NAME</code>
+                    </td>
+                    <td data-label="Description">
+                      Optional label for the button, for example{" "}
+                      <code>Acme SSO</code>. Without it the button reads
+                      &quot;Single sign-on&quot;.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>OIDC_ALLOWED_GROUPS</code>
+                    </td>
+                    <td data-label="Description">
+                      Optional comma-separated list of groups allowed to sign
+                      in, for example{" "}
+                      <code>csm-databasus-user,csm-databasus-admin</code>.
+                      Anyone carrying none of them is refused, even when the
+                      provider authenticated them. Left empty, every account the
+                      provider authenticates may sign in. Requires a group
+                      mapper that puts the <code>groups</code> claim in the ID
+                      token.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 id="email-smtp">Email (SMTP)</h2>
 
               <p>

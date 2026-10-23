@@ -95,6 +95,7 @@ O Databasus faz uma restauração de verdade para confirmar que os backups serve
 - **Criptografia de segredos**: qualquer dado sensível é criptografado e nunca fica exposto, nem em logs nem em mensagens de erro
 - **Usuário somente leitura**: por padrão, o Databasus usa um usuário somente leitura para os backups e nunca guarda nada capaz de alterar os seus dados
 - **Autenticação de dois fatores**: o login por senha pode exigir um código de seis dígitos enviado ao e-mail da conta. Entrar pelo Google ou pelo GitHub continua contando com as verificações desses provedores
+- **Login único**: qualquer provedor OpenID Connect — Keycloak, Authentik, Zitadel, Microsoft Entra ID — pode autenticar as pessoas, com a instância conferindo o issuer, a audiência e a assinatura de cada token que aceita
 
 ### 👥 **Adequado para equipes** <a href="https://databasus.com/pt/access-management/">(docs)</a>
 
