@@ -1,6 +1,16 @@
 name: CI and Release
 
 on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
+  pull_request:
+    branches: ["**"]
+    paths-ignore:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
 
 permissions:
@@ -249,7 +259,9 @@ jobs:
 
   e2e-verification-agent-podman:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    # Namespace runners are containers without systemd whose seccomp profile denies
+    # pivot_root, so rootful Podman cannot start containers there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [lint-verification-agent]
     steps:
