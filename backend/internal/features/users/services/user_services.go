@@ -27,6 +27,7 @@ import (
 	users_errors "databasus-backend/internal/features/users/errors"
 	users_interfaces "databasus-backend/internal/features/users/interfaces"
 	users_models "databasus-backend/internal/features/users/models"
+	users_oidc "databasus-backend/internal/features/users/oidc"
 	users_repositories "databasus-backend/internal/features/users/repositories"
 	"databasus-backend/internal/util/ratelimiter"
 )
@@ -44,6 +45,7 @@ type UserService struct {
 	emailSender             users_interfaces.EmailSender
 	passwordResetRepository *users_repositories.PasswordResetRepository
 	twoFactorRepository     *users_repositories.TwoFactorRepository
+	oidcAttemptStore        *users_oidc.AttemptStore
 	rateLimiter             ratelimiter.Counter
 	logger                  *slog.Logger
 }
@@ -787,10 +789,10 @@ func buildRegisteredUser(
 
 func buildOAuthUser(
 	email, name string,
-	githubOAuthID, googleOAuthID *string,
+	identity users_models.ExternalIdentity,
 	isTakingTheInstance bool,
 ) *users_models.User {
-	return &users_models.User{
+	user := &users_models.User{
 		ID:                   uuid.New(),
 		Email:                email,
 		Name:                 name,
@@ -798,11 +800,13 @@ func buildOAuthUser(
 		PasswordCreationTime: time.Now().UTC(),
 		Role:                 roleForNewAccount(isTakingTheInstance),
 		Status:               users_enums.UserStatusActive,
-		GitHubOAuthID:        githubOAuthID,
-		GoogleOAuthID:        googleOAuthID,
 		IsRootAdmin:          isTakingTheInstance,
 		CreatedAt:            time.Now().UTC(),
 	}
+
+	identity.ApplyTo(user)
+
+	return user
 }
 
 func roleForNewAccount(isTakingTheInstance bool) users_enums.UserRole {
@@ -901,7 +905,16 @@ func (s *UserService) handleGitHubOAuthWithEndpoint(
 	}
 
 	oauthID := fmt.Sprintf("%d", githubUser.ID)
-	return s.getOrCreateUserFromOAuth(ctx, oauthID, email, name, "github")
+
+	return s.getOrCreateUserFromOAuth(
+		ctx,
+		users_models.ExternalIdentity{
+			Provider: users_enums.ExternalIdentityProviderGitHub,
+			Subject:  oauthID,
+		},
+		email,
+		name,
+	)
 }
 
 func (s *UserService) handleGoogleOAuthWithEndpoint(
@@ -973,22 +986,23 @@ func (s *UserService) handleGoogleOAuthWithEndpoint(
 		name = "User"
 	}
 
-	return s.getOrCreateUserFromOAuth(ctx, googleUser.ID, googleUser.Email, name, "google")
+	return s.getOrCreateUserFromOAuth(
+		ctx,
+		users_models.ExternalIdentity{
+			Provider: users_enums.ExternalIdentityProviderGoogle,
+			Subject:  googleUser.ID,
+		},
+		googleUser.Email,
+		name,
+	)
 }
 
 func (s *UserService) getOrCreateUserFromOAuth(
 	ctx context.Context,
-	oauthID, email, name, provider string,
+	identity users_models.ExternalIdentity,
+	email, name string,
 ) (*users_dto.OAuthCallbackResponseDTO, error) {
-	var existingUser *users_models.User
-	var err error
-
-	if provider == "github" {
-		existingUser, err = s.userRepository.GetUserByGitHubOAuthID(oauthID)
-	} else {
-		existingUser, err = s.userRepository.GetUserByGoogleOAuthID(oauthID)
-	}
-
+	existingUser, err := s.userRepository.GetUserByExternalIdentity(identity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check OAuth ID: %w", err)
 	}
@@ -1000,7 +1014,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		}
 
 		s.writeAuditLog(ctx, audit_logs_models.AuditEntry{
-			Message:     fmt.Sprintf("User signed in via %s", provider),
+			Message:     fmt.Sprintf("User signed in via %s", identity.Provider),
 			UserID:      &existingUser.ID,
 			WorkspaceID: nil,
 		})
@@ -1019,6 +1033,10 @@ func (s *UserService) getOrCreateUserFromOAuth(
 	}
 
 	if userByEmail != nil {
+		if identity.HasConflictingLink(userByEmail) {
+			return nil, errors.New("sign-in failed")
+		}
+
 		if userByEmail.Status == users_enums.UserStatusInvited {
 			if err := s.userRepository.UpdateUserStatus(
 				userByEmail.ID,
@@ -1032,12 +1050,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 			}
 		}
 
-		oauthColumn := "github_oauth_id"
-		if provider == "google" {
-			oauthColumn = "google_oauth_id"
-		}
-
-		if err := s.userRepository.LinkOAuthID(userByEmail.ID, oauthColumn, oauthID); err != nil {
+		if err := s.userRepository.LinkExternalIdentity(userByEmail.ID, identity); err != nil {
 			return nil, fmt.Errorf("failed to link OAuth ID: %w", err)
 		}
 
@@ -1052,7 +1065,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		}
 
 		s.writeAuditLog(ctx, audit_logs_models.AuditEntry{
-			Message:     fmt.Sprintf("%s OAuth linked to existing account", provider),
+			Message:     fmt.Sprintf("%s OAuth linked to existing account", identity.Provider),
 			UserID:      &user.ID,
 			WorkspaceID: nil,
 		})
@@ -1065,19 +1078,11 @@ func (s *UserService) getOrCreateUserFromOAuth(
 		}, nil
 	}
 
-	var githubOAuthID *string
-	var googleOAuthID *string
-	if provider == "github" {
-		githubOAuthID = &oauthID
-	} else {
-		googleOAuthID = &oauthID
-	}
-
 	newUser, err := s.createAccountClaimingEmptyInstance(
 		ctx,
 		s.checkExternalRegistrationAllowed,
 		func(isTakingTheInstance bool) *users_models.User {
-			return buildOAuthUser(email, name, githubOAuthID, googleOAuthID, isTakingTheInstance)
+			return buildOAuthUser(email, name, identity, isTakingTheInstance)
 		},
 	)
 	if err != nil {
@@ -1090,7 +1095,7 @@ func (s *UserService) getOrCreateUserFromOAuth(
 	}
 
 	s.writeAuditLog(ctx, audit_logs_models.AuditEntry{
-		Message:     fmt.Sprintf("User registered via %s OAuth: %s", provider, email),
+		Message:     fmt.Sprintf("User registered via %s OAuth: %s", identity.Provider, email),
 		UserID:      &newUser.ID,
 		WorkspaceID: nil,
 	})

@@ -5,7 +5,9 @@ import (
 
 	"databasus-backend/internal/features/email"
 	"databasus-backend/internal/features/encryption/secrets"
+	users_oidc "databasus-backend/internal/features/users/oidc"
 	users_repositories "databasus-backend/internal/features/users/repositories"
+	"databasus-backend/internal/util/cache"
 	"databasus-backend/internal/util/logger"
 	"databasus-backend/internal/util/ratelimiter"
 )
@@ -18,6 +20,7 @@ var userService = &UserService{
 	email.GetEmailSMTPSender(),
 	users_repositories.GetPasswordResetRepository(),
 	users_repositories.GetTwoFactorRepository(),
+	users_oidc.NewAttemptStore(cache.GetStore()),
 	ratelimiter.GetCounter(),
 	logger.GetLogger(),
 }

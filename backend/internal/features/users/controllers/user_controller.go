@@ -37,6 +37,8 @@ func (c *UserController) RegisterRoutes(router *gin.RouterGroup) {
 	// OAuth callbacks
 	router.POST("/auth/github/callback", c.HandleGitHubOAuth)
 	router.POST("/auth/google/callback", c.HandleGoogleOAuth)
+	router.POST("/auth/oidc/start", c.StartOIDCSignIn)
+	router.POST("/auth/oidc/callback", c.CompleteOIDCSignIn)
 }
 
 func (c *UserController) RegisterProtectedRoutes(router *gin.RouterGroup) {

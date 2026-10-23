@@ -138,6 +138,20 @@ type OAuthCallbackResponseDTO struct {
 	IsNewUser bool      `json:"isNewUser"`
 }
 
+type OIDCStartRequestDTO struct {
+	RedirectUri string `json:"redirectUri" binding:"required"`
+}
+
+type OIDCStartResponseDTO struct {
+	AuthorizationUrl string `json:"authorizationUrl"`
+}
+
+type OIDCCallbackRequestDTO struct {
+	Code        string `json:"code"        binding:"required"`
+	State       string `json:"state"       binding:"required"`
+	RedirectUri string `json:"redirectUri" binding:"required"`
+}
+
 type SendResetPasswordCodeRequestDTO struct {
 	Email                    string  `json:"email"                    binding:"required,email"`
 	CloudflareTurnstileToken *string `json:"cloudflareTurnstileToken"`

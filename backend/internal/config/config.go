@@ -89,6 +89,13 @@ type EnvVariables struct {
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
 
+	// OpenID Connect (optional) - one provider per instance, described by its issuer
+	OIDCIssuerURL     string `env:"OIDC_ISSUER_URL"`
+	OIDCClientID      string `env:"OIDC_CLIENT_ID"`
+	OIDCClientSecret  string `env:"OIDC_CLIENT_SECRET"`
+	OIDCDisplayName   string `env:"OIDC_DISPLAY_NAME"`
+	OIDCAllowedGroups string `env:"OIDC_ALLOWED_GROUPS"`
+
 	// Cloudflare Turnstile
 	CloudflareTurnstileSecretKey string `env:"CLOUDFLARE_TURNSTILE_SECRET_KEY"`
 	CloudflareTurnstileSiteKey   string `env:"CLOUDFLARE_TURNSTILE_SITE_KEY"`
