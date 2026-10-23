@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq podman fuse-overlayfs
           printf '[storage]\ndriver = "overlay"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"\n' | sudo tee /etc/containers/storage.conf
-          printf '[network]\nfirewall_driver = "iptables"\n' | sudo tee /etc/containers/containers.conf
+          printf '[containers]\nkeyring = false\n[network]\nfirewall_driver = "iptables"\n' | sudo tee /etc/containers/containers.conf
           sudo mount -o remount,rw /proc/sys && echo "proc/sys remounted rw" || echo "remount failed"
           sudo sysctl -w net.ipv4.ip_forward=1 || true
           sudo mkdir -p /run/podman
