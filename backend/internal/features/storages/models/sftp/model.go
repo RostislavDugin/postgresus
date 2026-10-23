@@ -282,6 +282,8 @@ func (s *SFTPStorage) connectWithContext(
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
 	}
 
+	// Accepted risk: the storage config carries no host key fingerprint to verify against.
+	// nosemgrep: go.lang.security.audit.crypto.insecure_ssh.avoid-ssh-insecure-ignore-host-key
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 
 	config := &ssh.ClientConfig{

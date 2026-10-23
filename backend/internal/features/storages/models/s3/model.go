@@ -723,6 +723,8 @@ func (s *S3Storage) putInnerPart(
 	objectHasher hash.Hash,
 	parts *[]minio.CompletePart,
 ) error {
+	// S3 requires a Content-MD5 checksum for each part; it checks integrity, not authenticity.
+	// nosemgrep: go.lang.security.audit.crypto.use_of_weak_crypto.use-of-md5
 	partMd5 := md5.Sum(partData)
 	md5Base64 := base64.StdEncoding.EncodeToString(partMd5[:])
 

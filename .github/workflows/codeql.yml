@@ -104,5 +104,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      # Private keys are left to gitleaks, which keeps the allowlist of test keys in .gitleaksignore.
       - name: Run semgrep
-        run: semgrep scan --error --metrics=off --config p/default --config p/github-actions --config p/dockerfile
+        run: >-
+          semgrep scan --error --metrics=off
+          --config p/default --config p/github-actions --config p/dockerfile
+          --exclude-rule generic.secrets.security.detected-private-key.detected-private-key

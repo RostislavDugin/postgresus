@@ -155,6 +155,8 @@ func walkTarForManifest(
 
 		hasher.Reset()
 
+		// Each entry is streamed into the hasher, never buffered, so its size does not affect memory.
+		// nosemgrep: go.lang.security.decompression_bomb.potential-dos-via-decompression-bomb
 		if _, err := io.Copy(hasher, tarReader); err != nil {
 			return nil, fmt.Errorf("hash tar entry %q: %w", header.Name, err)
 		}

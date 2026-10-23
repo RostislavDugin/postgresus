@@ -543,6 +543,8 @@ def build_review_prompt(session, gate, subject, candidate, paths):
     )
     baseline_paths = "\n".join(f"- {path}" for path in request.get("baseline_paths") or []) or "- none"
     changed_paths = "\n".join(f"- {path}" for path in paths) or "- none"
+    # This builds a reviewer prompt, not an HTTP response.
+    # nosemgrep: python.flask.security.audit.directly-returned-format-string.directly-returned-format-string
     return f"""{instructions}
 
 Under review: {subject}
@@ -946,6 +948,8 @@ def run_checks(root, checks, check_timeout_seconds=CHECK_TIMEOUT_SECONDS, total_
             timeout_seconds, exceeded_limit = remaining_seconds, f"the total limit of {total_timeout_seconds} seconds for all checks"
 
         try:
+            # The hooks run on Python 3.6 or newer.
+            # nosemgrep: python.lang.compatibility.python36.python36-compatibility-Popen1
             process = subprocess.Popen(
                 list(check.arguments),
                 cwd=root / check.directory,
@@ -1034,6 +1038,8 @@ def build_full_review_prompt(session, full_review, change_dir, role, details):
         ]
     )
     candidate = str(get_field(session.payload, "last_assistant_message", "lastAssistantMessage") or "(not available)")
+    # This builds a reviewer prompt, not an HTTP response.
+    # nosemgrep: python.flask.security.audit.directly-returned-format-string.directly-returned-format-string
     return f"""{instructions}
 
 OpenSpec change: {change_dir.relative_to(session.root)}

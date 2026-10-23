@@ -198,5 +198,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 # Volume for PostgreSQL data
 VOLUME ["/databasus-data"]
 
+# start.sh starts as root to prepare the data volume, then re-executes itself as the databasus user through gosu.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["/app/start.sh"]
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD []

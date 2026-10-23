@@ -174,6 +174,8 @@ func (uc *RestoreMongodbBackupUsecase) executeMongoRestore(
 	backupReader io.ReadCloser,
 	backup *backups_core_logical.LogicalBackup,
 ) error {
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, mongorestoreBin, args...)
 
 	safeArgs := make([]string, len(args))

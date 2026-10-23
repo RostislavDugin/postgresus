@@ -292,6 +292,8 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestoreViaStdin(
 ) error {
 	pgBin := command.pgBin
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, pgBin, command.args...)
 	command.logger.InfoContext(ctx, "executing PostgreSQL restore command via stdin", "command", cmd.String())
 
@@ -685,6 +687,8 @@ func (uc *RestorePostgresqlBackupUsecase) executePgRestore(
 ) error {
 	pgBin := command.pgBin
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, pgBin, command.args...)
 	command.logger.InfoContext(ctx, "executing pg_restore command", "command", cmd.String())
 
@@ -977,6 +981,8 @@ func (uc *RestorePostgresqlBackupUsecase) generateFilteredTocList(
 	uc.logger.InfoContext(ctx, "generating filtered TOC list", "backup_file", backupFile)
 
 	// Run pg_restore -l to get the TOC list
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	listCmd := exec.CommandContext(ctx, pgBin, "-l", backupFile)
 	uc.setupPgRestoreEnvironment(listCmd, credentials, pgConfig)
 

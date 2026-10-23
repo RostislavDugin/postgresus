@@ -251,6 +251,7 @@ func (f *FTPStorage) connectWithContext(
 
 	if f.UseSSL {
 		connections.tlsConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
 			ServerName:         f.Host,
 			InsecureSkipVerify: f.SkipTLSVerify,
 		}

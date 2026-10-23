@@ -298,6 +298,8 @@ func (m *MattermostNotifier) newHTTPClient() *http.Client {
 	if m.IsInsecureSkipVerify {
 		client.Transport = &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
+			// Verification is skipped only when the user turns on IsInsecureSkipVerify for this notifier.
+			// nosemgrep: problem-based-packs.insecure-transport.go-stdlib.bypass-tls-verification.bypass-tls-verification
 			TLSClientConfig: &tls.Config{
 				MinVersion:         tls.VersionTLS12,
 				InsecureSkipVerify: true,

@@ -114,6 +114,8 @@ func (uc *CreateMysqlBackupUsecase) isNetworkCompressionAccepted(
 
 	var probeStderr bytes.Buffer
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(probeCtx, probe.MysqldumpBin, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = &probeStderr

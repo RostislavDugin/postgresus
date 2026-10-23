@@ -206,6 +206,8 @@ func (uc *CreateMariadbBackupUsecase) streamToStorage(
 	fullArgs := append([]string{"--defaults-file=" + myCnfFile}, compressionArgs...)
 	fullArgs = append(fullArgs, args...)
 
+	// The binary is a database client from the bundled tools directory, and the arguments go to it as a list, not through a shell.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.CommandContext(ctx, mariadbBin, fullArgs...)
 	uc.logger.InfoContext(parentCtx, "executing MariaDB backup command", "command", cmd.String())
 
