@@ -32,6 +32,7 @@ func AddEgressDelay(t *testing.T, handle ContainerHandle, delay time.Duration) {
 
 	handshakeDuration, err := MeasureTcpHandshake(t, handle)
 	if err != nil {
+		logContainerStateAndOutputTail(t, handle.Container)
 		t.Fatalf("failed to dial the container after adding egress delay: %v", err)
 	}
 
@@ -76,6 +77,30 @@ func MeasureTcpHandshake(t *testing.T, handle ContainerHandle) (time.Duration, e
 	_ = connection.Close()
 
 	return handshakeDuration, nil
+}
+
+// A refused dial to a container that passed its readiness check means its server went away, and
+// only the container's state and output say whether it crashed or was killed.
+func logContainerStateAndOutputTail(t *testing.T, target testcontainers.Container) {
+	t.Helper()
+
+	state, err := target.State(context.Background())
+	if err != nil {
+		t.Logf("failed to read container state: %v", err)
+	} else {
+		t.Logf(
+			"container status %s, exit code %d, OOM killed %t, error %q",
+			state.Status, state.ExitCode, state.OOMKilled, state.Error,
+		)
+	}
+
+	inspect, err := target.Inspect(context.Background())
+	if err != nil {
+		t.Logf("failed to inspect container: %v", err)
+		return
+	}
+
+	logContainerOutputTail(t, target, inspect.Config.Image)
 }
 
 func getContainerAddress(t *testing.T, handle ContainerHandle) string {
