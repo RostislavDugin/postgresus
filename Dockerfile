@@ -3,14 +3,15 @@ FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend-build
 
 WORKDIR /frontend
 
-# Add version for the frontend build
-ARG APP_VERSION=dev
-ENV VITE_APP_VERSION=$APP_VERSION
-
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store \
+  corepack enable && pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY frontend/ ./
 
+# APP_VERSION changes with every commit and invalidates the build cache of every
+# later instruction in its stage, so each stage declares it right before its use.
+ARG APP_VERSION=dev
+ENV VITE_APP_VERSION=$APP_VERSION
 RUN pnpm build
 
 # ========= BUILD BACKEND =========
@@ -56,7 +57,8 @@ RUN swag init -d . -g cmd/main.go -o swagger
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
-RUN CGO_ENABLED=0 \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+  CGO_ENABLED=0 \
   GOOS=$TARGETOS \
   GOARCH=$TARGETARCH \
   go build -o /app/main ./cmd
@@ -65,8 +67,6 @@ RUN CGO_ENABLED=0 \
 # ========= BUILD VERIFICATION AGENT =========
 FROM --platform=$BUILDPLATFORM golang:1.26.3 AS verification-agent-build
 
-ARG APP_VERSION=dev
-
 WORKDIR /agent
 
 COPY agent/verification/go.mod agent/verification/go.sum ./
@@ -74,11 +74,15 @@ RUN go mod download
 
 COPY agent/verification/ ./
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+ARG APP_VERSION=dev
+
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags "-X main.Version=${APP_VERSION}" \
     -o /verification-agent-binaries/databasus-verification-agent-linux-amd64 ./cmd
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
     go build -ldflags "-X main.Version=${APP_VERSION}" \
     -o /verification-agent-binaries/databasus-verification-agent-linux-arm64 ./cmd
 
@@ -92,11 +96,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
 #     adds another CVE to track.
 FROM debian:bookworm-slim
 
-# Add version metadata to runtime image
-ARG APP_VERSION=dev
 ARG TARGETARCH
-LABEL org.opencontainers.image.version=$APP_VERSION
-ENV APP_VERSION=$APP_VERSION
 ENV CONTAINER_ARCH=$TARGETARCH
 
 # Set production mode for Docker containers
@@ -186,6 +186,10 @@ COPY --from=verification-agent-build /verification-agent-binaries/* ./agent-bina
 COPY --chmod=0755 docker/start.sh /app/start.sh
 
 LABEL org.opencontainers.image.source="https://github.com/databasus/databasus"
+
+ARG APP_VERSION=dev
+LABEL org.opencontainers.image.version=$APP_VERSION
+ENV APP_VERSION=$APP_VERSION
 
 EXPOSE 4005
 

@@ -22,7 +22,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     # A pull request from develop is analyzed by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
     permissions:
       security-events: write
       actions: read
@@ -48,6 +48,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.26.3"
+          cache: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
@@ -65,7 +66,7 @@ jobs:
     name: Secret scan (gitleaks)
     # A pull request from develop is scanned by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
     timeout-minutes: 15
     permissions:
       contents: read
@@ -93,7 +94,7 @@ jobs:
     name: Analyze (semgrep)
     # A pull request from develop is scanned by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
     timeout-minutes: 15
     permissions:
       contents: read
