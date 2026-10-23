@@ -29,6 +29,9 @@ jobs:
           printf '[containers]\nkeyring = false\n[network]\nfirewall_driver = "iptables"\n' | sudo tee /etc/containers/containers.conf
           sudo mount -o remount,rw /proc/sys && echo "proc/sys remounted rw" || echo "remount failed"
           sudo sysctl -w net.ipv4.ip_forward=1 || true
+          grep cgroup /proc/mounts
+          sudo mount -o remount,rw /sys/fs/cgroup && echo "cgroup remounted rw" || echo "cgroup remount failed"
+          cat /sys/fs/cgroup/cgroup.controllers; cat /sys/fs/cgroup/cgroup.subtree_control
           sudo mkdir -p /run/podman
           sudo sh -c 'nohup podman system service --time=0 unix:///run/podman/podman.sock > /tmp/podman-service.log 2>&1 &'
           for i in $(seq 1 30); do sudo test -S /run/podman/podman.sock && break; sleep 1; done
