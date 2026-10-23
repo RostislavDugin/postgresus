@@ -72,7 +72,7 @@ jobs:
 
   lint-frontend:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 15
     steps:
       - name: Check out code
@@ -409,11 +409,16 @@ jobs:
 
   test-filesystems:
     if: github.head_ref != 'develop'
-    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    # The Docker engine on Namespace runners has no CIFS or NFS kernel support, so
+    # the network filesystem cases can only mount their volumes on GitHub runners.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Install network filesystem clients
         run: sudo apt-get update && sudo apt-get install -y cifs-utils nfs-common
@@ -425,6 +430,8 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
+          cache-to: type=gha,mode=max,scope=storage-build-amd64
+          cache-from: type=gha,scope=storage-build-amd64
           build-args: |
             APP_VERSION=storage-${{ github.sha }}
           tags: databasus-storage-test:${{ github.sha }}
