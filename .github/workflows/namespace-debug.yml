@@ -25,23 +25,16 @@ jobs:
           set -x
           sudo apt-get update -qq
           sudo apt-get install -y -qq podman fuse-overlayfs
-          ls -la /dev/fuse || true
-          findmnt -no FSTYPE,OPTIONS /var/lib || findmnt -no FSTYPE,OPTIONS / || true
-          if sudo podman --storage-driver=overlay --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs info >/dev/null 2>&1; then
-            driver_conf='driver = "overlay"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"'
-            echo "fuse-overlayfs works"
-          else
-            sudo podman --storage-driver=overlay --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs info 2>&1 | tail -3 || true
-            driver_conf='driver = "vfs"'
-            echo "falling back to vfs"
-          fi
-          printf '[storage]\n%b\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' "$driver_conf" | sudo tee /etc/containers/storage.conf
+          printf '[storage]\ndriver = "overlay"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"\n' | sudo tee /etc/containers/storage.conf
+          grep -E " /proc/sys " /proc/mounts || true
+          sudo mount -o remount,rw /proc/sys && echo "proc/sys remounted rw" || echo "remount failed"
+          sudo sysctl -w net.ipv4.ip_forward=1 || true
           sudo mkdir -p /run/podman
           sudo sh -c 'nohup podman system service --time=0 unix:///run/podman/podman.sock > /tmp/podman-service.log 2>&1 &'
           for i in $(seq 1 30); do sudo test -S /run/podman/podman.sock && break; sleep 1; done
-          sudo podman version
-          sudo podman info --format '{{.Host.OCIRuntime.Name}} cgroups={{.Host.CgroupsVersion}} manager={{.Host.CgroupManager}}'
+          sudo podman info --format '{{.Host.OCIRuntime.Name}} cgroups={{.Host.CgroupsVersion}}'
           sudo podman run --rm docker.io/library/alpine:3.20 echo podman-runs-containers
+          sudo podman network create probe-net && sudo podman run --rm --network probe-net docker.io/library/alpine:3.20 echo bridge-network-works
 
       - name: Run e2e tests on Podman
         run: |
