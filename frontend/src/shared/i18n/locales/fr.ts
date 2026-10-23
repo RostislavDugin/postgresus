@@ -916,6 +916,8 @@ export const fr: typeof en = {
       continueWithGithub: 'Continuer avec GitHub',
       continueWithGoogle: 'Continuer avec Google',
       invalidConfiguration: 'Configuration OAuth non valide',
+      continueWithSingleSignOn: 'Continuer avec l’authentification unique',
+      oidcStartFailed: 'Impossible de démarrer l’authentification unique. Veuillez réessayer.',
     },
     signIn: {
       title: 'Connexion',

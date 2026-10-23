@@ -892,6 +892,8 @@ export const ru: typeof en = {
       continueWithGithub: 'Войти через GitHub',
       continueWithGoogle: 'Войти через Google',
       invalidConfiguration: 'OAuth настроен неправильно',
+      continueWithSingleSignOn: 'Войти через единый вход',
+      oidcStartFailed: 'Не удалось начать единый вход. Попробуйте ещё раз.',
     },
     signIn: {
       title: 'Вход',

@@ -7,6 +7,7 @@ import {
   CLOUDFLARE_TURNSTILE_SITE_KEY,
   GITHUB_CLIENT_ID,
   GOOGLE_CLIENT_ID,
+  IS_OIDC_CONFIGURED,
 } from '../../../constants';
 import { userApi } from '../../../entity/users';
 import { useCloudflareTurnstile } from '../../../shared/hooks/useCloudflareTurnstile';
@@ -15,6 +16,7 @@ import { FormValidator } from '../../../shared/lib/FormValidator';
 import { CloudflareTurnstileWidget } from '../../../shared/ui/CloudflareTurnstileWidget';
 import { GithubOAuthComponent } from './oauth/GithubOAuthComponent';
 import { GoogleOAuthComponent } from './oauth/GoogleOAuthComponent';
+import { OidcSignInComponent } from './oauth/OidcSignInComponent';
 
 interface SignUpComponentProps {
   onSwitchToSignIn?: () => void;
@@ -124,10 +126,11 @@ export function SignUpComponent({
         <div className="space-y-2">
           <GithubOAuthComponent />
           <GoogleOAuthComponent />
+          <OidcSignInComponent />
         </div>
       </div>
 
-      {(GOOGLE_CLIENT_ID || GITHUB_CLIENT_ID) && (
+      {(GOOGLE_CLIENT_ID || GITHUB_CLIENT_ID || IS_OIDC_CONFIGURED) && (
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>

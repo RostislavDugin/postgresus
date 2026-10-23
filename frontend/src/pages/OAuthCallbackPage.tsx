@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 
 import { getOAuthRedirectUri } from '../constants';
 import { userApi } from '../entity/users';
+import { readAndClearOidcSignInMarker } from '../features/users/ui/oauth/oidcSignInMarker';
 import { type TranslationKey, translateApiError } from '../shared/i18n';
 
 type CallbackFailure = { detectedFailureKey: TranslationKey } | { signInError: unknown };
@@ -34,7 +35,9 @@ export function OAuthCallbackPage() {
       const redirectUri = getOAuthRedirectUri();
 
       try {
-        if (state === 'github') {
+        if (readAndClearOidcSignInMarker()) {
+          await userApi.completeOidcSignIn({ code, state, redirectUri });
+        } else if (state === 'github') {
           await userApi.handleGitHubOAuth({ code, redirectUri });
         } else if (state === 'google') {
           await userApi.handleGoogleOAuth({ code, redirectUri });

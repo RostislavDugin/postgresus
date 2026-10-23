@@ -911,6 +911,8 @@ export const es: typeof en = {
       continueWithGithub: 'Continuar con GitHub',
       continueWithGoogle: 'Continuar con Google',
       invalidConfiguration: 'Configuración de OAuth no válida',
+      continueWithSingleSignOn: 'Continuar con inicio de sesión único',
+      oidcStartFailed: 'No se pudo iniciar el inicio de sesión único. Inténtalo de nuevo.',
     },
     signIn: {
       title: 'Iniciar sesión',

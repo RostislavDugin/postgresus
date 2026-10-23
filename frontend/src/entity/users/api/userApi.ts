@@ -7,6 +7,9 @@ import type { InviteUserRequest } from '../model/InviteUserRequest';
 import type { InviteUserResponse } from '../model/InviteUserResponse';
 import type { OAuthCallbackRequest } from '../model/OAuthCallbackRequest';
 import type { OAuthCallbackResponse } from '../model/OAuthCallbackResponse';
+import type { OidcCallbackRequest } from '../model/OidcCallbackRequest';
+import type { OidcStartRequest } from '../model/OidcStartRequest';
+import type { OidcStartResponse } from '../model/OidcStartResponse';
 import type { PendingSignIn } from '../model/PendingSignIn';
 import type { ResendSignInCodeRequest } from '../model/ResendSignInCodeRequest';
 import type { ResetPasswordRequest } from '../model/ResetPasswordRequest';
@@ -150,6 +153,30 @@ export const userApi = {
 
     return apiHelper
       .fetchPostJson(`${getApplicationServer()}/api/v1/auth/google/callback`, requestOptions)
+      .then((response: unknown): OAuthCallbackResponse => {
+        const typedResponse = response as OAuthCallbackResponse;
+        saveAuthorizedData(typedResponse.token, typedResponse.userId);
+        notifyAuthListeners();
+        return typedResponse;
+      });
+  },
+
+  async startOidcSignIn(request: OidcStartRequest): Promise<OidcStartResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+
+    return apiHelper.fetchPostJson(
+      `${getApplicationServer()}/api/v1/auth/oidc/start`,
+      requestOptions,
+    ) as Promise<OidcStartResponse>;
+  },
+
+  async completeOidcSignIn(request: OidcCallbackRequest): Promise<OAuthCallbackResponse> {
+    const requestOptions: RequestOptions = new RequestOptions();
+    requestOptions.setBody(JSON.stringify(request));
+
+    return apiHelper
+      .fetchPostJson(`${getApplicationServer()}/api/v1/auth/oidc/callback`, requestOptions)
       .then((response: unknown): OAuthCallbackResponse => {
         const typedResponse = response as OAuthCallbackResponse;
         saveAuthorizedData(typedResponse.token, typedResponse.userId);

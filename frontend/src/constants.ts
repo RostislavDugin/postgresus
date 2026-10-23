@@ -1,6 +1,8 @@
 interface RuntimeConfig {
   GITHUB_CLIENT_ID?: string;
   GOOGLE_CLIENT_ID?: string;
+  IS_OIDC_CONFIGURED?: string;
+  OIDC_DISPLAY_NAME?: string;
   IS_EMAIL_CONFIGURED?: string;
   CLOUDFLARE_TURNSTILE_SITE_KEY?: string;
   CONTAINER_ARCH?: string;
@@ -33,6 +35,13 @@ export const GITHUB_CLIENT_ID =
 
 export const GOOGLE_CLIENT_ID =
   window.__RUNTIME_CONFIG__?.GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+export const IS_OIDC_CONFIGURED =
+  window.__RUNTIME_CONFIG__?.IS_OIDC_CONFIGURED === 'true' ||
+  import.meta.env.VITE_OIDC_ENABLED === 'true';
+
+export const OIDC_DISPLAY_NAME =
+  window.__RUNTIME_CONFIG__?.OIDC_DISPLAY_NAME || import.meta.env.VITE_OIDC_DISPLAY_NAME || '';
 
 export const IS_EMAIL_CONFIGURED =
   window.__RUNTIME_CONFIG__?.IS_EMAIL_CONFIGURED === 'true' ||

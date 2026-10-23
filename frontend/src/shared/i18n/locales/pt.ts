@@ -907,6 +907,8 @@ export const pt: typeof en = {
       continueWithGithub: 'Continuar com GitHub',
       continueWithGoogle: 'Continuar com Google',
       invalidConfiguration: 'Configuração OAuth inválida',
+      continueWithSingleSignOn: 'Continuar com login único',
+      oidcStartFailed: 'Não foi possível iniciar o login único. Tente novamente.',
     },
     signIn: {
       title: 'Entrar',

@@ -888,6 +888,8 @@ export const en = {
       continueWithGithub: 'Continue with GitHub',
       continueWithGoogle: 'Continue with Google',
       invalidConfiguration: 'Invalid OAuth configuration',
+      continueWithSingleSignOn: 'Continue with single sign-on',
+      oidcStartFailed: 'Could not start the single sign-on. Please try again.',
     },
     signIn: {
       title: 'Sign in',

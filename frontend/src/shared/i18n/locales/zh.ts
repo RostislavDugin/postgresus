@@ -852,6 +852,8 @@ export const zh: typeof en = {
       continueWithGithub: '使用 GitHub 继续',
       continueWithGoogle: '使用 Google 继续',
       invalidConfiguration: 'OAuth 配置无效',
+      continueWithSingleSignOn: '使用单点登录继续',
+      oidcStartFailed: '无法启动单点登录，请重试。',
     },
     signIn: {
       title: '登录',
