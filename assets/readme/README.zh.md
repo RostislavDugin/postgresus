@@ -295,7 +295,7 @@ docker exec -it databasus ./main --create-user --email="ops@example.com" --passw
 
 Databasus 处理的是敏感数据，所以防范漏洞、越权访问和数据泄露是首要任务。我们在系统的两侧都投入了精力：代码本身（权限校验、加密、对密钥凭据的谨慎处理）和它周围的基础设施（依赖分析、CVE 响应、DevSecOps 最佳实践）。下面这条流水线在每次提交和每个 PR 上自动运行。单独任何一层都不够，但叠在一起就能显著降低有漏洞的代码、不安全的依赖、损坏的镜像或者无法恢复的备份混进发布版本的概率。
 
-静态分析由几道彼此独立的检查组成。CodeQL 扫描整个代码库找安全问题。CodeRabbit 审查每个 PR，并在其中直接运行 gitleaks 做密钥扫描、运行 semgrep 做安全规则检查。Dockerfile 和 CI 工作流还有各自额外的规则（action 引用是否固定、权限是否最小化、基础镜像是否可疑），不安全的写法在合并之前就会被标出来。在这些逐 PR 的检查之上，OpenAI 的 Codex Security 会定期对整个代码库做更深入的审计。这是一个独立的计划，能发现只看单个 PR 的扫描容易漏掉的架构性和跨模块问题。
+静态分析由几道彼此独立的检查组成。CodeQL 扫描整个代码库找安全问题。每个 PR 都会运行 gitleaks 扫描泄露的密钥，并用 semgrep 按安全规则检查代码。Dockerfile 和 CI 工作流还有各自额外的规则（action 引用是否固定、权限是否最小化、基础镜像是否可疑），不安全的写法在合并之前就会被标出来。在这些逐 PR 的检查之上，OpenAI 的 Codex Security 会定期对整个代码库做更深入的审计。这是一个独立的计划，能发现只看单个 PR 的扫描容易漏掉的架构性和跨模块问题。
 
 依赖方面，Dependabot 对照 GitHub Advisory Database 盯着我们所有的依赖，CVE 公布后几分钟内就会浮出来。更新会经过一段冷却期，让刚发布的版本先沉淀一下我们再采用。这是对投毒包事件（比如供应链攻击）的一道有意为之的防线。Dependency Review Action 则会直接拦下任何引入新的 HIGH 或 CRITICAL 级别 CVE 的 PR。
 

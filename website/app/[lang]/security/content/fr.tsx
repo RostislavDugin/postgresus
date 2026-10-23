@@ -376,10 +376,10 @@ export default function SecurityPage() {
               <p>
                 L&apos;analyse statique s&apos;exécute en plusieurs passes
                 indépendantes. CodeQL analyse l&apos;ensemble du code à la
-                recherche de problèmes de sécurité. CodeRabbit relit chaque PR
-                et exécute <strong>gitleaks</strong> pour la détection de
-                secrets et <strong>semgrep</strong> pour les règles de sécurité
-                directement dans la revue. Les Dockerfiles et les workflows CI
+                recherche de problèmes de sécurité. Sur chaque PR,{" "}
+                <strong>gitleaks</strong> recherche les secrets divulgués et{" "}
+                <strong>semgrep</strong> vérifie le code selon des règles de
+                sécurité. Les Dockerfiles et les workflows CI
                 ont leurs propres règles supplémentaires (références
                 d&apos;actions épinglées, permissions de moindre privilège,
                 images de base suspectes), si bien que les schémas non sûrs sont
