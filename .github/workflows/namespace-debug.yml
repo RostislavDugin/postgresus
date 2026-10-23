@@ -1,0 +1,82 @@
+name: Namespace debug (temporary)
+
+on:
+  push:
+    branches: [fix/namespace-ci]
+
+permissions:
+  contents: read
+
+jobs:
+  loopback-probe:
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    timeout-minutes: 10
+    steps:
+      - name: Probe a closed loopback port
+        run: |
+          set -x
+          uname -a
+          python3 - <<'EOF'
+          import socket, time
+          s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+          c = socket.socket(); c.settimeout(3); t = time.time()
+          try:
+              c.connect(("127.0.0.1", port)); print("connected?!")
+          except Exception as e:
+              print(f"port {port}: {type(e).__name__}: {e} after {time.time()-t:.2f}s")
+          EOF
+          sudo iptables -S || true
+          sudo iptables -t nat -S || true
+          sudo nft list ruleset || true
+          ip addr
+
+  podman-probe:
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    timeout-minutes: 10
+    steps:
+      - name: Inspect Podman and init system
+        run: |
+          set -x
+          ps -p 1 -o pid,comm,args
+          command -v podman || true
+          podman --version || true
+          dpkg -l | grep -E "podman|crun|runc|conmon" || true
+          ls -la /run/podman /usr/lib/systemd/system/podman.socket 2>&1 || true
+          apt-cache policy podman || true
+
+  readonly-probe:
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Build image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: databasus-readonly-probe:latest
+
+      - name: Reproduce the read-only case and watch the container
+        run: |
+          set -x
+          docker info --format '{{.ServerVersion}} {{.Driver}} {{.SecurityOptions}} rootless={{.Rootless}}' || docker info
+          data_root=$(mktemp -d /tmp/databasus-readonly.XXXX)
+          docker run --rm --entrypoint /bin/sh --volume "$data_root:/data" databasus-readonly-probe:latest -eu -c '
+            mkdir -p /data/pgdata /data/temp /data/backups
+            chown 999:999 /data /data/pgdata /data/temp /data/backups
+            chmod 0770 /data /data/backups
+            chmod 0700 /data/pgdata /data/temp'
+          ls -la "$data_root"
+          docker run --detach --name ro-probe --env PUID=999 --env PGID=999 \
+            --mount "type=bind,source=$data_root,target=/databasus-data,readonly" \
+            databasus-readonly-probe:latest
+          for i in $(seq 1 30); do
+            echo "t=${i}s running=$(docker inspect --format '{{.State.Running}} exit={{.State.ExitCode}}' ro-probe)"
+            sleep 1
+          done
+          docker logs ro-probe 2>&1 | tail -60
+          docker exec ro-probe sh -c 'id; mount | grep databasus-data; touch /databasus-data/x && echo WRITABLE || echo READONLY; ps aux' || true
