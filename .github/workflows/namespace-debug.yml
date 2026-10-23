@@ -8,32 +8,6 @@ permissions:
   contents: read
 
 jobs:
-  agent-test-repro:
-    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
-    timeout-minutes: 20
-    steps:
-      - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version: "1.26.3"
-          cache: false
-
-      - name: Run the readiness test alone
-        run: |
-          cd agent/verification
-          go test -race -count=30 -run 'Test_WaitForReady' ./internal/features/container/ 2>&1 | tail -20
-
-      - name: Run the suite like CI three times
-        run: |
-          cd agent/verification
-          for attempt in 1 2 3; do
-            echo "=== attempt $attempt"
-            go test -race -count=1 ./internal/... 2>&1 | grep -E "^(ok|FAIL|---)|Error:" | head -20 || true
-          done
-
   podman-repro:
     runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 30
@@ -50,7 +24,18 @@ jobs:
         run: |
           set -x
           sudo apt-get update -qq
-          sudo apt-get install -y -qq podman
+          sudo apt-get install -y -qq podman fuse-overlayfs
+          ls -la /dev/fuse || true
+          findmnt -no FSTYPE,OPTIONS /var/lib || findmnt -no FSTYPE,OPTIONS / || true
+          if sudo podman --storage-driver=overlay --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs info >/dev/null 2>&1; then
+            driver_conf='driver = "overlay"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"'
+            echo "fuse-overlayfs works"
+          else
+            sudo podman --storage-driver=overlay --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs info 2>&1 | tail -3 || true
+            driver_conf='driver = "vfs"'
+            echo "falling back to vfs"
+          fi
+          printf '[storage]\n%b\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' "$driver_conf" | sudo tee /etc/containers/storage.conf
           sudo mkdir -p /run/podman
           sudo sh -c 'nohup podman system service --time=0 unix:///run/podman/podman.sock > /tmp/podman-service.log 2>&1 &'
           for i in $(seq 1 30); do sudo test -S /run/podman/podman.sock && break; sleep 1; done
@@ -101,4 +86,12 @@ jobs:
             sleep 1
           done
           docker logs ro-probe 2>&1 | tail -60
-          docker exec ro-probe sh -c 'id; grep databasus-data /proc/mounts; ps -eo pid,user,args' || true
+          docker exec ro-probe sh -c 'grep databasus-data /proc/mounts' || true
+          docker rm -f ro-probe
+          echo "--- -v :ro syntax"
+          docker run --rm -v "$data_root:/d:ro" --entrypoint sh databasus-readonly-probe:latest -c 'grep " /d " /proc/mounts; touch /d/x && echo WRITABLE || echo READONLY'
+          echo "--- named volume readonly"
+          docker volume create ro-vol
+          docker run --rm --mount type=volume,src=ro-vol,dst=/d,readonly --entrypoint sh databasus-readonly-probe:latest -c 'grep " /d " /proc/mounts; touch /d/x && echo WRITABLE || echo READONLY'
+          echo "--- tmpfs readonly"
+          docker run --rm --mount type=tmpfs,dst=/d,readonly --entrypoint sh databasus-readonly-probe:latest -c 'grep " /d " /proc/mounts; touch /d/x && echo WRITABLE || echo READONLY' || true
