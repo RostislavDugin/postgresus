@@ -22,6 +22,8 @@ type User struct {
 	Status               users_enums.UserStatus `json:"status"`
 	GitHubOAuthID        *string                `json:"-"         gorm:"column:github_oauth_id"`
 	GoogleOAuthID        *string                `json:"-"         gorm:"column:google_oauth_id"`
+	OIDCIssuer           *string                `json:"-"         gorm:"column:oidc_issuer"`
+	OIDCSubject          *string                `json:"-"         gorm:"column:oidc_subject"`
 	IsRootAdmin          bool                   `json:"-"         gorm:"column:is_root_admin"`
 	CreatedAt            time.Time              `json:"createdAt"`
 }

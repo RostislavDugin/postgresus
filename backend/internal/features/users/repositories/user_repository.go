@@ -3,6 +3,7 @@ package users_repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -168,33 +169,38 @@ func (r *UserRepository) UpdateUserInfo(userID uuid.UUID, name, email *string) e
 		Updates(updates).Error
 }
 
-func (r *UserRepository) GetUserByGitHubOAuthID(githubID string) (*users_models.User, error) {
+func (r *UserRepository) GetUserByExternalIdentity(
+	identity users_models.ExternalIdentity,
+) (*users_models.User, error) {
+	columns := identity.GetLinkColumns()
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("unknown external identity provider: %s", identity.Provider)
+	}
+
 	var user users_models.User
-	err := storage.GetDb().Where("github_oauth_id = ?", githubID).First(&user).Error
+
+	err := storage.GetDb().Where(columns).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByGoogleOAuthID(googleID string) (*users_models.User, error) {
-	var user users_models.User
-	err := storage.GetDb().Where("google_oauth_id = ?", googleID).First(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
+func (r *UserRepository) LinkExternalIdentity(
+	userID uuid.UUID,
+	identity users_models.ExternalIdentity,
+) error {
+	columns := identity.GetLinkColumns()
+	if len(columns) == 0 {
+		return fmt.Errorf("unknown external identity provider: %s", identity.Provider)
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
 
-func (r *UserRepository) LinkOAuthID(userID uuid.UUID, oauthColumn, oauthID string) error {
-	updates := map[string]any{oauthColumn: oauthID}
 	return storage.GetDb().Model(&users_models.User{}).
 		Where("id = ?", userID).
-		Updates(updates).Error
+		Updates(columns).Error
 }
