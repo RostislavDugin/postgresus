@@ -502,10 +502,12 @@ run_read_only() {
     local data_root="${case_root}/read-only"
 
     prepare_bind_tree "${data_root}" 999 999
+    # The Docker engine on Namespace CI runners drops the readonly key of --mount
+    # and mounts the directory writable, while it honours the :ro suffix of --volume.
     start_failing_databasus "${container_name}" \
         --env PUID=999 \
         --env PGID=999 \
-        --mount "type=bind,source=${data_root},target=/databasus-data,readonly"
+        --volume "${data_root}:/databasus-data:ro"
     assert_storage_permission_failure "${container_name}"
 }
 
