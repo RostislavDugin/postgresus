@@ -769,7 +769,9 @@ func waitForAttachedReceiverPID(t *testing.T, adminConn *pgx.Conn, slotName stri
 
 	require.Eventually(t, func() bool {
 		slotState, err := InspectSlot(t.Context(), adminConn, slotName)
-		if err != nil || slotState == nil || slotState.ActivePID == nil {
+		// While the slot is being created, the creating backend holds it, so an active PID alone
+		// can belong to that backend rather than to pg_receivewal.
+		if err != nil || slotState == nil || !isOwnedReceiverBackend(slotState) {
 			return false
 		}
 
