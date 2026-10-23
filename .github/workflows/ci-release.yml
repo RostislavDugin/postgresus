@@ -407,21 +407,13 @@ jobs:
           # shellcheck disable=SC2086 # one import path per word
           go test -p=8 -count=1 -failfast -timeout 40m $packages
 
-  test-filesystems:
+  build-storage-image:
     if: github.head_ref != 'develop'
-    # The Docker engine on Namespace runners has no CIFS or NFS kernel support, so
-    # the network filesystem cases can only mount their volumes on GitHub runners.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
+    timeout-minutes: 30
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-
-      - name: Install network filesystem clients
-        run: sudo apt-get update && sudo apt-get install -y cifs-utils nfs-common
 
       - name: Build amd64 storage candidate and load locally
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
@@ -430,11 +422,57 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          cache-to: type=gha,mode=max,scope=storage-build-amd64
-          cache-from: type=gha,scope=storage-build-amd64
           build-args: |
             APP_VERSION=storage-${{ github.sha }}
           tags: databasus-storage-test:${{ github.sha }}
+
+      - name: Export the storage candidate
+        run: docker save databasus-storage-test:${{ github.sha }} | zstd -T0 -3 > /tmp/databasus-storage-test.tar.zst
+
+      - name: Upload the storage candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp/databasus-storage-test.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+  test-filesystems:
+    if: github.head_ref != 'develop'
+    needs: [build-storage-image]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: permissions
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
+          - group: upgrades
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
+          - group: lifecycle
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
+          # The Docker engine on Namespace runners has no CIFS or NFS kernel support, so
+          # the network filesystem cases can only mount their volumes on GitHub runners.
+          - group: network
+            runner: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install network filesystem clients
+        if: matrix.group == 'network'
+        run: sudo apt-get update && sudo apt-get install -y cifs-utils nfs-common
+
+      - name: Download the storage candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp
+
+      - name: Load the storage candidate
+        run: zstd -dc /tmp/databasus-storage-test.tar.zst | docker load
 
       - name: Install tools from mise.toml
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
@@ -444,6 +482,7 @@ jobs:
       - name: Run filesystem suite
         env:
           DATABASUS_IMAGE: databasus-storage-test:${{ github.sha }}
+          CASE_GROUP: ${{ matrix.group }}
         run: just test-filesystem
 
   build-dev-image:

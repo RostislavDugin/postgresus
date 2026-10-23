@@ -1283,15 +1283,38 @@ run_case() {
     esac
 }
 
-if [[ "${selected_case}" == all ]]; then
-    for case_name in \
-        build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids invalid-ids \
-        bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only wrong-owner \
-        unwritable-data-root \
-        cifs nfs-root-squash upgrades postgresql-recovery clean-shutdown startup-stop legacy-directory-guard; do
+# CI runs each group as a separate job, and CASE=all runs every group in this order.
+readonly case_group_names=(permissions network upgrades lifecycle)
+declare -rA case_groups=(
+    [permissions]="build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids
+        invalid-ids bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only
+        wrong-owner unwritable-data-root"
+    [network]="cifs nfs-root-squash"
+    [upgrades]="upgrades"
+    [lifecycle]="postgresql-recovery clean-shutdown startup-stop legacy-directory-guard"
+)
+
+run_cases() {
+    local case_name
+
+    for case_name in "$@"; do
         run_case "${case_name}"
         cleanup
         case_root="$(mktemp -d /tmp/databasus-storage-test.XXXXXXXX)"
+    done
+}
+
+if [[ -n "${CASE_GROUP:-}" ]]; then
+    if [[ -z "${case_groups[${CASE_GROUP}]+set}" ]]; then
+        echo "unknown Docker filesystem case group: ${CASE_GROUP} (known: ${case_group_names[*]})" >&2
+        exit 2
+    fi
+    # shellcheck disable=SC2086 # the group is a whitespace-separated list of case names
+    run_cases ${case_groups[${CASE_GROUP}]}
+elif [[ "${selected_case}" == all ]]; then
+    for group_name in "${case_group_names[@]}"; do
+        # shellcheck disable=SC2086 # the group is a whitespace-separated list of case names
+        run_cases ${case_groups[${group_name}]}
     done
 else
     run_case "${selected_case}"
