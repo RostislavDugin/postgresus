@@ -22,7 +22,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     # A pull request from develop is analyzed by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     permissions:
       security-events: write
       actions: read
@@ -66,7 +66,7 @@ jobs:
     name: Secret scan (gitleaks)
     # A pull request from develop is scanned by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 15
     permissions:
       contents: read
@@ -94,7 +94,7 @@ jobs:
     name: Analyze (semgrep)
     # A pull request from develop is scanned by the push to main after its merge.
     if: github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 15
     permissions:
       contents: read

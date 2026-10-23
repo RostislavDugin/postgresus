@@ -24,7 +24,7 @@ concurrency:
 jobs:
   lint-backend:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 15
     steps:
       - name: Check out code
@@ -72,7 +72,7 @@ jobs:
 
   lint-frontend:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 15
     steps:
       - name: Check out code
@@ -105,7 +105,7 @@ jobs:
 
   dockerfile-scan:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 15
     permissions:
       contents: read
@@ -129,7 +129,7 @@ jobs:
 
   test-frontend:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 15
     needs: [lint-frontend]
     steps:
@@ -163,7 +163,7 @@ jobs:
 
   lint-verification-agent:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 15
     steps:
       - name: Check out code
@@ -203,7 +203,7 @@ jobs:
 
   test-verification-agent:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 15
     needs: [lint-verification-agent]
     steps:
@@ -233,7 +233,7 @@ jobs:
 
   e2e-verification-agent:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 30
     needs: [lint-verification-agent]
     steps:
@@ -259,7 +259,7 @@ jobs:
 
   e2e-verification-agent-podman:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 30
     needs: [lint-verification-agent]
     steps:
@@ -407,7 +407,7 @@ jobs:
 
   test-filesystems:
     if: github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 45
     steps:
       - name: Check out code
@@ -438,7 +438,7 @@ jobs:
         run: just test-filesystem
 
   build-dev-image:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 45
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     steps:
@@ -578,10 +578,10 @@ jobs:
         include:
           - arch: amd64
             platform: linux/amd64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
           - arch: arm64
             platform: linux/arm64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-arm
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-arm
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -617,7 +617,7 @@ jobs:
           retention-days: 1
 
   merge-dev-image-manifest:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [push-dev-image]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
@@ -652,7 +652,7 @@ jobs:
 
   build-image:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 45
     needs: [lint-backend, lint-frontend, lint-verification-agent, dockerfile-scan]
     steps:
@@ -781,7 +781,7 @@ jobs:
 
   build-verification-image:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 45
     needs: [lint-verification-agent, dockerfile-scan]
     permissions:
@@ -802,7 +802,7 @@ jobs:
             PG_MAJOR=16
 
   determine-version:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [lint-backend, test-backend, test-frontend, test-verification-agent, e2e-verification-agent, e2e-verification-agent-podman, test-filesystems]
     if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
@@ -904,10 +904,10 @@ jobs:
         include:
           - arch: amd64
             platform: linux/amd64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
           - arch: arm64
             platform: linux/arm64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-arm
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-arm
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -943,7 +943,7 @@ jobs:
           retention-days: 1
 
   merge-image-manifest:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [determine-version, push-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
@@ -1010,10 +1010,10 @@ jobs:
         include:
           - arch: amd64
             platform: linux/amd64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-x64
           - arch: arm64
             platform: linux/arm64
-            runner: namespace-profile-8vcpu-16ram-ubuntu-26-arm
+            runner: namespace-profile-2vcpu-4ram-ubuntu-26-arm
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -1058,7 +1058,7 @@ jobs:
           retention-days: 1
 
   merge-verification-image-manifest:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [determine-version, push-verification-image]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
@@ -1098,7 +1098,7 @@ jobs:
             "${platform_image_refs[@]}"
 
   release:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [determine-version, merge-image-manifest]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
@@ -1224,7 +1224,7 @@ jobs:
           prerelease: false
 
   publish-helm-chart:
-    runs-on: namespace-profile-8vcpu-16ram-ubuntu-26-x64
+    runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
     timeout-minutes: 10
     needs: [determine-version, merge-image-manifest]
     if: ${{ needs.determine-version.outputs.should_release == 'true' }}
