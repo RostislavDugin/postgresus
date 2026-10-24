@@ -413,21 +413,23 @@ fi
 #    <dir>/base.tar<ext> (still compressed) plus its <dir>/backup_manifest sidecar;
 #    pg_combinebackup reads the manifest from the extracted directory.
 echo "Reconstructing data directory with pg_combinebackup..."
-# shellcheck disable=SC2012 # the backend names the bundle directories without spaces
-INCR_DIRS="$(cd "$BUNDLE_DIR" && ls -d incr-* 2>/dev/null | sort -V || true)"
 RECON_DIR="$BUNDLE_DIR/recon"
-# POSIX sh has no arrays, so the positional parameters collect pg_combinebackup's input directories:
-# a directory whose path holds a space stays one argument. The options were parsed above.
-set --
-for backup in full $INCR_DIRS; do
-    src="$BUNDLE_DIR/$backup"
-    dst="$RECON_DIR/$backup"
+
+# Unpacks one backup of the bundle into $RECON_DIR/<name>.
+unpack_backup() {
+    src="$BUNDLE_DIR/$1"
+    dst="$RECON_DIR/$1"
     mkdir -p "$dst"
 
-    # shellcheck disable=SC2012 # the backend names the payload files without spaces
-    blob="$(ls "$src"/base.tar* 2>/dev/null | head -n1 || true)"
+    blob=""
+    for candidate in "$src"/base.tar*; do
+        if [ -e "$candidate" ]; then
+            blob="$candidate"
+            break
+        fi
+    done
     if [ -z "$blob" ]; then
-        echo "error: backup '$backup' has no base.tar payload" >&2
+        echo "error: backup '$1' has no base.tar payload" >&2
         exit 1
     fi
 
@@ -446,7 +448,19 @@ for backup in full $INCR_DIRS; do
     esac
 
     cp "$src/backup_manifest" "$dst/backup_manifest"
-    set -- "$@" "$dst"
+}
+
+# POSIX sh has no arrays, so the positional parameters collect pg_combinebackup's input directories:
+# a directory whose path holds a space stays one argument. The options were parsed above.
+unpack_backup full
+set -- "$RECON_DIR/full"
+# The bundle numbers the incrementals incr-1, incr-2, ... without gaps and without zero padding, so a
+# counter keeps incr-10 after incr-9 where a glob would sort it after incr-1.
+incr_number=1
+while [ -d "$BUNDLE_DIR/incr-$incr_number" ]; do
+    unpack_backup "incr-$incr_number"
+    set -- "$@" "$RECON_DIR/incr-$incr_number"
+    incr_number=$((incr_number + 1))
 done
 
 # The backup's major version is its PG_VERSION (host-side file, so this works in --combine-image
