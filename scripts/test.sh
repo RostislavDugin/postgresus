@@ -28,6 +28,7 @@ trap 'exit 143' TERM
 
 if [[ -f "$root/.env" ]]; then
     set -a
+    # shellcheck source=/dev/null # .env is local and untracked, so CI has nothing to follow
     source "$root/.env"
     set +a
 fi
