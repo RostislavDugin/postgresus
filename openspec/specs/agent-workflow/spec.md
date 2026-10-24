@@ -23,8 +23,8 @@ After a review hook blocked the turn and the agent fixed or rejected the finding
 - **WHEN** the diff check blocks the turn because a test is missing, and the agent adds the test and finishes the turn again
 - **THEN** the agent's reply is a summary of the finished work for the user and does not mention the diff check or its finding
 
-#### Scenario: A quick check blocks a plan in the final message
-- **WHEN** in Codex the necessity check blocks a plan the agent wrote in its final message
+#### Scenario: A quick check blocks a plan
+- **WHEN** the necessity check blocks a plan the agent submits through ExitPlanMode
 - **THEN** the block text asks the agent to revise the plan and show it again, not to write a summary of a result
 
 #### Scenario: The full implementation review blocks a turn
@@ -68,16 +68,16 @@ The agent MUST NOT write rules, preferences or facts to its local memory outside
 - **WHEN** the user says that every future change should do something a certain way
 - **THEN** the agent proposes the edit to `AGENTS.md` or a skill and writes nothing to its local memory
 
-### Requirement: Every repository skill is available to each agent client
-Each of the repository's own skills, that is every skill except the generated `openspec-*` skills, SHALL be loadable as a skill both in Claude Code and in Codex, from one source file, so the two clients never read different versions of it.
+### Requirement: Every repository skill has one source file
+Every skill of the repository, including the generated `openspec-*` skills, SHALL have one source file under `.agents/skills/`. Claude Code SHALL load it through `.claude/skills`, a symlink to that directory, so no copy can drift from the source.
 
 #### Scenario: The commit skill in Claude Code
 - **WHEN** Claude Code lists the skills it can load in this repository
-- **THEN** the list contains the Git commits skill, and it reads the same file Codex reads
+- **THEN** the list contains the Git commits skill, read from `.agents/skills/git-commits/SKILL.md`
 
 ### Requirement: The agent can see and drive the local app
 
-The repository SHALL register one browser automation server for both Claude Code and Codex. With it, an agent opens pages of the local app and reads what the page shows, including a screenshot, the page structure, console messages and network requests. It also clicks, types and navigates. Both clients SHALL start the server from the same repository configuration. The server SHALL drive the Chrome browser installed on the host. Each agent session SHALL get its own temporary browser profile, which is discarded when the session's browser closes, so that two sessions running at once do not block each other and no sign-in carries over between sessions.
+The repository SHALL register one browser automation server for Claude Code. With it, an agent opens pages of the local app and reads what the page shows, including a screenshot, the page structure, console messages and network requests. It also clicks, types and navigates. Claude Code SHALL start the server from the repository configuration. The server SHALL drive the Chrome browser installed on the host. Each agent session SHALL get its own temporary browser profile, which is discarded when the session's browser closes, so that two sessions running at once do not block each other and no sign-in carries over between sessions.
 
 The repository SHALL hold a skill that tells the agent how to check the app in the browser:
 
@@ -122,11 +122,6 @@ A browser check SHALL add to the tests a task names and SHALL NOT replace them.
 
 - **WHEN** two agent sessions open the browser at the same time
 - **THEN** both browsers start, each with its own empty profile
-
-#### Scenario: Codex opens a page
-
-- **WHEN** Codex is started in the repository
-- **THEN** it lists the same browser server Claude Code uses, at the same pinned version
 
 ### Requirement: The developer chooses a visible or headless browser
 

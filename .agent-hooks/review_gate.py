@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Review hooks for Claude Code and Codex, wired in .claude/settings.json and .codex/hooks.json.
+"""Review hooks for Claude Code, wired in .claude/settings.json.
 
-Usage: review_gate.py <action> --client <claude|codex>
+Usage: review_gate.py <action>
        review_gate.py doctor
 
-The clients start it through run.sh, which runs it with the Python and OpenSpec versions pinned
+Claude Code starts it through run.sh, which runs it with the Python and OpenSpec versions pinned
 in mise.toml and stops the agent with the reason when the hook cannot start or crashes.
 
 Actions:
@@ -52,7 +52,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 
 
@@ -89,8 +88,6 @@ class MissingToolError(Exception):
 class Reviewer:
     claude_model: str
     claude_effort: str
-    codex_model: str
-    codex_effort: str
     schema_path: Path
     timeout_seconds: int
 
@@ -101,16 +98,12 @@ class Reviewer:
 QUICK_REVIEWER = Reviewer(
     claude_model="opus",
     claude_effort="low",
-    codex_model="gpt-6.1-sol",
-    codex_effort="low",
     schema_path=HOOKS_DIR / "review-result.schema.json",
     timeout_seconds=540,
 )
 IMPLEMENTATION_REVIEWER = Reviewer(
     claude_model="opus",
     claude_effort="medium",
-    codex_model="gpt-6.1-sol",
-    codex_effort="high",
     schema_path=HOOKS_DIR / "implementation-result.schema.json",
     timeout_seconds=1800,
 )
@@ -118,10 +111,7 @@ PROPOSAL_REVIEWER = replace(IMPLEMENTATION_REVIEWER, schema_path=HOOKS_DIR / "pr
 OPENSPEC_PLANNING_COMMANDS = (
     "/opsx:propose",
     "/opsx:update",
-    "$openspec-propose",
-    "$openspec-update-change",
 )
-PLANNING_COMMANDS = (*OPENSPEC_PLANNING_COMMANDS, "/plan")
 # The repeat review reads the reply after a block, so the reply names the rejected findings,
 # and the summary for the user waits until the review accepts the result.
 FULL_REVIEW_REPLY_INSTRUCTION = (
@@ -466,12 +456,6 @@ def has_command(request, commands):
     return any(command in prompt for command in commands)
 
 
-def is_planning(payload, request):
-    if get_field(payload, "permission_mode", "permissionMode") == "plan":
-        return True
-    return has_command(request, PLANNING_COMMANDS)
-
-
 def get_active_changes(root):
     changes_dir = root / "openspec" / "changes"
     if not changes_dir.is_dir():
@@ -586,48 +570,9 @@ def parse_review_result(value):
 def get_reviewer_environment():
     environment = os.environ.copy()
     environment[REVIEWER_ACTIVE_ENV] = "1"
-    for name in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID"):
+    for name in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID"):
         environment.pop(name, None)
     return environment
-
-
-def run_codex_reviewer(root, prompt, model, effort, schema_path, timeout_seconds):
-    with tempfile.TemporaryDirectory(prefix="codex-review-") as temporary_dir:
-        output_path = Path(temporary_dir) / "result.json"
-        command = [
-            "codex",
-            "exec",
-            "--ephemeral",
-            "--disable",
-            "hooks",
-            "--model",
-            model,
-            "--config",
-            f'model_reasoning_effort="{effort}"',
-            "--sandbox",
-            "read-only",
-            "--cd",
-            str(root),
-            "--output-schema",
-            str(schema_path),
-            "--output-last-message",
-            str(output_path),
-            "--color",
-            "never",
-            "-",
-        ]
-        process = subprocess.run(
-            command,
-            input=prompt,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=get_reviewer_environment(),
-            timeout=timeout_seconds,
-        )
-        if process.returncode != 0:
-            raise RuntimeError(process.stderr.strip() or f"codex exited with code {process.returncode}")
-        return load_reviewer_output(output_path.read_text())
 
 
 def run_claude_reviewer(root, prompt, model, effort, schema_path, timeout_seconds):
@@ -674,11 +619,7 @@ def run_claude_reviewer(root, prompt, model, effort, schema_path, timeout_second
     return load_reviewer_output(process.stdout)
 
 
-def run_reviewer(root, prompt, client, reviewer):
-    if client == "codex":
-        return run_codex_reviewer(
-            root, prompt, reviewer.codex_model, reviewer.codex_effort, reviewer.schema_path, reviewer.timeout_seconds
-        )
+def run_reviewer(root, prompt, reviewer):
     return run_claude_reviewer(
         root, prompt, reviewer.claude_model, reviewer.claude_effort, reviewer.schema_path, reviewer.timeout_seconds
     )
@@ -689,9 +630,9 @@ def describe_reviewer_error(error):
     return f"The automatic reviewer could not run: {message}"
 
 
-def review(root, prompt, client):
+def review(root, prompt):
     try:
-        result = parse_review_result(run_reviewer(root, prompt, client, QUICK_REVIEWER))
+        result = parse_review_result(run_reviewer(root, prompt, QUICK_REVIEWER))
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         return False, describe_reviewer_error(error)
 
@@ -700,13 +641,13 @@ def review(root, prompt, client):
     return False, result["reason"].strip() or "The reviewer rejected the result without a reason."
 
 
-def gate_plan_tool(session, gate, client):
+def gate_plan_tool(session, gate):
     gate_path = session.gate_path(gate)
     state = load_state(gate_path)
     plan = read_plan(get_field(session.payload, "tool_input", "toolInput") or {})
     if plan:
         prompt = build_review_prompt(session, gate, "plan", plan, get_changed_paths(session.root))
-        is_accepted, reason = review(session.root, prompt, client)
+        is_accepted, reason = review(session.root, prompt)
     else:
         is_accepted, reason = False, "ExitPlanMode carried no plan text, so the plan could not be reviewed."
 
@@ -738,30 +679,22 @@ def gate_plan_tool(session, gate, client):
     )
 
 
-def get_stop_subject(
-    gate, client, is_plan_turn, is_openspec_turn, is_workspace_changed, blocks, is_code_changed=False
-):
-    # Claude shows a plan through ExitPlanMode, which has its own check. Codex has no such
-    # tool, and its plan reaches the user in the final message.
-    is_plan_in_message = is_plan_turn and client != "claude"
-
+# A plan reaches the reviewer through ExitPlanMode, which has its own check, so a finished turn
+# never carries one.
+def get_stop_subject(gate, is_openspec_turn, is_workspace_changed, blocks, is_code_changed=False):
     if gate == "naming":
         return "finished change" if is_code_changed or blocks > 0 else None
 
     if gate == "necessity":
-        if is_openspec_turn and is_workspace_changed:
-            return "OpenSpec proposal"
-        return "plan" if is_plan_in_message else None
+        return "OpenSpec proposal" if is_openspec_turn and is_workspace_changed else None
     if gate == "plan":
-        return "plan" if is_plan_in_message else None
-    if gate == "architecture" and is_plan_in_message:
-        return "plan"
+        return None
     if is_workspace_changed or blocks > 0:
         return "finished change"
     return None
 
 
-def gate_stop(session, gate, client):
+def gate_stop(session, gate):
     request = session.load_request()
     if gate in GATES_YIELDING_TO_PROPOSAL_REVIEW and is_proposal_review_turn(session.root, request):
         emit({})
@@ -773,8 +706,6 @@ def gate_stop(session, gate, client):
     blocks = int(state.get("blocks") or 0)
     subject = get_stop_subject(
         gate,
-        client,
-        is_planning(session.payload, request),
         is_openspec_planning(request, session.root),
         request.get("baseline") != fingerprint,
         blocks,
@@ -787,7 +718,7 @@ def gate_stop(session, gate, client):
 
     candidate = str(get_field(session.payload, "last_assistant_message", "lastAssistantMessage") or "(not available)")
     prompt = build_review_prompt(session, gate, subject, candidate, get_changed_paths(session.root))
-    is_accepted, reason = review(session.root, prompt, client)
+    is_accepted, reason = review(session.root, prompt)
 
     if is_accepted:
         save_state(gate_path, {"blocks": 0, "accepted": fingerprint})
@@ -1095,11 +1026,11 @@ def parse_findings(full_review, value):
     return [{"category": finding["category"], "file": finding["file"], "summary": finding["summary"]} for finding in findings]
 
 
-def run_review_job(root, client, full_review, job, deadline):
+def run_review_job(root, full_review, job, deadline):
     if deadline - time.monotonic() < full_review.reviewer.timeout_seconds:
         return [], describe_reviewer_error(BUDGET_EXHAUSTED_ERROR)
     try:
-        return parse_findings(full_review, run_reviewer(root, job.prompt, client, full_review.reviewer)), None
+        return parse_findings(full_review, run_reviewer(root, job.prompt, full_review.reviewer)), None
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         return [], describe_reviewer_error(error)
 
@@ -1121,7 +1052,7 @@ def block_full_review(session, full_review, report, instruction):
     emit({"decision": "block", "reason": f"{AUTOMATIC_REVIEW_PREFIX} {full_review.gate}\n{report}\n\n{instruction}"})
 
 
-def gate_full_review(session, client, full_review, deadline):
+def gate_full_review(session, full_review, deadline):
     root = session.root
     targets = full_review.select_targets(session)
     if not targets:
@@ -1152,7 +1083,7 @@ def gate_full_review(session, client, full_review, deadline):
 
     jobs = [job for target in targets for job in build_review_jobs(session, full_review, target)]
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_REVIEWERS) as executor:
-        results = list(executor.map(lambda job: run_review_job(root, client, full_review, job, deadline), jobs))
+        results = list(executor.map(lambda job: run_review_job(root, full_review, job, deadline), jobs))
 
     reports = []
     has_blocking = False
@@ -1315,16 +1246,11 @@ def check_environment():
         "git": shutil.which("git"),
         "openspec": shutil.which("openspec"),
         "claude": shutil.which("claude"),
-        "codex": shutil.which("codex"),
     }
     for tool, path in tool_paths.items():
         print(f"{tool}: {path or 'not found'}")
 
-    is_missing_tool = not all(tool_paths[tool] for tool in ("python", "git", "openspec"))
-    is_reviewer_missing = not (tool_paths["claude"] or tool_paths["codex"])
-    if is_reviewer_missing:
-        print("no reviewer CLI found: the review hooks need claude or codex")
-    return 1 if is_missing_tool or is_reviewer_missing else 0
+    return 0 if all(tool_paths.values()) else 1
 
 
 def stop_for_missing_tool(error):
@@ -1339,20 +1265,17 @@ def main():
     deadline = time.monotonic() + FULL_REVIEW_BUDGET_SECONDS
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("session-start", "snapshot", "doctor", *GATES))
-    parser.add_argument("--client", choices=("claude", "codex"))
     arguments = parser.parse_args()
     if arguments.action == "doctor":
         sys.exit(check_environment())
-    if arguments.client is None:
-        parser.error(f"--client is required for {arguments.action}")
 
     try:
-        run_action(arguments.action, arguments.client, deadline)
+        run_action(arguments.action, deadline)
     except MissingToolError as error:
         stop_for_missing_tool(error)
 
 
-def run_action(action, client, deadline):
+def run_action(action, deadline):
     payload = read_payload()
     if os.environ.get(REVIEWER_ACTIVE_ENV) == "1":
         emit({})
@@ -1367,14 +1290,14 @@ def run_action(action, client, deadline):
         return
 
     if action in FULL_REVIEWS:
-        gate_full_review(session, client, FULL_REVIEWS[action], deadline)
+        gate_full_review(session, FULL_REVIEWS[action], deadline)
         return
 
     event = get_field(payload, "hook_event_name", "hookEventName")
     if event == "PreToolUse":
-        gate_plan_tool(session, action, client)
+        gate_plan_tool(session, action)
         return
-    gate_stop(session, action, client)
+    gate_stop(session, action)
 
 
 if __name__ == "__main__":

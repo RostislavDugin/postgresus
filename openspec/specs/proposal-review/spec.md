@@ -6,7 +6,7 @@ Reviews a finished OpenSpec proposal as a whole before implementation, so that g
 ## Requirements
 
 ### Requirement: The full proposal review starts once the proposal is written
-The hook that runs when the agent finishes a turn, in Claude Code and in Codex, SHALL start the full proposal review of an active change when all of these hold: the change has every artifact its schema requires, its task list has tasks and none is checked, the change's files changed during this turn, and their state differs from the last state the full proposal review accepted for this change. The turn SHALL be recognized by the change's files, not by the request text: whether the agent started through a command, a skill or a plain request MUST NOT matter. The accepted state SHALL be stored per change, not per session. Archived changes are not reviewed.
+The hook that runs when the agent finishes a turn SHALL start the full proposal review of an active change when all of these hold: the change has every artifact its schema requires, its task list has tasks and none is checked, the change's files changed during this turn, and their state differs from the last state the full proposal review accepted for this change. The turn SHALL be recognized by the change's files, not by the request text: whether the agent started through a command, a skill or a plain request MUST NOT matter. The accepted state SHALL be stored per change, not per session. Archived changes are not reviewed.
 
 #### Scenario: The agent writes every artifact after a plain request
 - **WHEN** the user writes "write a spec for this", and the agent creates the proposal, design, delta specs and tasks and finishes the turn

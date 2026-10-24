@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts review_gate.py with the Python and OpenSpec versions pinned in mise.toml, so a client
+# Starts review_gate.py with the Python and OpenSpec versions pinned in mise.toml, so a Claude Code
 # started from an IDE without the mise shims on PATH runs the same hook as a terminal one.
 # A hook that cannot run stops the agent with the reason instead of letting the turn pass unreviewed.
 # Only bash builtins and coreutils run before mise, because nothing else is guaranteed on PATH yet.

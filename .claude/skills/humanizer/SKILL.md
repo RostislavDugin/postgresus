@@ -1,1 +1,0 @@
-../../../.agents/skills/humanizer/SKILL.md
