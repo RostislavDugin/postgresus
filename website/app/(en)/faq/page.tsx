@@ -83,14 +83,6 @@ export default function FAQPage() {
               },
               {
                 "@type": "Question",
-                name: "How is AI used in Databasus development?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: "AI is used as a helper for verification of code quality and searching for vulnerabilities, cleaning up and improving documentation, assistance during development and double-checking PRs after human review. AI is NOT used for writing entire code, vibe code approach, code without line-by-line verification or code without tests. The project has solid test coverage, CI/CD pipeline automation and verification by experienced developers. AI is just an assistant - the work is done by developers.",
-                },
-              },
-              {
-                "@type": "Question",
                 name: "How to backup Databasus itself?",
                 acceptedAnswer: {
                   "@type": "Answer",
@@ -102,7 +94,7 @@ export default function FAQPage() {
                 name: "How is Databasus supported by Anthropic and OpenAI open-source programs?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "In March 2026, Databasus was accepted into both Claude for Open Source by Anthropic and Codex for Open Source by OpenAI. Being backed by these programs is a reliability signal — the project has been independently evaluated and recognized by industry leaders as critical open-source infrastructure worth supporting. Despite having access to the best AI tooling available, Databasus maintains strict AI usage rules: no vibe coding, line-by-line human verification and full test coverage are required for all contributions.",
+                  text: "In March 2026, Databasus was accepted into both Claude for Open Source by Anthropic and Codex for Open Source by OpenAI. Being backed by these programs is a reliability signal — the project has been independently evaluated and recognized by industry leaders as critical open-source infrastructure worth supporting.",
                 },
               },
             ],
@@ -409,89 +401,6 @@ export default function FAQPage() {
                 .
               </p>
 
-              <h2 id="ai-usage">How is AI used in Databasus development?</h2>
-
-              <p>
-                There have been questions about AI usage in project development
-                in issues and discussions. As the project focuses on security,
-                reliability and production usage, it&apos;s important to explain
-                how AI is used in the development process.
-              </p>
-
-              <p>
-                <strong>AI is used as a helper for:</strong>
-              </p>
-
-              <ul>
-                <li>
-                  Verification of code quality and searching for vulnerabilities
-                </li>
-                <li>
-                  Cleaning up and improving documentation, comments and code
-                </li>
-                <li>Assistance during development</li>
-                <li>Double-checking PRs and commits after human review</li>
-              </ul>
-
-              <p>
-                <strong>AI is NOT used for:</strong>
-              </p>
-
-              <ul>
-                <li>Writing entire code</li>
-                <li>&quot;Vibe code&quot; approach</li>
-                <li>Code without line-by-line verification by a human</li>
-                <li>Code without tests</li>
-              </ul>
-
-              <p>
-                <strong>The project has:</strong>
-              </p>
-
-              <ul>
-                <li>Solid test coverage (both unit and integration tests)</li>
-                <li>
-                  CI/CD pipeline automation with tests and linting to ensure
-                  code quality
-                </li>
-                <li>
-                  Verification by experienced developers with experience in
-                  large and secure projects
-                </li>
-              </ul>
-
-              <p>
-                So AI is just an assistant and a tool for developers to increase
-                productivity and ensure code quality. The work is done by
-                developers.
-              </p>
-
-              <p>
-                Moreover, it&apos;s important to note that we do not
-                differentiate between bad human code and AI vibe code. There are
-                strict requirements for any code to be merged to keep the
-                codebase maintainable.
-              </p>
-
-              <p>
-                Even if code is written manually by a human, it&apos;s not
-                guaranteed to be merged. Vibe code is not allowed at all and all
-                such PRs are rejected by default (see{" "}
-                <a href="/contribute">contributing guide</a>).
-              </p>
-
-              <p>
-                We also draw attention to fast issue resolution and security{" "}
-                <a
-                  href="https://github.com/databasus/databasus?tab=security-ov-file#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  vulnerability reporting
-                </a>
-                .
-              </p>
-
               <h2 id="backup-databasus">How to backup Databasus itself?</h2>
 
               <p>
@@ -616,16 +525,6 @@ export default function FAQPage() {
                 className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[1000px]"
                 loading="lazy"
               />
-
-              <p>
-                Despite having access to these programs, Databasus maintains
-                strict AI usage rules as described in the{" "}
-                <a href="#ai-usage">AI usage section</a>. All code requires
-                line-by-line human verification, full test coverage and
-                experienced developer review. Vibe coding is not allowed. AI
-                remains a tool for developers — not a replacement for human
-                judgment.
-              </p>
             </article>
           </div>
         </main>

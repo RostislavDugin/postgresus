@@ -67,7 +67,7 @@ Physical, full, incremental and WAL backups are built on PostgreSQL 17's native 
 
 ### FAQ - Frequently Asked Questions
 
-- [FAQ](https://databasus.com/faq): Frequently asked questions about Databasus. Includes questions about backup formats, installation directory, backup types, how physical and PITR backups work on PostgreSQL 17's native backup mechanism, disaster recovery and AI usage in development.
+- [FAQ](https://databasus.com/faq): Frequently asked questions about Databasus. Includes questions about backup formats, installation directory, backup types, how physical and PITR backups work on PostgreSQL 17's native backup mechanism and disaster recovery.
 - [How to backup localhost databases](https://databasus.com/faq/localhost): Step-by-step guide on how to backup localhost databases running on localhost using Databasus. Explains how to configure Docker host network mode to allow the container to access services on the host machine. Includes solutions for both Docker Compose and Docker run, with notes for Windows and macOS users about using host.docker.internal.
 - [How to backup Supabase](https://databasus.com/faq/supabase): Step-by-step guide on how to backup Supabase PostgreSQL databases using Databasus. Explains two connection options: using Session Pooler with IPv4 (free) or purchasing the IPv4 add-on. Includes detailed instructions for configuring the connection with SSL enabled.
 
@@ -256,9 +256,6 @@ Databasus is the most widely adopted open-source PostgreSQL backup tool today. A
 
 ### Anthropic and OpenAI OSS Programs
 In March 2026, Databasus was accepted into both Claude for Open Source by Anthropic and Codex for Open Source by OpenAI. The project has been independently evaluated and recognized by industry leaders as critical open-source infrastructure worth supporting. For more details, see [OSS programs in the FAQ](https://databasus.com/faq#oss-programs)
-
-### AI Usage in Development
-For information about AI usage in Databasus development, see [AI usage in the FAQ](https://databasus.com/faq#ai-usage)
 
 ### Community
 You can join our large community of developers, DBAs and DevOps engineers at [t.me/databasus_community](https://t.me/databasus_community). The community is a great place to ask questions, share experiences, get help with configuration and stay updated with the latest features and releases.

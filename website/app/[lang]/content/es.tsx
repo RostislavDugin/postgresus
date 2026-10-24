@@ -1531,37 +1531,6 @@ export default function Index() {
             />
             <FaqItem
               number="12"
-              question="¿Cómo se usa la IA en el desarrollo de Databasus?"
-              answer={
-                <>
-                  Ha habido preguntas sobre el uso de IA en el desarrollo del
-                  proyecto. Como el proyecto se centra en la seguridad, la
-                  fiabilidad y el uso en producción, queremos ser transparentes
-                  sobre cómo se usa la IA en el proceso de desarrollo.
-                  <br />
-                  <br />
-                  La IA se usa como ayuda para verificar la calidad del código,
-                  mejorar la documentación y asistir durante el desarrollo. La
-                  IA NO se usa para escribir código completo ni código sin
-                  pruebas. El proyecto tiene una cobertura de pruebas sólida,
-                  automatización CI/CD y verificación por desarrolladores
-                  experimentados.
-                  <br />
-                  <br />
-                  Para información detallada sobre el uso de IA, el proceso de
-                  desarrollo y las medidas de seguridad, visite nuestra{" "}
-                  <a
-                    href="/es/faq#ai-usage"
-                    className="text-blue-400 hover:text-blue-600"
-                  >
-                    página de FAQ dedicada
-                  </a>
-                  .
-                </>
-              }
-            />
-            <FaqItem
-              number="13"
               question="¿Cómo puedo unirme a la comunidad de Databasus?"
               answer={
                 <>
@@ -1582,7 +1551,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="14"
+              number="13"
               question="¿Cuál es el nivel de adopción de Databasus?"
               answer={
                 <>
@@ -1618,7 +1587,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="15"
+              number="14"
               question="Olvidé el correo o la contraseña del administrador"
               answer={
                 <>

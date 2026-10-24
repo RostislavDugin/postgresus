@@ -316,34 +316,3 @@ Databasus 处理的是敏感数据，所以防范漏洞、越权访问和数据�
 欢迎贡献！更多细节、优先级和规则见<a href="https://databasus.com/contribute">贡献指南</a>。如果你想参与但不知道从哪下手，在 Telegram 上找我 [@rostislav_dugin](https://t.me/rostislav_dugin)
 
 你也可以加入我们在 Telegram 上的开发者、DBA 和 DevOps 工程师社群 [@databasus_community](https://t.me/databasus_community)。
-
-## AI 声明
-
-在 issue 和讨论区里有人问到项目开发中如何使用 AI。既然这个项目关注的是安全、可靠和生产环境的实际使用，就有必要说明 AI 在开发过程中的位置。
-
-首先，我们很高兴地宣布，Databasus 在 2026 年 3 月同时入选了 Anthropic 的 [Claude for Open Source](https://claude.com/contact-sales/claude-for-oss) 和 OpenAI 的 [Codex for Open Source](https://developers.openai.com/codex/community/codex-for-oss/)。对我们来说，这是又一个信号：世界上两家领先的 AI 公司各自独立地认可了这个项目，把它看作重要的开源软件和值得支持的关键基础设施。详见 [databasus.com/faq](https://databasus.com/zh/faq/#oss-programs)。
-
-即便如此，我们对开发过程中如何使用 AI 仍有明确的规定：
-
-AI 用来辅助：
-
-- 检查代码质量、寻找漏洞
-- 整理和改进文档、注释与代码
-- 在开发过程中提供协助
-- 在人工审查之后复核 PR 和提交
-- 通过 Codex Security 对 PR 做额外的安全分析
-
-AI 不用来：
-
-- 写整份代码
-- 「vibe coding」那一套
-- 产出没有经过人工逐行核对的代码
-- 产出没有测试的代码
-
-所以 AI 只是开发者提高效率、保证代码质量的助手和工具。活儿还是开发者干的。
-
-另外要说明的是，我们不区分糟糕的人写代码和 AI 的 vibe code。任何代码想要合并都要满足严格的要求，这样代码库才维护得下去。
-
-哪怕代码是人手写的，也不保证一定能合并。vibe code 完全不允许，这类 PR 一律默认拒绝（见[贡献指南](https://databasus.com/contribute)）。
-
-支撑这些规定的工程手段（CI、静态分析、依赖扫描、测试覆盖和漏洞响应）记录在上面的[安全与可靠性工程](#️-安全与可靠性工程)。

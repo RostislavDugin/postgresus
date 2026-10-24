@@ -1540,40 +1540,6 @@ export default function Index() {
             />
             <FaqItem
               number="12"
-              question="Comment l'IA est-elle utilisée dans le développement de Databasus ?"
-              answer={
-                <>
-                  Des questions ont été posées sur l&apos;usage de l&apos;IA
-                  dans le développement du projet. Comme le projet est axé sur
-                  la sécurité, la fiabilité et l&apos;usage en production, nous
-                  voulons être transparents sur la manière dont l&apos;IA est
-                  utilisée dans le processus de développement.
-                  <br />
-                  <br />
-                  L&apos;IA sert d&apos;assistant pour la vérification de la
-                  qualité du code, l&apos;amélioration de la documentation et
-                  l&apos;aide au développement. L&apos;IA n&apos;est PAS
-                  utilisée pour écrire du code entier ni du code sans tests. Le
-                  projet dispose d&apos;une solide couverture de tests,
-                  d&apos;une automatisation CI/CD et d&apos;une vérification par
-                  des développeurs expérimentés.
-                  <br />
-                  <br />
-                  Pour des informations détaillées sur l&apos;usage de
-                  l&apos;IA, le processus de développement et les mesures de
-                  sécurité, consultez notre{" "}
-                  <a
-                    href="/fr/faq#ai-usage"
-                    className="text-blue-400 hover:text-blue-600"
-                  >
-                    page FAQ dédiée
-                  </a>
-                  .
-                </>
-              }
-            />
-            <FaqItem
-              number="13"
               question="Comment rejoindre la communauté Databasus ?"
               answer={
                 <>
@@ -1595,7 +1561,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="14"
+              number="13"
               question="Quel est le niveau d'adoption de Databasus ?"
               answer={
                 <>
@@ -1632,7 +1598,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="15"
+              number="14"
               question="J'ai oublié l'e-mail ou le mot de passe de l'administrateur"
               answer={
                 <>

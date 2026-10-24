@@ -84,14 +84,6 @@ export default function FAQPage() {
               },
               {
                 "@type": "Question",
-                name: "Databasus 开发中如何使用 AI？",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: "AI 被用作辅助工具：验证代码质量和搜索漏洞、清理和改进文档、开发过程中的辅助，以及在人工审查后复查 PR。AI 不用于编写全部代码、vibe code 方式、未经逐行验证的代码或没有测试的代码。项目有扎实的测试覆盖、CI/CD 流水线自动化和经验丰富的开发者验证。AI 只是助手，工作由开发者完成。",
-                },
-              },
-              {
-                "@type": "Question",
                 name: "如何备份 Databasus 自身？",
                 acceptedAnswer: {
                   "@type": "Answer",
@@ -103,7 +95,7 @@ export default function FAQPage() {
                 name: "Databasus 如何获得 Anthropic 和 OpenAI 开源项目计划的支持？",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "2026 年 3 月，Databasus 同时被 Anthropic 的 Claude for Open Source 和 OpenAI 的 Codex for Open Source 计划接纳。获得这些计划的支持是一个可靠性信号：项目经过独立评估，被行业领导者认可为值得支持的关键开源基础设施。尽管能使用最好的 AI 工具，Databasus 仍保持严格的 AI 使用规则：不允许 vibe coding，所有贡献都要求逐行人工验证和完整的测试覆盖。",
+                  text: "2026 年 3 月，Databasus 同时被 Anthropic 的 Claude for Open Source 和 OpenAI 的 Codex for Open Source 计划接纳。获得这些计划的支持是一个可靠性信号：项目经过独立评估，被行业领导者认可为值得支持的关键开源基础设施。",
                 },
               },
             ],
@@ -373,74 +365,6 @@ export default function FAQPage() {
                 。
               </p>
 
-              <h2 id="ai-usage">Databasus 开发中如何使用 AI？</h2>
-
-              <p>
-                在 issue 和讨论中，有人问到项目开发中的 AI
-                使用情况。由于项目聚焦于安全性、可靠性和生产环境使用，有必要说明
-                AI 在开发流程中是如何使用的。
-              </p>
-
-              <p>
-                <strong>AI 被用作以下工作的辅助：</strong>
-              </p>
-
-              <ul>
-                <li>验证代码质量和搜索漏洞</li>
-                <li>清理和改进文档、注释和代码</li>
-                <li>开发过程中的辅助</li>
-                <li>在人工审查之后复查 PR 和提交</li>
-              </ul>
-
-              <p>
-                <strong>AI 不用于：</strong>
-              </p>
-
-              <ul>
-                <li>编写全部代码</li>
-                <li>&quot;Vibe code&quot; 方式</li>
-                <li>未经人工逐行验证的代码</li>
-                <li>没有测试的代码</li>
-              </ul>
-
-              <p>
-                <strong>项目具备：</strong>
-              </p>
-
-              <ul>
-                <li>扎实的测试覆盖（包括单元测试和集成测试）</li>
-                <li>带测试和 lint 的 CI/CD 流水线自动化，保证代码质量</li>
-                <li>由在大型安全项目中经验丰富的开发者进行验证</li>
-              </ul>
-
-              <p>
-                所以 AI
-                只是开发者用来提高生产力和保证代码质量的助手和工具。工作由开发者完成。
-              </p>
-
-              <p>
-                另外需要指出的是，我们并不区分糟糕的人写代码和 AI vibe
-                code。任何代码要被合并都有严格的要求，以保持代码库可维护。
-              </p>
-
-              <p>
-                即使代码是人手动写的，也不保证会被合并。Vibe code
-                完全不被允许，此类 PR 默认全部拒绝（见
-                <a href="/contribute">贡献指南</a>）。
-              </p>
-
-              <p>
-                我们同样重视快速的 issue 处理和安全
-                <a
-                  href="https://github.com/databasus/databasus?tab=security-ov-file#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  漏洞报告
-                </a>
-                。
-              </p>
-
               <h2 id="backup-databasus">如何备份 Databasus 自身？</h2>
 
               <p>
@@ -553,13 +477,6 @@ export default function FAQPage() {
                 className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[1000px]"
                 loading="lazy"
               />
-
-              <p>
-                尽管加入了这些计划，Databasus 仍按
-                <a href="#ai-usage">AI 使用一节</a>所述保持严格的 AI
-                使用规则。所有代码都要求逐行人工验证、完整的测试覆盖和经验丰富的开发者审查。Vibe
-                coding 不被允许。AI 始终是开发者的工具，而不是人类判断的替代品。
-              </p>
             </article>
           </div>
         </main>

@@ -84,14 +84,6 @@ export default function FAQPage() {
               },
               {
                 "@type": "Question",
-                name: "Como a IA é usada no desenvolvimento do Databasus?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: "A IA é usada como auxiliar para verificação da qualidade do código e busca de vulnerabilidades, limpeza e melhoria da documentação, assistência durante o desenvolvimento e dupla verificação de PRs depois da revisão humana. A IA NÃO é usada para escrever código inteiro, abordagem de vibe code, código sem verificação linha a linha ou código sem testes. O projeto tem cobertura de testes sólida, automação de pipeline de CI/CD e verificação por desenvolvedores experientes. A IA é apenas uma assistente - o trabalho é feito por desenvolvedores.",
-                },
-              },
-              {
-                "@type": "Question",
                 name: "Como fazer backup do próprio Databasus?",
                 acceptedAnswer: {
                   "@type": "Answer",
@@ -103,7 +95,7 @@ export default function FAQPage() {
                 name: "Como o Databasus é apoiado pelos programas open source da Anthropic e da OpenAI?",
                 acceptedAnswer: {
                   "@type": "Answer",
-                  text: "Em março de 2026, o Databasus foi aceito tanto no Claude for Open Source da Anthropic quanto no Codex for Open Source da OpenAI. Ter o apoio desses programas é um sinal de confiabilidade — o projeto foi avaliado de forma independente e reconhecido por líderes do setor como infraestrutura open source crítica que vale a pena apoiar. Mesmo com acesso às melhores ferramentas de IA disponíveis, o Databasus mantém regras rígidas de uso de IA: nada de vibe coding, verificação humana linha a linha e cobertura de testes completa são exigidas em todas as contribuições.",
+                  text: "Em março de 2026, o Databasus foi aceito tanto no Claude for Open Source da Anthropic quanto no Codex for Open Source da OpenAI. Ter o apoio desses programas é um sinal de confiabilidade — o projeto foi avaliado de forma independente e reconhecido por líderes do setor como infraestrutura open source crítica que vale a pena apoiar.",
                 },
               },
             ],
@@ -421,96 +413,6 @@ export default function FAQPage() {
                 .
               </p>
 
-              <h2 id="ai-usage">
-                Como a IA é usada no desenvolvimento do Databasus?
-              </h2>
-
-              <p>
-                Surgiram perguntas em issues e discussões sobre o uso de IA no
-                desenvolvimento do projeto. Como o projeto se foca em segurança,
-                confiabilidade e uso em produção, é importante explicar como a
-                IA entra no processo de desenvolvimento.
-              </p>
-
-              <p>
-                <strong>A IA é usada como auxiliar para:</strong>
-              </p>
-
-              <ul>
-                <li>
-                  Verificação da qualidade do código e busca de vulnerabilidades
-                </li>
-                <li>
-                  Limpeza e melhoria da documentação, dos comentários e do
-                  código
-                </li>
-                <li>Assistência durante o desenvolvimento</li>
-                <li>
-                  Dupla verificação de PRs e commits depois da revisão humana
-                </li>
-              </ul>
-
-              <p>
-                <strong>A IA NÃO é usada para:</strong>
-              </p>
-
-              <ul>
-                <li>Escrever código inteiro</li>
-                <li>Abordagem de &quot;vibe code&quot;</li>
-                <li>Código sem verificação linha a linha por uma pessoa</li>
-                <li>Código sem testes</li>
-              </ul>
-
-              <p>
-                <strong>O projeto tem:</strong>
-              </p>
-
-              <ul>
-                <li>
-                  Cobertura de testes sólida (testes unitários e de integração)
-                </li>
-                <li>
-                  Automação de pipeline de CI/CD com testes e linting para
-                  garantir a qualidade do código
-                </li>
-                <li>
-                  Verificação por desenvolvedores experientes, com experiência
-                  em projetos grandes e seguros
-                </li>
-              </ul>
-
-              <p>
-                Então a IA é apenas uma assistente e uma ferramenta para
-                aumentar a produtividade e garantir a qualidade do código. O
-                trabalho é feito por desenvolvedores.
-              </p>
-
-              <p>
-                Além disso, é importante notar que não diferenciamos entre
-                código humano ruim e vibe code de IA. Há requisitos rígidos para
-                qualquer código ser integrado, para manter a base de código
-                sustentável.
-              </p>
-
-              <p>
-                Mesmo código escrito manualmente por uma pessoa não tem garantia
-                de ser aceito. Vibe code não é permitido de forma alguma, e
-                todos esses PRs são rejeitados por padrão (veja o{" "}
-                <a href="/contribute">guia de contribuição</a>).
-              </p>
-
-              <p>
-                Também damos atenção à resolução rápida de issues e ao{" "}
-                <a
-                  href="https://github.com/databasus/databasus?tab=security-ov-file#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  reporte de vulnerabilidades
-                </a>{" "}
-                de segurança.
-              </p>
-
               <h2 id="backup-databasus">
                 Como fazer backup do próprio Databasus?
               </h2>
@@ -644,16 +546,6 @@ export default function FAQPage() {
                 className="my-6 rounded-lg border border-gray-700 max-w-full sm:max-w-[1000px]"
                 loading="lazy"
               />
-
-              <p>
-                Mesmo com acesso a esses programas, o Databasus mantém regras
-                rígidas de uso de IA, como descrito na{" "}
-                <a href="#ai-usage">seção sobre uso de IA</a>. Todo o código
-                exige verificação humana linha a linha, cobertura de testes
-                completa e revisão por desenvolvedores experientes. Vibe coding
-                não é permitido. A IA continua sendo uma ferramenta para
-                desenvolvedores — não um substituto do julgamento humano.
-              </p>
             </article>
           </div>
         </main>

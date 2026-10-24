@@ -1,4 +1,0 @@
-# The same browser server .mcp.json registers for Claude Code; scripts/browser-mcp.sh explains it.
-[mcp_servers.chrome-devtools]
-command = "bash"
-args = ["-c", "exec \"$(git rev-parse --show-toplevel)/scripts/browser-mcp.sh\""]

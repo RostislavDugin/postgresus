@@ -17,12 +17,7 @@ node_modules/
 .claude/*
 !.claude/agents/
 !.claude/settings.json
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/git-commits/
-!.claude/skills/humanizer/
-!.claude/skills/run-app/
-!.claude/skills/testing/
+!.claude/skills
 backend/cleanup_test_db.exe
 plans/
 

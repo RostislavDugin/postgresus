@@ -316,34 +316,3 @@ Este proyecto está publicado bajo la licencia Apache 2.0. Consulte el archivo [
 ¡Las contribuciones son bienvenidas! Lea la <a href="https://databasus.com/contribute">guía de contribución</a> para conocer los detalles, las prioridades y las reglas. Si quiere contribuir pero no sabe por dónde empezar, escríbame por Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
 
 También puede unirse a nuestra gran comunidad de desarrolladores, DBA e ingenieros DevOps en Telegram [@databasus_community](https://t.me/databasus_community).
-
-## Aclaración sobre el uso de IA
-
-En issues y discusiones han surgido preguntas sobre el uso de IA en el desarrollo del proyecto. Como el proyecto se centra en la seguridad, la fiabilidad y el uso en producción, conviene explicar cómo se usa la IA en el proceso de desarrollo.
-
-Antes que nada, estamos orgullosos de contar que Databasus fue aceptado en marzo de 2026 tanto en [Claude for Open Source](https://claude.com/contact-sales/claude-for-oss) de Anthropic como en [Codex for Open Source](https://developers.openai.com/codex/community/codex-for-oss/) de OpenAI. Para nosotros es una señal más de que el proyecto fue reconocido como software de código abierto importante y como infraestructura crítica que merece apoyo, de forma independiente, por dos de las principales empresas de IA del mundo. Más información en [databasus.com/faq](https://databasus.com/es/faq/#oss-programs).
-
-Aun así, seguimos estas reglas sobre cómo se usa la IA en el desarrollo:
-
-La IA se usa como ayuda para:
-
-- verificar la calidad del código y buscar vulnerabilidades
-- limpiar y mejorar la documentación, los comentarios y el código
-- asistir durante el desarrollo
-- volver a revisar PR y commits después de la revisión humana
-- análisis de seguridad adicional de los PR mediante Codex Security
-
-La IA no se usa para:
-
-- escribir código entero
-- el enfoque de "vibe code"
-- código sin verificación línea por línea por parte de una persona
-- código sin pruebas
-
-Es decir, la IA es solo un asistente y una herramienta para que los desarrolladores sean más productivos y cuiden la calidad del código. El trabajo lo hacen los desarrolladores.
-
-Además, conviene señalar que no distinguimos entre código humano malo y vibe code de IA. Todo código debe cumplir requisitos estrictos para fusionarse y así mantener el código mantenible.
-
-Aunque el código lo haya escrito una persona a mano, no hay garantía de que se fusione. El vibe code no se permite en absoluto y todos esos PR se rechazan por defecto (véase la [guía de contribución](https://databasus.com/contribute)).
-
-Las salvaguardas de ingeniería detrás de estas reglas (CI, análisis estático, escaneo de dependencias, cobertura de pruebas y respuesta a vulnerabilidades) están documentadas más arriba, en [Ingeniería de seguridad y fiabilidad](#️-ingeniería-de-seguridad-y-fiabilidad).

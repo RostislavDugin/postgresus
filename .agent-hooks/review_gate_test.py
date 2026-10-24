@@ -19,7 +19,7 @@ import review_gate
 HOOK_PATH = Path(__file__).resolve().parent / "review_gate.py"
 CHANGE_NAME = "add-widgets"
 PROPOSAL_NAME = "add-gadgets"
-STUB_NAMES = ("claude", "codex", "openspec", "golangci-lint", "pnpm", "npm", "just")
+STUB_NAMES = ("claude", "openspec", "golangci-lint", "pnpm", "npm", "just")
 
 # The stub stands in for every external command: it takes its answer from <stubs>/<name>.json
 # and records each call in <stubs>/calls, so a test sees the arguments, the working directory
@@ -37,7 +37,7 @@ STUB_SOURCE = textwrap.dedent(
     stubs_dir = Path(os.environ["REVIEW_GATE_STUBS"])
     name = Path(sys.argv[0]).name
     arguments = sys.argv[1:]
-    prompt = sys.stdin.read() if name in ("claude", "codex") else ""
+    prompt = sys.stdin.read() if name == "claude" else ""
     calls_dir = stubs_dir / "calls"
     calls_dir.mkdir(exist_ok=True)
     (calls_dir / f"{name}-{uuid.uuid4().hex}.json").write_text(
@@ -68,9 +68,6 @@ STUB_SOURCE = textwrap.dedent(
     result = config.get("result", {"ok": True, "reason": "", "findings": []})
     if name == "claude":
         sys.stdout.write(json.dumps({"structured_output": result}))
-    elif name == "codex":
-        output_path = arguments[arguments.index("--output-last-message") + 1]
-        Path(output_path).write_text(json.dumps(result))
     elif name == "openspec" and arguments[0] == "status":
         sys.stdout.write(config.get("output", json.dumps({"isPlanningComplete": True})))
     else:
@@ -219,12 +216,10 @@ class HookRepository:
         self.write(f"openspec/changes/{name}/tasks.md", f"# Tasks\n\n- [x] 1.1 Build\n- [x] 1.2 Verify\n{verification_section}")
 
     def set_reviewer_result(self, result):
-        for name in ("claude", "codex"):
-            (self.stubs_dir / f"{name}.json").write_text(json.dumps({"result": result}))
+        self.set_stub("claude", {"result": result})
 
     def set_reviewer_failure(self, output):
-        for name in ("claude", "codex"):
-            (self.stubs_dir / f"{name}.json").write_text(json.dumps({"exit_code": 1, "output": output}))
+        self.set_stub("claude", {"exit_code": 1, "output": output})
 
     def set_stub(self, name, config):
         (self.stubs_dir / f"{name}.json").write_text(json.dumps(config))
@@ -240,15 +235,15 @@ class HookRepository:
         return [call for call in self.calls() if call["name"] in ("golangci-lint", "pnpm", "npm", "just")]
 
     def reviewer_calls(self):
-        return [call for call in self.calls() if call["name"] in ("claude", "codex")]
+        return [call for call in self.calls() if call["name"] == "claude"]
 
     def clear_calls(self):
         for path in (self.stubs_dir / "calls").glob("*.json"):
             path.unlink()
 
-    def run_hook(self, action, payload, client="claude"):
+    def run_hook(self, action, payload):
         process = subprocess.run(
-            [sys.executable, str(HOOK_PATH), action, "--client", client],
+            [sys.executable, str(HOOK_PATH), action],
             cwd=self.root,
             env=self.environment,
             input=json.dumps({"cwd": str(self.root), **payload}),
@@ -281,19 +276,19 @@ class HookRepository:
             mock.patch.object(
                 review_gate, "CHECKS_TOTAL_TIMEOUT_SECONDS", checks_timeout_seconds or review_gate.CHECKS_TOTAL_TIMEOUT_SECONDS
             ),
-            mock.patch.object(sys, "argv", ["review_gate.py", action, "--client", "claude"]),
+            mock.patch.object(sys, "argv", ["review_gate.py", action]),
             mock.patch.object(sys, "stdin", io.StringIO(json.dumps(payload))),
             mock.patch.object(sys, "stdout", stdout),
         ):
             review_gate.main()
         return json.loads(stdout.getvalue())
 
-    def submit_prompt(self, prompt, session_id="session-1", client="claude"):
-        self.run_hook("snapshot", {"hook_event_name": "UserPromptSubmit", "session_id": session_id, "prompt": prompt}, client)
+    def submit_prompt(self, prompt, session_id="session-1"):
+        self.run_hook("snapshot", {"hook_event_name": "UserPromptSubmit", "session_id": session_id, "prompt": prompt})
 
-    def stop(self, action, session_id="session-1", client="claude", message="Done."):
+    def stop(self, action, session_id="session-1", message="Done."):
         payload = {"hook_event_name": "Stop", "session_id": session_id, "last_assistant_message": message}
-        return self.run_hook(action, payload, client)
+        return self.run_hook(action, payload)
 
 
 def finding(category, summary, file="src/widgets.py:10"):
@@ -426,7 +421,7 @@ class LauncherTest(unittest.TestCase):
         launcher.install_mise(launcher.home / ".local" / "bin")
         payload = json.dumps({"hook_event_name": "Stop", "session_id": "session-1"})
 
-        process = launcher.run("naming", "--client", "claude", stdin=payload)
+        process = launcher.run("naming", stdin=payload)
 
         self.assertEqual(process.returncode, 0)
         self.assertEqual(json.loads(process.stdout), {})
@@ -437,7 +432,7 @@ class LauncherTest(unittest.TestCase):
             ["-C", root, "ls", "--current", "--missing", "--no-truncate", "python", "npm:@fission-ai/openspec"],
         )
         [call] = launcher.mise_calls("exec")
-        self.assertEqual(call["arguments"], ["-C", root, "exec", "--", "python3", str(HOOK_PATH), "naming", "--client", "claude"])
+        self.assertEqual(call["arguments"], ["-C", root, "exec", "--", "python3", str(HOOK_PATH), "naming"])
         self.assertEqual(call["exec_auto_install"], "false")
         self.assertEqual(call["stdin"], payload)
 
@@ -446,7 +441,7 @@ class LauncherTest(unittest.TestCase):
         launcher.install_mise(launcher.bin_dir)
         launcher.set_mise_answer("ls", stdout=f"{MISSING_OPENSPEC_LINE}\n")
 
-        process = launcher.run("proposal", "--client", "claude")
+        process = launcher.run("proposal")
 
         self.assert_stops_agent(process, "not installed", MISSING_OPENSPEC_LINE, "mise install", "just doctor")
         self.assertEqual(launcher.mise_calls("exec"), [])
@@ -456,7 +451,7 @@ class LauncherTest(unittest.TestCase):
         launcher.install_mise(launcher.bin_dir)
         launcher.set_mise_answer("ls", stdout="", stderr="mise ERROR Config file mise.toml is not trusted\n", exit_code=1)
 
-        process = launcher.run("diff", "--client", "claude")
+        process = launcher.run("diff")
 
         self.assert_stops_agent(process, "mise exited with code 1", "is not trusted", "just doctor")
         self.assertEqual(launcher.mise_calls("exec"), [])
@@ -464,7 +459,7 @@ class LauncherTest(unittest.TestCase):
     def test_stops_agent_when_version_manager_is_missing(self):
         launcher = Launcher(self)
 
-        process = launcher.run("diff", "--client", "claude")
+        process = launcher.run("diff")
 
         self.assert_stops_agent(process, "could not find the version manager mise", "just doctor")
 
@@ -473,7 +468,7 @@ class LauncherTest(unittest.TestCase):
         launcher.install_mise(launcher.bin_dir)
         launcher.set_mise_answer("exec", stdout="", stderr="Traceback: KeyError\n", exit_code=3)
 
-        process = launcher.run("implementation", "--client", "codex")
+        process = launcher.run("implementation")
 
         self.assert_stops_agent(process, "`implementation`", "exit code 3", "just doctor")
 
@@ -482,7 +477,7 @@ class LauncherTest(unittest.TestCase):
         launcher.install_mise(launcher.bin_dir)
         launcher.set_mise_answer("exec", stdout="", stderr='KeyError: "baseline"\\ \t\x1b[31m\r\n', exit_code=1)
 
-        process = launcher.run("diff", "--client", "claude")
+        process = launcher.run("diff")
 
         response = self.assert_stops_agent(process)
         self.assertIn('KeyError: "baseline"\\', response["stopReason"])
@@ -549,25 +544,16 @@ class DoctorTest(unittest.TestCase):
                 f"git: {repository.root.parent / 'system-bin' / 'git'}",
                 f"openspec: {bin_dir / 'openspec'}",
                 f"claude: {bin_dir / 'claude'}",
-                f"codex: {bin_dir / 'codex'}",
             ],
         )
 
-    def test_exits_with_code_0_when_only_one_reviewer_cli_is_present(self):
-        repository = HookRepository(self, missing_tools=("codex",))
-
-        process = repository.run_doctor()
-
-        self.assertEqual(process.returncode, 0, process.stdout)
-        self.assertIn("codex: not found", process.stdout.splitlines())
-
     def test_reports_missing_reviewer_cli_and_exits_with_nonzero_code(self):
-        repository = HookRepository(self, missing_tools=("claude", "codex"))
+        repository = HookRepository(self, missing_tools=("claude",))
 
         process = repository.run_doctor()
 
         self.assertNotEqual(process.returncode, 0)
-        self.assertIn("no reviewer CLI found", process.stdout)
+        self.assertIn("claude: not found", process.stdout.splitlines())
 
 
 class RunChecksTest(unittest.TestCase):
@@ -611,14 +597,14 @@ class RunChecksTest(unittest.TestCase):
 
 
 class FullReviewBudgetTest(unittest.TestCase):
-    def get_hook_timeouts(self, config_path, gate):
-        config = json.loads((HOOK_PATH.parent.parent / config_path).read_text())
+    def get_hook_timeouts(self, gate):
+        config = json.loads((HOOK_PATH.parent.parent / ".claude" / "settings.json").read_text())
         return [
             hook["timeout"]
             for groups in config["hooks"].values()
             for group in groups
             for hook in group["hooks"]
-            if f'run.sh" {gate} --client' in hook["command"]
+            if hook["command"].endswith(f'run.sh\" {gate}')
         ]
 
     def test_budget_fits_checks_and_two_reviewer_waves(self):
@@ -628,11 +614,10 @@ class FullReviewBudgetTest(unittest.TestCase):
                 review_gate.CHECKS_TOTAL_TIMEOUT_SECONDS + 2 * full_review.reviewer.timeout_seconds,
             )
 
-    def test_budget_ends_before_full_review_hook_timeouts_of_both_clients(self):
-        for config_path in (".claude/settings.json", ".codex/hooks.json"):
-            for gate in review_gate.FULL_REVIEWS:
-                [timeout_seconds] = self.get_hook_timeouts(config_path, gate)
-                self.assertLess(review_gate.FULL_REVIEW_BUDGET_SECONDS, timeout_seconds, f"{config_path} {gate}")
+    def test_budget_ends_before_full_review_hook_timeouts(self):
+        for gate in review_gate.FULL_REVIEWS:
+            [timeout_seconds] = self.get_hook_timeouts(gate)
+            self.assertLess(review_gate.FULL_REVIEW_BUDGET_SECONDS, timeout_seconds, gate)
 
 
 class ChangeVerificationParsingTest(unittest.TestCase):
@@ -752,6 +737,7 @@ class PlanGateTest(unittest.TestCase):
         output = response["hookSpecificOutput"]
         self.assertEqual(output["permissionDecision"], "deny")
         self.assertIn("The plan keeps a compatibility alias.", output["permissionDecisionReason"])
+        self.assertIn("Revise the plan and show it again", output["permissionDecisionReason"])
 
     def test_denies_exit_plan_mode_without_plan_text(self):
         repository = HookRepository(self)
@@ -787,18 +773,6 @@ class DiffGateTest(unittest.TestCase):
         self.assertIn("a summary of the final state, without retelling this review", response["reason"])
         self.assertNotIn("Fix the result", response["reason"])
 
-    def test_asks_to_revise_plan_when_necessity_blocks_codex_plan_in_final_message(self):
-        repository = HookRepository(self)
-        repository.set_reviewer_result({"ok": False, "reason": "The plan keeps a compatibility alias."})
-        repository.submit_prompt("/plan the widgets", client="codex")
-
-        response = repository.stop("necessity", client="codex", message="# Plan\n\nAdd widgets.\n")
-
-        self.assertEqual(response["decision"], "block")
-        self.assertIn("The plan keeps a compatibility alias.", response["reason"])
-        self.assertIn("Revise the plan and show it again", response["reason"])
-        self.assertNotIn("summary", response["reason"])
-
     def test_diff_reviewer_prompt_checks_agent_instructions(self):
         repository = HookRepository(self)
         repository.submit_prompt("Fix the docs")
@@ -829,16 +803,6 @@ class DiffGateTest(unittest.TestCase):
         [call] = repository.calls("claude")
         self.assertIn("--model opus --effort low", " ".join(call["arguments"]))
         self.assertEqual(call["effort_env"], "low")
-
-    def test_runs_codex_reviewer_on_gpt_with_low_effort(self):
-        repository = HookRepository(self)
-        repository.submit_prompt("Add a widget", client="codex")
-        repository.write("src/widgets.py", "WIDGETS = []\n")
-
-        repository.stop("diff", client="codex")
-
-        [call] = repository.calls("codex")
-        self.assertIn("--model gpt-6.1-sol --config model_reasoning_effort=\"low\"", " ".join(call["arguments"]))
 
     def test_stops_agent_after_fourth_rejection(self):
         repository = HookRepository(self)
@@ -953,17 +917,6 @@ class NamingGateTest(unittest.TestCase):
         [call] = repository.calls("claude")
         self.assertIn("--model opus --effort low", " ".join(call["arguments"]))
 
-    def test_runs_codex_reviewer_on_gpt_with_low_effort(self):
-        repository = HookRepository(self)
-        repository.submit_prompt("Add a widget", client="codex")
-        repository.write("backend/internal/features/widgets/service.go", "package widgets\n")
-
-        repository.stop("naming", client="codex")
-
-        [call] = repository.calls("codex")
-        self.assertIn("--model gpt-6.1-sol --config model_reasoning_effort=\"low\"", " ".join(call["arguments"]))
-
-
 class ImplementationGateStartTest(unittest.TestCase):
     def test_runs_full_review_when_agent_completes_last_task(self):
         repository = HookRepository(self)
@@ -1047,7 +1000,7 @@ class ImplementationGateStartTest(unittest.TestCase):
         repository = HookRepository(self)
 
         process = subprocess.run(
-            [sys.executable, str(HOOK_PATH), "implementation", "--client", "claude"],
+            [sys.executable, str(HOOK_PATH), "implementation"],
             cwd=repository.root,
             env=repository.environment,
             input="",
@@ -1264,19 +1217,6 @@ class ImplementationGateReviewTest(ShortReplyAssertions, unittest.TestCase):
                 "Role: tests",
             ],
         )
-
-    def test_runs_codex_reviewers_on_gpt_with_high_effort(self):
-        repository = HookRepository(self)
-        repository.write_change(spec_names=("widgets", "gadgets"), tasks="- [x] 1.1 Build\n")
-        repository.submit_prompt("Continue", client="codex")
-        repository.complete_tasks()
-
-        repository.stop("implementation", client="codex")
-
-        calls = repository.calls("codex")
-        self.assertEqual(len(calls), 4)
-        for call in calls:
-            self.assertIn("--model gpt-6.1-sol --config model_reasoning_effort=\"high\"", " ".join(call["arguments"]))
 
     def test_implementation_docs_reviewer_prompt_checks_agent_instructions(self):
         repository = HookRepository(self)
@@ -1671,18 +1611,6 @@ class ProposalGateReviewTest(ShortReplyAssertions, SummaryAssertions, unittest.T
                 "Role: tasks",
             ],
         )
-
-    def test_runs_codex_reviewers_on_gpt_with_high_effort(self):
-        repository = HookRepository(self)
-        repository.submit_prompt("Write a spec", client="codex")
-        repository.write_proposal(spec_names=("gadgets", "gizmos"))
-
-        repository.stop("proposal", client="codex")
-
-        calls = repository.calls("codex")
-        self.assertEqual(len(calls), 4)
-        for call in calls:
-            self.assertIn("--model gpt-6.1-sol --config model_reasoning_effort=\"high\"", " ".join(call["arguments"]))
 
     def test_tasks_reviewer_prompt_requires_every_scenario_covered_by_task_with_test(self):
         repository = HookRepository(self)

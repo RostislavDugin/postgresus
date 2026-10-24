@@ -12,6 +12,7 @@ cleanup() {
     local ids
     ids=$(docker ps -aq --filter "label=org.testcontainers")
     if [[ -n "$ids" ]]; then
+        # shellcheck disable=SC2086 # one container ID per word
         docker rm -f $ids >/dev/null
     fi
 }

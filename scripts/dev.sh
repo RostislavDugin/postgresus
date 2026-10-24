@@ -31,12 +31,13 @@ stop_stale_backend_watchers() {
 # fails to bind only logs the error, so requests silently hit the old binary. Its watcher is stopped
 # first by stop_stale_backend_watchers, because air would otherwise start the backend again.
 free_backend_port() {
-    local port_hex inode pid
+    local port_hex inode process_dir pid
     port_hex=$(printf ':%04X' "$backend_port")
     inode=$(awk -v p="$port_hex" '$4 == "0A" && $2 ~ p"$" {print $10}' /proc/net/tcp /proc/net/tcp6 | head -1)
     [[ -n "$inode" ]] || return 0
-    for pid in $(ls /proc | grep -E '^[0-9]+$'); do
-        if ls -l "/proc/$pid/fd" 2>/dev/null | grep -q "socket:\[$inode\]"; then
+    for process_dir in /proc/[0-9]*; do
+        pid=${process_dir#/proc/}
+        if [[ -n "$(find "$process_dir/fd" -lname "socket:\[$inode\]" -print -quit 2>/dev/null)" ]]; then
             echo "freeing port $backend_port: killing stale backend pid $pid"
             kill -9 "$pid" 2>/dev/null || true
         fi

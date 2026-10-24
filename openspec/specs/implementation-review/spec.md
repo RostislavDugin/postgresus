@@ -6,7 +6,7 @@ Reviews the finished implementation of an OpenSpec change as a whole, so that bu
 ## Requirements
 
 ### Requirement: The full implementation review starts after a change is implemented
-The hook that runs when the agent finishes a turn, in Claude Code and in Codex, SHALL start the full implementation review when all of these hold: every task of an active change is checked, the working tree changed during this turn, and its state differs from the last state the full implementation review accepted for this change. The accepted state SHALL be stored per change, not per session. The full implementation review MUST NOT start while a task is unchecked, in a turn that left the working tree unchanged, or in a turn whose request carries an OpenSpec planning command. Archived changes are not reviewed.
+The hook that runs when the agent finishes a turn SHALL start the full implementation review when all of these hold: every task of an active change is checked, the working tree changed during this turn, and its state differs from the last state the full implementation review accepted for this change. The accepted state SHALL be stored per change, not per session. The full implementation review MUST NOT start while a task is unchecked, in a turn that left the working tree unchanged, or in a turn whose request carries an OpenSpec planning command. Archived changes are not reviewed.
 
 #### Scenario: The agent checks the last task
 - **WHEN** the agent checks the last task of a change and finishes the turn
@@ -103,11 +103,11 @@ The tests reviewer SHALL check every test the change added or changed against th
 - **THEN** the tests reviewer returns no finding about the missing section, because the module check runs the hook tests
 
 ### Requirement: Full review models
-The full review reviewers SHALL run on Opus with `medium` effort in Claude Code and on `gpt-6.1-sol` with `high` effort in Codex. The quick checks SHALL run on Opus with `low` effort in Claude Code and on `gpt-6.1-sol` with `low` effort in Codex.
+The full review reviewers SHALL run on Opus with `medium` effort. The quick checks SHALL run on Opus with `low` effort.
 
-#### Scenario: Review in Codex
-- **WHEN** the full review starts from Codex
-- **THEN** the reviewers run on `gpt-6.1-sol` with `high` effort
+#### Scenario: Full review in Claude Code
+- **WHEN** the full implementation review starts from Claude Code
+- **THEN** the reviewers run on Opus with `medium` effort
 
 #### Scenario: Quick check in Claude Code
 - **WHEN** the diff check starts from Claude Code

@@ -143,7 +143,9 @@ func runRecoveryScriptOnHost(
 
 // reconstructOnHost runs the recovery script on the host (--combine-image mode) into a fresh output
 // dir and returns it. Separate from the boot step so callers can probe the re-restore guard while the
-// output is still test-owned (the entrypoint chowns PGDATA to the postgres uid once it boots).
+// output is still test-owned (the entrypoint chowns PGDATA to the postgres uid once it boots). The
+// output dir's name holds a space, as a user's might, so every path the script passes to
+// pg_combinebackup must stay one argument.
 func reconstructOnHost(
 	t *testing.T,
 	router *gin.Engine,
@@ -153,7 +155,7 @@ func reconstructOnHost(
 	t.Helper()
 
 	script := fetchRecoveryScript(t, router)
-	outDir := t.TempDir()
+	outDir := filepath.Join(t.TempDir(), "restored cluster")
 
 	out, err := runRecoveryScriptOnHost(t, script, bundle, outDir, image, targetTime)
 	require.NoError(t, err, "recovery script must succeed into an empty dir:\n%s", out)

@@ -1082,6 +1082,7 @@ run_clean_shutdown() {
 # The loop polls without a delay, because the open step of a clean cluster lasts about 0.1 seconds.
 # A single-user step started by initdb works on template1, so matching the final postgres argument
 # skips it.
+# shellcheck disable=SC2016 # the container's shell expands the script
 readonly postgresql_freeze_script='
     target_kind="$1"
     while :; do
