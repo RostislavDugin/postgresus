@@ -38,7 +38,6 @@ describe('getWebsitePageUrl', () => {
     expect(getWebsitePageUrl('notifiersMattermost', 'ru')).toBe(
       'https://databasus.com/notifiers/mattermost/',
     );
-    expect(getWebsitePageUrl('sponsorship', 'ru')).toBe('https://databasus.com/sponsorship/');
   });
 
   it('keeps the anchor of a section in every language', () => {

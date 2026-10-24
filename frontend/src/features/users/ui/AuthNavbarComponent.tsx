@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { getWebsitePageUrl, useLocale } from '../../../shared/i18n';
-import { LanguageThemeControlComponent, SponsorshipLinkComponent } from '../../../shared/ui';
+import { LanguageThemeControlComponent } from '../../../shared/ui';
 import { StarButtonComponent } from '../../../shared/ui/StarButtonComponent';
 
 export function AuthNavbarComponent() {
@@ -43,8 +43,6 @@ export function AuthNavbarComponent() {
         >
           {t('app.navigation.community')}
         </a>
-
-        <SponsorshipLinkComponent className="!text-black hover:opacity-80 dark:!text-gray-200" />
 
         <div className="flex items-center gap-2">
           <StarButtonComponent />

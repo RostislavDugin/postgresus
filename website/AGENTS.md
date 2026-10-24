@@ -7,6 +7,7 @@ Next.js 16 App Router, static export (`output: "export"`, `trailingSlash: true`)
 - `app/(en)/` — the English site (root layout with `lang="en"`). URLs are unchanged by the route group. `not-found.tsx` and `error.tsx` live here; the `[lang]` tree deliberately has none (GitHub Pages serves the single `out/404.html`).
 - `app/[lang]/` — translated pages. Root layout renders `<html lang>` per locale, `generateStaticParams()` returns the 5 locales, `dynamicParams = false`.
 - `app/components/SiteDocument.tsx` — the shared document skeleton (head preloads, analytics script, body). Both root layouts are thin wrappers over it; never duplicate head markup in a layout.
+- `app/components/LandingHeaderComponent.tsx` and `LandingFooterComponent.tsx` — the navbar and footer of the landing pages (home, `mysql-backup`, `mongodb-backup`) in every locale. Their labels live in `landingLabels.ts`; each page passes only `lang` and its own in-page anchor links. Never copy the navbar or footer markup back into a page.
 - `app/i18n.ts` — single source of truth: `LOCALES`, hreflang codes, OG locales, `TRANSLATED_PATHS`, `getLocalizedUrl()` (absolute, for metadata), `getLocalizedHref()` (relative, for in-page links), `getLanguageAlternates()`, `splitLocaleFromPathname()`. Never hand-build a localized URL, absolute or relative.
 
 ## Translated page convention
@@ -29,7 +30,7 @@ Each `content/<locale>.tsx` exports **both** `metadata` (fully translated, `cano
 **If you change a page in `app/(en)/` that is listed in `TRANSLATED_PATHS`, you must apply the same change to all 5 copies in `app/[lang]/<path>/content/`.** That includes structure, links, and metadata. Check before finishing:
 
 1. The section/element hierarchy matches the English page.
-2. Internal links carry the `/{lang}/` prefix — except links to untranslated pages (`/sponsorship`, `/privacy`, `/terms-of-use`, `/contribute/*`), which stay unprefixed.
+2. Internal links carry the `/{lang}/` prefix — except links to untranslated pages (`/privacy`, `/terms-of-use`, `/contribute/*`), which stay unprefixed.
 3. Heading `id` anchors are identical to English in every locale (cross-links like `/faq#oss-programs` depend on them).
 4. Technical strings (install commands, configs, file names, code blocks) are byte-identical to English.
 5. Adding a page to the translated core or adding a locale starts in `app/i18n.ts` (`TRANSLATED_PATHS` / `LOCALES`); sitemap and hreflang follow from it automatically. The application's links to website pages depend on it too: `frontend/src/shared/i18n/websitePages.ts` marks which linked pages are translated, and a frontend test (`websitePages.test.ts`) reads `TRANSLATED_PATHS` and fails when the two disagree. Adding or removing a translated path that the application links to means updating that table in the same change.

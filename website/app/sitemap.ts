@@ -59,7 +59,6 @@ const UNTRANSLATED_PAGE_SETTINGS: Record<
     priority: 0.7,
     changeFrequency: "monthly",
   },
-  sponsorship: { priority: 0.6, changeFrequency: "monthly" },
 };
 
 export default function sitemap(): MetadataRoute.Sitemap {

@@ -502,10 +502,12 @@ run_read_only() {
     local data_root="${case_root}/read-only"
 
     prepare_bind_tree "${data_root}" 999 999
+    # The Docker engine on Namespace CI runners drops the readonly key of --mount
+    # and mounts the directory writable, while it honours the :ro suffix of --volume.
     start_failing_databasus "${container_name}" \
         --env PUID=999 \
         --env PGID=999 \
-        --mount "type=bind,source=${data_root},target=/databasus-data,readonly"
+        --volume "${data_root}:/databasus-data:ro"
     assert_storage_permission_failure "${container_name}"
 }
 
@@ -997,13 +999,15 @@ start_databasus_on_new_volume() {
 
 check_docker_stop_shuts_down_cleanly() {
     local container_name="databasus-storage-clean-stop-${run_id}"
-    local stop_started_at_ms
+    local stop_started_at_us
     local stop_duration_ms
 
     start_databasus_on_new_volume "${container_name}"
-    stop_started_at_ms="$(date +%s%3N)"
+    # The uutils date on the Namespace runners printed nanoseconds for %3N, so the clock comes
+    # from bash instead.
+    stop_started_at_us="${EPOCHREALTIME/./}"
     docker stop "${container_name}" >/dev/null
-    stop_duration_ms="$(($(date +%s%3N) - stop_started_at_ms))"
+    stop_duration_ms="$(((${EPOCHREALTIME/./} - stop_started_at_us) / 1000))"
 
     if ((stop_duration_ms >= 10000)); then
         echo "docker stop took ${stop_duration_ms} ms, so the stop timeout ended the container" >&2
@@ -1281,15 +1285,38 @@ run_case() {
     esac
 }
 
-if [[ "${selected_case}" == all ]]; then
-    for case_name in \
-        build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids invalid-ids \
-        bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only wrong-owner \
-        unwritable-data-root \
-        cifs nfs-root-squash upgrades postgresql-recovery clean-shutdown startup-stop legacy-directory-guard; do
+# CI runs each group as a separate job, and CASE=all runs every group in this order.
+readonly case_group_names=(permissions network upgrades lifecycle)
+declare -rA case_groups=(
+    [permissions]="build-only default-ids custom-ids maximum-ids automatic-ids empty-pgdata-ids partial-ids
+        invalid-ids bind-root named-volume split-mounts no-unix-sockets metadata-changes-denied read-only
+        wrong-owner unwritable-data-root"
+    [network]="cifs nfs-root-squash"
+    [upgrades]="upgrades"
+    [lifecycle]="postgresql-recovery clean-shutdown startup-stop legacy-directory-guard"
+)
+
+run_cases() {
+    local case_name
+
+    for case_name in "$@"; do
         run_case "${case_name}"
         cleanup
         case_root="$(mktemp -d /tmp/databasus-storage-test.XXXXXXXX)"
+    done
+}
+
+if [[ -n "${CASE_GROUP:-}" ]]; then
+    if [[ -z "${case_groups[${CASE_GROUP}]+set}" ]]; then
+        echo "unknown Docker filesystem case group: ${CASE_GROUP} (known: ${case_group_names[*]})" >&2
+        exit 2
+    fi
+    # shellcheck disable=SC2086 # the group is a whitespace-separated list of case names
+    run_cases ${case_groups[${CASE_GROUP}]}
+elif [[ "${selected_case}" == all ]]; then
+    for group_name in "${case_group_names[@]}"; do
+        # shellcheck disable=SC2086 # the group is a whitespace-separated list of case names
+        run_cases ${case_groups[${group_name}]}
     done
 else
     run_case "${selected_case}"

@@ -89,10 +89,6 @@ export const pt: typeof en = {
       notFound: 'Nenhum espaço de trabalho encontrado',
       createNew: '+ Novo espaço de trabalho',
     },
-    sponsorship: {
-      link: 'Apoiar',
-      hint: 'O Databasus salvou seus dados? Apoie o projeto para que ele continue gratuito, mantido e independente',
-    },
     starButton: {
       label: 'Dar estrela no GitHub',
       ariaLabel: 'Dar estrela a databasus/databasus no GitHub',
