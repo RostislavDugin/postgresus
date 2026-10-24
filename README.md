@@ -316,34 +316,3 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 Contributions are welcome! Read the <a href="https://databasus.com/contribute">contributing guide</a> for more details, priorities and rules. If you want to contribute but don't know where to start, message me on Telegram [@rostislav_dugin](https://t.me/rostislav_dugin)
 
 Also you can join our large community of developers, DBAs and DevOps engineers on Telegram [@databasus_community](https://t.me/databasus_community).
-
-## AI disclaimer
-
-There have been questions about AI usage in project development in issues and discussions. As the project focuses on security, reliability and production usage, it's important to explain how AI is used in the development process.
-
-First of all, we are proud to say that Databasus has been accepted into both [Claude for Open Source](https://claude.com/contact-sales/claude-for-oss) by Anthropic and [Codex for Open Source](https://developers.openai.com/codex/community/codex-for-oss/) by OpenAI in March 2026. For us it is one more signal that the project was recognized as important open-source software and was as critical infrastructure worth supporting independently by two of the world's leading AI companies. Read more at [databasus.com/faq](https://databasus.com/faq#oss-programs).
-
-Despite of this, we have the following rules how AI is used in the development process:
-
-AI is used as a helper for:
-
-- verification of code quality and searching for vulnerabilities
-- cleaning up and improving documentation, comments and code
-- assistance during development
-- double-checking PRs and commits after human review
-- additional security analysis of PRs via Codex Security
-
-AI is not used for:
-
-- writing entire code
-- "vibe code" approach
-- code without line-by-line verification by a human
-- code without tests
-
-So AI is just an assistant and a tool for developers to increase productivity and ensure code quality. The work is done by developers.
-
-Moreover, it's important to note that we do not differentiate between bad human code and AI vibe code. There are strict requirements for any code to be merged to keep the codebase maintainable.
-
-Even if code is written manually by a human, it's not guaranteed to be merged. Vibe code is not allowed at all and all such PRs are rejected by default (see [contributing guide](https://databasus.com/contribute)).
-
-The engineering safeguards behind these rules (CI, static analysis, dependency scanning, test coverage and vulnerability response) are documented in [Security & reliability engineering](#️-security--reliability-engineering) above.

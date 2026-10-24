@@ -1421,32 +1421,6 @@ export default function Index() {
             />
             <FaqItem
               number="12"
-              question="Databasus 的开发过程中是如何使用 AI 的？"
-              answer={
-                <>
-                  一直有人询问项目开发中 AI
-                  的使用情况。由于项目专注于安全性、可靠性和生产环境使用，我们希望对开发过程中
-                  AI 的使用保持透明。
-                  <br />
-                  <br />
-                  AI 被用作代码质量校验、文档改进和开发辅助的助手。AI
-                  不会用于编写全部代码，也不会用于编写没有测试的代码。项目拥有扎实的测试覆盖率、CI/CD
-                  自动化，并由经验丰富的开发者进行审核。
-                  <br />
-                  <br />
-                  关于 AI 使用、开发流程和安全措施的详细信息，请访问我们的{" "}
-                  <a
-                    href="/zh/faq#ai-usage"
-                    className="text-blue-400 hover:text-blue-600"
-                  >
-                    专门的 FAQ 页面
-                  </a>
-                  。
-                </>
-              }
-            />
-            <FaqItem
-              number="13"
               question="如何加入 Databasus 社区？"
               answer={
                 <>
@@ -1465,7 +1439,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="14"
+              number="13"
               question="Databasus 的普及程度如何？"
               answer={
                 <>
@@ -1493,7 +1467,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="15"
+              number="14"
               question="我忘记了管理员邮箱或密码"
               answer={
                 <>

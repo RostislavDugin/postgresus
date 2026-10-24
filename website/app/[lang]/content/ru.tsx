@@ -1488,33 +1488,6 @@ export default function Index() {
             />
             <FaqItem
               number="12"
-              question="Как ИИ используется в разработке Databasus?"
-              answer={
-                <>
-                  Нас не раз спрашивали, как ИИ используется в разработке.
-                  Проект — про безопасность и надежность в продакшене, поэтому
-                  рассказываем прозрачно.
-                  <br />
-                  <br />
-                  ИИ — помощник: проверка качества кода, документация, рутина.
-                  ИИ НЕ пишет весь код и не пишет код без тестов: код покрыт
-                  тестами, гоняется через CI/CD и проверяется опытными
-                  разработчиками.
-                  <br />
-                  <br />
-                  Подробнее про ИИ, процесс разработки и меры безопасности —{" "}
-                  <a
-                    href="/ru/faq#ai-usage"
-                    className="text-blue-400 hover:text-blue-600"
-                  >
-                    на отдельной странице FAQ
-                  </a>
-                  .
-                </>
-              }
-            />
-            <FaqItem
-              number="13"
               question="Как присоединиться к сообществу Databasus?"
               answer={
                 <>
@@ -1534,7 +1507,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="14"
+              number="13"
               question="Насколько распространен Databasus?"
               answer={
                 <>
@@ -1567,7 +1540,7 @@ export default function Index() {
               }
             />
             <FaqItem
-              number="15"
+              number="14"
               question="Я забыл email или пароль администратора"
               answer={
                 <>

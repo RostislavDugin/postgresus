@@ -42,7 +42,7 @@ These files sit one directory deeper than the English README:
 
 Links to `databasus.com` carry the locale prefix and a trailing slash:
 `https://databasus.com/<locale>/storages/`, `https://databasus.com/<locale>/faq/#backup-databasus`.
-The fragment ids (`#backup-databasus`, `#oss-programs`) are identical in every
+The fragment ids (such as `#backup-databasus`) are identical in every
 locale — never translate them. `https://databasus.com/contribute` has no
 translation on the site and stays unprefixed.
 
