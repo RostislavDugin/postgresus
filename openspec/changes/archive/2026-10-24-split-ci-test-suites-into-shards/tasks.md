@@ -1,0 +1,10 @@
+## 1. Backend groups and shards
+
+- [x] 1.1 In `backend/Justfile`, make `test-group-packages` accept `<group>-<shard>-of-<count>` names and the new `wal-usecases` group, and drop the WAL usecases package from `other`. Verify in `backend/` under bash that `diff <(go list ./internal/... | sort) <(for g in physical-1-of-3 logical wal-usecases-1-of-3 other; do just test-group-packages "$g"; done | sort)` prints nothing and that `just test-group-packages bogus` exits non-zero.
+- [x] 1.2 Add `test-group-tests` to `backend/Justfile` and `backend/test-shard-weights.txt`, as design.md describes. Verify that the patterns of `wal-usecases-1-of-3` through `-3-of-3` together list every top-level test of that package exactly once, that the same holds for `physical`, that `just test-group-tests logical` prints nothing, that `just test-group-tests physical-3-of-2` exits non-zero, and that `just --fmt --check --unstable` passes in `backend/`.
+- [x] 1.3 In `.github/workflows/ci-release.yml`, turn `test-backend` into the eight-leg matrix with `other` on the 8 vCPU profile and the other legs on the 4 vCPU profile, and pass the shard pattern to `go test` through `${run_pattern:+-run "$run_pattern"}`. Verify that `actionlint .github/workflows/ci-release.yml` reports nothing but runner-label warnings, and that running the step's commands for `physical-1-of-3` under bash passes its one test in `pg17` and reports no tests to run in `pg18`.
+
+## 2. Filesystem suite groups
+
+- [x] 2.1 In `e2e/docker-storage/run.sh`, sort the cases into the `permissions`, `network`, `upgrades` and `lifecycle` groups and accept `CASE_GROUP`, keeping `CASE=<case>` for one case. Verify that the four groups together list the same 23 cases as before with no duplicates, and that an unknown `CASE_GROUP` exits with status 2.
+- [x] 2.2 In `.github/workflows/ci-release.yml`, add `build-storage-image`, which builds the candidate once and uploads it as an artifact, and turn `test-filesystems` into a matrix of the four groups that downloads and loads it. Verify that `actionlint .github/workflows/ci-release.yml` reports nothing but runner-label warnings.
