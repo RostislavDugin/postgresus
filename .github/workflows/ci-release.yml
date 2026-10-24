@@ -430,6 +430,9 @@ jobs:
         run: docker save databasus-storage-test:${{ github.sha }} | zstd -T0 -3 > /tmp/databasus-storage-test.tar.zst
 
       - name: Upload the storage candidate
+        id: upload-the-storage-candidate-1
+        continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: databasus-storage-test
@@ -437,6 +440,34 @@ jobs:
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+          overwrite: true
+
+      - name: Upload the storage candidate (attempt 2)
+        id: upload-the-storage-candidate-2
+        if: steps.upload-the-storage-candidate-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp/databasus-storage-test.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload the storage candidate (attempt 3)
+        id: upload-the-storage-candidate-3
+        if: steps.upload-the-storage-candidate-2.outcome == 'failure'
+        timeout-minutes: 5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp/databasus-storage-test.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
 
   test-filesystems:
     if: github.head_ref != 'develop'
@@ -466,6 +497,28 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cifs-utils nfs-common
 
       - name: Download the storage candidate
+        id: download-the-storage-candidate-1
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp
+
+      - name: Download the storage candidate (attempt 2)
+        id: download-the-storage-candidate-2
+        if: steps.download-the-storage-candidate-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: databasus-storage-test
+          path: /tmp
+
+      - name: Download the storage candidate (attempt 3)
+        id: download-the-storage-candidate-3
+        if: steps.download-the-storage-candidate-2.outcome == 'failure'
+        timeout-minutes: 3
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: databasus-storage-test
@@ -657,12 +710,41 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
+        id: upload-image-digest-1
+        continue-on-error: true
+        timeout-minutes: 3
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: digests-dev-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 2)
+        id: upload-image-digest-2
+        if: steps.upload-image-digest-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-dev-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 3)
+        id: upload-image-digest-3
+        if: steps.upload-image-digest-2.outcome == 'failure'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-dev-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
   merge-dev-image-manifest:
     runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
@@ -673,6 +755,30 @@ jobs:
       contents: read
     steps:
       - name: Download image digests
+        id: download-image-digests-1
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-dev-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 2)
+        id: download-image-digests-2
+        if: steps.download-image-digests-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-dev-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 3)
+        id: download-image-digests-3
+        if: steps.download-image-digests-2.outcome == 'failure'
+        timeout-minutes: 3
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: digests-dev-*
@@ -983,12 +1089,41 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
+        id: upload-image-digest-1
+        continue-on-error: true
+        timeout-minutes: 3
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: digests-release-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 2)
+        id: upload-image-digest-2
+        if: steps.upload-image-digest-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-release-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 3)
+        id: upload-image-digest-3
+        if: steps.upload-image-digest-2.outcome == 'failure'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-release-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
   merge-image-manifest:
     runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
@@ -1000,6 +1135,30 @@ jobs:
       packages: write
     steps:
       - name: Download image digests
+        id: download-image-digests-1
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-release-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 2)
+        id: download-image-digests-2
+        if: steps.download-image-digests-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-release-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 3)
+        id: download-image-digests-3
+        if: steps.download-image-digests-2.outcome == 'failure'
+        timeout-minutes: 3
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: digests-release-*
@@ -1098,12 +1257,41 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
+        id: upload-image-digest-1
+        continue-on-error: true
+        timeout-minutes: 3
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: digests-verification-${{ matrix.major }}-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 2)
+        id: upload-image-digest-2
+        if: steps.upload-image-digest-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-verification-${{ matrix.major }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload image digest (attempt 3)
+        id: upload-image-digest-3
+        if: steps.upload-image-digest-2.outcome == 'failure'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-verification-${{ matrix.major }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
   merge-verification-image-manifest:
     runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
@@ -1118,6 +1306,30 @@ jobs:
         major: ["12", "13", "14", "15", "16", "17", "18"]
     steps:
       - name: Download image digests
+        id: download-image-digests-1
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-verification-${{ matrix.major }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 2)
+        id: download-image-digests-2
+        if: steps.download-image-digests-1.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digests-verification-${{ matrix.major }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Download image digests (attempt 3)
+        id: download-image-digests-3
+        if: steps.download-image-digests-2.outcome == 'failure'
+        timeout-minutes: 3
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: digests-verification-${{ matrix.major }}-*
