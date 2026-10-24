@@ -7,6 +7,7 @@ Next.js 16 App Router, static export (`output: "export"`, `trailingSlash: true`)
 - `app/(en)/` — the English site (root layout with `lang="en"`). URLs are unchanged by the route group. `not-found.tsx` and `error.tsx` live here; the `[lang]` tree deliberately has none (GitHub Pages serves the single `out/404.html`).
 - `app/[lang]/` — translated pages. Root layout renders `<html lang>` per locale, `generateStaticParams()` returns the 5 locales, `dynamicParams = false`.
 - `app/components/SiteDocument.tsx` — the shared document skeleton (head preloads, analytics script, body). Both root layouts are thin wrappers over it; never duplicate head markup in a layout.
+- `app/components/LandingHeaderComponent.tsx` and `LandingFooterComponent.tsx` — the navbar and footer of the landing pages (home, `mysql-backup`, `mongodb-backup`) in every locale. Their labels live in `landingLabels.ts`; each page passes only `lang` and its own in-page anchor links. Never copy the navbar or footer markup back into a page.
 - `app/i18n.ts` — single source of truth: `LOCALES`, hreflang codes, OG locales, `TRANSLATED_PATHS`, `getLocalizedUrl()` (absolute, for metadata), `getLocalizedHref()` (relative, for in-page links), `getLanguageAlternates()`, `splitLocaleFromPathname()`. Never hand-build a localized URL, absolute or relative.
 
 ## Translated page convention
