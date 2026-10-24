@@ -416,7 +416,9 @@ echo "Reconstructing data directory with pg_combinebackup..."
 # shellcheck disable=SC2012 # the backend names the bundle directories without spaces
 INCR_DIRS="$(cd "$BUNDLE_DIR" && ls -d incr-* 2>/dev/null | sort -V || true)"
 RECON_DIR="$BUNDLE_DIR/recon"
-INPUTS=""
+# POSIX sh has no arrays, so the positional parameters collect pg_combinebackup's input directories:
+# a directory whose path holds a space stays one argument. The options were parsed above.
+set --
 for backup in full $INCR_DIRS; do
     src="$BUNDLE_DIR/$backup"
     dst="$RECON_DIR/$backup"
@@ -444,7 +446,7 @@ for backup in full $INCR_DIRS; do
     esac
 
     cp "$src/backup_manifest" "$dst/backup_manifest"
-    INPUTS="$INPUTS $dst"
+    set -- "$@" "$dst"
 done
 
 # The backup's major version is its PG_VERSION (host-side file, so this works in --combine-image
@@ -487,14 +489,12 @@ rm -rf "$DATA_DIR"
 if [ -n "$COMBINE_IMAGE" ]; then
     # Run pg_combinebackup in the container as the host user (so the output stays
     # host-owned and the later chmod / WAL-wiring on the host can touch it) and bind
-    # the output dir at its own absolute path so $INPUTS / $DATA_DIR resolve the same
-    # inside and out.
-    # shellcheck disable=SC2086 # INPUTS holds one directory per word, so an output path with a space breaks the restore
+    # the output dir at its own absolute path so the input directories and $DATA_DIR resolve the
+    # same inside and out.
     docker run --rm --user "$(id -u):$(id -g)" -v "$OUT_ABS:$OUT_ABS" -w "$OUT_ABS" \
-        "$COMBINE_IMAGE" pg_combinebackup $INPUTS -o "$DATA_DIR"
+        "$COMBINE_IMAGE" pg_combinebackup "$@" -o "$DATA_DIR"
 else
-    # shellcheck disable=SC2086 # INPUTS holds one directory per word, so an output path with a space breaks the restore
-    pg_combinebackup $INPUTS -o "$DATA_DIR"
+    pg_combinebackup "$@" -o "$DATA_DIR"
 fi
 chmod 700 "$DATA_DIR"
 
