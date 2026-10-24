@@ -37,8 +37,7 @@ free_backend_port() {
     [[ -n "$inode" ]] || return 0
     for process_dir in /proc/[0-9]*; do
         pid=${process_dir#/proc/}
-        # shellcheck disable=SC2010 # the match is on the socket link targets, not on file names
-        if ls -l "/proc/$pid/fd" 2>/dev/null | grep -q "socket:\[$inode\]"; then
+        if [[ -n "$(find "$process_dir/fd" -lname "socket:\[$inode\]" -print -quit 2>/dev/null)" ]]; then
             echo "freeing port $backend_port: killing stale backend pid $pid"
             kill -9 "$pid" 2>/dev/null || true
         fi
