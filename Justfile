@@ -15,6 +15,10 @@ lint:
     pnpm --dir frontend format:check
     pnpm --dir frontend lint
     pnpm --dir frontend typecheck
+    just lint-shell
+
+lint-shell:
+    git ls-files -z '*.sh' tools/lsp | xargs -0 shellcheck
 
 doctor:
     .agent-hooks/run.sh doctor

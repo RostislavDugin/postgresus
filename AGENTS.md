@@ -46,6 +46,10 @@ The repository's skills live in `.agents/skills/`; `.claude/skills` is a symlink
 | `goose -dir backend/migrations up` (or `down`), with `.env` exported | Apply or roll back migrations on the dev database; goose reads `GOOSE_DRIVER` and `GOOSE_DBSTRING` from the environment |
 | `swag init -d . -g cmd/main.go -o swagger`, run in `backend/` | Regenerate the API docs |
 
+### Code search and navigation
+
+Search text with `rg`. For definitions, references, callers, implementations and type errors, use the LSP tool: the project enables the gopls and typescript-language-server plugins in `.claude/settings.json`, and `mise.toml` pins both servers. The TypeScript server takes TypeScript from `frontend/node_modules`, so it needs `pnpm install` in `frontend/`. It answers "who calls this" and "what breaks if I rename this" more reliably than a text search, and reports compile errors right after an edit. Check shell scripts with `shellcheck`.
+
 ### Running commands
 
 Run tests, linters and builds as ordinary foreground commands, so the user sees which command runs and that the agent is working. A backend, frontend or other long-lived process the agent started to check its work is stopped before the task ends. Long-lived processes the user wants running are started by the user.
@@ -204,7 +208,7 @@ func (h *Heartbeater) IsAborted(id uuid.UUID) bool { ... }
 After each change run linting and formatting depending on folder you are working it.
 - backend and agent have `just lint` and `just format` in their folder
 - frontend has `pnpm lint`, `pnpm typecheck` and `pnpm format`
-- `just lint` and `just format` at the root cover all three
+- `just lint` and `just format` at the root cover all three; the root `just lint` also runs shellcheck on every shell script
 
 ### Comments are a last resort
 

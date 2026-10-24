@@ -103,6 +103,22 @@ jobs:
           cd frontend
           pnpm build
 
+  lint-shell:
+    if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
+    runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install tools from mise.toml
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: "just shellcheck"
+
+      - name: Run shellcheck
+        run: just lint-shell
+
   dockerfile-scan:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: namespace-profile-2vcpu-4ram-ubuntu-26-x64
@@ -827,7 +843,7 @@ jobs:
     if: github.ref != 'refs/heads/develop' && github.head_ref != 'develop'
     runs-on: namespace-profile-4vcpu-8ram-ubuntu-26-x64
     timeout-minutes: 45
-    needs: [lint-backend, lint-frontend, lint-verification-agent, dockerfile-scan]
+    needs: [lint-backend, lint-frontend, lint-shell, lint-verification-agent, dockerfile-scan]
     steps:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1

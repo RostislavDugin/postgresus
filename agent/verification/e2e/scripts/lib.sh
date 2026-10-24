@@ -6,6 +6,7 @@
 # (agent on the VM, sibling containers).
 
 MOCK="http://127.0.0.1:${E2E_MOCK_SERVER_PORT:-4050}"
+# shellcheck disable=SC2034 # read by the test-*.sh scripts that source this file
 ARTIFACTS="/opt/agent/artifacts"
 
 hb_count() {

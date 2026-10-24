@@ -413,6 +413,7 @@ fi
 #    <dir>/base.tar<ext> (still compressed) plus its <dir>/backup_manifest sidecar;
 #    pg_combinebackup reads the manifest from the extracted directory.
 echo "Reconstructing data directory with pg_combinebackup..."
+# shellcheck disable=SC2012 # the backend names the bundle directories without spaces
 INCR_DIRS="$(cd "$BUNDLE_DIR" && ls -d incr-* 2>/dev/null | sort -V || true)"
 RECON_DIR="$BUNDLE_DIR/recon"
 INPUTS=""
@@ -421,6 +422,7 @@ for backup in full $INCR_DIRS; do
     dst="$RECON_DIR/$backup"
     mkdir -p "$dst"
 
+    # shellcheck disable=SC2012 # the backend names the payload files without spaces
     blob="$(ls "$src"/base.tar* 2>/dev/null | head -n1 || true)"
     if [ -z "$blob" ]; then
         echo "error: backup '$backup' has no base.tar payload" >&2
@@ -487,9 +489,11 @@ if [ -n "$COMBINE_IMAGE" ]; then
     # host-owned and the later chmod / WAL-wiring on the host can touch it) and bind
     # the output dir at its own absolute path so $INPUTS / $DATA_DIR resolve the same
     # inside and out.
+    # shellcheck disable=SC2086 # INPUTS holds one directory per word, so an output path with a space breaks the restore
     docker run --rm --user "$(id -u):$(id -g)" -v "$OUT_ABS:$OUT_ABS" -w "$OUT_ABS" \
         "$COMBINE_IMAGE" pg_combinebackup $INPUTS -o "$DATA_DIR"
 else
+    # shellcheck disable=SC2086 # INPUTS holds one directory per word, so an output path with a space breaks the restore
     pg_combinebackup $INPUTS -o "$DATA_DIR"
 fi
 chmod 700 "$DATA_DIR"

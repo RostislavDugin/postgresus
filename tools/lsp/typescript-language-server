@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Claude Code's typescript-lsp plugin starts this server at the repository root, where no typescript
+# package is installed, so the server falls back to resolving it through NODE_PATH. The mise shim
+# replaces NODE_PATH with its own, so this wrapper, which mise.toml puts ahead of the shim on PATH,
+# runs the pinned server directly and gives it the frontend's TypeScript.
+set -euo pipefail
+
+root="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
+server_dir="$(mise where npm:typescript-language-server)"
+NODE_PATH="$root/frontend/node_modules" exec node "$server_dir/node_modules/typescript-language-server/lib/cli.mjs" "$@"

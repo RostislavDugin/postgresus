@@ -1,0 +1,3 @@
+# The scripts source their helpers by paths relative to themselves, so shellcheck follows them from there.
+external-sources=true
+source-path=SCRIPTDIR
