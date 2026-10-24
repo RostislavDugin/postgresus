@@ -6,6 +6,5 @@ export { ConfirmationComponent } from './ConfirmationComponent';
 export { InlineCodeComponent } from './InlineCodeComponent';
 export { LanguageSelectorComponent } from './LanguageSelectorComponent';
 export { LanguageThemeControlComponent } from './LanguageThemeControlComponent';
-export { SponsorshipLinkComponent } from './SponsorshipLinkComponent';
 export { StarButtonComponent } from './StarButtonComponent';
 export { ThemeToggleComponent } from './ThemeToggleComponent';

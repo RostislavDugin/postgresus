@@ -8,7 +8,7 @@ import { type UserProfile, UserRole } from '../../entity/users';
 import { useIsMobile } from '../../shared/hooks';
 import { getWebsitePageUrl, useLocale } from '../../shared/i18n';
 import { useTheme } from '../../shared/theme';
-import { LanguageThemeControlComponent, SponsorshipLinkComponent } from '../../shared/ui';
+import { LanguageThemeControlComponent } from '../../shared/ui';
 import { StarButtonComponent } from '../../shared/ui/StarButtonComponent';
 import { getDiskUsageValues } from './getDiskUsageValues';
 
@@ -214,8 +214,6 @@ export const SidebarComponent = ({
             >
               {t('app.navigation.community')}
             </a>
-
-            <SponsorshipLinkComponent className="block rounded text-sm font-medium !text-gray-700 hover:bg-gray-100 hover:!text-blue-600 dark:!text-gray-300 dark:hover:bg-gray-700" />
 
             <div className="flex pt-2">
               <StarButtonComponent />

@@ -211,13 +211,6 @@ export default function MysqlBackupPage() {
               >
                 社区
               </a>
-
-              <a
-                href="/sponsorship"
-                className="py-2 hover:text-gray-300 transition-colors"
-              >
-                赞助
-              </a>
             </div>
 
             {/* GitHub + language split button */}
@@ -324,13 +317,6 @@ export default function MysqlBackupPage() {
                 </svg>
 
                 <span>GitHub</span>
-              </a>
-
-              <a
-                href="/sponsorship"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg font-medium bg-[#155dfc] text-white hover:opacity-80 transition-opacity order-5"
-              >
-                赞助 Databasus 🤝
               </a>
             </div>
           </div>
@@ -1125,12 +1111,6 @@ export default function MysqlBackupPage() {
                   className="hover:text-gray-200 transition-colors"
                 >
                   社区
-                </a>
-                <a
-                  href="/sponsorship"
-                  className="hover:text-gray-200 transition-colors"
-                >
-                  赞助
                 </a>
                 <a
                   href="https://rostislav-dugin.com"

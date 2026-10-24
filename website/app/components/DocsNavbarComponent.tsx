@@ -5,36 +5,30 @@ import LanguageSelectorComponent from "./LanguageSelectorComponent";
 
 const NAVBAR_LABELS: Record<
   Locale | "en",
-  { community: string; sponsorship: string; starOnGithub: string }
+  { community: string; starOnGithub: string }
 > = {
   en: {
     community: "Community",
-    sponsorship: "Sponsorship",
     starOnGithub: "Star on GitHub, it's really important ❤️",
   },
   ru: {
     community: "Сообщество",
-    sponsorship: "Спонсорство",
     starOnGithub: "Поставьте звезду на GitHub, это очень важно ❤️",
   },
   es: {
     community: "Comunidad",
-    sponsorship: "Patrocinio",
     starOnGithub: "Danos una estrella en GitHub, es muy importante ❤️",
   },
   pt: {
     community: "Comunidade",
-    sponsorship: "Patrocínio",
     starOnGithub: "Dê uma estrela no GitHub, é muito importante ❤️",
   },
   zh: {
     community: "社区",
-    sponsorship: "赞助",
     starOnGithub: "在 GitHub 上点个星，这对我们很重要 ❤️",
   },
   fr: {
     community: "Communauté",
-    sponsorship: "Sponsoring",
     starOnGithub: "Mettez une étoile sur GitHub, c'est très important ❤️",
   },
 };
@@ -71,12 +65,6 @@ export default function DocsNavbarComponent({
             rel="noopener noreferrer"
           >
             {labels.community}
-          </a>
-          <a
-            className="text-gray-300 hover:text-white transition-colors"
-            href="/sponsorship"
-          >
-            {labels.sponsorship}
           </a>
         </div>
 

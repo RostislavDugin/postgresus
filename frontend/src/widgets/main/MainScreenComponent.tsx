@@ -25,7 +25,7 @@ import {
 } from '../../features/workspaces';
 import { useIsMobile, useIsNewGitHubVersionAvailable, useScreenHeight } from '../../shared/hooks';
 import { getWebsitePageUrl, translateApiError, useLocale } from '../../shared/i18n';
-import { LanguageThemeControlComponent, SponsorshipLinkComponent } from '../../shared/ui';
+import { LanguageThemeControlComponent } from '../../shared/ui';
 import { StarButtonComponent } from '../../shared/ui/StarButtonComponent';
 import { getDiskUsageValues } from './getDiskUsageValues';
 import { type MainTab, SidebarComponent, type SidebarTab } from './SidebarComponent';
@@ -233,8 +233,6 @@ export const MainScreenComponent = () => {
           >
             {t('app.navigation.community')}
           </a>
-
-          <SponsorshipLinkComponent className="!text-black hover:opacity-80 dark:!text-gray-200" />
 
           {isUsedMoreThan85Percent && (
             <Tooltip title={t('app.diskUsage.hint')}>

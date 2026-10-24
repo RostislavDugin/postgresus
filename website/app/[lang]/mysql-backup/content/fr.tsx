@@ -211,13 +211,6 @@ export default function MysqlBackupPage() {
               >
                 Communauté
               </a>
-
-              <a
-                href="/sponsorship"
-                className="py-2 hover:text-gray-300 transition-colors"
-              >
-                Sponsoring
-              </a>
             </div>
 
             {/* GitHub + language split button */}
@@ -326,13 +319,6 @@ export default function MysqlBackupPage() {
                 </svg>
 
                 <span>GitHub</span>
-              </a>
-
-              <a
-                href="/sponsorship"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg font-medium bg-[#155dfc] text-white hover:opacity-80 transition-opacity order-5"
-              >
-                Sponsoriser Databasus 🤝
               </a>
             </div>
           </div>
@@ -1164,12 +1150,6 @@ export default function MysqlBackupPage() {
                   className="hover:text-gray-200 transition-colors"
                 >
                   Communauté
-                </a>
-                <a
-                  href="/sponsorship"
-                  className="hover:text-gray-200 transition-colors"
-                >
-                  Sponsoring
                 </a>
                 <a
                   href="https://rostislav-dugin.com"

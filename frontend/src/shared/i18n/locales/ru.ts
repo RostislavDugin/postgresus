@@ -89,10 +89,6 @@ export const ru: typeof en = {
       notFound: 'Рабочие пространства не найдены',
       createNew: '+ Новое рабочее пространство',
     },
-    sponsorship: {
-      link: 'Поддержать',
-      hint: 'Databasus спас ваши данные? Поддержите проект, чтобы он оставался бесплатным, развивался и не зависел ни от кого.',
-    },
     starButton: {
       label: 'Поставить звезду',
       ariaLabel: 'Поставить звезду databasus/databasus на GitHub',

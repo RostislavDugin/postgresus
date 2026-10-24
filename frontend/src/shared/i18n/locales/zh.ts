@@ -89,10 +89,6 @@ export const zh: typeof en = {
       notFound: '未找到工作区',
       createNew: '+ 新建工作区',
     },
-    sponsorship: {
-      link: '赞助',
-      hint: 'Databasus 帮你保住了数据？欢迎支持 Databasus，让它继续免费、持续维护、保持独立。',
-    },
     starButton: {
       label: '在 GitHub 上加星标',
       ariaLabel: '在 GitHub 上为 databasus/databasus 加星标',

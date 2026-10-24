@@ -278,13 +278,6 @@ export default function Index() {
               >
                 Community
               </a>
-
-              <a
-                href="/sponsorship"
-                className="py-2 hover:text-gray-300 transition-colors"
-              >
-                Sponsorship
-              </a>
             </div>
 
             {/* GitHub + language split button */}
@@ -1755,12 +1748,6 @@ export default function Index() {
                   className="hover:text-gray-200 transition-colors"
                 >
                   Community
-                </a>
-                <a
-                  href="/sponsorship"
-                  className="hover:text-gray-200 transition-colors"
-                >
-                  Sponsorship
                 </a>
                 <a
                   href="https://rostislav-dugin.com"

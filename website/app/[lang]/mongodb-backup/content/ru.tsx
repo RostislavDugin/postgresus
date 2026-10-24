@@ -197,13 +197,6 @@ export default function MongodbBackupPage() {
               >
                 Сообщество
               </a>
-
-              <a
-                href="/sponsorship"
-                className="py-2 hover:text-gray-300 transition-colors"
-              >
-                Спонсорство
-              </a>
             </div>
 
             {/* GitHub + language split button */}
@@ -312,13 +305,6 @@ export default function MongodbBackupPage() {
                 </svg>
 
                 <span>GitHub</span>
-              </a>
-
-              <a
-                href="/sponsorship"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg font-medium bg-[#155dfc] text-white hover:opacity-80 transition-opacity order-5"
-              >
-                Поддержать Databasus 🤝
               </a>
             </div>
           </div>
@@ -1051,12 +1037,6 @@ export default function MongodbBackupPage() {
                   className="hover:text-gray-200 transition-colors"
                 >
                   Сообщество
-                </a>
-                <a
-                  href="/sponsorship"
-                  className="hover:text-gray-200 transition-colors"
-                >
-                  Спонсорство
                 </a>
                 <a
                   href="https://rostislav-dugin.com"

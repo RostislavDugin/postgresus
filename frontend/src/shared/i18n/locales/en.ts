@@ -89,10 +89,6 @@ export const en = {
       notFound: 'No workspaces found',
       createNew: '+ Create new workspace',
     },
-    sponsorship: {
-      link: 'Sponsorship',
-      hint: 'Databasus saved your data? You can support Databasus as well to keep it free, maintained and independent',
-    },
     starButton: {
       label: 'Star on GitHub',
       ariaLabel: 'Star databasus/databasus on GitHub',
