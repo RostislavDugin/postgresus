@@ -1236,8 +1236,10 @@ jobs:
       - name: Resolve digest-pinned base image
         id: pinned-base-image
         run: |
-          DIGEST=$(docker buildx imagetools inspect postgres:${{ matrix.major }} --format '{{.Manifest.Digest}}')
-          echo "image=postgres:${{ matrix.major }}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          # buildx v0.32.1 on Namespace runners ignores --format and prints the full
+          # summary, so the digest is hashed from the raw manifest bytes instead.
+          manifest_hash=$(docker buildx imagetools inspect --raw postgres:${{ matrix.major }} | sha256sum | cut -d' ' -f1)
+          echo "image=postgres:${{ matrix.major }}@sha256:${manifest_hash}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push verification image by digest
         id: verification-image-push
