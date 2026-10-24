@@ -36,6 +36,10 @@
   <p style="margin-top: 20px; margin-bottom: 20px; font-size: 1.2em;">
     <a href="https://databasus.com" target="_blank"><strong>🌐 Databasus website</strong></a>
   </p>
+
+  <p>
+    <a href="https://app.railyard.run/deploy?repo=https://github.com/databasus/databasus"><img src="https://app.railyard.run/deploy/badge" alt="Deploy to Railyard"></a>
+  </p>
   
   <img src="assets/dashboard-dark.svg" alt="Databasus Dark Dashboard" width="800" style="margin-bottom: 10px;"/>
 
